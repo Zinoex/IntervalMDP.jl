@@ -1,15 +1,12 @@
+# Vector of sparse vectors
 function construct_ordering(T, p::VVR) where {VVR <: AbstractVector{<:AbstractSparseVector}}
     # Assume that each vector corresponds to a start state
 
-    n = length(p)
-    perm = collect(UnitRange{T}(1, n + 1))
+    n, m = length(first(p)), length(p)
+    perm = collect(UnitRange{T}(1, n))
+    state_to_subset = construct_state_to_subset(T, n)
 
-    state_to_subset = Vector{Vector{T}}(undef, n + 1)
-    for i in eachindex(state_to_subset)
-        state_to_subset[i] = Int64[]
-    end
-
-    subsets = Vector{PermutationSubset{T, Vector{T}}}(undef, n)
+    subsets = Vector{PermutationSubset{T, Vector{T}}}(undef, m)
     for j in eachindex(subsets)
         subsets[j] = PermutationSubset(1, Vector{T}(undef, nnz(p[j])))
 
