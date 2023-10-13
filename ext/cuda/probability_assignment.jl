@@ -12,12 +12,12 @@ function IMDP.probability_assignment!(
     threads = 1024
     blocks = ceil(Int64, n / threads)
 
-    @cuda blocks=blocks threads=threads probability_assignment_from_kernel!(p, gap(prob), sum_lower(prob), indices, ordering)
+    @cuda blocks=blocks threads=threads add_gap_kernel!(p, gap(prob), sum_lower(prob), indices, ordering)
 
     return p
 end
 
-function probability_assignment_from_kernel!(
+function add_gap_kernel!(
     p::MR,
     gap::MR,
     sum_lower::VR,
@@ -25,7 +25,7 @@ function probability_assignment_from_kernel!(
     ordering,
 ) where {R, VR <: CuVector{R}, MR <: CuMatrix{R}}
 
-    k = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    k = (blockIdx().x - 1i32) * blockDim().x + threadIdx().x
 
     if k <= length(indices)
         j = indices[k]
