@@ -38,8 +38,6 @@ function IMDP.construct_ordering(T, p::AbstractSparseMatrix)
     end
 
     return SparseOrdering(perm, state_to_subset, subsets)
-    n = size(p, 1)
-    return DenseOrdering{T}(n)
 end
 
 function construct_state_to_subset(T, n)
