@@ -3,6 +3,12 @@ uuid = "051c988a-e73c-45a4-90ec-875cac0402c7"
 authors = ["Frederik Baymler Mathiesen <frederik@baymler.com> and contributors"]
 version = "0.1.0"
 
+[weakdeps]
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[extensions]
+IMDPSparseExt = "SparseArrays"
+
 [compat]
 julia = "1.9"
 
