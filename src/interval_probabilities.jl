@@ -34,12 +34,12 @@ struct MatrixIntervalProbabilities{R, MR <: AbstractMatrix{R}}
 end
 
 function MatrixIntervalProbabilities(lower::MR, gap::MR) where {R, MR <: AbstractMatrix{R}}
-    sum_lower = sum(lower; dims = 1)
+    sum_lower = vec(sum(lower; dims = 1))
 
-    max_lower_bound = max(sum_lower)
+    max_lower_bound = maximum(sum_lower)
     @assert max_lower_bound <= 1 "The joint lower bound transition probability per column (max is $max_lower_bound) should be less than or equal to 1."
 
-    sum_gap = sum(gap; dims = 1)
+    sum_gap = vec(sum(gap; dims = 1))
     max_upper_bound = maximum(sum_lower + sum_gap)
     @assert max_upper_bound >= 1 "The joint upper bound transition probability per column (max is $max_upper_bound) should be greater than or equal to 1."
 
