@@ -1,6 +1,6 @@
 module IMDPSparseExt
-    using SparseArrays
+using SparseArrays
 
-    include("sparse/ordering.jl")
-    export SparseOrdering
+include("sparse/ordering.jl")
+export SparseOrdering
 end

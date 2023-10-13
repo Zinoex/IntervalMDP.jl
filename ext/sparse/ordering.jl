@@ -1,7 +1,7 @@
 ###################
 # Sparse ordering #
 ###################
-struct SparseOrdering{T<:Integer, VT<:AbstractVector{T}} <: AbstractStateOrdering{T}
+struct SparseOrdering{T <: Integer, VT <: AbstractVector{T}} <: AbstractStateOrdering{T}
     perm::VT
     state_to_subset::Vector{Vector{T}}
     subsets::Vector{PermutationSubset{T, VT}}
@@ -11,18 +11,18 @@ end
 perm(order::SparseOrdering, state) = order.subsets[state].items
 
 # Vector of sparse vectors
-mutable struct PermutationSubset{T<:Integer, VT<:AbstractVector{T}}
+mutable struct PermutationSubset{T <: Integer, VT <: AbstractVector{T}}
     ptr::T
     items::VT
 end
 
 function Base.empty!(subset::PermutationSubset)
-    subset.ptr = 1
+    return subset.ptr = 1
 end
 
 function Base.push!(subset::PermutationSubset, item)
     subset.items[subset.ptr] = item
-    subset.ptr += 1
+    return subset.ptr += 1
 end
 
 function reset_subsets!(subsets)
@@ -41,7 +41,7 @@ function populate_subsets!(order::SparseOrdering)
     end
 end
 
-function construct_ordering{T}(p::VVR) where {VVR<:AbstractVector{<:AbstractSparseVector}}
+function construct_ordering{T}(p::VVR) where {VVR <: AbstractVector{<:AbstractSparseVector}}
     # Assume that each vector corresponds to a start state
 
     n = length(p)
@@ -65,7 +65,9 @@ function construct_ordering{T}(p::VVR) where {VVR<:AbstractVector{<:AbstractSpar
     return SparseOrdering(perm, state_to_subset, subsets)
 end
 
-function sort_states!(order::SparseOrdering, V; max=true)
-    sortperm!(order.perm, V; rev=rev)  # rev=true for maximization
+function sort_states!(order::SparseOrdering, V; max = true)
+    sortperm!(order.perm, V; rev = rev)  # rev=true for maximization
     populate_subsets!(order)
+    
+    return order
 end

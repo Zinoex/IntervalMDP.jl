@@ -6,7 +6,7 @@ abstract type AbstractStateOrdering{T} end
 ##################
 # Dense ordering #
 ##################
-struct DenseOrdering{T<:Integer, VT<:AbstractVector{T}} <: AbstractStateOrdering{T}
+struct DenseOrdering{T <: Integer, VT <: AbstractVector{T}} <: AbstractStateOrdering{T}
     perm::VT
 end
 
@@ -18,7 +18,7 @@ end
 perm(order::DenseOrdering, state) = order.perm
 
 # Vector of dense vectors
-function construct_ordering{T}(p::VV) where {T, VV<:AbstractVector{<:AbstractVector}}
+function construct_ordering{T}(p::VV) where {T, VV <: AbstractVector{<:AbstractVector}}
     # Assume that each vector corresponds to a start state
     n = length(p)
     return DenseOrdering{T}(n + 1)
@@ -31,6 +31,8 @@ function construct_ordering{T}(p::AbstractMatrix) where {T}
     return DenseOrdering{T}(n)
 end
 
-function sort_states!(order::DenseOrdering, V; max=true)
-    sortperm!(order.perm, V; rev=max)  # rev=true for maximization
+function sort_states!(order::DenseOrdering, V; max = true)
+    sortperm!(order.perm, V; rev = max)  # rev=true for maximization
+
+    return order
 end
