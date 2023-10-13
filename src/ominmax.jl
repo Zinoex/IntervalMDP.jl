@@ -26,13 +26,52 @@ function ominmax!(
     return p
 end
 
+function partial_ominmax(prob, V, indices; max = true)
+    ordering = construct_ordering(gap(prob))
+    return partial_ominmax!(ordering, prob, V, indices; max = max)
+end
+
+function partial_ominmax!(
+    ordering::AbstractStateOrdering,
+    prob,
+    V,
+    indices;
+    max = true,
+)
+    p = deepcopy(gap(prob))
+    return partial_ominmax!(ordering, p, prob, V, indices; max = max)
+end
+
+function partial_ominmax!(
+    ordering::AbstractStateOrdering,
+    p,
+    prob,
+    V,
+    indices;
+    max = true,
+)
+    sort_states!(ordering, V; max = max)
+    probability_assignment!(p, prob, ordering, indices)
+
+    return p
+end
+
 # Vector of vectors
 function probability_assignment!(
     p::VVR,
     prob::Vector{<:StateIntervalProbabilities{R}},
-    ordering::AbstractStateOrdering,
+    ordering::AbstractStateOrdering
 ) where {R, VVR <: AbstractVector{<:AbstractVector{R}}}
-    for j in eachindex(p)
+    probability_assignment!(p, prob, ordering, eachindex(p))
+end
+
+function probability_assignment!(
+    p::VVR,
+    prob::Vector{<:StateIntervalProbabilities{R}},
+    ordering::AbstractStateOrdering,
+    indices
+) where {R, VVR <: AbstractVector{<:AbstractVector{R}}}
+    for j in indices
         probability_assignment_from!(p[j], prob[j], perm(ordering, j))
     end
 end
@@ -43,7 +82,16 @@ function probability_assignment!(
     prob::MatrixIntervalProbabilities{R},
     ordering::AbstractStateOrdering,
 ) where {R, MR <: AbstractMatrix{R}}
-    for j in axes(p, 2)
+    probability_assignment!(p, prob, ordering, axes(p, 2))
+end
+
+function probability_assignment!(
+    p::MR,
+    prob::MatrixIntervalProbabilities{R},
+    ordering::AbstractStateOrdering,
+    indices
+) where {R, MR <: AbstractMatrix{R}}
+    for j in indices
         pⱼ = view(p, :, j)
         probⱼ = StateIntervalProbabilities(
             view(lower(prob), :, j),
