@@ -1,5 +1,5 @@
 # Vector of sparse vectors
-function construct_ordering(T, p::VVR) where {VVR <: AbstractVector{<:AbstractSparseVector}}
+function IMDP.construct_ordering(T, p::VVR) where {VVR <: AbstractVector{<:AbstractSparseVector}}
     # Assume that each vector corresponds to a start state
 
     n, m = length(first(p)), length(p)
@@ -12,7 +12,7 @@ function construct_ordering(T, p::VVR) where {VVR <: AbstractVector{<:AbstractSp
 
         ids = SparseArrays.nonzeroinds(p[j])  # This is not exported, but we need the non-zero indices
         for i in ids
-            push!(state_to_subset[i].index, j)
+            push!(state_to_subset[i], j)
         end
     end
 
@@ -20,7 +20,7 @@ function construct_ordering(T, p::VVR) where {VVR <: AbstractVector{<:AbstractSp
 end
 
 # Sparse matrix
-function construct_ordering(T, p::AbstractSparseMatrix)
+function IMDP.construct_ordering(T, p::AbstractSparseMatrix)
     # Assume that input/start state is on the columns and output/target state is on the rows
     n, m = size(p)
     perm = collect(UnitRange{T}(1, n))
@@ -33,7 +33,7 @@ function construct_ordering(T, p::AbstractSparseMatrix)
 
         ids = SparseArrays.nonzeroinds(pⱼ)  # This is not exported, but we need the non-zero indices
         for i in ids
-            push!(state_to_subset[i].index, j)
+            push!(state_to_subset[i], j)
         end
     end
 
@@ -49,10 +49,4 @@ function construct_state_to_subset(T, n)
     end
 
     return state_to_subset
-end
-
-function sort_states!(order::DenseOrdering, V; max = true)
-    sortperm!(order.perm, V; rev = max)  # rev=true for maximization
-
-    return order
 end
