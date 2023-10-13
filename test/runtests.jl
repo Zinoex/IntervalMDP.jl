@@ -18,3 +18,14 @@ end
         end
     end
 end
+
+@testset "IMDPCudaExt.jl" begin
+    if CUDA.functional()
+        test_files = ["cuda.jl"]
+        for f in test_files
+            @testset "$f" begin
+                include(f)
+            end
+        end
+    end
+end
