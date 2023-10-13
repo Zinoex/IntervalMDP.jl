@@ -82,6 +82,6 @@ end
 function sort_states!(order::SparseOrdering, V; max = true)
     sortperm!(order.perm, V; rev = max)  # rev=true for maximization
     populate_subsets!(order)
-    
+
     return order
 end

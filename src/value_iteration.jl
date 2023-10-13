@@ -14,7 +14,7 @@ function (f::CovergenceCriteria)(k, prev_V, V)
             return false
         end
     end
-    
+
     return true
 end
 
@@ -40,7 +40,15 @@ function interval_value_iteration(prob, V, fix_indices, termination_criteria; ma
     return V, k, prev_V - V
 end
 
-function step!(ordering, p, prob::Vector{<:StateIntervalProbabilities}, prev_V, V, indices; max)
+function step!(
+    ordering,
+    p,
+    prob::Vector{<:StateIntervalProbabilities},
+    prev_V,
+    V,
+    indices;
+    max,
+)
     partial_ominmax!(ordering, p, prob, V, indices; max = max)
 
     @inbounds for j in indices
