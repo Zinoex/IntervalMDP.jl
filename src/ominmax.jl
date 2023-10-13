@@ -95,7 +95,7 @@ function probability_assignment!(
     prob::MatrixIntervalProbabilities{R},
     ordering::AbstractStateOrdering,
 ) where {R, MR <: AbstractMatrix{R}}
-    Threads.@threads for j in axes(p, 2)
+    for j in axes(p, 2)
         pⱼ = view(p, :, j)
         probⱼ = StateIntervalProbabilities(
             view(lower(prob), :, j),
