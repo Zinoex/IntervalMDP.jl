@@ -30,10 +30,10 @@ end
 
 function probability_assignment!(
     p::VVR,
-    prob::Vector{StateIntervalProbabilities{R}},
+    prob::Vector{<:StateIntervalProbabilities{R}},
     ordering::AbstractStateOrdering,
 ) where {R, VVR <: AbstractVector{<:AbstractVector{R}}}
-    Threads.@threads for j in eachindex(p)
+    for j in eachindex(p)
         probability_assignment_from!(p[j], prob[j], perm(ordering, j))
     end
 end
@@ -43,7 +43,7 @@ function probability_assignment_from!(
     prob::StateIntervalProbabilities{R},
     perm,
 ) where {R, VR <: AbstractVector{R}}
-    copyto!(p, lower(prob))
+    @inbounds copyto!(p, lower(prob))
 
     remaining = 1.0 - sum_lower(prob)
     g = gap(prob)
@@ -80,7 +80,7 @@ end
 function ominmax!(
     ordering::AbstractStateOrdering,
     p,
-    prob::Vector{<:StateIntervalProbabilities},
+    prob::MatrixIntervalProbabilities,
     V;
     max = true,
 )

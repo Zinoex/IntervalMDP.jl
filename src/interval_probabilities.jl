@@ -13,7 +13,7 @@ function StateIntervalProbabilities(lower::VR, gap::VR) where {R, VR <: Abstract
     joint_upper_bound = joint_lower_bound + sum(gap)
     @assert joint_upper_bound >= 1 "The joint upper bound transition probability (is $joint_upper_bound) should be greater than or equal to 1."
 
-    return new{R, VR}(lower, gap, joint_lower_bound)
+    return StateIntervalProbabilities(lower, gap, joint_lower_bound)
 end
 
 # Keyword constructor
@@ -43,14 +43,14 @@ function MatrixIntervalProbabilities(lower::MR, gap::MR) where {R, MR <: Abstrac
     max_upper_bound = maximum(sum_lower + sum_gap)
     @assert max_upper_bound >= 1 "The joint upper bound transition probability per column (max is $max_upper_bound) should be greater than or equal to 1."
 
-    return new{R, MR}(lower, gap, sum_lower)
+    return MatrixIntervalProbabilities(lower, gap, sum_lower)
 end
 
 # Keyword constructor
 function MatrixIntervalProbabilities(;
     lower::MR,
     upper::MR,
-) where {R, MR <: AbstractMatrix{R}}
+) where {MR <: AbstractMatrix}
     gap = upper - lower
     return MatrixIntervalProbabilities(lower, gap)
 end
