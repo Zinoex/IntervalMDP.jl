@@ -1,5 +1,5 @@
 # Default ordering type
-construct_ordering(p) = construct_ordering(Int64, p)
+construct_ordering(p) = construct_ordering(Int32, p)
 
 abstract type AbstractStateOrdering{T} end
 
