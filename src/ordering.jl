@@ -44,6 +44,7 @@ mutable struct PermutationSubset{T <: Integer, VT <: AbstractVector{T}}
     ptr::T
     items::VT
 end
+Base.length(subset::PermutationSubset) = length(subset.items)
 
 struct SparseOrdering{T <: Integer, VT <: AbstractVector{T}} <: AbstractStateOrdering{T}
     perm::VT

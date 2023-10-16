@@ -3,7 +3,7 @@
 struct CuSparseOrdering{T} <: AbstractStateOrdering{T}
     perm::CuVector{T}
     state_to_subsets::CuVectorOfVector{T, T}
-    subsets::CuSparseMatrixCSC{T, T}
+    subsets::CuPermutationSubsets{T, T}
     ptrs::CuVector{T}
 end
 
@@ -27,7 +27,7 @@ end
 struct CuSparseDeviceOrdering{T, A} <: AbstractStateOrdering{T}
     perm::CuDeviceVector{T, A}
     state_to_subsets::CuDeviceVectorOfVector{T, T, A}
-    subsets::CuSparseDeviceMatrixCSC{T, T, A}
+    subsets::CuDevicePermutationSubsets{T, T, A}
     ptrs::CuDeviceVector{T, A}
 end
 
@@ -64,17 +64,13 @@ function populate_subsets_kernel!(order::CuSparseDeviceOrdering{T, A}) where {T,
     n = maxlength(order.state_to_subsets)
 
     if thread_id <= n
-        subsets_colptr = order.subsets.colPtr
-        subsets_nz = order.subsets.nzVal
-
         for i in order.perm
             start_states = order.state_to_subsets[i]
 
             if thread_id <= length(start_states)
                 j = start_states[thread_id]
-                ind = subsets_colptr[j] + order.ptrs[j] - T(1)
-                subsets_nz[ind] = i
-                order.ptrs[j] += T(1)
+                subset = order.subsets[j]
+                Base.push!(subset, i)
             end
 
             # We need to synchronize threads to preserve the order of the subsets
@@ -97,22 +93,20 @@ function IMDP.construct_ordering(T, p::CuSparseMatrixCSC)
     nzinds = Vector(SparseArrays.rowvals(p))
 
     for j in eachindex(subsets)
-        nrow = colptr[j + 1] - colptr[j]
-        subsets[j] = PermutationSubset(T(1), Vector{T}(undef, nrow))
+        p_col = @view p[:, j]
+        subsets[j] = PermutationSubset(T(1), Vector{T}(undef, length(p_col)))
 
+        # This is an ugly way to get the indices of the nonzero elements in the column
+        # but it is necessary as subarray does not support SparseArrays.nonzeroinds.
         ids = @view nzinds[colptr[j]:colptr[j + 1] - 1]
         for i in ids
             push!(state_to_subset[i], j)
         end
     end
-    
-    subsets = map(s -> s.items, subsets)
-    max_length = T(maximum(length, subsets))
-    subsets = mapreduce(s -> SparseVector(max_length, collect(T, eachindex(s)), s), sparse_hcat, subsets)
-    ptrs = CUDA.ones(T, n)
 
     state_to_subset = adapt(CuArray, state_to_subset)
     subsets = adapt(CuArray, subsets)
+    ptrs = CUDA.ones(T, n)
 
     order = CuSparseOrdering(perm, state_to_subset, subsets, ptrs)
     return order

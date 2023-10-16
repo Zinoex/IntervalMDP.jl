@@ -1,4 +1,4 @@
-
+### Vector of Vector
 struct CuVectorOfVector{Tv, Ti} <: AbstractVector{AbstractVector{Tv}}
     vecPtr::CuVector{Ti}
     lengths::CuVector{Ti}
@@ -18,8 +18,8 @@ Base.similar(xs::CuVectorOfVector) = CuVectorOfVector(copy(xs.vecPtr), copy(xs.l
 
 # CPU to GPU
 function CuVectorOfVector(vecs::Vector{Vector{T}}) where {T}
-    lengths = map(length, vecs)
-    vecPtr = [1; cumsum(lengths)]
+    lengths = convert.(T, map(length, vecs))
+    vecPtr = [T(1); cumsum(lengths)]
     
     return CuVectorOfVector(CuVector{Cint}(vecPtr), CuVector{Cint}(lengths), CuVector{T}(reduce(vcat, vecs)))
 end
@@ -93,4 +93,91 @@ function Base.getindex(xs::CuDeviceVectorInstance, i::Ti) where {Ti}
     end
 
     return xs.parent[xs.offset + i - Ti(1)]
+end
+function Base.setindex!(xs::CuDeviceVectorInstance, v, i::Ti) where {Ti}
+    if i > xs.length
+        throw(BoundsError(xs, i))
+    end
+
+    xs.parent[xs.offset + i - Ti(1)] = v
+end
+
+
+# Permutation subsets
+struct CuPermutationSubsets{Tv, Ti}
+    queues::CuVectorOfVector{Tv, Ti}
+    ptrs::CuVector{Ti}
+end
+
+function CUDA.unsafe_free!(subsets::CuPermutationSubsets)
+    unsafe_free!(subsets.queues)
+    unsafe_free!(subsets.ptrs)
+    return
+end
+
+Base.length(subsets::CuPermutationSubsets) = length(subsets.queues)
+Base.size(subsets::CuPermutationSubsets) = (length(subsets),)
+Base.similar(subsets::CuPermutationSubsets) = CuPermutationSubsets(similar(subsets.queues), similar(subsets.ptrs))
+
+# Indexing
+Base.getindex(xs::CuPermutationSubsets, i::Ti) where {Ti} = CuPermutationSubset(xs.queues[i], xs.ptrs, i)
+struct CuPermutationSubset{Tv, Ti}
+    queue::CuVectorInstance{Tv, Ti}
+    ptrs::CuVector{Ti}
+    index::Ti
+end
+function Base.push!(subset::CuPermutationSubset, item)
+    subset.queue[subset.ptrs[subset.index]] = item
+    subset.ptrs[subset.index] += 1
+end
+
+# CPU to GPU
+function CuPermutationSubsets(subsets::Vector{<:PermutationSubset{T}}) where {T}
+    queues = CuVectorOfVector(map(x -> x.items, subsets))
+    ptrs = CUDA.ones(T, length(subsets))
+    
+    return CuPermutationSubsets(queues, ptrs)
+end
+
+Adapt.adapt_storage(::Type{CuArray}, subsets::Vector{<:PermutationSubset}) = CuPermutationSubsets(subsets)
+
+# GPU to CPU
+function Vector(subsets::CuPermutationSubsets{T}) where {T}
+    vecs = Vector{PermutationSubset{T, Vector{T}}}(undef, length(subsets.queues))
+    for i in eachindex(vecs)
+        vecs[i] = PermutationSubset{T, Vector{T}}(subsets.ptrs[i], Vector(subsets.queues[i]))
+    end
+
+    return vecs
+end
+
+Adapt.adapt_storage(::Type{Array}, subsets::CuPermutationSubsets) = Vector(subsets)
+
+# Device
+struct CuDevicePermutationSubsets{Tv, Ti, A}
+    queues::CuDeviceVectorOfVector{Tv, Ti, A}
+    ptrs::CuDeviceVector{Ti, A}
+end
+
+Base.length(subsets::CuDevicePermutationSubsets) = length(subsets.queues)
+Base.size(subsets::CuDevicePermutationSubsets) = (length(subsets),)
+
+function Adapt.adapt_structure(to::CUDA.Adaptor, subsets::CuPermutationSubsets)
+    return CuDevicePermutationSubsets(
+        adapt(to, subsets.queues),
+        adapt(to, subsets.ptrs)
+    )
+end
+
+# Indexing
+Base.getindex(xs::CuDevicePermutationSubsets, i::Ti) where {Ti} = CuDevicePermutationSubset(xs.queues[i], xs.ptrs, i)
+struct CuDevicePermutationSubset{Tv, Ti, A}
+    queue::CuDeviceVectorInstance{Tv, Ti, A}
+    ptrs::CuDeviceVector{Ti, A}
+    index::Ti
+end
+
+function Base.push!(subset::CuDevicePermutationSubset{Tv, Ti}, item::Tv) where {Tv, Ti}
+    subset.queue[subset.ptrs[subset.index]] = item
+    subset.ptrs[subset.index] += 1
 end
