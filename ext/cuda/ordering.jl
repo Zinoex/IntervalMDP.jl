@@ -1,25 +1,41 @@
 
 
-struct SparseCudaOrdering{T, VT <: AbstractVector{T}, MT <: AbstractSparseMatrix{T, T}} <: AbstractStateOrdering{T}
-    perm::VT
-    state_to_subset::MT
-    subsets::MT
-    ptrs::VT
+struct CuSparseOrdering{T} <: AbstractStateOrdering{T}
+    perm::CuVector{T}
+    state_to_subsets::CuVectorOfVector{T, T}
+    subsets::CuSparseMatrixCSC{T, T}
+    ptrs::CuVector{T}
 end
 
-function Adapt.adapt_structure(to::CUDA.Adaptor, x::SparseCudaOrdering)
-    return SparseCudaOrdering(
-        adapt(to, x.perm),
-        adapt(to, x.state_to_subset),
-        adapt(to, x.subsets),
-        adapt(to, x.ptrs),
+function CUDA.unsafe_free!(o::CuSparseOrdering)
+    unsafe_free!(o.perm)
+    unsafe_free!(o.state_to_subsets)
+    unsafe_free!(o.subsets)
+    unsafe_free!(o.ptrs)
+    return
+end
+
+function Adapt.adapt_structure(to::CUDA.Adaptor, o::CuSparseOrdering)
+    return CuSparseDeviceOrdering(
+        adapt(to, o.perm),
+        adapt(to, o.state_to_subsets),
+        adapt(to, o.subsets),
+        adapt(to, o.ptrs)
     )
 end
 
-# Permutations are specific to each state
-IMDP.perm(order::SparseCudaOrdering, state) = order.subsets[:, state]
+struct CuSparseDeviceOrdering{T, A} <: AbstractStateOrdering{T}
+    perm::CuDeviceVector{T, A}
+    state_to_subsets::CuDeviceVectorOfVector{T, T, A}
+    subsets::CuSparseDeviceMatrixCSC{T, T, A}
+    ptrs::CuDeviceVector{T, A}
+end
 
-function IMDP.sort_states!(order::SparseCudaOrdering, V; max = true)
+# Permutations are specific to each state
+IMDP.perm(order::CuSparseOrdering, state) = order.subsets[:, state]
+IMDP.perm(order::CuSparseDeviceOrdering, state) = order.subsets[:, state]
+
+function IMDP.sort_states!(order::CuSparseOrdering, V; max = true)
     sortperm!(order.perm, V; rev = max)  # rev=true for maximization
     populate_subsets!(order)
 
@@ -30,10 +46,10 @@ function reset_subsets!(order)
     fill!(order.ptrs, 1)
 end
 
-function populate_subsets!(order::SparseCudaOrdering)
+function populate_subsets!(order::CuSparseOrdering)
     reset_subsets!(order)
 
-    n = size(order.state_to_subset, 1)
+    n = maxlength(order.state_to_subsets)
 
     threads = 256
     blocks = ceil(Int64, n / threads)
@@ -43,22 +59,19 @@ function populate_subsets!(order::SparseCudaOrdering)
     return order
 end
 
-function populate_subsets_kernel!(order::SparseCudaOrdering{T}) where {T}
+function populate_subsets_kernel!(order::CuSparseDeviceOrdering{T, A}) where {T, A}
     thread_id = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
-    n = size(order.state_to_subset, 1)
+    n = maxlength(order.state_to_subsets)
 
     if thread_id <= n
-        colptr = order.state_to_subset.colPtr
-        nzs = order.state_to_subset.nzVal
-
         subsets_colptr = order.subsets.colPtr
         subsets_nz = order.subsets.nzVal
 
         for i in order.perm
-            nrow = colptr[i + T(1)] - colptr[i]
+            start_states = order.state_to_subsets[i]
 
-            if thread_id <= nrow
-                j = nzs[colptr[i] + thread_id - T(1)]
+            if thread_id <= length(start_states)
+                j = start_states[thread_id]
                 ind = subsets_colptr[j] + order.ptrs[j] - T(1)
                 subsets_nz[ind] = i
                 order.ptrs[j] += T(1)
@@ -92,9 +105,6 @@ function IMDP.construct_ordering(T, p::CuSparseMatrixCSC)
             push!(state_to_subset[i], j)
         end
     end
-
-    max_length = T(maximum(length, state_to_subset))
-    state_to_subset = mapreduce(s -> SparseVector(max_length, collect(T, eachindex(s)), s), sparse_hcat, state_to_subset)
     
     subsets = map(s -> s.items, subsets)
     max_length = T(maximum(length, subsets))
@@ -104,7 +114,8 @@ function IMDP.construct_ordering(T, p::CuSparseMatrixCSC)
     state_to_subset = adapt(CuArray, state_to_subset)
     subsets = adapt(CuArray, subsets)
 
-    return SparseCudaOrdering(perm, state_to_subset, subsets, ptrs)
+    order = CuSparseOrdering(perm, state_to_subset, subsets, ptrs)
+    return order
 end
 
 function construct_state_to_subset(T, n)

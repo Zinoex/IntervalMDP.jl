@@ -2,7 +2,7 @@
 function IMDP.probability_assignment!(
     p::MR,
     prob::MatrixIntervalProbabilities{R},
-    ordering::SparseCudaOrdering,
+    ordering::CuSparseOrdering,
     indices,
 ) where {R, MR <: AbstractCuSparseMatrix{R}}
     launch_fixed_index_copýto!(p, lower(prob))
@@ -65,7 +65,7 @@ end
 function launch_add_gap_scalar_kernel!(
     p::MR,
     prob::MatrixIntervalProbabilities{R},
-    ordering::SparseCudaOrdering,
+    ordering::CuSparseOrdering,
     indices,
 ) where {R, MR <: AbstractCuSparseMatrix{R}}
     n = size(p, 2)
@@ -82,7 +82,7 @@ function add_gap_scalar_kernel!(
     p,
     gap,
     sum_lower,
-    ordering::SparseCudaOrdering{T},
+    ordering::CuSparseDeviceOrdering{T},
     indices
 ) where {T}
 
@@ -128,7 +128,7 @@ function bisect_indices(inds::AbstractVector, lo::T, hi::T, i) where T<:Integer
     @inbounds while len != 0
         half_len = len >>> 0x01
         m = lo + half_len
-        if v[m] < i
+        if inds[m] < i
             lo = m + 1
             len -= half_len + 1
         else
