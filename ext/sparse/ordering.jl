@@ -8,7 +8,7 @@ function IMDP.construct_ordering(T, p::VVR) where {VVR <: AbstractVector{<:Abstr
 
     subsets = Vector{PermutationSubset{T, Vector{T}}}(undef, m)
     for j in eachindex(subsets)
-        subsets[j] = PermutationSubset(1, Vector{T}(undef, nnz(p[j])))
+        subsets[j] = PermutationSubset(T(1), Vector{T}(undef, nnz(p[j])))
 
         ids = SparseArrays.nonzeroinds(p[j])  # This is not exported, but we need the non-zero indices
         for i in ids
@@ -29,7 +29,7 @@ function IMDP.construct_ordering(T, p::AbstractSparseMatrix)
     subsets = Vector{PermutationSubset{T, Vector{T}}}(undef, m)
     for j in eachindex(subsets)
         pⱼ = view(p, :, j)
-        subsets[j] = PermutationSubset(1, Vector{T}(undef, nnz(pⱼ)))
+        subsets[j] = PermutationSubset(T(1), Vector{T}(undef, nnz(pⱼ)))
 
         ids = SparseArrays.nonzeroinds(pⱼ)  # This is not exported, but we need the non-zero indices
         for i in ids
@@ -43,7 +43,7 @@ end
 function construct_state_to_subset(T, n)
     state_to_subset = Vector{Vector{T}}(undef, n)
     for i in eachindex(state_to_subset)
-        state_to_subset[i] = Int64[]
+        state_to_subset[i] = T[]
     end
 
     return state_to_subset
