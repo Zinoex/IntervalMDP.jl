@@ -1,6 +1,11 @@
 module IMDPCudaExt
 
-using IMDP, CUDA, CUDA.CUSPARSE, Adapt, SparseArrays
+import LLVM
+using LLVM.Interop: assume
+
+using CUDA, CUDA.CUSPARSE, Adapt, SparseArrays
+
+using IMDP
 
 Adapt.@adapt_structure MatrixIntervalProbabilities
 
