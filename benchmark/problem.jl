@@ -5,7 +5,7 @@ rng = MersenneTwister(55392)
 
 n = 40000
 nnz_per_column = 200
-prob_split = 1/nnz_per_column
+prob_split = 1 / nnz_per_column
 
 q = collect(1:n)
 rand_val_lower = rand(rng, Float64, nnz_per_column * n) .* prob_split
@@ -19,11 +19,11 @@ col_ptrs = Int32[1; collect(1:n) .* nnz_per_column .+ 1]
     rand_index = shuffle!(rng, q)[1:nnz_per_column]
     sort!(rand_index)
 
-    row_vals[(j - 1) * nnz_per_column + 1:j * nnz_per_column] .= rand_index
+    row_vals[((j - 1) * nnz_per_column + 1):(j * nnz_per_column)] .= rand_index
 end
 
 lower = SparseMatrixCSC{Float64, Int32}(n, n, col_ptrs, row_vals, rand_val_lower)
 upper = SparseMatrixCSC{Float64, Int32}(n, n, col_ptrs, row_vals, rand_val_upper)
 
-prob = MatrixIntervalProbabilities(;lower=lower, upper=upper)
+prob = MatrixIntervalProbabilities(; lower = lower, upper = upper)
 V = rand(Float64, n)
