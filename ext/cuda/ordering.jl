@@ -1,5 +1,4 @@
 
-
 struct CuSparseOrdering{T} <: AbstractStateOrdering{T}
     perm::CuVector{T}
     state_to_subsets::CuVectorOfVector{T, T}
@@ -17,7 +16,7 @@ function Adapt.adapt_structure(to::CUDA.Adaptor, o::CuSparseOrdering)
     return CuSparseDeviceOrdering(
         adapt(to, o.perm),
         adapt(to, o.state_to_subsets),
-        adapt(to, o.subsets)
+        adapt(to, o.subsets),
     )
 end
 
@@ -46,7 +45,7 @@ function populate_subsets!(order::CuSparseOrdering)
     threads = 256
     blocks = ceil(Int64, n / threads)
 
-    @cuda blocks=blocks threads=threads populate_subsets_kernel!(order)
+    @cuda blocks = blocks threads = threads populate_subsets_kernel!(order)
 
     return order
 end
@@ -90,7 +89,7 @@ function IMDP.construct_ordering(T, p::CuSparseMatrixCSC)
 
         # This is an ugly way to get the indices of the nonzero elements in the column
         # but it is necessary as subarray does not support SparseArrays.nonzeroinds.
-        ids = @view nzinds[colptr[j]:colptr[j + 1] - 1]
+        ids = @view nzinds[colptr[j]:(colptr[j + 1] - 1)]
         for i in ids
             push!(state_to_subset[i], j)
         end

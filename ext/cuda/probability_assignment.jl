@@ -18,12 +18,15 @@ function launch_fixed_index_copýto!(p::MR, lower::MR) where {MR <: CuSparseMatr
     threads = 1024
     blocks = ceil(Int64, n / threads)
 
-    @cuda blocks=blocks threads=threads fixed_index_copyto_kernel!(p, lower)
+    @cuda blocks = blocks threads = threads fixed_index_copyto_kernel!(p, lower)
 
     return p
 end
 
-function fixed_index_copyto_kernel!(p::CuSparseDeviceMatrixCSC{R, T, A}, lower::CuSparseDeviceMatrixCSC{R, T, A}) where {R, T, A}
+function fixed_index_copyto_kernel!(
+    p::CuSparseDeviceMatrixCSC{R, T, A},
+    lower::CuSparseDeviceMatrixCSC{R, T, A},
+) where {R, T, A}
     j = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
 
     if j <= size(p, 2)
@@ -41,7 +44,7 @@ function fixed_index_copyto_kernel!(p::CuSparseDeviceMatrixCSC{R, T, A}, lower::
         p_endind = p_colptr[j + T(1)]
         lower_startind = lower_colptr[j]
 
-        for i in T(0):nrow - T(1)
+        for i in T(0):(nrow - T(1))
             while p_nzinds[p_curind] < lower_nzinds[lower_startind + i]
                 p_nzs[p_curind] = R(0.0)
                 p_curind += T(1)
@@ -71,7 +74,13 @@ function launch_add_gap_scalar_kernel!(
     threads = 256
     blocks = ceil(Int64, n / threads)
 
-    @cuda blocks=blocks threads=threads add_gap_scalar_kernel!(p, gap(prob), sum_lower(prob), ordering, indices)
+    @cuda blocks = blocks threads = threads add_gap_scalar_kernel!(
+        p,
+        gap(prob),
+        sum_lower(prob),
+        ordering,
+        indices,
+    )
 
     return p
 end
@@ -81,9 +90,8 @@ function add_gap_scalar_kernel!(
     gap::CuSparseDeviceMatrixCSC{R, T, A},
     sum_lower::CuDeviceVector{R, A},
     ordering::CuSparseDeviceOrdering{T, A},
-    indices
+    indices,
 ) where {R, T, A}
-
     k = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
 
     if k <= length(indices)
@@ -92,7 +100,7 @@ function add_gap_scalar_kernel!(
         p_nzinds = p.rowVal
         p_nzs = p.nzVal
         g_nzs = gap.nzVal
-        
+
         subset = ordering.subsets[j]
 
         remaining = R(1) - sum_lower[j]
@@ -128,7 +136,13 @@ function launch_add_gap_vector_kernel!(
     threads = 256
     blocks = ceil(Int64, n / threads)
 
-    @cuda blocks=blocks threads=threads add_gap_vector_kernel!(p, gap(prob), sum_lower(prob), ordering, indices)
+    @cuda blocks = blocks threads = threads add_gap_vector_kernel!(
+        p,
+        gap(prob),
+        sum_lower(prob),
+        ordering,
+        indices,
+    )
 
     return p
 end
@@ -138,7 +152,7 @@ function add_gap_vector_kernel!(
     gap::CuSparseDeviceMatrixCSC{R, T, A},
     sum_lower::CuDeviceVector{R, A},
     ordering::CuSparseDeviceOrdering{T, A},
-    indices
+    indices,
 ) where {R, T, A}
     assume(warpsize() == 32)
 
@@ -151,7 +165,7 @@ function add_gap_vector_kernel!(
         p_nzinds = p.rowVal
         p_nzs = p.nzVal
         g_nzs = gap.nzVal
-        
+
         subset = ordering.subsets[j]
         remaining = R(1) - sum_lower[j]
 
@@ -210,7 +224,7 @@ function add_gap_vector_kernel!(
     return nothing
 end
 
-function bisect_indices(inds::AbstractVector, lo::T, hi::T, i) where T<:Integer
+function bisect_indices(inds::AbstractVector, lo::T, hi::T, i) where {T <: Integer}
     len = hi - lo
     @inbounds while len != 0
         half_len = len >>> 0x01
