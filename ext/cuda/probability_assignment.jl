@@ -6,8 +6,8 @@ function IMDP.probability_assignment!(
     indices,
 ) where {R, T}
     launch_fixed_index_copýto!(p, lower(prob))
-    # launch_add_gap_scalar_kernel!(p, prob, ordering, indices)
-    launch_add_gap_vector_kernel!(p, prob, ordering, indices)
+    launch_add_gap_scalar_kernel!(p, prob, ordering, indices)
+    # launch_add_gap_vector_kernel!(p, prob, ordering, indices)
 
     return p
 end
