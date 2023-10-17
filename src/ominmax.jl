@@ -47,7 +47,7 @@ function probability_assignment!(
     ordering::AbstractStateOrdering,
     indices,
 ) where {R, VVR <: AbstractVector{<:AbstractVector{R}}}
-    for j in indices
+    Threads.@threads for j in indices
         probability_assignment_from!(p[j], prob[j], perm(ordering, j))
     end
 end
@@ -67,7 +67,7 @@ function probability_assignment!(
     ordering::AbstractStateOrdering,
     indices,
 ) where {R, MR <: AbstractMatrix{R}}
-    for j in indices
+    Threads.@threads for j in indices
         pⱼ = view(p, :, j)
         probⱼ = StateIntervalProbabilities(
             view(lower(prob), :, j),
