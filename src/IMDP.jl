@@ -4,7 +4,7 @@ using LinearAlgebra
 
 include("interval_probabilities.jl")
 export StateIntervalProbabilities, MatrixIntervalProbabilities
-export gap
+export gap, lower, sum_lower
 
 include("ordering.jl")
 export construct_ordering, sort_states!, perm

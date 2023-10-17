@@ -1,5 +1,5 @@
 # Default ordering type
-construct_ordering(p) = construct_ordering(Int64, p)
+construct_ordering(p) = construct_ordering(Int32, p)
 
 abstract type AbstractStateOrdering{T} end
 
@@ -44,6 +44,7 @@ mutable struct PermutationSubset{T <: Integer, VT <: AbstractVector{T}}
     ptr::T
     items::VT
 end
+Base.length(subset::PermutationSubset) = length(subset.items)
 
 struct SparseOrdering{T <: Integer, VT <: AbstractVector{T}} <: AbstractStateOrdering{T}
     perm::VT

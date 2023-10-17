@@ -28,11 +28,11 @@ sum_lower(s::StateIntervalProbabilities) = s.sum_lower
 
 gap(V::Vector{<:StateIntervalProbabilities}) = gap.(V)
 
-struct MatrixIntervalProbabilities{R, MR <: AbstractMatrix{R}}
+struct MatrixIntervalProbabilities{R, VR <: AbstractVector{R}, MR <: AbstractMatrix{R}}
     lower::MR
     gap::MR
 
-    sum_lower::Vector{R}
+    sum_lower::VR
 end
 
 function MatrixIntervalProbabilities(lower::MR, gap::MR) where {R, MR <: AbstractMatrix{R}}

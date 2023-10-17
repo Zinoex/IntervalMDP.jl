@@ -7,9 +7,13 @@ version = "0.1.0"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [weakdeps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [extensions]
+IMDPCudaExt = ["Adapt", "CUDA", "SparseArrays", "LLVM"]
 IMDPSparseExt = "SparseArrays"
 
 [compat]

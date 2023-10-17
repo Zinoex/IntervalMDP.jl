@@ -27,3 +27,13 @@ upper = SparseMatrixCSC{Float64, Int32}(n, n, col_ptrs, row_vals, rand_val_upper
 
 prob = MatrixIntervalProbabilities(; lower = lower, upper = upper)
 V = rand(Float64, n)
+
+p = deepcopy(gap(prob))
+ordering = construct_ordering(gap(prob))
+
+if CUDA.functional()
+    cuda_prob = cu(prob)
+    cuda_V = cu(V)
+    cuda_p = deepcopy(gap(cuda_prob))
+    cuda_ordering = construct_ordering(gap(cuda_prob))
+end
