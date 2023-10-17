@@ -139,6 +139,10 @@ function Base.push!(subset::CuPermutationSubset, item)
     subset.ptrs[subset.index] += 1
 end
 
+function reset_subsets!(subsets::CuPermutationSubsets)
+    fill!(subsets.ptrs, 1)
+end
+
 # CPU to GPU
 function CuPermutationSubsets(subsets::Vector{<:PermutationSubset{T}}) where {T}
     queues = CuVectorOfVector(map(x -> x.items, subsets))

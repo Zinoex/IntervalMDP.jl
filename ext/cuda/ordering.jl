@@ -38,10 +38,6 @@ function IMDP.sort_states!(order::CuSparseOrdering, V; max = true)
     return order
 end
 
-function reset_subsets!(subsets::CuPermutationSubsets)
-    fill!(subsets.ptrs, 1)
-end
-
 function populate_subsets!(order::CuSparseOrdering)
     reset_subsets!(order.subsets)
 
@@ -102,9 +98,8 @@ function IMDP.construct_ordering(T, p::CuSparseMatrixCSC)
 
     state_to_subset = adapt(CuArray, state_to_subset)
     subsets = adapt(CuArray, subsets)
-    ptrs = CUDA.ones(T, n)
 
-    order = CuSparseOrdering(perm, state_to_subset, subsets, ptrs)
+    order = CuSparseOrdering(perm, state_to_subset, subsets)
     return order
 end
 
