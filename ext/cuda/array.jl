@@ -16,10 +16,18 @@ Base.length(xs::CuVectorOfVector{Tv, Ti}) where {Tv, Ti} = length(xs.vecPtr) - T
 Base.size(xs::CuVectorOfVector) = (xs.length,)
 Base.similar(xs::CuVectorOfVector) = CuVectorOfVector(copy(xs.vecPtr), copy(xs.lengths), similar(xs.val))
 
+function Base.show(io::IO, x::CuVectorOfVector)
+    for i in 1:length(x)
+        print(io, "[$i] :")
+        CUDA.@allowscalar show(IOContext(io, :typeinfo => eltype(x)), Vector(x.val[x.vecPtr[i]:x.vecPtr[i + 1] - 1]))
+        println("")
+    end
+end
+
 # CPU to GPU
 function CuVectorOfVector(vecs::Vector{Vector{T}}) where {T}
     lengths = convert.(T, map(length, vecs))
-    vecPtr = [T(1); cumsum(lengths)]
+    vecPtr = [T(1); 1 .+ cumsum(lengths)]
     
     return CuVectorOfVector(CuVector{Cint}(vecPtr), CuVector{Cint}(lengths), CuVector{T}(reduce(vcat, vecs)))
 end
@@ -170,12 +178,14 @@ function Adapt.adapt_structure(to::CUDA.Adaptor, subsets::CuPermutationSubsets)
 end
 
 # Indexing
-Base.getindex(xs::CuDevicePermutationSubsets, i::Ti) where {Ti} = CuDevicePermutationSubset(xs.queues[i], xs.ptrs, i)
 struct CuDevicePermutationSubset{Tv, Ti, A}
     queue::CuDeviceVectorInstance{Tv, Ti, A}
     ptrs::CuDeviceVector{Ti, A}
     index::Ti
 end
+Base.getindex(xs::CuDevicePermutationSubsets, i::Ti) where {Ti} = CuDevicePermutationSubset(xs.queues[i], xs.ptrs, i)
+Base.getindex(xs::CuDevicePermutationSubset, i) = xs.queue[i]
+Base.length(subset::CuDevicePermutationSubset) = length(subset.queue)
 
 function Base.push!(subset::CuDevicePermutationSubset{Tv, Ti}, item::Tv) where {Tv, Ti}
     subset.queue[subset.ptrs[subset.index]] = item

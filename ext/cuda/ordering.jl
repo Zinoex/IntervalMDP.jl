@@ -93,8 +93,8 @@ function IMDP.construct_ordering(T, p::CuSparseMatrixCSC)
     nzinds = Vector(SparseArrays.rowvals(p))
 
     for j in eachindex(subsets)
-        p_col = @view p[:, j]
-        subsets[j] = PermutationSubset(T(1), Vector{T}(undef, length(p_col)))
+        nrow = colptr[j + 1] - colptr[j]
+        subsets[j] = PermutationSubset(T(1), Vector{T}(undef, nrow))
 
         # This is an ugly way to get the indices of the nonzero elements in the column
         # but it is necessary as subarray does not support SparseArrays.nonzeroinds.

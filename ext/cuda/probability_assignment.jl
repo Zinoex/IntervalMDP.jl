@@ -1,17 +1,17 @@
 
 function IMDP.probability_assignment!(
-    p::MR,
+    p::CuSparseMatrixCSC{R, T},
     prob::MatrixIntervalProbabilities{R},
-    ordering::CuSparseOrdering,
+    ordering::CuSparseOrdering{T},
     indices,
-) where {R, MR <: AbstractCuSparseMatrix{R}}
+) where {R, T}
     launch_fixed_index_copýto!(p, lower(prob))
     launch_add_gap_scalar_kernel!(p, prob, ordering, indices)
 
     return p
 end
 
-function launch_fixed_index_copýto!(p::MR, lower::MR) where {R, T, MR <: AbstractCuSparseMatrix{R, T}}
+function launch_fixed_index_copýto!(p::MR, lower::MR) where {MR <: CuSparseMatrixCSC}
     n = size(p, 2)
 
     threads = 1024
@@ -22,8 +22,7 @@ function launch_fixed_index_copýto!(p::MR, lower::MR) where {R, T, MR <: Abstra
     return p
 end
 
-function fixed_index_copyto_kernel!(p, lower)
-    T = eltype(p.colPtr)
+function fixed_index_copyto_kernel!(p::CuSparseDeviceMatrixCSC{R, T, A}, lower::CuSparseDeviceMatrixCSC{R, T, A}) where {R, T, A}
     j = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
 
     if j <= size(p, 2)
@@ -34,8 +33,6 @@ function fixed_index_copyto_kernel!(p, lower)
         lower_colptr = lower.colPtr
         lower_nzinds = lower.rowVal
         lower_nzs = lower.nzVal
-
-        R = eltype(lower_nzs)
 
         nrow = lower_colptr[j + T(1)] - lower_colptr[j]
 
@@ -63,14 +60,14 @@ function fixed_index_copyto_kernel!(p, lower)
 end
 
 function launch_add_gap_scalar_kernel!(
-    p::MR,
+    p::CuSparseMatrixCSC{R, T},
     prob::MatrixIntervalProbabilities{R},
-    ordering::CuSparseOrdering,
+    ordering::CuSparseOrdering{T},
     indices,
-) where {R, MR <: AbstractCuSparseMatrix{R}}
+) where {R, T}
     n = size(p, 2)
 
-    threads = 1024
+    threads = 256
     blocks = ceil(Int64, n / threads)
 
     @cuda blocks=blocks threads=threads add_gap_scalar_kernel!(p, gap(prob), sum_lower(prob), ordering, indices)
@@ -79,43 +76,40 @@ function launch_add_gap_scalar_kernel!(
 end
 
 function add_gap_scalar_kernel!(
-    p,
-    gap,
-    sum_lower,
-    ordering::CuSparseDeviceOrdering{T},
+    p::CuSparseDeviceMatrixCSC{R, T, A},
+    gap::CuSparseDeviceMatrixCSC{R, T, A},
+    sum_lower::CuDeviceVector{R, A},
+    ordering::CuSparseDeviceOrdering{T, A},
     indices
-) where {T}
+) where {R, T, A}
 
     k = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
 
     if k <= length(indices)
-        j = indices[k]
-        p_start, p_end = p.colPtr[j], p.colPtr[j + T(1)]  # p and gap have the same sparsity pattern
+        j = T(indices[k])
+        # p and gap have the same sparsity pattern
         p_nzinds = p.rowVal
         p_nzs = p.nzVal
         g_nzs = gap.nzVal
+        
+        subset = ordering.subsets[j]
 
-        subset_colptr = ordering.subsets.colPtr
-        s_nzs = ordering.subsets.nzVal
+        remaining = R(1) - sum_lower[j]
 
-        subset_nrow = subset_colptr[j + T(1)] - subset_colptr[j]
+        for s in T(1):T(length(subset))
+            i = subset[s]
+            t = bisect_indices(p_nzinds, p.colPtr[j], p.colPtr[j + T(1)], i)
 
-        remaining = eltype(p)(1) - sum_lower[j]
+            gₜ = g_nzs[t]
 
-        for s in T(0):subset_nrow - T(1)
-            # i = s_nzs[subset_colptr[j] + s]
-            # t = bisect_indices(p_nzinds, p_start, p_end - T(1), i)
+            p_nzs[t] = p_nzs[t] + gₜ
+            remaining -= gₜ
 
-            # gₜ = g_nzs[t]
-
-            # p_nzs[t] += gₜ
-            # remaining -= gₜ
-
-            # if remaining < 0.0
-            #     p_nzs[t] += remaining
-            #     remaining = 0.0
-            #     break
-            # end
+            if remaining < R(0.0)
+                p_nzs[t] += remaining
+                remaining = R(0.0)
+                break
+            end
         end
     end
 
@@ -123,7 +117,6 @@ function add_gap_scalar_kernel!(
 end
 
 function bisect_indices(inds::AbstractVector, lo::T, hi::T, i) where T<:Integer
-    hi = hi + T(1)
     len = hi - lo
     @inbounds while len != 0
         half_len = len >>> 0x01
