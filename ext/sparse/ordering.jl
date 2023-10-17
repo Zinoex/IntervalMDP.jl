@@ -1,5 +1,8 @@
 # Vector of sparse vectors
-function IMDP.construct_ordering(T, p::VVR) where {VVR <: AbstractVector{<:AbstractSparseVector}}
+function IMDP.construct_ordering(
+    T,
+    p::VVR,
+) where {VVR <: AbstractVector{<:AbstractSparseVector}}
     # Assume that each vector corresponds to a start state
 
     n, m = length(first(p)), length(p)

@@ -41,9 +41,10 @@ function MatrixIntervalProbabilities(lower::MR, gap::MR) where {R, MR <: Abstrac
     max_lower_bound = maximum(sum_lower)
     @assert max_lower_bound <= 1 "The joint lower bound transition probability per column (max is $max_lower_bound) should be less than or equal to 1."
 
-    sum_gap = vec(sum(gap; dims = 1))
-    max_upper_bound = maximum(sum_lower + sum_gap)
-    @assert max_upper_bound >= 1 "The joint upper bound transition probability per column (max is $max_upper_bound) should be greater than or equal to 1."
+    sum_upper = vec(sum(lower + gap; dims = 1))
+
+    max_upper_bound = minimum(sum_upper)
+    @assert max_upper_bound >= 1 "The joint upper bound transition probability per column (min is $max_upper_bound) should be greater than or equal to 1."
 
     return MatrixIntervalProbabilities(lower, gap, sum_lower)
 end
