@@ -4,14 +4,12 @@ struct CuSparseOrdering{T} <: AbstractStateOrdering{T}
     perm::CuVector{T}
     state_to_subsets::CuVectorOfVector{T, T}
     subsets::CuPermutationSubsets{T, T}
-    ptrs::CuVector{T}
 end
 
 function CUDA.unsafe_free!(o::CuSparseOrdering)
     unsafe_free!(o.perm)
     unsafe_free!(o.state_to_subsets)
     unsafe_free!(o.subsets)
-    unsafe_free!(o.ptrs)
     return
 end
 
@@ -19,8 +17,7 @@ function Adapt.adapt_structure(to::CUDA.Adaptor, o::CuSparseOrdering)
     return CuSparseDeviceOrdering(
         adapt(to, o.perm),
         adapt(to, o.state_to_subsets),
-        adapt(to, o.subsets),
-        adapt(to, o.ptrs)
+        adapt(to, o.subsets)
     )
 end
 
@@ -28,7 +25,6 @@ struct CuSparseDeviceOrdering{T, A} <: AbstractStateOrdering{T}
     perm::CuDeviceVector{T, A}
     state_to_subsets::CuDeviceVectorOfVector{T, T, A}
     subsets::CuDevicePermutationSubsets{T, T, A}
-    ptrs::CuDeviceVector{T, A}
 end
 
 # Permutations are specific to each state
@@ -42,12 +38,12 @@ function IMDP.sort_states!(order::CuSparseOrdering, V; max = true)
     return order
 end
 
-function reset_subsets!(order)
-    fill!(order.ptrs, 1)
+function reset_subsets!(subsets::CuPermutationSubsets)
+    fill!(subsets.ptrs, 1)
 end
 
 function populate_subsets!(order::CuSparseOrdering)
-    reset_subsets!(order)
+    reset_subsets!(order.subsets)
 
     n = maxlength(order.state_to_subsets)
 
