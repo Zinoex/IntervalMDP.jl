@@ -5,11 +5,11 @@ prob = [prob1, prob2]
 
 V = [0.0, 0.0, 1.0]
 
-V_fixed_it, k, last_step =
+V_fixed_it, k, last_dV =
     interval_value_iteration(prob, V, [3], FixedIterationsCriteria(10); max = true)
 @test k == 10
 
-V_conv, k, last_step =
+V_conv, k, last_dV =
     interval_value_iteration(prob, V, [3], CovergenceCriteria(1e-6); max = true)
 @test maximum(last_step) <= 1e-6
 
@@ -21,10 +21,10 @@ prob = MatrixIntervalProbabilities(;
 
 V = [0.0, 0.0, 1.0]
 
-V_fixed_it, k, last_step =
+V_fixed_it, k, last_dV =
     interval_value_iteration(prob, V, [3], FixedIterationsCriteria(10); max = true)
 @test k == 10
 
-V_conv, k, last_step =
+V_conv, k, last_dV =
     interval_value_iteration(prob, V, [3], CovergenceCriteria(1e-6); max = true)
 @test maximum(last_step) <= 1e-6
