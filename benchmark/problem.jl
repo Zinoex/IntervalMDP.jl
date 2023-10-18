@@ -1,4 +1,5 @@
-using Revise, BenchmarkTools, Random, ProgressMeter
+using Revise, BenchmarkTools, ProgressMeter
+using Random, StatsBase
 using IMDP, SparseArrays, CUDA
 
 rng = MersenneTwister(55392)
@@ -10,13 +11,13 @@ prob_split = 1 / nnz_per_column
 q = collect(1:n)
 rand_val_lower = rand(rng, Float64, nnz_per_column * n) .* prob_split
 rand_val_upper = rand(rng, Float64, nnz_per_column * n) .* prob_split .+ prob_split
+rand_index = collect(1:nnz_per_column)
 
 row_vals = Vector{Int32}(undef, nnz_per_column * n)
 col_ptrs = Int32[1; collect(1:n) .* nnz_per_column .+ 1]
 
 @showprogress for j in 1:n
-    # TODO: Find a faster way to select a small subset
-    rand_index = shuffle!(rng, q)[1:nnz_per_column]
+    StatsBase.seqsample_a!(1:n, rand_index)  # Select nnz_per_column elements from 1:n
     sort!(rand_index)
 
     row_vals[((j - 1) * nnz_per_column + 1):(j * nnz_per_column)] .= rand_index
