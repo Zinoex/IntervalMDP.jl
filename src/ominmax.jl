@@ -48,8 +48,14 @@ function probability_assignment!(
     indices,
 ) where {R, VVR <: AbstractVector{<:AbstractVector{R}}}
     Threads.@threads for j in indices
-        @inbounds copyto!(p[j], lower(prob[j]))
-        add_gap!(p[j], prob[j], perm(ordering, j))
+        probⱼ = prob[j]
+
+        @inbounds copyto!(p[j], lower(probⱼ))
+
+        gⱼ = gap(probⱼ)
+        lⱼ = sum_lower(probⱼ)
+
+        add_gap!(p[j], gⱼ, lⱼ, perm(ordering, j))
     end
 
     return p
@@ -74,13 +80,10 @@ function probability_assignment!(
 
     Threads.@threads for j in indices
         pⱼ = view(p, :, j)
-        probⱼ = StateIntervalProbabilities(
-            view(lower(prob), :, j),
-            view(gap(prob), :, j),
-            sum_lower(prob)[j],
-        )
+        gⱼ = view(gap(prob), :, j)
+        lⱼ = sum_lower(prob)[j]
 
-        add_gap!(pⱼ, probⱼ, perm(ordering, j))
+        add_gap!(pⱼ, gⱼ, lⱼ, perm(ordering, j))
     end
 
     return p
@@ -89,15 +92,15 @@ end
 # Shared
 function add_gap!(
     p::VR,
-    prob::StateIntervalProbabilities{R},
+    gap::VR,
+    sum_lower::R,
     perm,
 ) where {R, VR <: AbstractVector{R}}
-    remaining = 1.0 - sum_lower(prob)
-    g = gap(prob)
+    remaining = 1.0 - sum_lower
 
     for i in perm
-        @inbounds p[i] += g[i]
-        @inbounds remaining -= g[i]
+        @inbounds p[i] += gap[i]
+        @inbounds remaining -= gap[i]
         if remaining < 0.0
             @inbounds p[i] += remaining
             remaining = 0.0
