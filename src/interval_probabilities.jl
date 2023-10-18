@@ -56,9 +56,13 @@ end
 
 # Keyword constructor
 function MatrixIntervalProbabilities(; lower::MR, upper::MR) where {MR <: AbstractMatrix}
-    gap = upper - lower
-    lower = upper - gap
+    lower, gap = compute_gap(lower, upper)
     return MatrixIntervalProbabilities(lower, gap)
+end
+
+function compute_gap(lower::MR, upper::MR) where {MR <: AbstractMatrix}
+    gap = upper - lower
+    return lower, gap
 end
 
 gap(s::MatrixIntervalProbabilities) = s.gap

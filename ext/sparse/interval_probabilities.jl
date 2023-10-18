@@ -8,3 +8,8 @@ function IMDP.compute_gap(lower::VR, upper::VR) where {VR <: AbstractSparseVecto
     lower = SparseArrays.FixedSparseVector(length(lower), indices, lower_nonzeros)
     return lower, gap
 end
+
+function IMDP.compute_gap(lower::MR, upper::MR) where {MR <: AbstractSparseMatrix}
+    gap = upper - lower
+    return lower, gap
+end
