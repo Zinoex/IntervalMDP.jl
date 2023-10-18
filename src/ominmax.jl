@@ -48,8 +48,11 @@ function probability_assignment!(
     indices,
 ) where {R, VVR <: AbstractVector{<:AbstractVector{R}}}
     Threads.@threads for j in indices
-        probability_assignment_from!(p[j], prob[j], perm(ordering, j))
+        @inbounds copyto!(p[j], lower(prob[j]))
+        add_gap!(p[j], prob[j], perm(ordering, j))
     end
+
+    return p
 end
 
 # Matrix
@@ -67,6 +70,8 @@ function probability_assignment!(
     ordering::AbstractStateOrdering,
     indices,
 ) where {R, MR <: AbstractMatrix{R}}
+    @inbounds copyto!(p, lower(prob))
+
     Threads.@threads for j in indices
         pⱼ = view(p, :, j)
         probⱼ = StateIntervalProbabilities(
@@ -74,18 +79,19 @@ function probability_assignment!(
             view(gap(prob), :, j),
             sum_lower(prob)[j],
         )
-        probability_assignment_from!(pⱼ, probⱼ, perm(ordering, j))
+
+        add_gap!(pⱼ, probⱼ, perm(ordering, j))
     end
+
+    return p
 end
 
 # Shared
-function probability_assignment_from!(
+function add_gap!(
     p::VR,
     prob::StateIntervalProbabilities{R},
     perm,
 ) where {R, VR <: AbstractVector{R}}
-    @inbounds copyto!(p, lower(prob))
-
     remaining = 1.0 - sum_lower(prob)
     g = gap(prob)
 
