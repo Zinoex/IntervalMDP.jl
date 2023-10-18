@@ -48,7 +48,7 @@ Base.length(subset::PermutationSubset) = length(subset.items)
 
 struct SparseOrdering{T <: Integer, VT <: AbstractVector{T}} <: AbstractStateOrdering{T}
     perm::VT
-    state_to_subset::Vector{Vector{T}}
+    state_to_subset::Vector{Vector{Tuple{T, T}}}
     subsets::Vector{PermutationSubset{T, VT}}
 end
 
@@ -74,8 +74,8 @@ function populate_subsets!(order::SparseOrdering)
     reset_subsets!(order.subsets)
 
     for i in order.perm
-        for j in order.state_to_subset[i]
-            push!(order.subsets[j], i)
+        for (j, sparse_ind) in order.state_to_subset[i]
+            push!(order.subsets[j], sparse_ind)
         end
     end
 end

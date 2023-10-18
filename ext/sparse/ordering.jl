@@ -14,8 +14,8 @@ function IMDP.construct_ordering(
         subsets[j] = PermutationSubset(T(1), Vector{T}(undef, nnz(p[j])))
 
         ids = SparseArrays.nonzeroinds(p[j])  # This is not exported, but we need the non-zero indices
-        for i in ids
-            push!(state_to_subset[i], j)
+        for (sparse_ind, i) in enumerate(ids)
+            push!(state_to_subset[i], (j, sparse_ind))
         end
     end
 
@@ -35,8 +35,8 @@ function IMDP.construct_ordering(T, p::AbstractSparseMatrix)
         subsets[j] = PermutationSubset(T(1), Vector{T}(undef, nnz(pⱼ)))
 
         ids = SparseArrays.nonzeroinds(pⱼ)  # This is not exported, but we need the non-zero indices
-        for i in ids
-            push!(state_to_subset[i], j)
+        for (sparse_ind, i) in enumerate(ids)
+            push!(state_to_subset[i], (j, sparse_ind))
         end
     end
 
@@ -44,7 +44,7 @@ function IMDP.construct_ordering(T, p::AbstractSparseMatrix)
 end
 
 function construct_state_to_subset(T, n)
-    state_to_subset = Vector{Vector{T}}(undef, n)
+    state_to_subset = Vector{Vector{Tuple{T, T}}}(undef, n)
     for i in eachindex(state_to_subset)
         state_to_subset[i] = T[]
     end
