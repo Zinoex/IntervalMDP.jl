@@ -11,7 +11,7 @@ V_fixed_it, k, last_dV =
 
 V_conv, k, last_dV =
     interval_value_iteration(prob, V, [3], CovergenceCriteria(1e-6); max = true)
-@test maximum(last_step) <= 1e-6
+@test maximum(last_dV) <= 1e-6
 
 # Matrix
 prob = MatrixIntervalProbabilities(;
@@ -27,4 +27,4 @@ V_fixed_it, k, last_dV =
 
 V_conv, k, last_dV =
     interval_value_iteration(prob, V, [3], CovergenceCriteria(1e-6); max = true)
-@test maximum(last_step) <= 1e-6
+@test maximum(last_dV) <= 1e-6
