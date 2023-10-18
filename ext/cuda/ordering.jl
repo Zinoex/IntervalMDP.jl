@@ -5,6 +5,14 @@ struct CuSparseOrdering{T} <: AbstractStateOrdering{T}
     subsets::CuPermutationSubsets{T, T}
 end
 
+function Adapt.adapt_structure(to::CUDA.CuArrayAdaptor, o::SparseOrdering)
+    return CuSparseOrdering(
+        adapt(to, o.perm),
+        adapt(to, o.state_to_subsets),
+        adapt(to, o.subsets)
+    )
+end
+
 function CUDA.unsafe_free!(o::CuSparseOrdering)
     unsafe_free!(o.perm)
     unsafe_free!(o.state_to_subsets)
@@ -95,8 +103,8 @@ function IMDP.construct_ordering(T, p::CuSparseMatrixCSC)
         end
     end
 
-    state_to_subset = adapt(CuArray, state_to_subset)
-    subsets = adapt(CuArray, subsets)
+    state_to_subset = cu(state_to_subset)
+    subsets = cu(subsets)
 
     order = CuSparseOrdering(perm, state_to_subset, subsets)
     return order
