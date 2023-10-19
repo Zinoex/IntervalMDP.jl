@@ -7,7 +7,7 @@ function IMDP.probability_assignment!(
     Threads.@threads for j in indices
         probⱼ = prob[j]
 
-        @inbounds copyto!(p[j], lower(probⱼ))
+        @inbounds copyto!(nonzeros(p[j]), nonzeros(lower(probⱼ)))
 
         gⱼ = gap(probⱼ)
         lⱼ = sum_lower(probⱼ)
@@ -24,7 +24,7 @@ function IMDP.probability_assignment!(
     ordering::SparseOrdering,
     indices,
 ) where {R, MR <: SparseArrays.AbstractSparseMatrixCSC{R}}
-    @inbounds copyto!(p, lower(prob))
+    @inbounds copyto!(nonzeros(p), nonzeros(lower(prob)))
     g = gap(prob)
 
     Threads.@threads for j in indices
