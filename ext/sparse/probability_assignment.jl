@@ -29,8 +29,8 @@ function IMDP.probability_assignment!(
 
     Threads.@threads for j in indices
         # p and g must share nonzero structure.
-        pⱼ = view(nonzeros(p), p.colptr[j]:p.colptr[j + 1] - 1)
-        gⱼ = view(nonzeros(g), p.colptr[j]:p.colptr[j + 1] - 1)
+        pⱼ = view(nonzeros(p), p.colptr[j]:(p.colptr[j + 1] - 1))
+        gⱼ = view(nonzeros(g), p.colptr[j]:(p.colptr[j + 1] - 1))
         lⱼ = sum_lower(prob)[j]
 
         IMDP.add_gap!(pⱼ, gⱼ, lⱼ, perm(ordering, j))
