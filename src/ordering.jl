@@ -60,27 +60,26 @@ function Base.empty!(subset::PermutationSubset{T, VT}) where {T, VT}
 end
 
 function Base.push!(subset::PermutationSubset{T, VT}, item::T) where {T, VT}
-    subset.items[subset.ptr] = item
+    @inbounds subset.items[subset.ptr] = item
     return subset.ptr += 1
 end
 
 function reset_subsets!(subsets::Vector{PermutationSubset{T, VT}}) where {T, VT}
-    for subset in subsets
+    @inbounds for subset in subsets
         empty!(subset)
     end
 end
 
-# Much time is spent caling this function, but the internals of this function
-# does not require that much time. It could be some type instability - use Chthulu
-# to find out this madness.
 function populate_subsets!(order::SparseOrdering{T, VT}) where {T, VT}
     reset_subsets!(order.subsets)
 
-    for i in order.perm
-        for (j, sparse_ind) in order.state_to_subset[i]
+    @inbounds for i in order.perm
+        @inbounds for (j, sparse_ind) in order.state_to_subset[i]
             push!(order.subsets[j], sparse_ind)
         end
     end
+
+    return order
 end
 
 function sort_states!(order::SparseOrdering{T, VT}, V::VR; max = true) where {T, VT, VR}
