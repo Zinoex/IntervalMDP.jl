@@ -1,81 +1,123 @@
 
-struct CuSparseOrdering{T} <: AbstractStateOrdering{T}
-    perm::CuVector{T}
-    state_to_subsets::CuVectorOfVector{T, T}
-    subsets::CuPermutationSubsets{T, T}
+struct CuSparseOrdering{T, R} <: AbstractStateOrdering{T}
+    subsets::CuPermutationSubsets{R, T}
+    rowvals::CuVector{T}
 end
 
 function Adapt.adapt_structure(to::CUDA.CuArrayAdaptor, o::SparseOrdering)
     return CuSparseOrdering(
-        adapt(to, o.perm),
-        adapt(to, map(subset -> map(first, subset), o.state_to_subsets)),
         adapt(to, o.subsets),
+        adapt(to, o.rowvals)
     )
 end
 
 function CUDA.unsafe_free!(o::CuSparseOrdering)
-    unsafe_free!(o.perm)
-    unsafe_free!(o.state_to_subsets)
     unsafe_free!(o.subsets)
     return
 end
 
 function Adapt.adapt_structure(to::CUDA.Adaptor, o::CuSparseOrdering)
     return CuSparseDeviceOrdering(
-        adapt(to, o.perm),
-        adapt(to, o.state_to_subsets),
         adapt(to, o.subsets),
+        adapt(to, o.rowvals)
     )
 end
 
-struct CuSparseDeviceOrdering{T, A} <: AbstractStateOrdering{T}
-    perm::CuDeviceVector{T, A}
-    state_to_subsets::CuDeviceVectorOfVector{T, T, A}
-    subsets::CuDevicePermutationSubsets{T, T, A}
+struct CuSparseDeviceOrdering{T, R, A} <: AbstractStateOrdering{T}
+    subsets::CuDevicePermutationSubsets{T, R, A}
+    rowvals::CuDeviceVector{T, A}
 end
 
 # Permutations are specific to each state
-IMDP.perm(order::CuSparseOrdering, state) = order.subsets[:, state]
-IMDP.perm(order::CuSparseDeviceOrdering, state) = order.subsets[:, state]
+IMDP.perm(order::CuSparseOrdering, state) = order.subsets[state]
+IMDP.perm(order::CuSparseDeviceOrdering, state) = order.subsets[state]
 
 function IMDP.sort_states!(order::CuSparseOrdering, V; max = true)
-    sortperm!(order.perm, V; rev = max)  # rev=true for maximization
-    populate_subsets!(order)
+    populate_value_subsets!(order, V)
+    initialize_perm_subsets!(order)
+    sort_subsets!(order; max = max)
 
     return order
 end
 
-function populate_subsets!(order::CuSparseOrdering)
-    reset_subsets!(order.subsets)
+function populate_value_subsets!(order::CuSparseOrdering, V)
+    n = length(order.rowvals)
 
-    n = maxlength(order.state_to_subsets)
+    threads = 1024
+    blocks = ceil(Int32, n / threads)
 
-    threads = 256
-    blocks = ceil(Int64, n / threads)
-
-    @cuda blocks = blocks threads = threads populate_subsets_kernel!(order)
+    @cuda blocks = blocks threads = threads populate_value_subsets_kernel!(order, v)
 
     return order
 end
 
-function populate_subsets_kernel!(order::CuSparseDeviceOrdering{T, A}) where {T, A}
+function populate_value_subsets_kernel!(order::CuSparseDeviceOrdering{T, R, A}, V::CuDeviceVector{R, A}) where {T, R, A}
     thread_id = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
-    n = maxlength(order.state_to_subsets)
+    n = length(order.rowvals)
 
     if thread_id <= n
-        for i in order.perm
-            start_states = order.state_to_subsets[i]
+        value_id = order.rowvals[thread_id]
+        order.subsets.value_subsets.val[thread_id] = V[value_id]
+    end
 
-            if thread_id <= length(start_states)
-                j = start_states[thread_id]
-                subset = order.subsets[j]
-                Base.push!(subset, i)
-            end
+    return nothing
+end
 
-            # We need to synchronize threads to preserve the order of the subsets
-            # At least I think so...
-            sync_threads()
+function initialize_perm_subsets!(order::CuSparseOrdering)
+    n = length(order.subsets) * warpsize(device())
+
+    threads = 256
+    blocks = ceil(Int32, n / threads)
+
+    @cuda blocks = blocks threads = threads initialize_perm_subsets_kernel!(order)
+
+    return order
+end
+
+function initialize_perm_subsets_kernel!(order::CuSparseDeviceOrdering{T, R, A}) where {T, R, A}
+    assume(warpsize() == 32)
+
+    thread_id = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
+    warp_id, lane = fldmod1(thread_id, warpsize())
+
+    n = length(order.subsets)
+
+    if warp_id <= n
+        subset = order.subsets[thread_id]
+
+        i = T(lane)
+        while i <= length(subset)
+            subset.perm_subset.val[value_id] = i
+            i += T(warpsize())
         end
+    end
+
+    return nothing
+end
+
+function sort_subsets!(order::CuSparseOrdering; max = true)
+    n = length(order.subsets) * warpsize(device())
+
+    threads = 256
+    blocks = ceil(Int32, n / threads)
+
+    @cuda blocks = blocks threads = threads sort_subsets_kernel!(order, max)
+
+    return order
+end
+
+function sort_subsets_kernel!(order::CuSparseDeviceOrdering{T, R, A}, max::Bool) where {T, R, A}
+    assume(warpsize() == 32)
+
+    thread_id = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
+    warp_id, lane = fldmod1(thread_id, warpsize())
+
+    n = length(order.subsets)
+
+    if warp_id <= n
+        subset = order.subsets[thread_id]
+
+        # Sort the permutation subset by V
     end
 
     return nothing
@@ -108,13 +150,4 @@ function IMDP.construct_ordering(T, p::CuSparseMatrixCSC)
 
     order = CuSparseOrdering(perm, state_to_subset, subsets)
     return order
-end
-
-function construct_state_to_subset(T, n)
-    state_to_subset = Vector{Vector{T}}(undef, n)
-    for i in eachindex(state_to_subset)
-        state_to_subset[i] = T[]
-    end
-
-    return state_to_subset
 end
