@@ -40,7 +40,8 @@ function CuVectorOfVector(vecs::Vector{Vector{T}}) where {T}
     )
 end
 
-Adapt.adapt_storage(::CUDA.CuArrayAdaptor, xs::Vector{Vector{T}}) where {T<:Number} = CuVectorOfVector(xs)
+Adapt.adapt_storage(::CUDA.CuArrayAdaptor, xs::Vector{Vector{T}}) where {T <: Number} =
+    CuVectorOfVector(xs)
 
 # GPU to CPU
 function Vector(xs::CuVectorOfVector{T}) where {T}
@@ -162,7 +163,8 @@ function CuPermutationSubsets(subsets::Vector{<:PermutationSubset{T}}) where {T}
     return CuPermutationSubsets(queues, ptrs)
 end
 
-Adapt.adapt_storage(::CUDA.CuArrayAdaptor, subsets::Vector{<:PermutationSubset}) = CuPermutationSubsets(subsets)
+Adapt.adapt_storage(::CUDA.CuArrayAdaptor, subsets::Vector{<:PermutationSubset}) =
+    CuPermutationSubsets(subsets)
 
 # GPU to CPU
 function Vector(subsets::CuPermutationSubsets{T}) where {T}

@@ -48,39 +48,42 @@ Base.length(subset::PermutationSubset) = length(subset.items)
 
 struct SparseOrdering{T <: Integer, VT <: AbstractVector{T}} <: AbstractStateOrdering{T}
     perm::VT
-    state_to_subset::Vector{Vector{T}}
+    state_to_subset::Vector{Vector{Tuple{T, T}}}
     subsets::Vector{PermutationSubset{T, VT}}
 end
 
 # Permutations are specific to each state
 perm(order::SparseOrdering, state) = order.subsets[state].items
 
-function Base.empty!(subset::PermutationSubset)
+function Base.empty!(subset::PermutationSubset{T, VT}) where {T, VT}
     return subset.ptr = 1
 end
 
-function Base.push!(subset::PermutationSubset, item)
+function Base.push!(subset::PermutationSubset{T, VT}, item::T) where {T, VT}
     subset.items[subset.ptr] = item
     return subset.ptr += 1
 end
 
-function reset_subsets!(subsets)
+function reset_subsets!(subsets::Vector{PermutationSubset{T, VT}}) where {T, VT}
     for subset in subsets
         empty!(subset)
     end
 end
 
-function populate_subsets!(order::SparseOrdering)
+# Much time is spent caling this function, but the internals of this function
+# does not require that much time. It could be some type instability - use Chthulu
+# to find out this madness.
+function populate_subsets!(order::SparseOrdering{T, VT}) where {T, VT}
     reset_subsets!(order.subsets)
 
     for i in order.perm
-        for j in order.state_to_subset[i]
-            push!(order.subsets[j], i)
+        for (j, sparse_ind) in order.state_to_subset[i]
+            push!(order.subsets[j], sparse_ind)
         end
     end
 end
 
-function sort_states!(order::SparseOrdering, V; max = true)
+function sort_states!(order::SparseOrdering{T, VT}, V::VR; max = true) where {T, VT, VR}
     sortperm!(order.perm, V; rev = max)  # rev=true for maximization
     populate_subsets!(order)
 

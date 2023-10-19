@@ -18,8 +18,13 @@ end
 
 # Keyword constructor
 function StateIntervalProbabilities(; lower::VR, upper::VR) where {VR <: AbstractVector}
-    gap = upper - lower
+    lower, gap = compute_gap(lower, upper)
     return StateIntervalProbabilities(lower, gap)
+end
+
+function compute_gap(lower::VR, upper::VR) where {VR <: AbstractVector}
+    gap = upper - lower
+    return lower, gap
 end
 
 gap(s::StateIntervalProbabilities) = s.gap
@@ -51,8 +56,13 @@ end
 
 # Keyword constructor
 function MatrixIntervalProbabilities(; lower::MR, upper::MR) where {MR <: AbstractMatrix}
-    gap = upper - lower
+    lower, gap = compute_gap(lower, upper)
     return MatrixIntervalProbabilities(lower, gap)
+end
+
+function compute_gap(lower::MR, upper::MR) where {MR <: AbstractMatrix}
+    gap = upper - lower
+    return lower, gap
 end
 
 gap(s::MatrixIntervalProbabilities) = s.gap

@@ -3,7 +3,7 @@ function IMDP.probability_assignment!(
     prob::Vector{<:StateIntervalProbabilities{R}},
     ordering::SparseOrdering,
     indices,
-) where {R, VVR <: AbstractVector{<:SparseVector{R}}} 
+) where {R, VVR <: AbstractVector{<:AbstractSparseVector{R}}}
     Threads.@threads for j in indices
         probⱼ = prob[j]
 
@@ -12,7 +12,7 @@ function IMDP.probability_assignment!(
         gⱼ = gap(probⱼ)
         lⱼ = sum_lower(probⱼ)
 
-        IMDP.add_gap!(p[j], gⱼ, lⱼ, perm(ordering, j))
+        IMDP.add_gap!(nonzeros(p[j]), nonzeros(gⱼ), lⱼ, perm(ordering, j))
     end
 
     return p
@@ -23,12 +23,14 @@ function IMDP.probability_assignment!(
     prob::MatrixIntervalProbabilities{R},
     ordering::SparseOrdering,
     indices,
-) where {R, MR <: AbstractSparseMatrix{R}}
+) where {R, MR <: SparseArrays.AbstractSparseMatrixCSC{R}}
     @inbounds copyto!(p, lower(prob))
+    g = gap(prob)
 
     Threads.@threads for j in indices
-        pⱼ = view(p, :, j)
-        gⱼ = view(gap(prob), :, j)
+        # p and g must share nonzero structure.
+        pⱼ = view(nonzeros(p), p.colptr[j]:(p.colptr[j + 1] - 1))
+        gⱼ = view(nonzeros(g), p.colptr[j]:(p.colptr[j + 1] - 1))
         lⱼ = sum_lower(prob)[j]
 
         IMDP.add_gap!(pⱼ, gⱼ, lⱼ, perm(ordering, j))
