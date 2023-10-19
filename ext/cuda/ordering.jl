@@ -8,7 +8,7 @@ end
 function Adapt.adapt_structure(to::CUDA.CuArrayAdaptor, o::SparseOrdering)
     return CuSparseOrdering(
         adapt(to, o.perm),
-        adapt(to, o.state_to_subsets),
+        adapt(to, map(subset -> map(first, subset), o.state_to_subsets)),
         adapt(to, o.subsets),
     )
 end

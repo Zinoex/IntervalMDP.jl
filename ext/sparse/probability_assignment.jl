@@ -23,7 +23,7 @@ function IMDP.probability_assignment!(
     prob::MatrixIntervalProbabilities{R},
     ordering::SparseOrdering,
     indices,
-) where {R, MR <: SparseArrays.AbstractSparseMatrixCSC{R}}
+) where {R, MR <: AbstractSparseMatrix{R}}
     @inbounds copyto!(nonzeros(p), nonzeros(lower(prob)))
     g = gap(prob)
 
