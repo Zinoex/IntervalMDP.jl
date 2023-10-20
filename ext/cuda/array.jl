@@ -1,3 +1,28 @@
+function IMDP.compute_gap(
+    lower::MR,
+    upper::MR,
+) where {MR <: CuSparseMatrixCSC}
+    I, J = nothing, upper.rowVal  # Find I from upper.colPtr
+
+    # Avoid scalar indexing.
+    gap_nonzeros = upper[I, J] - lower[I, J]
+    lower_nonzeros = lower[I, J]
+
+    gap = CuSparseMatrixCSC(
+        size(upper)...,
+        upper.colPtr,
+        upper.rowVal,
+        gap_nonzeros,
+    )
+    lower = CuSparseMatrixCSC(
+        size(upper)...,
+        upper.colPtr,
+        upper.rowVal,
+        lower_nonzeros,
+    )
+    return lower, gap
+end
+
 ### Vector of Vector
 struct CuVectorOfVector{Tv, Ti} <: AbstractVector{AbstractVector{Tv}}
     vecPtr::CuVector{Ti}

@@ -5,62 +5,11 @@ function IMDP.probability_assignment!(
     ordering::CuSparseOrdering{T},
     indices,
 ) where {R, T}
-    launch_fixed_index_copýto!(p, lower(prob))
+    copyto!(nonzeros(p), nonzeros(lower(prob)))
     launch_add_gap_scalar_kernel!(p, prob, ordering, indices)
     # launch_add_gap_vector_kernel!(p, prob, ordering, indices)
 
     return p
-end
-
-function launch_fixed_index_copýto!(p::MR, lower::MR) where {MR <: CuSparseMatrixCSC}
-    n = size(p, 2)
-
-    threads = 1024
-    blocks = ceil(Int64, n / threads)
-
-    @cuda blocks = blocks threads = threads fixed_index_copyto_kernel!(p, lower)
-
-    return p
-end
-
-function fixed_index_copyto_kernel!(
-    p::CuSparseDeviceMatrixCSC{R, T, A},
-    lower::CuSparseDeviceMatrixCSC{R, T, A},
-) where {R, T, A}
-    j = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
-
-    if j <= size(p, 2)
-        p_colptr = p.colPtr
-        p_nzinds = p.rowVal
-        p_nzs = p.nzVal
-
-        lower_colptr = lower.colPtr
-        lower_nzinds = lower.rowVal
-        lower_nzs = lower.nzVal
-
-        nrow = lower_colptr[j + T(1)] - lower_colptr[j]
-
-        p_curind = p_colptr[j]
-        p_endind = p_colptr[j + T(1)]
-        lower_startind = lower_colptr[j]
-
-        for i in T(0):(nrow - T(1))
-            while p_nzinds[p_curind] < lower_nzinds[lower_startind + i]
-                p_nzs[p_curind] = R(0.0)
-                p_curind += T(1)
-            end
-
-            p_nzs[p_curind] = lower_nzs[lower_startind + i]
-            p_curind += T(1)
-        end
-
-        while p_curind < p_endind
-            p_nzs[p_curind] = R(0.0)
-            p_curind += T(1)
-        end
-    end
-
-    return nothing
 end
 
 function launch_add_gap_scalar_kernel!(
