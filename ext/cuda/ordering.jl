@@ -117,7 +117,9 @@ function sort_subsets_kernel!(order::CuSparseDeviceOrdering{T, R, A}, max::Bool)
     if warp_id <= n
         subset = order.subsets[thread_id]
 
-        # Sort the permutation subset by V
+        # Copy to CuDynamicSharedArray
+
+        # Sort the permutation subset by the value subset
     end
 
     return nothing
