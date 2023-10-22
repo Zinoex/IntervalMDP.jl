@@ -2,6 +2,7 @@
 struct CuVectorOfVector{Tv, Ti} <: AbstractVector{AbstractVector{Tv}}
     vecptr::CuVector{Ti}
     val::CuVector{Tv}
+    maxlength::Ti
 end
 
 function CUDA.unsafe_free!(xs::CuVectorOfVector)
@@ -10,19 +11,20 @@ function CUDA.unsafe_free!(xs::CuVectorOfVector)
     return
 end
 
+maxlength(xs::CuVectorOfVector) = xs.maxlength
 Base.length(xs::CuVectorOfVector{Tv, Ti}) where {Tv, Ti} = length(xs.vecptr) - Ti(1)
 Base.size(xs::CuVectorOfVector) = (length(xs),)
-Base.similar(xs::CuVectorOfVector) = CuVectorOfVector(copy(xs.vecptr), similar(xs.val))
+Base.similar(xs::CuVectorOfVector) = CuVectorOfVector(copy(xs.vecptr), similar(xs.val), maxlength(xs))
 
 function Base.show(io::IO, x::CuVectorOfVector)
     vecptr = Vector(x.vecptr)
     for i in 1:length(x)
-        print(io, "[$i] :")
+        print(io, "[$i]: ")
         show(
             IOContext(io, :typeinfo => eltype(x)),
             Vector(x.val[vecptr[i]:(vecptr[i + 1] - 1)]),
         )
-        println("")
+        println(io, "")
     end
 end
 
@@ -34,6 +36,7 @@ function CuVectorOfVector(vecs::Vector{Vector{T}}) where {T}
     return CuVectorOfVector(
         CuVector{Cint}(vecptr),
         CuVector{T}(reduce(vcat, vecs)),
+        maximum(lengths),
     )
 end
 
@@ -91,29 +94,29 @@ function Adapt.adapt_structure(to::CUDA.Adaptor, x::CuVectorOfVector)
 end
 
 # Indexing
-Base.getindex(xs::CuDeviceVectorOfVector, i::Ti) where {Ti} =
-    CuDeviceVectorInstance(xs.vecptr[i], xs.vecptr[i + Ti(1)] - xs.vecptr[i], xs.val)
+Base.getindex(xs::CuDeviceVectorOfVector{Tv, Ti, A}, i) where {Tv, Ti, A} =
+    CuDeviceVectorInstance{Tv, Ti, A}(xs.vecptr[i], xs.vecptr[i + Ti(1)] - xs.vecptr[i], xs.val)
 
-struct CuDeviceVectorInstance{Ti, Tv, A}
+struct CuDeviceVectorInstance{Tv, Ti, A}
     offset::Ti
     length::Ti
     parent::CuDeviceVector{Tv, A}
 end
 Base.length(x::CuDeviceVectorInstance) = x.length
 Base.size(x::CuDeviceVectorInstance) = (x.length,)
-function Base.getindex(xs::CuDeviceVectorInstance, i::Ti) where {Ti}
+function Base.getindex(xs::CuDeviceVectorInstance{Tv, Ti, A}, i) where {Tv, Ti, A}
     if i > xs.length
         throw(BoundsError(xs, i))
     end
 
     return xs.parent[xs.offset + i - Ti(1)]
 end
-function Base.setindex!(xs::CuDeviceVectorInstance, v, i::Ti) where {Ti}
+function Base.setindex!(xs::CuDeviceVectorInstance{Tv, Ti, A}, v, i) where {Tv, Ti, A}
     if i > xs.length
         throw(BoundsError(xs, i))
     end
 
-    return xs.parent[xs.offset + i - Ti(1)] = v
+    xs.parent[xs.offset + i - Ti(1)] = v
 end
 
 # Permutation subsets
@@ -134,12 +137,12 @@ Base.similar(subsets::CuPermutationSubsets) =
     CuPermutationSubsets(similar(subsets.value_subsets), similar(subsets.ptrs))
 
 # Indexing
-Base.getindex(subsets::CuPermutationSubsets, i::Ti) where {Ti} =
+Base.getindex(subsets::CuPermutationSubsets{Tv, Ti}, i) where {Tv, Ti} =
     CuPermutationSubset(subsets.value_subsets[i], subsets.perm_subsets[i], i)
 struct CuPermutationSubset{Tv, Ti}
     value_subset::CuVectorInstance{Tv, Ti}
     perm_subset::CuVectorInstance{Ti, Ti}
-    index::Ti
+    index
 end
 
 # Device
@@ -152,17 +155,17 @@ Base.length(subsets::CuDevicePermutationSubsets) = length(subsets.value_subsets)
 Base.size(subsets::CuDevicePermutationSubsets) = (length(subsets),)
 
 function Adapt.adapt_structure(to::CUDA.Adaptor, subsets::CuPermutationSubsets)
-    return CuDevicePermutationSubsets(adapt(to, subsets.queues), adapt(to, subsets.ptrs))
+    return CuDevicePermutationSubsets(adapt(to, subsets.value_subsets), adapt(to, subsets.perm_subsets))
 end
 
 # Indexing
 struct CuDevicePermutationSubset{Tv, Ti, A}
     value_subset::CuDeviceVectorInstance{Tv, Ti, A}
     perm_subset::CuDeviceVectorInstance{Ti, Ti, A}
-    index::Ti
+    index
 end
-Base.getindex(subsets::CuDevicePermutationSubsets{Tv, Ti, A}, i::Ti) where {Tv, Ti, A} =
-    CuDevicePermutationSubset(subsets.value_subsets[i], subsets.perm_subsets[i], i)
+Base.getindex(subsets::CuDevicePermutationSubsets{Tv, Ti, A}, i) where {Tv, Ti, A} = 
+    CuDevicePermutationSubset{Tv, Ti, A}(subsets.value_subsets[i], subsets.perm_subsets[i], i)
 Base.length(subset::CuDevicePermutationSubset) = length(subset.value_subset)
 
 

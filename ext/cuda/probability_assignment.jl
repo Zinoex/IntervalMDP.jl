@@ -71,7 +71,7 @@ function launch_add_gap_scalar_kernel!(
 ) where {R, T}
     n = size(p, 2)
 
-    threads = 256
+    threads = min(256, n)
     blocks = ceil(Int64, n / threads)
 
     @cuda blocks = blocks threads = threads add_gap_scalar_kernel!(
@@ -89,7 +89,7 @@ function add_gap_scalar_kernel!(
     p::CuSparseDeviceMatrixCSC{R, T, A},
     gap::CuSparseDeviceMatrixCSC{R, T, A},
     sum_lower::CuDeviceVector{R, A},
-    ordering::CuSparseDeviceOrdering{T, A},
+    ordering::CuSparseDeviceOrdering{T, R, A},
     indices,
 ) where {R, T, A}
     k = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
@@ -98,6 +98,7 @@ function add_gap_scalar_kernel!(
         j = T(indices[k])
         # p and gap have the same sparsity pattern
         p_nzinds = p.rowVal
+        p_offset = p.colPtr[j]
         p_nzs = p.nzVal
         g_nzs = gap.nzVal
 
@@ -106,12 +107,12 @@ function add_gap_scalar_kernel!(
         remaining = R(1) - sum_lower[j]
 
         for s in T(1):T(length(subset))
-            i = subset[s]
-            t = bisect_indices(p_nzinds, p.colPtr[j], p.colPtr[j + T(1)], i)
+            t = subset.perm_subset[s] + p_offset - T(1)
+            # t = bisect_indices(p_nzinds, p.colPtr[j], p.colPtr[j + T(1)], i)
 
             gₜ = g_nzs[t]
 
-            p_nzs[t] = p_nzs[t] + gₜ
+            p_nzs[t] += gₜ
             remaining -= gₜ
 
             if remaining < R(0.0)
@@ -174,8 +175,8 @@ function add_gap_vector_kernel!(
             # Find index of the permutation, and lookup the corresponding gap
             sₗ = s + lane - T(1)
             if sₗ <= length(subset)
-                i = subset[sₗ]
-                t = bisect_indices(p_nzinds, p.colPtr[j], p.colPtr[j + T(1)], i)
+                t = subset[sₗ]
+                # t = bisect_indices(p_nzinds, p.colPtr[j], p.colPtr[j + T(1)], i)
 
                 g = g_nzs[t]
                 cum_gap = g

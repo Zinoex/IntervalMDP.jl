@@ -12,7 +12,7 @@ prob = cu(
     ),
 )
 
-V = cu(collect(1:15))
+V = cu(collect(1.0:15.0))
 
 p = ominmax(prob, V; max = true)
 p = SparseMatrixCSC(p)

@@ -4,15 +4,9 @@ struct CuSparseOrdering{T, R} <: AbstractStateOrdering{T}
     rowvals::CuVector{T}
 end
 
-function Adapt.adapt_structure(to::CUDA.CuArrayAdaptor, o::SparseOrdering)
-    return CuSparseOrdering(
-        adapt(to, o.subsets),
-        adapt(to, o.rowvals)
-    )
-end
-
 function CUDA.unsafe_free!(o::CuSparseOrdering)
     unsafe_free!(o.subsets)
+    unsafe_free!(o.rowvals)
     return
 end
 
@@ -24,7 +18,7 @@ function Adapt.adapt_structure(to::CUDA.Adaptor, o::CuSparseOrdering)
 end
 
 struct CuSparseDeviceOrdering{T, R, A} <: AbstractStateOrdering{T}
-    subsets::CuDevicePermutationSubsets{T, R, A}
+    subsets::CuDevicePermutationSubsets{R, T, A}
     rowvals::CuDeviceVector{T, A}
 end
 
@@ -46,7 +40,7 @@ function populate_value_subsets!(order::CuSparseOrdering, V)
     threads = 1024
     blocks = ceil(Int32, n / threads)
 
-    @cuda blocks = blocks threads = threads populate_value_subsets_kernel!(order, v)
+    @cuda blocks = blocks threads = threads populate_value_subsets_kernel!(order, V)
 
     return order
 end
@@ -83,11 +77,11 @@ function initialize_perm_subsets_kernel!(order::CuSparseDeviceOrdering{T, R, A})
     n = length(order.subsets)
 
     if warp_id <= n
-        subset = order.subsets[thread_id]
+        subset = order.subsets[warp_id]
 
         i = T(lane)
         while i <= length(subset)
-            subset.perm_subset.val[value_id] = i
+            subset.perm_subset[i] = i
             i += T(warpsize())
         end
     end
@@ -95,11 +89,18 @@ function initialize_perm_subsets_kernel!(order::CuSparseDeviceOrdering{T, R, A})
     return nothing
 end
 
-function sort_subsets!(order::CuSparseOrdering; max = true)
-    n = length(order.subsets) * warpsize(device())
+function sort_subsets!(order::CuSparseOrdering{T, R}; max = true) where {T, R}
+    n = length(order.subsets)
 
-    threads = 256
-    blocks = ceil(Int32, n / threads)
+    ml = maxlength(order.subsets.value_subsets)
+    ml_ceil = nextpow(T(2), ml)
+
+    threads_per_subset = min(256, ml_ceil)
+
+    threads = threads_per_subset
+    blocks = min(65536, n)
+    shmem = ml_ceil * (sizeof(T) + sizeof(R))
+    @assert ml <= 1024 "Due to a bug in CUDA.jl, this is hardcoded."
 
     @cuda blocks = blocks threads = threads sort_subsets_kernel!(order, max)
 
@@ -107,19 +108,98 @@ function sort_subsets!(order::CuSparseOrdering; max = true)
 end
 
 function sort_subsets_kernel!(order::CuSparseDeviceOrdering{T, R, A}, max::Bool) where {T, R, A}
-    assume(warpsize() == 32)
+    ml = maxlength(order.subsets.value_subsets)
+    ml_ceil = nextpow(T(2), ml)
 
-    thread_id = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
-    warp_id, lane = fldmod1(thread_id, warpsize())
+    # FIXME: If I use dynamics shared array,
+    # then the memory is automatically zero
+    # immediately after the array filling
+    # the shared memory. So as a workaround,
+    # I use static shared array.
+    value = CuStaticSharedArray(R, 1024)
+    perm = CuStaticSharedArray(T, 1024)
 
-    n = length(order.subsets)
+    s = blockIdx().x
+    while s <= length(order.subsets)  # Grid-stride loop
+        subset = order.subsets[s]
+        subset_length = length(subset)
 
-    if warp_id <= n
-        subset = order.subsets[thread_id]
+        # Copy into shared memory
+        i = threadIdx().x
+        while i <= subset_length
+            value[i] = subset.value_subset[i]
+            perm[i] = subset.perm_subset[i]
+            i += blockDim().x
+        end
+        
+        # Need to synchronize to make sure all agree on the shared memory
+        sync_threads()
 
-        # Copy to CuDynamicSharedArray
+        #### Sort the shared memory - bitonic sort
 
-        # Sort the permutation subset by the value subset
+        # Major step
+        k = T(2)
+        while k <= nextpow(T(2), subset_length)
+            # Minor step - Merge
+            i = threadIdx().x - T(1)
+            while i < subset_length
+                if (i % k) < k ÷ T(2)
+                    j = k - T(2) * (i % k) - T(1)
+                    l = i + j
+    
+                    if l > i && l < subset_length # Ensure only one thread in each pair does the swap
+                        perm_i = perm[i + T(1)]
+                        perm_l = perm[l + T(1)]
+    
+                        if (value[perm_i] > value[perm_l]) ⊻ max
+                            perm[i + T(1)], perm[l + T(1)] = perm_l, perm_i
+                        end
+                    end
+                end
+
+                i += blockDim().x
+            end
+
+            sync_threads()
+
+            # Minor step - Compare and swap
+            j = k ÷ T(4)
+            while j > T(0)
+
+                # Compare and swap
+                i = threadIdx().x - T(1)
+                while i < subset_length
+                    l = i ⊻ j
+
+                    if l > i && l < subset_length # Ensure only one thread in each pair does the swap
+                        perm_i = perm[i + T(1)]
+                        perm_l = perm[l + T(1)]
+
+                        if (value[perm_i] > value[perm_l]) ⊻ max
+                            perm[i + T(1)], perm[l + T(1)] = perm_l, perm_i
+                        end
+                    end
+
+                    i += blockDim().x
+                end
+
+                j ÷= T(2)
+                
+                # Synchronize after minor step to make sure all threads agree on the shared memory
+                sync_threads()
+            end
+
+            k *= T(2)
+        end
+
+        # Copy back into global
+        i = threadIdx().x
+        while i <= subset_length
+            subset.perm_subset[i] = perm[i]
+            i += blockDim().x
+        end
+
+        s += gridDim().x
     end
 
     return nothing
@@ -127,29 +207,20 @@ end
 
 function IMDP.construct_ordering(T, p::CuSparseMatrixCSC)
     # Assume that input/start state is on the columns and output/target state is on the rows
-    n, m = size(p)
-    perm = CuArray(collect(UnitRange{T}(1, n)))
-    state_to_subset = construct_state_to_subset(T, n)
+    vecptr = CuVector{T}(p.colPtr)
+    value = CuVector(nonzeros(p))
+    perm = CuVector{T}(SparseArrays.rowvals(p))
+    maxlength = maximum(p.colPtr[2:end] - p.colPtr[1:(end-1)])
 
-    subsets = Vector{PermutationSubset{T, Vector{T}}}(undef, m)
-    colptr = Vector(p.colPtr)
-    nzinds = Vector(SparseArrays.rowvals(p))
+    R = eltype(p)
 
-    for j in eachindex(subsets)
-        nrow = colptr[j + 1] - colptr[j]
-        subsets[j] = PermutationSubset(T(1), Vector{T}(undef, nrow))
+    subsets = CuPermutationSubsets(
+        CuVectorOfVector{R, T}(vecptr, value, maxlength),
+        CuVectorOfVector{T, T}(vecptr, perm, maxlength)
+    )
 
-        # This is an ugly way to get the indices of the nonzero elements in the column
-        # but it is necessary as subarray does not support SparseArrays.nonzeroinds.
-        ids = @view nzinds[colptr[j]:(colptr[j + 1] - 1)]
-        for i in ids
-            push!(state_to_subset[i], j)
-        end
-    end
+    rowvals = CuVector{T}(SparseArrays.rowvals(p))
 
-    state_to_subset = cu(state_to_subset)
-    subsets = cu(subsets)
-
-    order = CuSparseOrdering(perm, state_to_subset, subsets)
+    order = CuSparseOrdering(subsets, rowvals)
     return order
 end
