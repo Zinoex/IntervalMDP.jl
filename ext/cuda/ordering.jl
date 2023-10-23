@@ -1,6 +1,6 @@
 
-struct CuSparseOrdering{T, R} <: AbstractStateOrdering{T}
-    subsets::CuPermutationSubsets{R, T}
+struct CuSparseOrdering{T} <: AbstractStateOrdering{T}
+    subsets::CuVectorOfVector{T}
     rowvals::CuVector{T}
 end
 
@@ -17,8 +17,8 @@ function Adapt.adapt_structure(to::CUDA.Adaptor, o::CuSparseOrdering)
     )
 end
 
-struct CuSparseDeviceOrdering{T, R, A} <: AbstractStateOrdering{T}
-    subsets::CuDevicePermutationSubsets{R, T, A}
+struct CuSparseDeviceOrdering{T, A} <: AbstractStateOrdering{T}
+    subsets::CuDeviceVectorOfVector{T, A}
     rowvals::CuDeviceVector{T, A}
 end
 
@@ -27,9 +27,9 @@ IMDP.perm(order::CuSparseOrdering, state) = order.subsets[state]
 IMDP.perm(order::CuSparseDeviceOrdering, state) = order.subsets[state]
 
 function IMDP.sort_states!(order::CuSparseOrdering, V; max = true)
-    populate_value_subsets!(order, V)
-    initialize_perm_subsets!(order)
-    sort_subsets!(order; max = max)
+    # populate_value_subsets!(order, V)
+    # initialize_perm_subsets!(order)
+    sort_subsets!(order, V; max = max)
 
     return order
 end
@@ -45,7 +45,7 @@ function populate_value_subsets!(order::CuSparseOrdering, V)
     return order
 end
 
-function populate_value_subsets_kernel!(order::CuSparseDeviceOrdering{T, R, A}, V::CuDeviceVector{R, A}) where {T, R, A}
+function populate_value_subsets_kernel!(order::CuSparseDeviceOrdering{Ti, A}, V::CuDeviceVector{Tv, A}) where {Ti, Tv, A}
     thread_id = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
     n = length(order.rowvals)
 
@@ -89,7 +89,7 @@ function initialize_perm_subsets_kernel!(order::CuSparseDeviceOrdering{T, R, A})
     return nothing
 end
 
-function sort_subsets!(order::CuSparseOrdering{T, R}; max = true) where {T, R}
+function sort_subsets!(order::CuSparseOrdering{Ti}, V::CuVector{Tv}; max = true) where {Ti, Tv}
     n = length(order.subsets)
 
     ml = maxlength(order.subsets.value_subsets)
@@ -100,104 +100,26 @@ function sort_subsets!(order::CuSparseOrdering{T, R}; max = true) where {T, R}
     threads = threads_per_subset
     blocks = min(65536, n)
     shmem = ml_ceil * (sizeof(T) + sizeof(R))
-    @assert ml <= 1024 "Due to a bug in CUDA.jl, this is hardcoded."
 
-    @cuda blocks = blocks threads = threads sort_subsets_kernel!(order, max)
+    @cuda blocks = blocks threads = threads shmem = shmem sort_subsets_kernel!(order, V, max)
 
     return order
 end
 
-function sort_subsets_kernel!(order::CuSparseDeviceOrdering{T, R, A}, max::Bool) where {T, R, A}
+function sort_subsets_kernel!(order::CuSparseDeviceOrdering{Ti, A}, V::CuDeviceVector{Tv, A}, max::Bool) where {Ti, Tv, A}
     ml = maxlength(order.subsets.value_subsets)
     ml_ceil = nextpow(T(2), ml)
 
-    # FIXME: If I use dynamics shared array,
-    # then the memory is automatically zero
-    # immediately after the array filling
-    # the shared memory. So as a workaround,
-    # I use static shared array.
-    value = CuStaticSharedArray(R, 1024)
-    perm = CuStaticSharedArray(T, 1024)
+    value = CuDynamicSharedArray(R, ml_ceil)
+    perm = CuDynamicSharedArray(T, ml_ceil, offset=ml_ceil * sizeof(R))
 
     s = blockIdx().x
     while s <= length(order.subsets)  # Grid-stride loop
         subset = order.subsets[s]
-        subset_length = length(subset)
 
-        # Copy into shared memory
-        i = threadIdx().x
-        while i <= subset_length
-            value[i] = subset.value_subset[i]
-            perm[i] = subset.perm_subset[i]
-            i += blockDim().x
-        end
-        
-        # Need to synchronize to make sure all agree on the shared memory
-        sync_threads()
-
-        #### Sort the shared memory - bitonic sort
-
-        # Major step
-        k = T(2)
-        while k <= nextpow(T(2), subset_length)
-            # Minor step - Merge
-            i = threadIdx().x - T(1)
-            while i < subset_length
-                if (i % k) < k ÷ T(2)
-                    j = k - T(2) * (i % k) - T(1)
-                    l = i + j
-    
-                    if l > i && l < subset_length # Ensure only one thread in each pair does the swap
-                        perm_i = perm[i + T(1)]
-                        perm_l = perm[l + T(1)]
-    
-                        if (value[perm_i] > value[perm_l]) ⊻ max
-                            perm[i + T(1)], perm[l + T(1)] = perm_l, perm_i
-                        end
-                    end
-                end
-
-                i += blockDim().x
-            end
-
-            sync_threads()
-
-            # Minor step - Compare and swap
-            j = k ÷ T(4)
-            while j > T(0)
-
-                # Compare and swap
-                i = threadIdx().x - T(1)
-                while i < subset_length
-                    l = i ⊻ j
-
-                    if l > i && l < subset_length # Ensure only one thread in each pair does the swap
-                        perm_i = perm[i + T(1)]
-                        perm_l = perm[l + T(1)]
-
-                        if (value[perm_i] > value[perm_l]) ⊻ max
-                            perm[i + T(1)], perm[l + T(1)] = perm_l, perm_i
-                        end
-                    end
-
-                    i += blockDim().x
-                end
-
-                j ÷= T(2)
-                
-                # Synchronize after minor step to make sure all threads agree on the shared memory
-                sync_threads()
-            end
-
-            k *= T(2)
-        end
-
-        # Copy back into global
-        i = threadIdx().x
-        while i <= subset_length
-            subset.perm_subset[i] = perm[i]
-            i += blockDim().x
-        end
+        initialize_sorting_shared_memory!(order, subset, V, value, perm)
+        bitonic_sort!(subset, value, perm)
+        copy_perm_to_global!(subset, perm)
 
         s += gridDim().x
     end
@@ -205,20 +127,99 @@ function sort_subsets_kernel!(order::CuSparseDeviceOrdering{T, R, A}, max::Bool)
     return nothing
 end
 
+@inline function initialize_sorting_shared_memory!(order, subset, V, value, perm)
+    # Copy into shared memory
+    i = threadIdx().x
+    while i <= length(subset)
+        value_id = order.rowvals[subset.offset + i]
+        value[i] = V[value_id]
+        perm[i] = i
+        i += blockDim().x
+    end
+    
+    # Need to synchronize to make sure all agree on the shared memory
+    sync_threads()
+end
+
+@inline function bitonic_sort!(subset, value, perm)
+    #### Sort the shared memory with bitonic sort
+    subset_length = length(subset)
+    
+    # Major step
+    k = T(2)
+    while k <= nextpow(T(2), subset_length)
+        # Minor step - Merge
+        i = threadIdx().x - T(1)
+        while i < subset_length
+            if (i % k) < k ÷ T(2)
+                j = k - T(2) * (i % k) - T(1)
+                l = i + j
+
+                if l > i && l < subset_length # Ensure only one thread in each pair does the swap
+                    perm_i = perm[i + T(1)]
+                    perm_l = perm[l + T(1)]
+
+                    if (value[perm_i] > value[perm_l]) ⊻ max
+                        perm[i + T(1)], perm[l + T(1)] = perm_l, perm_i
+                    end
+                end
+            end
+
+            i += blockDim().x
+        end
+
+        sync_threads()
+
+        # Minor step - Compare and swap
+        j = k ÷ T(4)
+        while j > T(0)
+
+            # Compare and swap
+            i = threadIdx().x - T(1)
+            while i < subset_length
+                l = i ⊻ j
+
+                if l > i && l < subset_length # Ensure only one thread in each pair does the swap
+                    perm_i = perm[i + T(1)]
+                    perm_l = perm[l + T(1)]
+
+                    if (value[perm_i] > value[perm_l]) ⊻ max
+                        perm[i + T(1)], perm[l + T(1)] = perm_l, perm_i
+                    end
+                end
+
+                i += blockDim().x
+            end
+
+            j ÷= T(2)
+            
+            # Synchronize after minor step to make sure all threads agree on the shared memory
+            sync_threads()
+        end
+
+        k *= T(2)
+    end
+end
+
+@inline function copy_perm_to_global!(subset, perm)
+    i = threadIdx().x
+    while i <= length(subset)
+        subset.perm_subset[i] = perm[i]
+        i += blockDim().x
+    end
+    
+    # Do I need to synchronize here? Now, we do it for
+    # safety's sake.
+    sync_threads()
+end
+
 function IMDP.construct_ordering(T, p::CuSparseMatrixCSC)
     # Assume that input/start state is on the columns and output/target state is on the rows
     vecptr = CuVector{T}(p.colPtr)
-    value = CuVector(nonzeros(p))
     perm = CuVector{T}(SparseArrays.rowvals(p))
     maxlength = maximum(p.colPtr[2:end] - p.colPtr[1:(end-1)])
 
-    R = eltype(p)
-
-    subsets = CuPermutationSubsets(
-        CuVectorOfVector{R, T}(vecptr, value, maxlength),
-        CuVectorOfVector{T, T}(vecptr, perm, maxlength)
-    )
-
+    subsets = CuVectorOfVector{T, T}(vecptr, perm, maxlength)
     rowvals = CuVector{T}(SparseArrays.rowvals(p))
 
     order = CuSparseOrdering(subsets, rowvals)
