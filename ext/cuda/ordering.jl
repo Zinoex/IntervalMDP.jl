@@ -3,6 +3,7 @@ struct CuSparseOrdering{T} <: AbstractStateOrdering{T}
     subsets::CuVectorOfVector{T}
     rowvals::CuVector{T}
 end
+# TODO: Add adaptor from SparseOrdering to CuSparseOrdering
 
 function CUDA.unsafe_free!(o::CuSparseOrdering)
     unsafe_free!(o.subsets)
