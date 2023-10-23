@@ -1,3 +1,12 @@
+function IMDP.compute_gap(
+    lower::MR,
+    upper::MR,
+) where {MR <: CuSparseMatrixCSC}
+    gap = upper - lower
+    lower = upper - gap
+    return lower, gap
+end
+
 ### Vector of Vector
 struct CuVectorOfVector{Tv, Ti} <: AbstractVector{AbstractVector{Tv}}
     vecptr::CuVector{Ti}
@@ -168,15 +177,22 @@ Base.getindex(subsets::CuDevicePermutationSubsets{Tv, Ti, A}, i) where {Tv, Ti, 
     CuDevicePermutationSubset{Tv, Ti, A}(subsets.value_subsets[i], subsets.perm_subsets[i], i)
 Base.length(subset::CuDevicePermutationSubset) = length(subset.value_subset)
 
-
 # This is type piracy - please port to CUDA when FixedSparseVector and FixedSparseCSC are stable.
 CUDA.CUSPARSE.CuSparseVector{T}(Vec::SparseArrays.FixedSparseVector) where {T} =
     CuSparseVector(CuVector{Cint}(Vec.nzind), CuVector{T}(Vec.nzval), length(Vec))
 CUDA.CUSPARSE.CuSparseMatrixCSC{T}(Mat::SparseArrays.FixedSparseCSC) where {T} =
-    CuSparseMatrixCSC{T}(CuVector{Cint}(Mat.colptr), CuVector{Cint}(Mat.rowval),
-                         CuVector{T}(Mat.nzval), size(Mat))
+    CuSparseMatrixCSC{T}(
+        CuVector{Cint}(Mat.colptr),
+        CuVector{Cint}(Mat.rowval),
+        CuVector{T}(Mat.nzval),
+        size(Mat),
+    )
 
-Adapt.adapt_storage(::Type{CuArray}, xs::SparseArrays.FixedSparseVector) = CuSparseVector(xs)
-Adapt.adapt_storage(::Type{CuArray}, xs::SparseArrays.FixedSparseCSC) = CuSparseMatrixCSC(xs)
-Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseArrays.FixedSparseVector) where {T} = CuSparseVector{T}(xs)
-Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseArrays.FixedSparseCSC) where {T} = CuSparseMatrixCSC{T}(xs)
+Adapt.adapt_storage(::Type{CuArray}, xs::SparseArrays.FixedSparseVector) =
+    CuSparseVector(xs)
+Adapt.adapt_storage(::Type{CuArray}, xs::SparseArrays.FixedSparseCSC) =
+    CuSparseMatrixCSC(xs)
+Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseArrays.FixedSparseVector) where {T} =
+    CuSparseVector{T}(xs)
+Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseArrays.FixedSparseCSC) where {T} =
+    CuSparseMatrixCSC{T}(xs)
