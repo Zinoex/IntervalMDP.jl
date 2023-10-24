@@ -205,7 +205,7 @@ end
 @inline function copy_perm_to_global!(subset, perm)
     i = threadIdx().x
     while i <= length(subset)
-        subset.perm_subset[i] = perm[i]
+        subset[i] = perm[i]
         i += blockDim().x
     end
     
