@@ -108,8 +108,8 @@ function add_gap_vector_kernel!(
     if warp_id <= length(indices)
         j = Ti(indices[warp_id])
         # p and gap have the same sparsity pattern
-        p_nzs = nonzeros(p)
-        g_nzs = nonzeros(gap)
+        p_nzs = p.nzVal
+        g_nzs = gap.nzVal
 
         subset = ordering.subsets[j]
         remaining = one(Tv) - sum_lower[j]
