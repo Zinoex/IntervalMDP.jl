@@ -160,7 +160,7 @@ end
                     perm_i = perm[i + Ti(1)]
                     perm_l = perm[l + Ti(1)]
 
-                    if (value[perm_i] > value[perm_l]) ⊻ max
+                    if (value[perm_i] > value[perm_l]) != max
                         perm[i + Ti(1)], perm[l + Ti(1)] = perm_l, perm_i
                     end
                 end
@@ -184,7 +184,7 @@ end
                     perm_i = perm[i + Ti(1)]
                     perm_l = perm[l + Ti(1)]
 
-                    if (value[perm_i] > value[perm_l]) ⊻ max
+                    if (value[perm_i] > value[perm_l]) != max
                         perm[i + Ti(1)], perm[l + Ti(1)] = perm_l, perm_i
                     end
                 end
