@@ -2,6 +2,8 @@ function IMDP.compute_gap(
     lower::MR,
     upper::MR,
 ) where {MR <: CuSparseMatrixCSC}
+    # lower = CuSparseMatrixCOO(lower)
+
     # FIXME: This is an ugly, non-robust hack.
     upper = SparseMatrixCSC(upper)
     lower = SparseMatrixCSC(lower)
