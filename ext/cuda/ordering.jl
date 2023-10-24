@@ -1,6 +1,6 @@
 
 struct CuSparseOrdering{T} <: AbstractStateOrdering{T}
-    subsets::CuVectorOfVector{T}
+    subsets::CuVectorOfVector{T, T}
     rowvals::CuVector{T}
 end
 # TODO: Add adaptor from SparseOrdering to CuSparseOrdering
@@ -19,7 +19,7 @@ function Adapt.adapt_structure(to::CUDA.Adaptor, o::CuSparseOrdering)
 end
 
 struct CuSparseDeviceOrdering{T, A} <: AbstractStateOrdering{T}
-    subsets::CuDeviceVectorOfVector{T, A}
+    subsets::CuDeviceVectorOfVector{T, T, A}
     rowvals::CuDeviceVector{T, A}
 end
 
