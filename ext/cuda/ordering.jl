@@ -93,7 +93,7 @@ end
 function sort_subsets!(order::CuSparseOrdering{Ti}, V::CuVector{Tv}; max = true) where {Ti, Tv}
     n = length(order.subsets)
 
-    ml = maxlength(order.subsets.value_subsets)
+    ml = maxlength(order.subsets)
     ml_ceil = nextpow(T(2), ml)
 
     threads_per_subset = min(256, ml_ceil)
