@@ -5,8 +5,7 @@ function IMDP.compute_gap(
     # FIXME: This is an ugly, non-robust hack.
     upper = SparseMatrixCSC(upper)
     lower = SparseMatrixCSC(lower)
-    gap = upper - lower
-    lower = upper - gap
+    lower, gap = IMDP.compute_gap(lower, upper)
     return cu(lower), cu(gap)
 end
 
