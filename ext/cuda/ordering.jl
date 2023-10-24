@@ -94,13 +94,13 @@ function sort_subsets!(order::CuSparseOrdering{Ti}, V::CuVector{Tv}; max = true)
     n = length(order.subsets)
 
     ml = maxlength(order.subsets)
-    ml_ceil = nextpow(T(2), ml)
+    ml_ceil = nextpow(Ti(2), ml)
 
     threads_per_subset = min(256, ml_ceil)
 
     threads = threads_per_subset
     blocks = min(65536, n)
-    shmem = ml_ceil * (sizeof(T) + sizeof(R))
+    shmem = ml_ceil * (sizeof(Ti) + sizeof(Tv))
 
     @cuda blocks = blocks threads = threads shmem = shmem sort_subsets_kernel!(order, V, max)
 
@@ -108,11 +108,11 @@ function sort_subsets!(order::CuSparseOrdering{Ti}, V::CuVector{Tv}; max = true)
 end
 
 function sort_subsets_kernel!(order::CuSparseDeviceOrdering{Ti, A}, V::CuDeviceVector{Tv, A}, max::Bool) where {Ti, Tv, A}
-    ml = maxlength(order.subsets.value_subsets)
-    ml_ceil = nextpow(T(2), ml)
+    ml = maxlength(order.subsets)
+    ml_ceil = nextpow(Ti(2), ml)
 
-    value = CuDynamicSharedArray(R, ml_ceil)
-    perm = CuDynamicSharedArray(T, ml_ceil, offset=ml_ceil * sizeof(R))
+    value = CuDynamicSharedArray(Tv, ml_ceil)
+    perm = CuDynamicSharedArray(Ti, ml_ceil, offset=ml_ceil * sizeof(Tv))
 
     s = blockIdx().x
     while s <= length(order.subsets)  # Grid-stride loop
@@ -142,26 +142,26 @@ end
     sync_threads()
 end
 
-@inline function bitonic_sort!(subset, value, perm)
+@inline function bitonic_sort!(subset::CuDeviceVectorOfVector{Ti, Ti, A}, value, perm) where {Ti, A}
     #### Sort the shared memory with bitonic sort
     subset_length = length(subset)
     
     # Major step
-    k = T(2)
-    while k <= nextpow(T(2), subset_length)
+    k = Ti(2)
+    while k <= nextpow(Ti(2), subset_length)
         # Minor step - Merge
-        i = threadIdx().x - T(1)
+        i = threadIdx().x - Ti(1)
         while i < subset_length
-            if (i % k) < k ÷ T(2)
-                j = k - T(2) * (i % k) - T(1)
+            if (i % k) < k ÷ Ti(2)
+                j = k - Ti(2) * (i % k) - Ti(1)
                 l = i + j
 
                 if l > i && l < subset_length # Ensure only one thread in each pair does the swap
-                    perm_i = perm[i + T(1)]
-                    perm_l = perm[l + T(1)]
+                    perm_i = perm[i + Ti(1)]
+                    perm_l = perm[l + Ti(1)]
 
                     if (value[perm_i] > value[perm_l]) ⊻ max
-                        perm[i + T(1)], perm[l + T(1)] = perm_l, perm_i
+                        perm[i + Ti(1)], perm[l + Ti(1)] = perm_l, perm_i
                     end
                 end
             end
@@ -172,33 +172,33 @@ end
         sync_threads()
 
         # Minor step - Compare and swap
-        j = k ÷ T(4)
-        while j > T(0)
+        j = k ÷ Ti(4)
+        while j > Ti(0)
 
             # Compare and swap
-            i = threadIdx().x - T(1)
+            i = threadIdx().x - Ti(1)
             while i < subset_length
                 l = i ⊻ j
 
                 if l > i && l < subset_length # Ensure only one thread in each pair does the swap
-                    perm_i = perm[i + T(1)]
-                    perm_l = perm[l + T(1)]
+                    perm_i = perm[i + Ti(1)]
+                    perm_l = perm[l + Ti(1)]
 
                     if (value[perm_i] > value[perm_l]) ⊻ max
-                        perm[i + T(1)], perm[l + T(1)] = perm_l, perm_i
+                        perm[i + Ti(1)], perm[l + Ti(1)] = perm_l, perm_i
                     end
                 end
 
                 i += blockDim().x
             end
 
-            j ÷= T(2)
+            j ÷= Ti(2)
             
             # Synchronize after minor step to make sure all threads agree on the shared memory
             sync_threads()
         end
 
-        k *= T(2)
+        k *= Ti(2)
     end
 end
 
