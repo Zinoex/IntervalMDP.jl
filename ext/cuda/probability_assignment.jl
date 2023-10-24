@@ -46,8 +46,8 @@ function add_gap_scalar_kernel!(
     if k <= length(indices)
         j = Ti(indices[k])
         # p and gap have the same sparsity pattern
-        p_nzs = nonzeros(p)
-        g_nzs = nonzeros(gap)
+        p_nzs = p.nzVal
+        g_nzs = gap.nzVal
 
         subset = ordering.subsets[j]
 
