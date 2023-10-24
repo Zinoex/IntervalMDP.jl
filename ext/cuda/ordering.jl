@@ -142,7 +142,7 @@ end
     sync_threads()
 end
 
-@inline function bitonic_sort!(subset::CuDeviceVectorOfVector{Ti, Ti, A}, value, perm) where {Ti, A}
+@inline function bitonic_sort!(subset::CuDeviceVectorInstance{Ti, Ti, A}, value, perm) where {Ti, A}
     #### Sort the shared memory with bitonic sort
     subset_length = length(subset)
     
