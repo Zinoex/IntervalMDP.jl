@@ -69,7 +69,7 @@ function initialize_perm_subsets!(order::CuSparseOrdering)
     return order
 end
 
-function initialize_perm_subsets_kernel!(order::CuSparseDeviceOrdering{T, R, A}) where {T, R, A}
+function initialize_perm_subsets_kernel!(order::CuSparseDeviceOrdering{T, A}) where {T, A}
     assume(warpsize() == 32)
 
     thread_id = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
