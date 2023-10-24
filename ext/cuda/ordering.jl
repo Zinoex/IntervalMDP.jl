@@ -112,7 +112,7 @@ function sort_subsets_kernel!(order::CuSparseDeviceOrdering{Ti, A}, V::CuDeviceV
     ml_ceil = nextpow(Ti(2), ml)
 
     value = CuDynamicSharedArray(Tv, ml_ceil)
-    perm = CuDynamicSharedArray(Ti, ml_ceil, offset=ml_ceil * sizeof(Tv))
+    perm = CuDynamicSharedArray(Ti, ml_ceil, ml_ceil * sizeof(Tv))
 
     s = blockIdx().x
     while s <= length(order.subsets)  # Grid-stride loop
