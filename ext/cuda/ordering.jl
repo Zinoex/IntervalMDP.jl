@@ -157,11 +157,12 @@ end
                 l = i + j
 
                 if l > i && l < subset_length # Ensure only one thread in each pair does the swap
-                    perm_i = perm[i + Ti(1)]
-                    perm_l = perm[l + Ti(1)]
+                    i1 = i + Ti(1)
+                    l1 = l + Ti(1)
 
-                    if (value[perm_i] > value[perm_l]) != max
-                        perm[i + Ti(1)], perm[l + Ti(1)] = perm_l, perm_i
+                    if (value[i1] > value[l1]) != max
+                        perm[i1], perm[l1] = perm[l1], perm[i1]
+                        value[i1], value[l1] = value[l1], value[i1]
                     end
                 end
             end
@@ -181,11 +182,12 @@ end
                 l = i ⊻ j
 
                 if l > i && l < subset_length # Ensure only one thread in each pair does the swap
-                    perm_i = perm[i + Ti(1)]
-                    perm_l = perm[l + Ti(1)]
+                    i1 = i + Ti(1)
+                    l1 = l + Ti(1)
 
-                    if (value[perm_i] > value[perm_l]) != max
-                        perm[i + Ti(1)], perm[l + Ti(1)] = perm_l, perm_i
+                    if (value[i1] > value[l1]) != max
+                        perm[i1], perm[l1] = perm[l1], perm[i1]
+                        value[i1], value[l1] = value[l1], value[i1]
                     end
                 end
 
