@@ -119,7 +119,7 @@ function add_gap_vector_kernel!(
             # Find index of the permutation, and lookup the corresponding gap
             sₗ = s + lane - one(Ti)
             if sₗ <= length(subset)
-                t = subset.offet + subset[sₗ]
+                t = subset.offet + subset[sₗ] - Ti(1)
 
                 g = g_nzs[t]
                 cum_gap = g
