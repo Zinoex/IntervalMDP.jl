@@ -128,11 +128,11 @@ function sort_subsets_kernel!(order::CuSparseDeviceOrdering{Ti, A}, V::CuDeviceV
     return nothing
 end
 
-@inline function initialize_sorting_shared_memory!(order, subset, V, value, perm)
+@inline function initialize_sorting_shared_memory!(order::CuSparseDeviceOrdering{Ti, A}, subset, V, value, perm) where {Ti, A}
     # Copy into shared memory
     i = threadIdx().x
     while i <= length(subset)
-        value_id = order.rowvals[subset.offset + i]
+        value_id = order.rowvals[subset.offset + i - one(Ti)]
         value[i] = V[value_id]
         perm[i] = i
         i += blockDim().x
