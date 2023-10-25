@@ -54,7 +54,7 @@ function add_gap_scalar_kernel!(
         remaining = one(Tv) - sum_lower[j]
 
         for s in one(Ti):Ti(length(subset))
-            t = subset.offset + subset[s]
+            t = subset.offset + subset[s] - Ti(1)
 
             gₜ = g_nzs[t]
 
