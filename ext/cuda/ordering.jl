@@ -96,8 +96,7 @@ function sort_subsets!(order::CuSparseOrdering{Ti}, V::CuVector{Tv}; max = true)
     ml = maxlength(order.subsets)
     ml_ceil = nextpow(Ti(2), ml)
 
-    # threads_per_subset = min(256, ispow2(ml) ? ml ÷ Ti(2) : prevpow(Ti(2), ml))
-    threads_per_subset = min(256, ml_ceil)
+    threads_per_subset = min(256, ispow2(ml) ? ml ÷ Ti(2) : prevpow(Ti(2), ml))
 
     threads = threads_per_subset
     blocks = min(65536, n)
@@ -146,20 +145,22 @@ end
 @inline function bitonic_sort!(subset::CuDeviceVectorInstance{Ti, Ti, A}, value, perm) where {Ti, A}
     #### Sort the shared memory with bitonic sort
     subset_length = length(subset)
+    half_subset_length = ispow2(subset_length) ? subset_length ÷ Ti(2) : prevpow(Ti(2), subset_length)
     
     # Major step
     k = Ti(2)
-    while k <= nextpow(Ti(2), subset_length)
+    while k <= half_subset_length
 
         # Minor step - Merge
         k_half = k ÷ Ti(2)
         i = threadIdx().x - Ti(1)
         while i < subset_length
             i_block, i_lane = fld(i, k_half), mod(i, k_half)
-            l = i_block * k + k - i_lane
+            i_concrete = i_block * k + i_lane
+            l = (i_block + one(Ti)) * k - i_lane
 
             if l < subset_length # Ensure only one thread in each pair does the swap
-                i1 = i + Ti(1)
+                i1 = i_concrete + Ti(1)
                 l1 = l + Ti(1)
 
                 if (value[i1] > value[l1]) != max
@@ -180,10 +181,12 @@ end
             # Compare and swap
             i = threadIdx().x - Ti(1)
             while i < subset_length
-                l = i ⊻ j
+                i_block, i_lane = fld(i, j), mod(i, j)
+                i_concrete = i_block * k + i_lane
+                l = i_concrete + j
 
-                if l > i && l < subset_length # Ensure only one thread in each pair does the swap
-                    i1 = i + Ti(1)
+                if l < subset_length # Ensure only one thread in each pair does the swap
+                    i1 = i_concrete + Ti(1)
                     l1 = l + Ti(1)
 
                     if (value[i1] > value[l1]) != max
