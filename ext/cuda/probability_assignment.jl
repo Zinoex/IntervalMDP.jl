@@ -155,7 +155,7 @@ function add_gap_vector_kernel!(
             end
 
             # Update the remaining probability from the last thread in the warp
-            remaining = shfl_sync(0xffffffff, remaining, Ti(31))
+            remaining = shfl_sync(0xffffffff, remaining, Ti(32))
 
             # Early exit if the remaining probability is zero
             if remaining <= zero(Tv)
