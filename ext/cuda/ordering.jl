@@ -182,7 +182,7 @@ end
             i = threadIdx().x - Ti(1)
             while i < subset_length
                 i_block, i_lane = fld(i, j), mod(i, j)
-                i_concrete = i_block * k + i_lane
+                i_concrete = i_block * j * Ti(2) + i_lane
                 l = i_concrete + j
 
                 if l < subset_length # Ensure only one thread in each pair does the swap
