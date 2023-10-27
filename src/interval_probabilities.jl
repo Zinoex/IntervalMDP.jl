@@ -1,4 +1,3 @@
-
 struct StateIntervalProbabilities{R, VR <: AbstractVector{R}}
     lower::VR
     gap::VR
@@ -68,3 +67,5 @@ end
 gap(s::MatrixIntervalProbabilities) = s.gap
 lower(s::MatrixIntervalProbabilities) = s.lower
 sum_lower(s::MatrixIntervalProbabilities) = s.sum_lower
+
+const IntervalProbabilities{R} = Union{Vector{<:StateIntervalProbabilities{R}}, <:MatrixIntervalProbabilities{R}}
