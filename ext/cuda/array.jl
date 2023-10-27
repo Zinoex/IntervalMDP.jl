@@ -1,7 +1,4 @@
-function IMDP.compute_gap(
-    lower::MR,
-    upper::MR,
-) where {MR <: CuSparseMatrixCSC}
+function IMDP.compute_gap(lower::MR, upper::MR) where {MR <: CuSparseMatrixCSC}
     # lower = CuSparseMatrixCOO(lower)
 
     # FIXME: This is an ugly, non-robust hack.
@@ -27,7 +24,8 @@ end
 maxlength(xs::CuVectorOfVector) = xs.maxlength
 Base.length(xs::CuVectorOfVector{Tv, Ti}) where {Tv, Ti} = length(xs.vecptr) - Ti(1)
 Base.size(xs::CuVectorOfVector) = (length(xs),)
-Base.similar(xs::CuVectorOfVector) = CuVectorOfVector(copy(xs.vecptr), similar(xs.val), maxlength(xs))
+Base.similar(xs::CuVectorOfVector) =
+    CuVectorOfVector(copy(xs.vecptr), similar(xs.val), maxlength(xs))
 
 function Base.show(io::IO, x::CuVectorOfVector)
     vecptr = Vector(x.vecptr)
@@ -99,16 +97,16 @@ maxlength(xs::CuDeviceVectorOfVector) = xs.maxlength
 Base.length(xs::CuDeviceVectorOfVector{Tv, Ti}) where {Tv, Ti} = length(xs.vecptr) - Ti(1)
 
 function Adapt.adapt_structure(to::CUDA.Adaptor, x::CuVectorOfVector)
-    return CuDeviceVectorOfVector(
-        adapt(to, x.vecptr),
-        adapt(to, x.val),
-        maxlength(x),
-    )
+    return CuDeviceVectorOfVector(adapt(to, x.vecptr), adapt(to, x.val), maxlength(x))
 end
 
 # Indexing
 Base.getindex(xs::CuDeviceVectorOfVector{Tv, Ti, A}, i) where {Tv, Ti, A} =
-    CuDeviceVectorInstance{Tv, Ti, A}(xs.vecptr[i], xs.vecptr[i + Ti(1)] - xs.vecptr[i], xs.val)
+    CuDeviceVectorInstance{Tv, Ti, A}(
+        xs.vecptr[i],
+        xs.vecptr[i + Ti(1)] - xs.vecptr[i],
+        xs.val,
+    )
 
 struct CuDeviceVectorInstance{Tv, Ti, A}
     offset::Ti
@@ -129,7 +127,7 @@ function Base.setindex!(xs::CuDeviceVectorInstance{Tv, Ti, A}, v, i) where {Tv, 
         throw(BoundsError(xs, i))
     end
 
-    xs.parent[xs.offset + i - Ti(1)] = v
+    return xs.parent[xs.offset + i - Ti(1)] = v
 end
 
 # This is type piracy - please port to CUDA when FixedSparseVector and FixedSparseCSC are stable.

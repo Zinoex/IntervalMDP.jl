@@ -12,10 +12,7 @@ function CUDA.unsafe_free!(o::CuSparseOrdering)
 end
 
 function Adapt.adapt_structure(to::CUDA.Adaptor, o::CuSparseOrdering)
-    return CuSparseDeviceOrdering(
-        adapt(to, o.subsets),
-        adapt(to, o.rowvals)
-    )
+    return CuSparseDeviceOrdering(adapt(to, o.subsets), adapt(to, o.rowvals))
 end
 
 struct CuSparseDeviceOrdering{T, A} <: AbstractStateOrdering{T}
@@ -46,7 +43,10 @@ function populate_value_subsets!(order::CuSparseOrdering, V)
     return order
 end
 
-function populate_value_subsets_kernel!(order::CuSparseDeviceOrdering{Ti, A}, V::CuDeviceVector{Tv, A}) where {Ti, Tv, A}
+function populate_value_subsets_kernel!(
+    order::CuSparseDeviceOrdering{Ti, A},
+    V::CuDeviceVector{Tv, A},
+) where {Ti, Tv, A}
     thread_id = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
     n = length(order.rowvals)
 
@@ -90,7 +90,11 @@ function initialize_perm_subsets_kernel!(order::CuSparseDeviceOrdering{T, A}) wh
     return nothing
 end
 
-function sort_subsets!(order::CuSparseOrdering{Ti}, V::CuVector{Tv}; max = true) where {Ti, Tv}
+function sort_subsets!(
+    order::CuSparseOrdering{Ti},
+    V::CuVector{Tv};
+    max = true,
+) where {Ti, Tv}
     n = length(order.subsets)
 
     ml = maxlength(order.subsets)
@@ -102,12 +106,20 @@ function sort_subsets!(order::CuSparseOrdering{Ti}, V::CuVector{Tv}; max = true)
     blocks = min(65536, n)
     shmem = ml_ceil * (sizeof(Ti) + sizeof(Tv))
 
-    @cuda blocks = blocks threads = threads shmem = shmem sort_subsets_kernel!(order, V, max)
+    @cuda blocks = blocks threads = threads shmem = shmem sort_subsets_kernel!(
+        order,
+        V,
+        max,
+    )
 
     return order
 end
 
-function sort_subsets_kernel!(order::CuSparseDeviceOrdering{Ti, A}, V::CuDeviceVector{Tv, A}, max::Bool) where {Ti, Tv, A}
+function sort_subsets_kernel!(
+    order::CuSparseDeviceOrdering{Ti, A},
+    V::CuDeviceVector{Tv, A},
+    max::Bool,
+) where {Ti, Tv, A}
     ml = maxlength(order.subsets)
     ml_ceil = nextpow(Ti(2), ml)
 
@@ -128,7 +140,13 @@ function sort_subsets_kernel!(order::CuSparseDeviceOrdering{Ti, A}, V::CuDeviceV
     return nothing
 end
 
-@inline function initialize_sorting_shared_memory!(order::CuSparseDeviceOrdering{Ti, A}, subset, V, value, perm) where {Ti, A}
+@inline function initialize_sorting_shared_memory!(
+    order::CuSparseDeviceOrdering{Ti, A},
+    subset,
+    V,
+    value,
+    perm,
+) where {Ti, A}
     # Copy into shared memory
     i = threadIdx().x
     while i <= length(subset)
@@ -137,16 +155,21 @@ end
         perm[i] = i
         i += blockDim().x
     end
-    
+
     # Need to synchronize to make sure all agree on the shared memory
-    sync_threads()
+    return sync_threads()
 end
 
-@inline function bitonic_sort!(subset::CuDeviceVectorInstance{Ti, Ti, A}, value, perm) where {Ti, A}
+@inline function bitonic_sort!(
+    subset::CuDeviceVectorInstance{Ti, Ti, A},
+    value,
+    perm,
+) where {Ti, A}
     #### Sort the shared memory with bitonic sort
     subset_length = length(subset)
-    half_subset_length = ispow2(subset_length) ? subset_length ÷ Ti(2) : prevpow(Ti(2), subset_length)
-    
+    half_subset_length =
+        ispow2(subset_length) ? subset_length ÷ Ti(2) : prevpow(Ti(2), subset_length)
+
     # Major step
     k = Ti(2)
     while k <= half_subset_length
@@ -199,7 +222,7 @@ end
             end
 
             j ÷= Ti(2)
-            
+
             # Synchronize after minor step to make sure all threads agree on the shared memory
             sync_threads()
         end
@@ -214,17 +237,17 @@ end
         subset[i] = perm[i]
         i += blockDim().x
     end
-    
+
     # Do I need to synchronize here? Now, we do it for
     # safety's sake.
-    sync_threads()
+    return sync_threads()
 end
 
 function IMDP.construct_ordering(T, p::CuSparseMatrixCSC)
     # Assume that input/start state is on the columns and output/target state is on the rows
     vecptr = CuVector{T}(p.colPtr)
     perm = CuVector{T}(SparseArrays.rowvals(p))
-    maxlength = maximum(p.colPtr[2:end] - p.colPtr[1:(end-1)])
+    maxlength = maximum(p.colPtr[2:end] - p.colPtr[1:(end - 1)])
 
     subsets = CuVectorOfVector{T, T}(vecptr, perm, maxlength)
     rowvals = CuVector{T}(SparseArrays.rowvals(p))
