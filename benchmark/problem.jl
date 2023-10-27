@@ -36,5 +36,5 @@ if CUDA.functional()
     cuda_prob = cu(prob)
     cuda_V = cu(V)
     cuda_p = cu(p)
-    cuda_ordering = cu(ordering)
+    cuda_ordering = construct_ordering(gap(cuda_prob))
 end
