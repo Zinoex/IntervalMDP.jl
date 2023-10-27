@@ -12,27 +12,10 @@ function satisfaction_probability(problem::Problem{S, LTLfFormula}) where {S <: 
     return satisfaction_probability(problem)
 end
 
-function satisfaction_probability(problem::Problem{<:IntervalMarkovChain, FiniteTimeReachability})
-    k_max = time_horizon(specification(problem))
-    criteria = FixedIterationsCriteria(k_max)
+function satisfaction_probability(problem::Problem{<:IntervalMarkovChain, <:AbstractReachability})
+    upper_bound = satisfaction_mode(problem) == Optimistic
+    V, _, _ = interval_value_iteration(problem; upper_bound = upper_bound)
 
-    maximize = satisfaction_mode(problem) == Pessimistic
-    V, k, _ = interval_value_iteration(problem, criteria; max = maximize)
-
-    @assert k == k_max
-    sat_prob = V[initial_state(system(problem))]
-
-    return sat_prob
-end
-
-function satisfaction_probability(problem::Problem{<:IntervalMarkovChain, InfiniteTimeReachability})
-    convergence_limit = eps(specification(problem))
-    criteria = ConvergenceCriteria(convergence_limit)
-
-    maximize = satisfaction_mode(problem) == Pessimistic
-    V, _, u = interval_value_iteration(problem, criteria; maximize)
-
-    @assert maximum(u) < convergence_limit
     sat_prob = V[initial_state(system(problem))]
 
     return sat_prob
