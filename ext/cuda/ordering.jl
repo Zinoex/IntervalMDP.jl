@@ -25,69 +25,9 @@ IMDP.perm(order::CuSparseOrdering, state) = order.subsets[state]
 IMDP.perm(order::CuSparseDeviceOrdering, state) = order.subsets[state]
 
 function IMDP.sort_states!(order::CuSparseOrdering, V; max = true)
-    # populate_value_subsets!(order, V)
-    # initialize_perm_subsets!(order)
     sort_subsets!(order, V; max = max)
 
     return order
-end
-
-function populate_value_subsets!(order::CuSparseOrdering, V)
-    n = length(order.rowvals)
-
-    threads = 1024
-    blocks = ceil(Int32, n / threads)
-
-    @cuda blocks = blocks threads = threads populate_value_subsets_kernel!(order, V)
-
-    return order
-end
-
-function populate_value_subsets_kernel!(
-    order::CuSparseDeviceOrdering{Ti, A},
-    V::CuDeviceVector{Tv, A},
-) where {Ti, Tv, A}
-    thread_id = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
-    n = length(order.rowvals)
-
-    if thread_id <= n
-        value_id = order.rowvals[thread_id]
-        order.subsets.value_subsets.val[thread_id] = V[value_id]
-    end
-
-    return nothing
-end
-
-function initialize_perm_subsets!(order::CuSparseOrdering)
-    n = length(order.subsets) * warpsize(device())
-
-    threads = 256
-    blocks = ceil(Int32, n / threads)
-
-    @cuda blocks = blocks threads = threads initialize_perm_subsets_kernel!(order)
-
-    return order
-end
-
-function initialize_perm_subsets_kernel!(order::CuSparseDeviceOrdering{T, A}) where {T, A}
-    assume(warpsize() == 32)
-
-    thread_id = (blockIdx().x - T(1)) * blockDim().x + threadIdx().x
-    warp_id, lane = fldmod1(thread_id, warpsize())
-
-    n = length(order.subsets)
-
-    if warp_id <= n
-        subset = order.subsets[warp_id]
-
-        i = T(lane)
-        while i <= length(subset)
-            subset.perm_subset[i] = i
-            i += T(warpsize())
-        end
-    end
-
-    return nothing
 end
 
 function sort_subsets!(
@@ -98,13 +38,12 @@ function sort_subsets!(
     n = length(order.subsets)
 
     ml = maxlength(order.subsets)
-    ml_ceil = nextpow(Ti(2), ml)
 
     threads_per_subset = min(256, ispow2(ml) ? ml ÷ Ti(2) : prevpow(Ti(2), ml))
 
     threads = threads_per_subset
     blocks = min(65536, n)
-    shmem = ml_ceil * (sizeof(Ti) + sizeof(Tv))
+    shmem = ml * (sizeof(Ti) + sizeof(Tv))
 
     @cuda blocks = blocks threads = threads shmem = shmem sort_subsets_kernel!(
         order,
@@ -121,10 +60,9 @@ function sort_subsets_kernel!(
     max::Bool,
 ) where {Ti, Tv, A}
     ml = maxlength(order.subsets)
-    ml_ceil = nextpow(Ti(2), ml)
 
-    value = CuDynamicSharedArray(Tv, ml_ceil)
-    perm = CuDynamicSharedArray(Ti, ml_ceil, ml_ceil * sizeof(Tv))
+    value = CuDynamicSharedArray(Tv, ml)
+    perm = CuDynamicSharedArray(Ti, ml, ml * sizeof(Tv))
 
     s = blockIdx().x
     while s <= length(order.subsets)  # Grid-stride loop
@@ -168,20 +106,19 @@ end
 ) where {Ti, A}
     #### Sort the shared memory with bitonic sort
     subset_length = length(subset)
-    half_subset_length =
-        ispow2(subset_length) ? subset_length ÷ Ti(2) : prevpow(Ti(2), subset_length)
+    nextpow2_subset_length = nextpow(Ti(2), subset_length)
 
     # Major step
     k = Ti(2)
-    while k <= half_subset_length
+    while k <= nextpow2_subset_length
 
         # Minor step - Merge
         k_half = k ÷ Ti(2)
         i = threadIdx().x - Ti(1)
-        while i < subset_length
-            i_block, i_lane = fld(i, k_half), mod(i, k_half)
-            i_concrete = i_block * k + i_lane
-            l = (i_block + one(Ti)) * k - i_lane
+        i_block, i_lane = fld(i, k_half), mod(i, k_half)
+        i_concrete = i_block * k + i_lane
+        while i_concrete < subset_length
+            l = (i_block + one(Ti)) * k - i_lane - one(Ti)
 
             if l < subset_length # Ensure only one thread in each pair does the swap
                 i1 = i_concrete + Ti(1)
@@ -194,6 +131,8 @@ end
             end
 
             i += blockDim().x
+            i_block, i_lane = fld(i, k_half), mod(i, k_half)
+            i_concrete = i_block * k + i_lane
         end
 
         sync_threads()
@@ -204,9 +143,9 @@ end
 
             # Compare and swap
             i = threadIdx().x - Ti(1)
-            while i < subset_length
-                i_block, i_lane = fld(i, j), mod(i, j)
-                i_concrete = i_block * j * Ti(2) + i_lane
+            i_block, i_lane = fld(i, j), mod(i, j)
+            i_concrete = i_block * j * Ti(2) + i_lane
+            while i_concrete < subset_length
                 l = i_concrete + j
 
                 if l < subset_length # Ensure only one thread in each pair does the swap
@@ -220,6 +159,8 @@ end
                 end
 
                 i += blockDim().x
+                i_block, i_lane = fld(i, j), mod(i, j)
+                i_concrete = i_block * j * Ti(2) + i_lane
             end
 
             j ÷= Ti(2)
