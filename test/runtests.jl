@@ -1,5 +1,6 @@
-using IMDP, SparseArrays, CUDA
 using Test
+using Random, StatsBase
+using IMDP, SparseArrays, CUDA
 
 @testset "IMDP.jl" begin
     test_files = ["ominmax.jl", "partial.jl", "ivi.jl"]
