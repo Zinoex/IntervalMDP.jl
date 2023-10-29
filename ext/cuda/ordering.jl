@@ -131,7 +131,7 @@ function sort_subsets_kernel!(
         subset = order.subsets[s]
 
         initialize_sorting_shared_memory!(order, subset, V, value, perm)
-        bitonic_sort!(subset, value, perm)
+        bitonic_sort!(subset, value, perm, max)
         copy_perm_to_global!(subset, perm)
 
         s += gridDim().x
@@ -164,6 +164,7 @@ end
     subset::CuDeviceVectorInstance{Ti, Ti, A},
     value,
     perm,
+    max
 ) where {Ti, A}
     #### Sort the shared memory with bitonic sort
     subset_length = length(subset)
