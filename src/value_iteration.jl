@@ -52,5 +52,5 @@ function step!(ordering, p, prob::MatrixIntervalProbabilities, prev_V, V, indice
     partial_ominmax!(ordering, p, prob, V, indices; max = max)
 
     res = transpose(transpose(prev_V) * p)
-    V[indices] .= res[indices]
+    return V[indices] .= res[indices]
 end

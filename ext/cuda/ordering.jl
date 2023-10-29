@@ -102,7 +102,7 @@ end
     subset::CuDeviceVectorInstance{Ti, Ti, A},
     value,
     perm,
-    max
+    max,
 ) where {Ti, A}
     #### Sort the shared memory with bitonic sort
     subset_length = length(subset)

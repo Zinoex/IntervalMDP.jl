@@ -75,29 +75,28 @@ function sample_sparse_interval_probabilities(n, m, nnz_per_column)
     rand_val_lower = rand(rng, Float64, nnz_per_column * m) .* prob_split
     rand_val_upper = rand(rng, Float64, nnz_per_column * m) .* prob_split .+ prob_split
     rand_index = collect(1:nnz_per_column)
-    
+
     row_vals = Vector{Int32}(undef, nnz_per_column * m)
     col_ptrs = Int32[1; collect(1:m) .* nnz_per_column .+ 1]
-    
+
     for j in 1:m
         StatsBase.seqsample_a!(1:n, rand_index)  # Select nnz_per_column elements from 1:n
         sort!(rand_index)
-    
+
         row_vals[((j - 1) * nnz_per_column + 1):(j * nnz_per_column)] .= rand_index
     end
-    
+
     lower = SparseMatrixCSC{Float64, Int32}(n, m, col_ptrs, row_vals, rand_val_lower)
     upper = SparseMatrixCSC{Float64, Int32}(n, m, col_ptrs, row_vals, rand_val_upper)
-    
+
     prob = MatrixIntervalProbabilities(; lower = lower, upper = upper)
     V = rand(Float64, n)
-    
+
     cuda_prob = cu(prob)
     cuda_V = cu(V)
 
     return prob, V, cuda_prob, cuda_V
 end
-
 
 # Many columns
 rng = MersenneTwister(55392)
