@@ -8,15 +8,7 @@ end
 struct CovergenceCriteria <: TerminationCriteria
     tol::Float64
 end
-function (f::CovergenceCriteria)(k, prev_V, V)
-    for j in eachindex(V)
-        if abs(prev_V[j] - V[j]) > f.tol
-            return false
-        end
-    end
-
-    return true
-end
+(f::CovergenceCriteria)(k, prev_V, V) = maximum(abs.(prev_V - V)) < f.tol
 
 function interval_value_iteration(prob, V, fix_indices, termination_criteria; max = true)
     # It is more efficient to use allocate first and reuse across iterations
@@ -59,7 +51,6 @@ end
 function step!(ordering, p, prob::MatrixIntervalProbabilities, prev_V, V, indices; max)
     partial_ominmax!(ordering, p, prob, V, indices; max = max)
 
-    @inbounds for j in indices
-        V[j] = dot(view(p, :, j), prev_V)
-    end
+    res = transpose(transpose(prev_V) * p)
+    V[indices] .= res[indices]
 end
