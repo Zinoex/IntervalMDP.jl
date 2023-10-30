@@ -38,7 +38,7 @@ function interval_value_iteration(
     V = similar(prev_V)
     V[terminal] .= prev_V[terminal]
 
-    nonterminal = setdiff(collect(1:length(V)), terminal)
+    nonterminal = setdiff(collect(1:num_states(mc)), terminal)
 
     step!(ordering, p, prob, prev_V, V, nonterminal; max = upper_bound, discount = discount)
     k = 1

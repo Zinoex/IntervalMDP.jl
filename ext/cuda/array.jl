@@ -1,11 +1,11 @@
-function IMDP.compute_gap(lower::MR, upper::MR) where {MR <: CuSparseMatrixCSC}
+function IMDP.compute_gap(lower::MR, upper::MR) where {R, MR <: CuSparseMatrixCSC{R}}
     # lower = CuSparseMatrixCOO(lower)
 
     # FIXME: This is an ugly, non-robust hack.
     upper = SparseMatrixCSC(upper)
     lower = SparseMatrixCSC(lower)
     lower, gap = IMDP.compute_gap(lower, upper)
-    return cu(lower), cu(gap)
+    return adapt(CuArray{R}, lower), adapt(CuArray{R}, gap)
 end
 
 ### Vector of Vector
