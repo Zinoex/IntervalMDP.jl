@@ -6,6 +6,8 @@ function IMDP.probability_assignment!(
     indices,
 ) where {Tv, Ti}
     copyto!(nonzeros(p), nonzeros(lower(prob)))
+
+    indices = CuVector(indices)   # If not already a CuVector
     # add_gap_scalar!(p, prob, ordering, indices)
     add_gap_vector!(p, prob, ordering, indices)
 

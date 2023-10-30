@@ -10,15 +10,7 @@ termination_criteria(spec::Union{FiniteTimeReachability, FiniteTimeReachAvoid}) 
 struct CovergenceCriteria <: TerminationCriteria
     tol::Float64
 end
-function (f::CovergenceCriteria)(k, prev_V, V)
-    for j in eachindex(V)
-        if abs(prev_V[j] - V[j]) > f.tol
-            return false
-        end
-    end
-
-    return true
-end
+(f::CovergenceCriteria)(k, prev_V, V) = maximum(abs.(prev_V - V)) < f.tol
 termination_criteria(spec::Union{InfiniteTimeReachability, InfiniteTimeReachAvoid}) = CovergenceCriteria(eps(spec))
 
 function interval_value_iteration(problem::Problem{<:IntervalMarkovChain, <:AbstractReachability}; upper_bound = true, discount = 1.0)
@@ -87,7 +79,6 @@ end
 function step!(ordering, p, prob::MatrixIntervalProbabilities, prev_V, V, indices; max, discount)
     partial_ominmax!(ordering, p, prob, V, indices; max = max)
 
-    @inbounds for j in indices
-        V[j] = discount .* dot(view(p, :, j), prev_V)
-    end
+    res = transpose(transpose(prev_V) * p)
+    return V[indices] .= discount .* res[indices]
 end

@@ -12,8 +12,7 @@ prob = [prob1, prob2]
 
 V = collect(1:15)
 
-p = ominmax(prob, V; max = true)
-@test p[1] ≈ SparseVector(15, [4, 10], [0.3, 0.7])
+p = partial_ominmax(prob, V, [2]; max = true)
 @test p[2] ≈ SparseVector(15, [5, 6, 7], [0.5, 0.3, 0.2])
 
 # Matrix
@@ -30,6 +29,5 @@ prob = MatrixIntervalProbabilities(;
 
 V = collect(1:15)
 
-p = ominmax(prob, V; max = true)
-@test p[:, 1] ≈ SparseVector(15, [4, 10], [0.3, 0.7])
+p = partial_ominmax(prob, V, [2]; max = true)
 @test p[:, 2] ≈ SparseVector(15, [5, 6, 7], [0.5, 0.3, 0.2])
