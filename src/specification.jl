@@ -24,7 +24,11 @@ struct FiniteTimeReachability{T <: Integer} <: AbstractReachability
     time_horizon::T
 end
 
-function FiniteTimeReachability(terminal_states::Vector{T}, num_states::T, time_horizon::T) where {T <: Integer}
+function FiniteTimeReachability(
+    terminal_states::Vector{T},
+    num_states::T,
+    time_horizon::T,
+) where {T <: Integer}
     checkterminal!(terminal_states, num_states)
     return FiniteTimeReachability(terminal_states, time_horizon)
 end
@@ -38,7 +42,11 @@ struct InfiniteTimeReachability{R <: Real, T <: Integer} <: AbstractReachability
     eps::R
 end
 
-function InfiniteTimeReachability(terminal_states::Vector{T}, num_states::T, eps::R) where {R <: Real, T <: Integer}
+function InfiniteTimeReachability(
+    terminal_states::Vector{T},
+    num_states::T,
+    eps::R,
+) where {R <: Real, T <: Integer}
     checkterminal!(terminal_states, num_states)
     return InfiniteTimeReachability(terminal_states, eps)
 end
@@ -53,7 +61,12 @@ struct FiniteTimeReachAvoid{T <: Integer} <: AbstractReachability
     time_horizon::T
 end
 
-function FiniteTimeReachAvoid(reach::Vector{T}, avoid::Vector{T}, num_states::T, time_horizon::T) where {T <: Integer}
+function FiniteTimeReachAvoid(
+    reach::Vector{T},
+    avoid::Vector{T},
+    num_states::T,
+    time_horizon::T,
+) where {T <: Integer}
     checkterminal!(reach, num_states)
     checkterminal!(avoid, num_states)
     checkdisjoint!(reach, avoid)
@@ -71,7 +84,12 @@ struct InfiniteTimeReachAvoid{R <: Real, T <: Integer} <: AbstractReachability
     eps::R
 end
 
-function InfiniteTimeReachAvoid(reach::Vector{T}, avoid::Vector{T}, num_states::T, eps::R) where {R <: Real, T <: Integer}
+function InfiniteTimeReachAvoid(
+    reach::Vector{T},
+    avoid::Vector{T},
+    num_states::T,
+    eps::R,
+) where {R <: Real, T <: Integer}
     checkterminal!(reach, num_states)
     checkterminal!(avoid, num_states)
     checkdisjoint!(reach, avoid)

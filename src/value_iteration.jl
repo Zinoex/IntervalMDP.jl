@@ -5,15 +5,21 @@ struct FixedIterationsCriteria <: TerminationCriteria
     n::Int
 end
 (f::FixedIterationsCriteria)(k, prev_V, V) = k >= f.n
-termination_criteria(spec::Union{FiniteTimeReachability, FiniteTimeReachAvoid}) = FixedIterationsCriteria(time_horizon(spec))
+termination_criteria(spec::Union{FiniteTimeReachability, FiniteTimeReachAvoid}) =
+    FixedIterationsCriteria(time_horizon(spec))
 
 struct CovergenceCriteria <: TerminationCriteria
     tol::Float64
 end
 (f::CovergenceCriteria)(k, prev_V, V) = maximum(abs.(prev_V - V)) < f.tol
-termination_criteria(spec::Union{InfiniteTimeReachability, InfiniteTimeReachAvoid}) = CovergenceCriteria(eps(spec))
+termination_criteria(spec::Union{InfiniteTimeReachability, InfiniteTimeReachAvoid}) =
+    CovergenceCriteria(eps(spec))
 
-function interval_value_iteration(problem::Problem{<:IntervalMarkovChain, <:AbstractReachability}; upper_bound = true, discount = 1.0)
+function interval_value_iteration(
+    problem::Problem{<:IntervalMarkovChain, <:AbstractReachability};
+    upper_bound = true,
+    discount = 1.0,
+)
     mc = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(problem)
@@ -39,7 +45,16 @@ function interval_value_iteration(problem::Problem{<:IntervalMarkovChain, <:Abst
 
     while !term_criteria(k, prev_V, V)
         copyto!(prev_V, V)
-        step!(ordering, p, prob, prev_V, V, nonterminal; max = upper_bound, discount = discount)
+        step!(
+            ordering,
+            p,
+            prob,
+            prev_V,
+            V,
+            nonterminal;
+            max = upper_bound,
+            discount = discount,
+        )
         k += 1
     end
 
@@ -67,7 +82,7 @@ function step!(
     V,
     indices;
     max,
-    discount
+    discount,
 )
     partial_ominmax!(ordering, p, prob, V, indices; max = max)
 
@@ -76,7 +91,16 @@ function step!(
     end
 end
 
-function step!(ordering, p, prob::MatrixIntervalProbabilities, prev_V, V, indices; max, discount)
+function step!(
+    ordering,
+    p,
+    prob::MatrixIntervalProbabilities,
+    prev_V,
+    V,
+    indices;
+    max,
+    discount,
+)
     partial_ominmax!(ordering, p, prob, V, indices; max = max)
 
     res = transpose(transpose(prev_V) * p)

@@ -2,7 +2,6 @@ module IMDP
 
 using LinearAlgebra
 
-
 include("interval_probabilities.jl")
 export StateIntervalProbabilities, MatrixIntervalProbabilities
 export gap, lower, sum_lower
@@ -13,7 +12,8 @@ export transition_prob, num_states
 
 include("specification.jl")
 export Specification, LTLFormula, LTLfFormula, PTCLFormula
-export FiniteTimeReachability, InfiniteTimeReachability, FiniteTimeReachAvoid, InfiniteTimeReachAvoid
+export FiniteTimeReachability,
+    InfiniteTimeReachability, FiniteTimeReachAvoid, InfiniteTimeReachAvoid
 export Problem, SatisfactionMode, Pessimistic, Optimistic
 export reach, avoid, terminal_states, time_horizon, eps
 
