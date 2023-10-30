@@ -15,6 +15,7 @@ end
 function satisfaction_probability(problem::Problem{<:IntervalMarkovChain, <:AbstractReachability})
     upper_bound = satisfaction_mode(problem) == Optimistic
     V, _, _ = interval_value_iteration(problem; upper_bound = upper_bound)
+    V = Vector(V)   # Convert to CPU vector if not already
 
     sat_prob = V[initial_state(system(problem))]
 

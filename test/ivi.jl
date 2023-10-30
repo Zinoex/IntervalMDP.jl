@@ -27,6 +27,7 @@ prob = MatrixIntervalProbabilities(;
         0.7 0.3 1.0
     ],
 )
+
 mc = IntervalMarkovChain(prob, 1)
 
 problem = Problem(mc, FiniteTimeReachability([3], 10))
