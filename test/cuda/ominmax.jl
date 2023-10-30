@@ -1,7 +1,8 @@
 #### Maximization
 
 # Matrix
-prob = cu(
+prob = adapt(
+    CuArray{Float64},
     MatrixIntervalProbabilities(;
         lower = sparse_hcat(
             SparseVector(Int32(15), Int32[4, 10], [0.1, 0.2]),
@@ -14,7 +15,7 @@ prob = cu(
     ),
 )
 
-V = cu(collect(1.0:15.0))
+V = adapt(CuArray{Float64}, collect(1.0:15.0))
 
 p = ominmax(prob, V; max = true)
 p = SparseMatrixCSC(p)
@@ -23,13 +24,15 @@ p = SparseMatrixCSC(p)
 
 # Matrix - to gpu first
 prob = MatrixIntervalProbabilities(;
-    lower = cu(
+    lower = adapt(
+        CuArray{Float64},
         sparse_hcat(
             SparseVector(Int32(15), Int32[4, 10], [0.1, 0.2]),
             SparseVector(Int32(15), Int32[5, 6, 7], [0.5, 0.3, 0.1]),
         ),
     ),
-    upper = cu(
+    upper = adapt(
+        CuArray{Float64},
         sparse_hcat(
             SparseVector(Int32(15), Int32[1, 4, 10], [0.5, 0.6, 0.7]),
             SparseVector(Int32(15), Int32[5, 6, 7], [0.7, 0.5, 0.3]),
@@ -37,7 +40,7 @@ prob = MatrixIntervalProbabilities(;
     ),
 )
 
-V = cu(collect(1.0:15.0))
+V = adapt(CuArray{Float64}, collect(1.0:15.0))
 
 p = ominmax(prob, V; max = true)
 p = SparseMatrixCSC(p)
@@ -47,7 +50,8 @@ p = SparseMatrixCSC(p)
 #### Minimization
 
 # Matrix
-prob = cu(
+prob = adapt(
+    CuArray{Float64},
     MatrixIntervalProbabilities(;
         lower = sparse_hcat(
             SparseVector(Int32(15), Int32[4, 10], [0.1, 0.2]),
@@ -60,7 +64,7 @@ prob = cu(
     ),
 )
 
-V = cu(collect(1.0:15.0))
+V = adapt(CuArray{Float64}, collect(1.0:15.0))
 
 p = ominmax(prob, V; max = false)
 p = SparseMatrixCSC(p)
@@ -92,8 +96,8 @@ function sample_sparse_interval_probabilities(n, m, nnz_per_column)
     prob = MatrixIntervalProbabilities(; lower = lower, upper = upper)
     V = rand(Float64, n)
 
-    cuda_prob = cu(prob)
-    cuda_V = cu(V)
+    cuda_prob = adapt(CuArray{Float64}, prob)
+    cuda_V = adapt(CuArray{Float64}, V)
 
     return prob, V, cuda_prob, cuda_V
 end

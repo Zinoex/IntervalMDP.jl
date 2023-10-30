@@ -1,5 +1,6 @@
 # Matrix
-prob = cu(
+prob = adapt(
+    CuArray{Float64},
     MatrixIntervalProbabilities(;
         lower = sparse_hcat(
             SparseVector(Int32(15), Int32[4, 10], [0.1, 0.2]),
@@ -12,7 +13,7 @@ prob = cu(
     ),
 )
 
-V = cu(collect(1.0:15.0))
+V = adapt(CuArray{Float64}, collect(1.0:15.0))
 
 p = partial_ominmax(prob, V, Int32[2]; max = true)
 p = SparseMatrixCSC(p)

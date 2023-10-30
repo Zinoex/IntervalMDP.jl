@@ -1,6 +1,6 @@
 using Revise, BenchmarkTools, ProgressMeter
 using Random, StatsBase
-using IMDP, SparseArrays, CUDA
+using IMDP, SparseArrays, CUDA, Adapt
 
 rng = MersenneTwister(55392)
 
@@ -33,8 +33,8 @@ p = deepcopy(gap(prob))
 ordering = construct_ordering(gap(prob))
 
 if CUDA.functional()
-    cuda_prob = cu(prob)
-    cuda_V = cu(V)
-    cuda_p = cu(p)
+    cuda_prob = adapt(CuArray{Float64}, prob)
+    cuda_V = adapt(CuArray{Float64}, V)
+    cuda_p = adapt(CuArray{Float64}, p)
     cuda_ordering = construct_ordering(gap(cuda_prob))
 end
