@@ -56,6 +56,7 @@ end
 function FiniteTimeReachAvoid(reach::Vector{T}, avoid::Vector{T}, num_states::T, time_horizon::T) where {T <: Integer}
     checkterminal!(reach, num_states)
     checkterminal!(avoid, num_states)
+    checkdisjoint!(reach, avoid)
     return FiniteTimeReachAvoid(reach, avoid, time_horizon)
 end
 
@@ -73,6 +74,7 @@ end
 function InfiniteTimeReachAvoid(reach::Vector{T}, avoid::Vector{T}, num_states::T, eps::R) where {R <: Real, T <: Integer}
     checkterminal!(reach, num_states)
     checkterminal!(avoid, num_states)
+    checkdisjoint!(reach, avoid)
     return InfiniteTimeReachAvoid(reach, avoid, eps)
 end
 
@@ -86,6 +88,12 @@ function checkterminal!(terminal_states, num_states)
         if j < 1 || j > num_states
             throw(ArgumentError("The terminal state $j is not a valid state"))
         end
+    end
+end
+
+function checkdisjoint!(reach, avoid)
+    if !isdisjoint(reach, avoid)
+        throw(ArgumentError("The reach and avoid sets are not disjoint"))
     end
 end
 

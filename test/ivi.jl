@@ -6,11 +6,19 @@ prob = [prob1, prob2, prob3]
 
 mc = IntervalMarkovChain(prob, 1)
 
-problem = Problem(mc, FiniteTimeReachability([3], 10))
+problem = Problem(mc, FiniteTimeReachability([3], 3, 10))
 V_fixed_it, k, _ = interval_value_iteration(problem; upper_bound = false)
 @test k == 10
 
-problem = Problem(mc, InfiniteTimeReachability([3], 1e-6))
+problem = Problem(mc, InfiniteTimeReachability([3], 3, 1e-6))
+V_conv, _, u = interval_value_iteration(problem; upper_bound = false)
+@test maximum(u) <= 1e-6
+
+problem = Problem(mc, FiniteTimeReachAvoid([3], [2], 3, 10))
+V_fixed_it, k, _ = interval_value_iteration(problem; upper_bound = false)
+@test k == 10
+
+problem = Problem(mc, InfiniteTimeReachAvoid([3], [2], 3, 1e-6))
 V_conv, _, u = interval_value_iteration(problem; upper_bound = false)
 @test maximum(u) <= 1e-6
 
@@ -30,10 +38,18 @@ prob = MatrixIntervalProbabilities(;
 
 mc = IntervalMarkovChain(prob, 1)
 
-problem = Problem(mc, FiniteTimeReachability([3], 10))
+problem = Problem(mc, FiniteTimeReachability([3], 3, 10))
 V_fixed_it, k, _ = interval_value_iteration(problem; upper_bound = false)
 @test k == 10
 
-problem = Problem(mc, InfiniteTimeReachability([3], 1e-6))
+problem = Problem(mc, InfiniteTimeReachability([3], 3, 1e-6))
+V_conv, _, u = interval_value_iteration(problem; upper_bound = false)
+@test maximum(u) <= 1e-6
+
+problem = Problem(mc, FiniteTimeReachAvoid([3], [2], 3, 10))
+V_fixed_it, k, _ = interval_value_iteration(problem; upper_bound = false)
+@test k == 10
+
+problem = Problem(mc, InfiniteTimeReachAvoid([3], [2], 3, 1e-6))
 V_conv, _, u = interval_value_iteration(problem; upper_bound = false)
 @test maximum(u) <= 1e-6

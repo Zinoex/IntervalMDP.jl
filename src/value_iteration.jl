@@ -16,7 +16,7 @@ termination_criteria(spec::Union{InfiniteTimeReachability, InfiniteTimeReachAvoi
 function interval_value_iteration(problem::Problem{<:IntervalMarkovChain, <:AbstractReachability}; upper_bound = true, discount = 1.0)
     mc = system(problem)
     spec = specification(problem)
-    term_criteria = termination_criteria(spec)
+    term_criteria = termination_criteria(problem)
 
     prob = transition_prob(mc)
     terminal = terminal_states(spec)
