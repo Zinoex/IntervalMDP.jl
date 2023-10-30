@@ -1,7 +1,8 @@
 #### Maximization
 
 # Matrix
-prob = adapt(CuArray{Float64},
+prob = adapt(
+    CuArray{Float64},
     MatrixIntervalProbabilities(;
         lower = sparse_hcat(
             SparseVector(Int32(15), Int32[4, 10], [0.1, 0.2]),
@@ -23,13 +24,15 @@ p = SparseMatrixCSC(p)
 
 # Matrix - to gpu first
 prob = MatrixIntervalProbabilities(;
-    lower = adapt(CuArray{Float64},
+    lower = adapt(
+        CuArray{Float64},
         sparse_hcat(
             SparseVector(Int32(15), Int32[4, 10], [0.1, 0.2]),
             SparseVector(Int32(15), Int32[5, 6, 7], [0.5, 0.3, 0.1]),
         ),
     ),
-    upper = adapt(CuArray{Float64},
+    upper = adapt(
+        CuArray{Float64},
         sparse_hcat(
             SparseVector(Int32(15), Int32[1, 4, 10], [0.5, 0.6, 0.7]),
             SparseVector(Int32(15), Int32[5, 6, 7], [0.7, 0.5, 0.3]),
@@ -47,7 +50,8 @@ p = SparseMatrixCSC(p)
 #### Minimization
 
 # Matrix
-prob = adapt(CuArray{Float64},
+prob = adapt(
+    CuArray{Float64},
     MatrixIntervalProbabilities(;
         lower = sparse_hcat(
             SparseVector(Int32(15), Int32[4, 10], [0.1, 0.2]),
