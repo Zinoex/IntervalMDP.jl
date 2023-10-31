@@ -71,7 +71,7 @@ struct IntervalMarkovDecisionProcess{P <: IntervalProbabilities, T <: Integer, V
 end
 
 function IntervalMarkovDecisionProcess(transition_probs::Vector{P}, action_vals::VA, initial_state::T)  where {P <: IntervalProbabilities, T <: Integer, VA <: AbstractVector}
-    transition_prob = type_specific_hcat(transition_probs)
+    transition_prob = interval_prob_hcat(transition_probs)
     lengths = map(num_src, transition_probs)
     stateptr = T[1; cumsum(lengths) .+ 1]
 

@@ -33,7 +33,7 @@ sum_lower(s::StateIntervalProbabilities) = s.sum_lower
 gap(V::Vector{<:StateIntervalProbabilities}) = gap.(V)
 num_src(V::Vector{<:StateIntervalProbabilities}) = length(V)
 
-type_specific_hcat(transition_probs::Vector{<:Vector{<:StateIntervalProbabilities}}) = reduce(vcat, transition_probs)
+interval_prob_hcat(transition_probs::Vector{<:Vector{<:StateIntervalProbabilities}}) = reduce(vcat, transition_probs)
 
 
 struct MatrixIntervalProbabilities{R, VR <: AbstractVector{R}, MR <: AbstractMatrix{R}}
@@ -73,7 +73,7 @@ lower(s::MatrixIntervalProbabilities) = s.lower
 sum_lower(s::MatrixIntervalProbabilities) = s.sum_lower
 num_src(s::MatrixIntervalProbabilities) = size(gap(s), 2)
 
-function type_specific_hcat(transition_probs::Vector{<:MatrixIntervalProbabilities})
+function interval_prob_hcat(transition_probs::Vector{<:MatrixIntervalProbabilities})
     l = mapreduce(lower, hcat, transition_probs)
     g = mapreduce(gap, hcat, transition_probs)
 
