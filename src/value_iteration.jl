@@ -212,13 +212,13 @@ function step_imdp!(
 )
     partial_ominmax!(ordering, p, prob, V, col_indices; max = upper_bound)
 
-    optfun = maximize ? max : min
+    optfun = maximize ? maximum : minimum
 
     res = transpose(transpose(prev_V) * p)
 
     # TODO Figure out how this should work in general
     @inbounds for j in state_indices
-        optV = reduce(optfun, res[stateptr[j]:stateptr[j + 1] - 1])
+        optV = optfun(res[stateptr[j]:stateptr[j + 1] - 1])
         V[j] = discount * optV
     end
     return V
