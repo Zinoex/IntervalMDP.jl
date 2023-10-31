@@ -1,15 +1,15 @@
 abstract type TerminationCriteria end
 termination_criteria(problem::Problem) = termination_criteria(specification(problem))
 
-struct FixedIterationsCriteria <: TerminationCriteria
-    n::Int
+struct FixedIterationsCriteria{T <: Integer} <: TerminationCriteria
+    n::T
 end
 (f::FixedIterationsCriteria)(k, prev_V, V) = k >= f.n
 termination_criteria(spec::Union{FiniteTimeReachability, FiniteTimeReachAvoid}) =
     FixedIterationsCriteria(time_horizon(spec))
 
-struct CovergenceCriteria <: TerminationCriteria
-    tol::Float64
+struct CovergenceCriteria{T <: AbstractFloat} <: TerminationCriteria
+    tol::T
 end
 (f::CovergenceCriteria)(k, prev_V, V) = maximum(abs.(prev_V - V)) < f.tol
 termination_criteria(spec::Union{InfiniteTimeReachability, InfiniteTimeReachAvoid}) =
@@ -138,8 +138,9 @@ function interval_value_iteration(
     V[terminal] .= prev_V[terminal]
 
     nonterminal = setdiff(collect(1:num_states(mdp)), terminal)
+    nonterminal_cols = mapreduce(i -> collect(sptr[i]:sptr[i + 1] - 1), vcat, nonterminal)
 
-    step_imdp!(ordering, p, prob, sptr, prev_V, V, nonterminal; maximize = maximize, upper_bound = upper_bound, discount = discount)
+    step_imdp!(ordering, p, prob, sptr, prev_V, V, nonterminal, nonterminal_cols; maximize = maximize, upper_bound = upper_bound, discount = discount)
     k = 1
 
     while !term_criteria(k, prev_V, V)
@@ -151,7 +152,8 @@ function interval_value_iteration(
             sptr,
             prev_V,
             V,
-            nonterminal;
+            nonterminal,
+            nonterminal_cols;
             maximize = maximize, 
             upper_bound = upper_bound,
             discount = discount,
@@ -172,16 +174,17 @@ function step_imdp!(
     stateptr,
     prev_V,
     V,
-    indices;
+    state_indices,
+    col_indices;
     maximize, 
     upper_bound,
     discount,
 )
-    partial_ominmax!(ordering, p, prob, V, indices; max = upper_bound)
+    partial_ominmax!(ordering, p, prob, V, col_indices; max = upper_bound)
 
     optfun = maximize ? max : min
 
-    @inbounds for j in indices
+    @inbounds for j in state_indices
         s = stateptr[j]
         num_actions = stateptr[j + 1] - s
         optV = dot(p[s], prev_V)
@@ -201,19 +204,20 @@ function step_imdp!(
     stateptr,
     prev_V,
     V,
-    indices;
+    state_indices,
+    col_indices;
     maximize, 
     upper_bound,
     discount,
 )
-    partial_ominmax!(ordering, p, prob, V, indices; max = upper_bound)
+    partial_ominmax!(ordering, p, prob, V, col_indices; max = upper_bound)
 
     optfun = maximize ? max : min
 
     res = transpose(transpose(prev_V) * p)
 
     # TODO Figure out how this should work in general
-    @inbounds for j in indices
+    @inbounds for j in state_indices
         optV = reduce(optfun, res[stateptr[j]:stateptr[j + 1] - 1])
         V[j] = discount * optV
     end

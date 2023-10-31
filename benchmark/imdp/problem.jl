@@ -17,7 +17,8 @@ function create_problem()
     number_actions = readnumbers([Int32], lines[2])[1]
     number_terminal = readnumbers([Int32], lines[3])[1]
 
-    terminal_states = first.(readnumbers.(tuple([Int32]), lines[4:4 + number_terminal - 1]))
+    terminal_states = first.(readnumbers.(tuple([Int32]), lines[4:4 + number_terminal - 1])) .+ Int32(1)
+    println("Terminal states: ", terminal_states)
 
     probs = Vector{MatrixIntervalProbabilities{Float64}}(undef, number_states)
 
@@ -48,7 +49,7 @@ function create_problem()
     action_list_per_state = collect(0:number_actions - 1)
     action_list = mapreduce(_ -> action_list_per_state, vcat, 1:number_states)
 
-    mdp = IntervalMarkovDecisionProcess(probs, action_list, 0)
+    mdp = IntervalMarkovDecisionProcess(probs, action_list, 1)
     problem = Problem(mdp, InfiniteTimeReachability(terminal_states, number_states, 1e-6))
 
     return problem
