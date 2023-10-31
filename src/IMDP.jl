@@ -4,11 +4,11 @@ using LinearAlgebra
 
 include("interval_probabilities.jl")
 export StateIntervalProbabilities, MatrixIntervalProbabilities
-export gap, lower, sum_lower
+export gap, lower, sum_lower, num_src
 
 include("models.jl")
-export System, IntervalMarkovChain
-export transition_prob, num_states
+export System, IntervalMarkovChain, IntervalMarkovDecisionProcess
+export transition_prob, num_states, initial_state
 
 include("specification.jl")
 export Specification, LTLFormula, LTLfFormula, PTCLFormula

@@ -64,15 +64,15 @@ struct IntervalMarkovDecisionProcess{P <: IntervalProbabilities, T <: Integer, V
         action_vals::VA,
         initial_state::T,
     ) where {P <: IntervalProbabilities, T <: Integer, VT <: AbstractVector{T}, VA <: AbstractVector}
-        num_states = checksize_imdp!(p, stateptr)
+        num_states = checksize_imdp!(transition_prob, stateptr)
 
         return new{P, T, VT, VA}(transition_prob, stateptr, action_vals, initial_state, num_states)
     end
 end
 
-function IntervalMarkovDecisionProcess(transition_probs::Vector{P}, action_vals::VA, initial_state::VT)  where {P <: IntervalProbabilities, VT <: AbstractVector{<: Integer}, VA <: AbstractVector}
+function IntervalMarkovDecisionProcess(transition_probs::Vector{P}, action_vals::VA, initial_state::T)  where {P <: IntervalProbabilities, T <: Integer, VA <: AbstractVector}
     transition_prob = type_specific_hcat(transition_probs)
-    lengths = map(length, transition_probs)
+    lengths = map(num_src, transition_probs)
     stateptr = T[1; cumsum(lengths) .+ 1]
 
     return IntervalMarkovDecisionProcess(transition_prob, stateptr, action_vals, initial_state)
@@ -105,7 +105,7 @@ function checksize_imdp!(p::MatrixIntervalProbabilities, stateptr)
     num_actions_per_state = diff(stateptr)
     @assert all(num_actions_per_state .> 0) "The number of actions per state must be positive"
 
-    if size(g, 2) != num_states
+    if size(g, 1) != num_states
         throw(
             DimensionMismatch(
                 "The number of transition probabilities in the matrix is not equal to the number of states in the problem",
