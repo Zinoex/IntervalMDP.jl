@@ -1,6 +1,6 @@
 module IMDP
 
-using LinearAlgebra
+using LinearAlgebra, SparseArrays
 
 include("interval_probabilities.jl")
 export StateIntervalProbabilities, MatrixIntervalProbabilities

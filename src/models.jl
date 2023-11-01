@@ -71,16 +71,16 @@ struct IntervalMarkovDecisionProcess{P <: IntervalProbabilities, T <: Integer, V
 end
 
 function IntervalMarkovDecisionProcess(transition_probs::Vector{P}, action_vals::VA, initial_state::T)  where {P <: IntervalProbabilities, T <: Integer, VA <: AbstractVector}
-    transition_prob, stateptr = interval_prob_hcat(transition_probs)
+    transition_prob, stateptr = interval_prob_hcat(T, transition_probs)
 
     return IntervalMarkovDecisionProcess(transition_prob, stateptr, action_vals, initial_state)
 end
 
 function IntervalMarkovDecisionProcess(transition_probs::Vector{Pair{VA, P}}, initial_state::T)  where {P <: IntervalProbabilities, T <: Integer, VA <: AbstractVector}
     action_vals = mapreduce(first, vcat, transition_probs)
-    transition_probs = map(second, transition_probs)
+    transition_probs = map(x -> x[2], transition_probs)
 
-    return IntervalMarkovDecisionProcess(transition_prob, stateptr, action_vals, initial_state)
+    return IntervalMarkovDecisionProcess(transition_probs, action_vals, initial_state)
 end
 
 function checksize_imdp!(p::AbstractVector{<:StateIntervalProbabilities}, stateptr)
@@ -122,6 +122,7 @@ function checksize_imdp!(p::MatrixIntervalProbabilities, stateptr)
 end
 
 transition_prob(s::IntervalMarkovDecisionProcess) = s.transition_prob
+actions(s::IntervalMarkovDecisionProcess) = s.action_vals
 initial_state(s::IntervalMarkovDecisionProcess) = s.initial_state
 num_states(s::IntervalMarkovDecisionProcess) = s.num_states
 stateptr(s::IntervalMarkovDecisionProcess) = s.stateptr

@@ -11,7 +11,7 @@ using IMDP, SparseArrays, CUDA, Adapt
     end
 end
 
-@testset "IMDPSpareExt.jl" include("sparse/sparse.jl")
+@testset "sparse" include("sparse/sparse.jl")
 
 if CUDA.functional()
     @info "Running tests with CUDA"

@@ -1,6 +1,6 @@
 
 
-function IMDP.interval_prob_hcat(transition_probs::Vector{<:MatrixIntervalProbabilities{Tv, <:AbstractVector{Tv}, <:CuSparseMatrixCSC{Tv, Ti}}}) where {Tv, Ti}
+function IMDP.interval_prob_hcat(T, transition_probs::Vector{<:MatrixIntervalProbabilities{Tv, <:AbstractVector{Tv}, <:CuSparseMatrixCSC{Tv, Ti}}}) where {Tv, Ti}
     num_dest = size(lower(first(transition_probs)), 1)
 
     @assert all(x -> size(lower(x), 1) == num_dest, transition_probs) "The dimensions of all matrices must be the same"
@@ -46,7 +46,7 @@ function IMDP.interval_prob_hcat(transition_probs::Vector{<:MatrixIntervalProbab
     sl = mapreduce(sum_lower, vcat, transition_probs)
 
     lengths = map(num_src, transition_probs)
-    stateptr = CuVector{Ti}([1; cumsum(lengths) .+ 1])
+    stateptr = CuVector{Ti}([1; cumsum(lengths) .+ 1])  # Prioritize Ti over T
 
     return MatrixIntervalProbabilities(l, g, sl), stateptr
 end

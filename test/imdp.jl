@@ -69,14 +69,14 @@ problem = Problem(mdp, FiniteTimeReachAvoid([3], [2], 3, 10))
 V_fixed_it1, k, _ = interval_value_iteration(problem; maximize = true, upper_bound = false)
 @test k == 10
 
-V_fixed_it2, k, _ = interval_value_iteration(problem; maximize = true, upper_bound = false)
+V_fixed_it2, k, _ = interval_value_iteration(problem; maximize = true, upper_bound = true)
 @test k == 10
 @test all(V_fixed_it1 .<= V_fixed_it2)
 
 V_fixed_it1, k, _ = interval_value_iteration(problem; maximize = false, upper_bound = false)
 @test k == 10
 
-V_fixed_it2, k, _ = interval_value_iteration(problem; maximize = false, upper_bound = false)
+V_fixed_it2, k, _ = interval_value_iteration(problem; maximize = false, upper_bound = true)
 @test k == 10
 @test all(V_fixed_it1 .<= V_fixed_it2)
 
