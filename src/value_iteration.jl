@@ -4,14 +4,14 @@ termination_criteria(problem::Problem) = termination_criteria(specification(prob
 struct FixedIterationsCriteria{T <: Integer} <: TerminationCriteria
     n::T
 end
-(f::FixedIterationsCriteria)(k, prev_V, V) = k >= f.n
+(f::FixedIterationsCriteria)(V, k, u) = k >= f.n
 termination_criteria(spec::Union{FiniteTimeReachability, FiniteTimeReachAvoid}) =
     FixedIterationsCriteria(time_horizon(spec))
 
 struct CovergenceCriteria{T <: AbstractFloat} <: TerminationCriteria
     tol::T
 end
-(f::CovergenceCriteria)(k, prev_V, V) = maximum(abs.(prev_V - V)) < f.tol
+(f::CovergenceCriteria)(V, k, u) = maximum(u) < f.tol
 termination_criteria(spec::Union{InfiniteTimeReachability, InfiniteTimeReachAvoid}) =
     CovergenceCriteria(eps(spec))
 
@@ -41,9 +41,10 @@ function interval_value_iteration(
     nonterminal = construct_nonterminal(mc, terminal)
 
     step_imc!(ordering, p, prob, prev_V, V, nonterminal; upper_bound = upper_bound, discount = discount)
+    prev_V -= V
     k = 1
 
-    while !term_criteria(k, prev_V, V)
+    while !term_criteria(V, k, prev_v)
         copyto!(prev_V, V)
         step_imc!(
             ordering,
@@ -55,11 +56,11 @@ function interval_value_iteration(
             upper_bound = upper_bound,
             discount = discount,
         )
+
+        # Reuse prev_V to store the latest difference
+        prev_V -= V
         k += 1
     end
-
-    # Reuse prev_V to store the latest difference
-    prev_V .-= V
 
     return V, k, prev_V
 end
@@ -128,6 +129,7 @@ function interval_value_iteration(
 
     prob = transition_prob(mdp)
     sptr = stateptr(mdp)
+    maxactions = maximum(diff(sptr))
     terminal = terminal_states(spec)
     target = reach(spec)
 
@@ -143,16 +145,19 @@ function interval_value_iteration(
 
     nonterminal, nonterminal_actions = construct_nonterminal(mdp, terminal)
 
-    step_imdp!(ordering, p, prob, sptr, prev_V, V, nonterminal, nonterminal_actions; maximize = maximize, upper_bound = upper_bound, discount = discount)
+    step_imdp!(ordering, p, prob, sptr, maxactions, prev_V, V, nonterminal, nonterminal_actions; maximize = maximize, upper_bound = upper_bound, discount = discount)
+    prev_V -= V
+    prev_V *= -1.0
     k = 1
 
-    while !term_criteria(k, prev_V, V)
+    while !term_criteria(V, k, prev_V)
         copyto!(prev_V, V)
         step_imdp!(
             ordering,
             p,
             prob,
             sptr,
+            maxactions,
             prev_V,
             V,
             nonterminal,
@@ -161,11 +166,12 @@ function interval_value_iteration(
             upper_bound = upper_bound,
             discount = discount,
         )
+
+        # Reuse prev_V to store the latest difference
+        prev_V -= V
+        prev_V *= -1.0
         k += 1
     end
-
-    # Reuse prev_V to store the latest difference
-    prev_V .-= V
 
     return V, k, prev_V
 end
@@ -183,6 +189,7 @@ function step_imdp!(
     p,
     prob::Vector{<:StateIntervalProbabilities},
     stateptr,
+    maxactions,
     prev_V,
     V,
     state_indices,
@@ -213,6 +220,7 @@ function step_imdp!(
     p,
     prob::MatrixIntervalProbabilities,
     stateptr,
+    maxactions,
     prev_V,
     V,
     state_indices,

@@ -15,7 +15,7 @@ function IMDP.construct_nonterminal(mdp::IntervalMarkovDecisionProcess{<:MatrixI
     sptr = Vector(IMDP.stateptr(mdp))
 
     nonterminal = convert.(Ti, setdiff(collect(1:num_states(mdp)), terminal))
-    nonterminal_actions = mapreduce(i -> collect(sptr[i]:sptr[i + 1] - 1), vcat, nonterminal)
+    nonterminal_actions = mapreduce(i -> sptr[i]:sptr[i + 1] - 1, vcat, nonterminal)
 
     nonterminal = adapt(CuArray{Ti}, nonterminal)
     nonterminal_actions = adapt(CuArray{Ti}, nonterminal_actions)
@@ -28,6 +28,7 @@ function IMDP.step_imdp!(
     p,
     prob::MatrixIntervalProbabilities{R, VR, MR},
     stateptr,
+    maxactions,
     prev_V,
     V,
     state_indices,
@@ -39,7 +40,7 @@ function IMDP.step_imdp!(
     partial_ominmax!(ordering, p, prob, V, action_indices; max = upper_bound)
 
     res = transpose(transpose(prev_V) * p)
-    V_per_state = CuVectorOfVector(stateptr, res)
+    V_per_state = CuVectorOfVector(stateptr, res, maxactions)
 
     blocks = length(state_indices)
     threads = 32
