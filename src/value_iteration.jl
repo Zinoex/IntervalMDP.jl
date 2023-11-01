@@ -38,7 +38,7 @@ function interval_value_iteration(
     V = similar(prev_V)
     V[terminal] .= prev_V[terminal]
 
-    nonterminal = setdiff(collect(1:num_states(mc)), terminal)
+    nonterminal = construct_nonterminal(mc, terminal)
 
     step_imc!(ordering, p, prob, prev_V, V, nonterminal; upper_bound = upper_bound, discount = discount)
     k = 1
@@ -72,6 +72,10 @@ end
 function construct_value_function(::AbstractMatrix{R}, num_states) where {R}
     V = zeros(R, num_states)
     return V
+end
+
+function construct_nonterminal(mc::IntervalMarkovChain, terminal)
+    return setdiff(collect(1:num_states(mc)), terminal)
 end
 
 function step_imc!(
@@ -137,10 +141,9 @@ function interval_value_iteration(
     V = similar(prev_V)
     V[terminal] .= prev_V[terminal]
 
-    nonterminal = setdiff(collect(1:num_states(mdp)), terminal)
-    nonterminal_cols = mapreduce(i -> collect(sptr[i]:sptr[i + 1] - 1), vcat, nonterminal)
+    nonterminal, nonterminal_actions = construct_nonterminal(mdp, terminal)
 
-    step_imdp!(ordering, p, prob, sptr, prev_V, V, nonterminal, nonterminal_cols; maximize = maximize, upper_bound = upper_bound, discount = discount)
+    step_imdp!(ordering, p, prob, sptr, prev_V, V, nonterminal, nonterminal_actions; maximize = maximize, upper_bound = upper_bound, discount = discount)
     k = 1
 
     while !term_criteria(k, prev_V, V)
@@ -153,7 +156,7 @@ function interval_value_iteration(
             prev_V,
             V,
             nonterminal,
-            nonterminal_cols;
+            nonterminal_actions;
             maximize = maximize, 
             upper_bound = upper_bound,
             discount = discount,
@@ -167,6 +170,14 @@ function interval_value_iteration(
     return V, k, prev_V
 end
 
+function construct_nonterminal(mdp::IntervalMarkovDecisionProcess, terminal)
+    sptr = stateptr(mdp)
+
+    nonterminal = setdiff(collect(1:num_states(mdp)), terminal)
+    nonterminal_actions = mapreduce(i -> collect(sptr[i]:sptr[i + 1] - 1), vcat, nonterminal)
+    return nonterminal, nonterminal_actions
+end
+
 function step_imdp!(
     ordering,
     p,
@@ -175,12 +186,12 @@ function step_imdp!(
     prev_V,
     V,
     state_indices,
-    col_indices;
+    action_indices;
     maximize, 
     upper_bound,
     discount,
 )
-    partial_ominmax!(ordering, p, prob, V, col_indices; max = upper_bound)
+    partial_ominmax!(ordering, p, prob, V, action_indices; max = upper_bound)
 
     optfun = maximize ? max : min
 
@@ -205,21 +216,21 @@ function step_imdp!(
     prev_V,
     V,
     state_indices,
-    col_indices;
+    action_indices;
     maximize, 
     upper_bound,
     discount,
 )
-    partial_ominmax!(ordering, p, prob, V, col_indices; max = upper_bound)
+    partial_ominmax!(ordering, p, prob, V, action_indices; max = upper_bound)
 
     optfun = maximize ? maximum : minimum
 
     res = transpose(transpose(prev_V) * p)
 
-    # TODO Figure out how this should work in general
     @inbounds for j in state_indices
-        optV = optfun(res[stateptr[j]:stateptr[j + 1] - 1])
+        optV = optfun(view(res, stateptr[j]:stateptr[j + 1] - 1))
         V[j] = discount * optV
     end
+
     return V
 end

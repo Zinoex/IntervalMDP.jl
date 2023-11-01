@@ -49,6 +49,7 @@ function create_problem()
     action_list_per_state = collect(0:number_actions - 1)
     action_list = mapreduce(_ -> action_list_per_state, vcat, 1:number_states)
 
+    # probs = adapt.(CuArray{Float64}, probs)
     mdp = IntervalMarkovDecisionProcess(probs, action_list, 1)
     problem = Problem(mdp, InfiniteTimeReachability(terminal_states, number_states, 1e-6))
 

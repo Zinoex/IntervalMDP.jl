@@ -38,10 +38,10 @@ prob3 = MatrixIntervalProbabilities(;
     ][:, :],
 )
 
-action_list = ["a1", "a2", "a1", "a2", "sinking"]
+transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
 initial_state = Int32(1)
 
-mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3], action_list, initial_state)
+mdp = IntervalMarkovDecisionProcess(transition_probs, initial_state)
 
 # Finite time reachability
 problem = Problem(mdp, FiniteTimeReachability([3], 3, 10))

@@ -45,5 +45,8 @@ function IMDP.interval_prob_hcat(transition_probs::Vector{<:MatrixIntervalProbab
 
     sl = mapreduce(sum_lower, vcat, transition_probs)
 
-    return MatrixIntervalProbabilities(l, g, sl)
+    lengths = map(num_src, transition_probs)
+    stateptr = CuVector{Ti}([1; cumsum(lengths) .+ 1])
+
+    return MatrixIntervalProbabilities(l, g, sl), stateptr
 end
