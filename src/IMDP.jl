@@ -8,7 +8,7 @@ export gap, lower, sum_lower, num_src
 
 include("models.jl")
 export System, IntervalMarkovChain, IntervalMarkovDecisionProcess
-export transition_prob, num_states, initial_state
+export transition_prob, num_states, initial_state, actions
 
 include("specification.jl")
 export Specification, LTLFormula, LTLfFormula, PTCLFormula
@@ -32,5 +32,7 @@ export TerminationCriteria, FixedIterationsCriteria, CovergenceCriteria
 
 include("certify.jl")
 export satisfaction_probability
+
+include("Data/Data.jl")
 
 end
