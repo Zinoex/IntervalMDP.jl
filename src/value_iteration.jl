@@ -146,8 +146,8 @@ function interval_value_iteration(
     nonterminal, nonterminal_actions = construct_nonterminal(mdp, terminal)
 
     step_imdp!(ordering, p, prob, sptr, maxactions, prev_V, V, nonterminal, nonterminal_actions; maximize = maximize, upper_bound = upper_bound, discount = discount)
-    prev_V -= V
-    prev_V *= -1.0
+    prev_V .-= V
+    rmul!(prev_V, -1.0)
     k = 1
 
     while !term_criteria(V, k, prev_V)
@@ -168,8 +168,8 @@ function interval_value_iteration(
         )
 
         # Reuse prev_V to store the latest difference
-        prev_V -= V
-        prev_V *= -1.0
+        prev_V .-= V
+        rmul!(prev_V, -1.0)
         k += 1
     end
 
