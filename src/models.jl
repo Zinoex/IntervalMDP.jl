@@ -5,15 +5,16 @@ struct IntervalMarkovChain{P <: IntervalProbabilities, T <: Integer} <: System
     transition_prob::P
     initial_state::T
     num_states::T
+end
 
-    function IntervalMarkovChain(
-        transition_prob::P,
-        initial_state::T,
-    ) where {P <: IntervalProbabilities, T <: Integer}
-        num_states = checksize_imc!(transition_prob)
+function IntervalMarkovChain(
+    transition_prob::P,
+    initial_state::T,
+) where {P <: IntervalProbabilities, T <: Integer}
+    num_states = checksize_imc!(transition_prob)
+    num_states = T(num_states)
 
-        return new{P, T}(transition_prob, initial_state, num_states)
-    end
+    return IntervalMarkovChain(transition_prob, initial_state, num_states)
 end
 
 function checksize_imc!(p::AbstractVector{<:StateIntervalProbabilities})
@@ -57,17 +58,18 @@ struct IntervalMarkovDecisionProcess{P <: IntervalProbabilities, T <: Integer, V
     action_vals::VA
     initial_state::T
     num_states::T
+end
 
-    function IntervalMarkovDecisionProcess(
-        transition_prob::P,
-        stateptr::VT,
-        action_vals::VA,
-        initial_state::T,
-    ) where {P <: IntervalProbabilities, T <: Integer, VT <: AbstractVector{T}, VA <: AbstractVector}
-        num_states = checksize_imdp!(transition_prob, stateptr)
+function IntervalMarkovDecisionProcess(
+    transition_prob::P,
+    stateptr::VT,
+    action_vals::VA,
+    initial_state::T,
+) where {P <: IntervalProbabilities, T <: Integer, VT <: AbstractVector{T}, VA <: AbstractVector}
+    num_states = checksize_imdp!(transition_prob, stateptr)
+    num_states = T(num_states)
 
-        return new{P, T, VT, VA}(transition_prob, stateptr, action_vals, initial_state, num_states)
-    end
+    return IntervalMarkovDecisionProcess(transition_prob, stateptr, action_vals, initial_state, num_states)
 end
 
 function IntervalMarkovDecisionProcess(transition_probs::Vector{P}, action_vals::VA, initial_state::T)  where {P <: IntervalProbabilities, T <: Integer, VA <: AbstractVector}
