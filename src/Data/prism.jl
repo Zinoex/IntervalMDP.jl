@@ -38,7 +38,7 @@ function write_prism_file(path, mdp, terminal_states)
 
             return "[$pl, $pu]:(s'=$dest)"
         end, " + ")
-        transition = "[$action] s=$src -> $to;"
+        transition = "[act$action] s=$src -> $to;"
 
         lines[cur_line] = transition
         cur_line += 1
