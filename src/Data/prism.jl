@@ -49,11 +49,12 @@ function write_prism_transitions_file(path_without_file_ending, mdp)
     act = actions(mdp)
     num_choices = length(act)
 
-    lines = Vector{String}(undef, 1 + transition_lines)
+    lines = Vector{String}(undef, 1 + num_transitions)
     lines[1] = "$number_states $num_choices $num_transitions"
 
     s = 1
     action_idx = 0
+    cur_line = 2
     for j in 1:transition_lines
         action = act[j]
 
@@ -66,16 +67,15 @@ function write_prism_transitions_file(path_without_file_ending, mdp)
         column_lower = view(l, :, j)
         I, V = SparseArrays.findnz(column_lower)
 
-        to = join(map(zip(I, V)) do (i, v)
+        for (i, v) in zip(I, V)
             dest = i - 1
             pl = v
             pu = pl + g[i, j]
 
-            return "[$pl, $pu]:$dest"
-        end, " ")
-        transition = "$src $action_idx $to $action"
+            lines[cur_line] = "$src $action_idx $dest [$pl,$pu] $action"
+            cur_line += 1
+        end
 
-        lines[j + 1] = transition
         action_idx += 1
     end
 
