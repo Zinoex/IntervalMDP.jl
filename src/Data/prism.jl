@@ -49,37 +49,36 @@ function write_prism_transitions_file(path_without_file_ending, mdp)
     act = actions(mdp)
     num_choices = length(act)
 
-    lines = Vector{String}(undef, 1 + num_transitions)
-    lines[1] = "$number_states $num_choices $num_transitions"
+    open(path_without_file_ending * ".tra", "w") do io
+        println(io, "$number_states $num_choices $num_transitions")
 
-    s = 1
-    action_idx = 0
-    cur_line = 2
-    for j in 1:transition_lines
-        action = act[j]
+        s = 1
+        action_idx = 0
+        for j in 1:transition_lines
+            action = act[j]
 
-        if sptr[s + 1] == j
-            s += 1
-            action_idx = 0
+            if sptr[s + 1] == j
+                s += 1
+                action_idx = 0
+            end
+            src = s - 1
+
+            column_lower = view(l, :, j)
+            I, V = SparseArrays.findnz(column_lower)
+
+            for (i, v) in zip(I, V)
+                dest = i - 1
+                pl = v
+                pu = pl + g[i, j]
+                pl = max(pl, 1e-12)
+
+                println(io, "$src $action_idx $dest [$pl,$pu] $action")
+            end
+
+            action_idx += 1
         end
-        src = s - 1
 
-        column_lower = view(l, :, j)
-        I, V = SparseArrays.findnz(column_lower)
-
-        for (i, v) in zip(I, V)
-            dest = i - 1
-            pl = v
-            pu = pl + g[i, j]
-
-            lines[cur_line] = "$src $action_idx $dest [$pl,$pu] $action"
-            cur_line += 1
-        end
-
-        action_idx += 1
     end
-
-    write(path_without_file_ending * ".tra", join(lines, "\n"))
 end
 
 function write_prism_props_file(path_without_file_ending)
