@@ -1,30 +1,65 @@
 
 
-function write_prism_file(path, mdp, terminal_states)
+function write_prism_file(path_without_file_ending, mdp, terminal_states)
+    write_prism_states_file(path_without_file_ending, mdp)
+    write_prism_labels_file(path_without_file_ending, mdp, terminal_states)
+    write_prism_transitions_file(path_without_file_ending, mdp)
+    write_prism_props_file(path_without_file_ending)
+end
+
+function write_prism_states_file(path_without_file_ending, mdp)
+    number_states = num_states(mdp)
+
+    lines = Vector{String}(undef, 1 + number_states)
+    lines[1] = "(s)"
+
+    for i in 1:number_states
+        state = i - 1
+        lines[i + 1] = "$state:($state)"
+    end
+
+    write(path_without_file_ending * ".sta", join(lines, "\n"))
+end
+
+function write_prism_labels_file(path_without_file_ending, mdp, terminal_states)
+    istate = initial_state(mdp) - 1
+
+    lines = Vector{String}(undef, 2 + length(terminal_states))
+    lines[1] = "0=\"init\" 1=\"deadlock\" 2=\"goal\""
+    lines[2] = "$istate: 0"
+
+    for (i, tstate) in enumerate(terminal_states)
+        state = tstate - 1  # PRISM uses 0-based indexing
+        lines[i + 2] = "$state: 2"
+    end
+
+    write(path_without_file_ending * ".lab", join(lines, "\n"))
+end
+
+function write_prism_transitions_file(path_without_file_ending, mdp)
     number_states = num_states(mdp)
 
     prob = transition_prob(mdp)
     l, g = lower(prob), gap(prob)
+
     transition_lines = num_src(prob)
+    num_transitions = nnz(l)
+
     sptr = IMDP.stateptr(mdp)
     act = actions(mdp)
+    num_choices = length(act)
 
-    lines = Vector{String}(undef, 10 + transition_lines)
-
-    lines[1] = "mdp"
-    lines[2] = ""
-    lines[3] = "module M"
-    lines[4] = ""
-    lines[5] = "s:[0..$(number_states - 1)] init $(initial_state(mdp) - 1);"
-    lines[6] = ""
+    lines = Vector{String}(undef, 1 + transition_lines)
+    lines[1] = "$number_states $num_choices $num_transitions"
 
     s = 1
-    cur_line = 7
+    action_idx = 0
     for j in 1:transition_lines
         action = act[j]
 
         if sptr[s + 1] == j
             s += 1
+            action_idx = 0
         end
         src = s - 1
 
@@ -36,18 +71,19 @@ function write_prism_file(path, mdp, terminal_states)
             pl = v
             pu = pl + g[i, j]
 
-            return "[$pl, $pu]:(s'=$dest)"
-        end, " + ")
-        transition = "[act$action] s=$src -> $to;"
+            return "[$pl, $pu]:$dest"
+        end, " ")
+        transition = "$src $action_idx $to $action"
 
-        lines[cur_line] = transition
-        cur_line += 1
+        lines[j + 1] = transition
+        action_idx += 1
     end
 
-    lines[end - 3] = ""
-    lines[end - 2] = "endmodule"
-    lines[end - 1] = ""
-    lines[end] = "label \"goal\" = $(join(["s=$(terminal_state - 1)" for terminal_state in terminal_states], "|"));"
+    write(path_without_file_ending * ".tra", join(lines, "\n"))
+end
 
-    write(path, join(lines, "\n"))
+function write_prism_props_file(path_without_file_ending)
+    line = "Pmaxmin=? [ F \"goal\" ]"
+
+    write(path_without_file_ending * ".pctl", line)
 end
