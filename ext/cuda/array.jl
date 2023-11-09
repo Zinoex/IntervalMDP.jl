@@ -15,6 +15,11 @@ struct CuVectorOfVector{Tv, Ti} <: AbstractVector{AbstractVector{Tv}}
     maxlength::Ti
 end
 
+function CuVectorOfVector(vecptr::CuVector{Ti}, val::CuVector{Tv}) where {Tv, Ti}
+    maxlength = maximum(diff(vecptr))
+    return CuVectorOfVector{Tv, Ti}(vecptr, val, maxlength)
+end
+
 function CUDA.unsafe_free!(xs::CuVectorOfVector)
     unsafe_free!(xs.vecptr)
     unsafe_free!(xs.val)

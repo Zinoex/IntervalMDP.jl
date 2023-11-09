@@ -21,13 +21,13 @@ end
 abstract type AbstractReachability <: Specification end
 struct FiniteTimeReachability{T <: Integer} <: AbstractReachability
     terminal_states::Vector{T}
-    time_horizon::T
+    time_horizon::Any
 end
 
 function FiniteTimeReachability(
     terminal_states::Vector{T},
     num_states::T,
-    time_horizon::T,
+    time_horizon,
 ) where {T <: Integer}
     checkterminal!(terminal_states, num_states)
     return FiniteTimeReachability(terminal_states, time_horizon)
@@ -58,14 +58,14 @@ reach(spec::InfiniteTimeReachability) = spec.terminal_states
 struct FiniteTimeReachAvoid{T <: Integer} <: AbstractReachability
     reach::Vector{T}
     avoid::Vector{T}
-    time_horizon::T
+    time_horizon::Any
 end
 
 function FiniteTimeReachAvoid(
     reach::Vector{T},
     avoid::Vector{T},
     num_states::T,
-    time_horizon::T,
+    time_horizon,
 ) where {T <: Integer}
     checkterminal!(reach, num_states)
     checkterminal!(avoid, num_states)

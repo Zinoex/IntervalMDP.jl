@@ -4,5 +4,6 @@
 /Manifest.toml
 /test/Manifest.toml
 /benchmark/Manifest.toml
+/benchmark/imdp/data/
 /docs/Manifest.toml
 /docs/build/

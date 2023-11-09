@@ -89,6 +89,47 @@ function probability_assignment!(
     return p
 end
 
+function probability_assignment!(
+    p::VVR,
+    prob::Vector{<:StateIntervalProbabilities{R}},
+    ordering::SparseOrdering,
+    indices,
+) where {R, VVR <: AbstractVector{<:AbstractSparseVector{R}}}
+    Threads.@threads for j in indices
+        probⱼ = prob[j]
+
+        @inbounds copyto!(nonzeros(p[j]), nonzeros(lower(probⱼ)))
+
+        gⱼ = gap(probⱼ)
+        lⱼ = sum_lower(probⱼ)
+
+        add_gap!(nonzeros(p[j]), nonzeros(gⱼ), lⱼ, perm(ordering, j))
+    end
+
+    return p
+end
+
+function probability_assignment!(
+    p::MR,
+    prob::MatrixIntervalProbabilities{R},
+    ordering::SparseOrdering,
+    indices,
+) where {R, MR <: AbstractSparseMatrix{R}}
+    @inbounds copyto!(nonzeros(p), nonzeros(lower(prob)))
+    g = gap(prob)
+
+    Threads.@threads for j in indices
+        # p and g must share nonzero structure.
+        pⱼ = view(nonzeros(p), p.colptr[j]:(p.colptr[j + 1] - 1))
+        gⱼ = view(nonzeros(g), p.colptr[j]:(p.colptr[j + 1] - 1))
+        lⱼ = sum_lower(prob)[j]
+
+        add_gap!(pⱼ, gⱼ, lⱼ, perm(ordering, j))
+    end
+
+    return p
+end
+
 # Shared
 function add_gap!(p::VR, gap::VR, sum_lower::R, perm) where {R, VR <: AbstractVector{R}}
     remaining = 1.0 - sum_lower

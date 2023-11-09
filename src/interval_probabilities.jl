@@ -1,3 +1,4 @@
+# Vector of probabilities
 struct StateIntervalProbabilities{R, VR <: AbstractVector{R}}
     lower::VR
     gap::VR
@@ -26,12 +27,34 @@ function compute_gap(lower::VR, upper::VR) where {VR <: AbstractVector}
     return lower, gap
 end
 
+function compute_gap(lower::VR, upper::VR) where {VR <: AbstractSparseVector}
+    indices = SparseArrays.nonzeroinds(upper)
+    gap_nonzeros = map(i -> upper[i] - lower[i], indices)
+    lower_nonzeros = map(i -> lower[i], indices)
+
+    gap = SparseArrays.FixedSparseVector(length(lower), indices, gap_nonzeros)
+    lower = SparseArrays.FixedSparseVector(length(lower), indices, lower_nonzeros)
+    return lower, gap
+end
+
 gap(s::StateIntervalProbabilities) = s.gap
 lower(s::StateIntervalProbabilities) = s.lower
 sum_lower(s::StateIntervalProbabilities) = s.sum_lower
 
 gap(V::Vector{<:StateIntervalProbabilities}) = gap.(V)
+num_src(V::Vector{<:StateIntervalProbabilities}) = length(V)
 
+function interval_prob_hcat(
+    T,
+    transition_probs::Vector{<:Vector{<:StateIntervalProbabilities}},
+)
+    lengths = map(num_src, transition_probs)
+    stateptr = T[1; cumsum(lengths) .+ 1]
+
+    return reduce(vcat, transition_probs), stateptr
+end
+
+# Matrix interface
 struct MatrixIntervalProbabilities{R, VR <: AbstractVector{R}, MR <: AbstractMatrix{R}}
     lower::MR
     gap::MR
@@ -64,9 +87,45 @@ function compute_gap(lower::MR, upper::MR) where {MR <: AbstractMatrix}
     return lower, gap
 end
 
+function compute_gap(
+    lower::MR,
+    upper::MR,
+) where {MR <: SparseArrays.AbstractSparseMatrixCSC}
+    I, J, _ = findnz(upper)
+    gap_nonzeros = map((i, j) -> upper[i, j] - lower[i, j], I, J)
+    lower_nonzeros = map((i, j) -> lower[i, j], I, J)
+
+    gap = SparseArrays.FixedSparseCSC(
+        size(upper)...,
+        upper.colptr,
+        upper.rowval,
+        gap_nonzeros,
+    )
+    lower = SparseArrays.FixedSparseCSC(
+        size(upper)...,
+        upper.colptr,
+        upper.rowval,
+        lower_nonzeros,
+    )
+    return lower, gap
+end
+
 gap(s::MatrixIntervalProbabilities) = s.gap
 lower(s::MatrixIntervalProbabilities) = s.lower
 sum_lower(s::MatrixIntervalProbabilities) = s.sum_lower
+num_src(s::MatrixIntervalProbabilities) = size(gap(s), 2)
+
+function interval_prob_hcat(T, transition_probs::Vector{<:MatrixIntervalProbabilities})
+    l = mapreduce(lower, hcat, transition_probs)
+    g = mapreduce(gap, hcat, transition_probs)
+
+    sl = mapreduce(sum_lower, vcat, transition_probs)
+
+    lengths = map(num_src, transition_probs)
+    stateptr = T[1; cumsum(lengths) .+ 1]
+
+    return MatrixIntervalProbabilities(l, g, sl), stateptr
+end
 
 const IntervalProbabilities{R} =
     Union{Vector{<:StateIntervalProbabilities{R}}, <:MatrixIntervalProbabilities{R}}
