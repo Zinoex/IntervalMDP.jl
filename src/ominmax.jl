@@ -130,7 +130,6 @@ function probability_assignment!(
     return p
 end
 
-
 # Shared
 function add_gap!(p::VR, gap::VR, sum_lower::R, perm) where {R, VR <: AbstractVector{R}}
     remaining = 1.0 - sum_lower

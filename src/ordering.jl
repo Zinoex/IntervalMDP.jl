@@ -90,10 +90,7 @@ function sort_states!(order::SparseOrdering{T, VT}, V::VR; max = true) where {T,
 end
 
 # Vector of sparse vectors
-function construct_ordering(
-    T,
-    p::VVR,
-) where {VVR <: AbstractVector{<:AbstractSparseVector}}
+function construct_ordering(T, p::VVR) where {VVR <: AbstractVector{<:AbstractSparseVector}}
     # Assume that each vector corresponds to a start state
 
     n, m = length(first(p)), length(p)

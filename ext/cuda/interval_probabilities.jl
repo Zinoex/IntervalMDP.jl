@@ -1,6 +1,14 @@
 
-
-function IMDP.interval_prob_hcat(T, transition_probs::Vector{<:MatrixIntervalProbabilities{Tv, <:AbstractVector{Tv}, <:CuSparseMatrixCSC{Tv, Ti}}}) where {Tv, Ti}
+function IMDP.interval_prob_hcat(
+    T,
+    transition_probs::Vector{
+        <:MatrixIntervalProbabilities{
+            Tv,
+            <:AbstractVector{Tv},
+            <:CuSparseMatrixCSC{Tv, Ti},
+        },
+    },
+) where {Tv, Ti}
     num_dest = size(lower(first(transition_probs)), 1)
 
     @assert all(x -> size(lower(x), 1) == num_dest, transition_probs) "The dimensions of all matrices must be the same"
@@ -14,10 +22,10 @@ function IMDP.interval_prob_hcat(T, transition_probs::Vector{<:MatrixIntervalPro
     l_colptr = CUDA.zeros(Ti, num_col + 1)
     nnz_sofar = 0
     nX_sofar = 0
-    @inbounds for i = 1:length(l)
+    @inbounds for i in 1:length(l)
         li = l[i]
         nX = size(li, 2)
-        l_colptr[(1 : nX + 1) .+ nX_sofar] = li.colPtr .+ nnz_sofar
+        l_colptr[(1:(nX + 1)) .+ nX_sofar] = li.colPtr .+ nnz_sofar
         nnz_sofar += nnz(li)
         nX_sofar += nX
     end
@@ -27,14 +35,14 @@ function IMDP.interval_prob_hcat(T, transition_probs::Vector{<:MatrixIntervalPro
     l = CuSparseMatrixCSC(l_colptr, l_rowval, l_nzval, dims)
 
     g = map(gap, transition_probs)
-    
+
     g_colptr = CUDA.zeros(Ti, num_col + 1)
     nnz_sofar = 0
     nX_sofar = 0
-    @inbounds for i = 1:length(g)
+    @inbounds for i in 1:length(g)
         gi = g[i]
         nX = size(gi, 2)
-        g_colptr[(1 : nX + 1) .+ nX_sofar] = gi.colPtr .+ nnz_sofar
+        g_colptr[(1:(nX + 1)) .+ nX_sofar] = gi.colPtr .+ nnz_sofar
         nnz_sofar += nnz(gi)
         nX_sofar += nX
     end

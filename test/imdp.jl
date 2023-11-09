@@ -25,18 +25,15 @@ prob2 = MatrixIntervalProbabilities(;
     ],
 )
 
-prob3 = MatrixIntervalProbabilities(;
-    lower = [
-        0.0
-        0.0
-        1.0
-    ][:, :],
-    upper = [
-        0.0
-        0.0
-        1.0
-    ][:, :],
-)
+prob3 = MatrixIntervalProbabilities(; lower = [
+    0.0
+    0.0
+    1.0
+][:, :], upper = [
+    0.0
+    0.0
+    1.0
+][:, :])
 
 transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
 initial_state = Int32(1)

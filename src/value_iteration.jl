@@ -40,7 +40,16 @@ function interval_value_iteration(
 
     nonterminal = construct_nonterminal(mc, terminal)
 
-    step_imc!(ordering, p, prob, prev_V, V, nonterminal; upper_bound = upper_bound, discount = discount)
+    step_imc!(
+        ordering,
+        p,
+        prob,
+        prev_V,
+        V,
+        nonterminal;
+        upper_bound = upper_bound,
+        discount = discount,
+    )
     prev_V .-= V
     rmul!(prev_V, -1.0)
     k = 1
@@ -67,7 +76,10 @@ function interval_value_iteration(
     return V, k, prev_V
 end
 
-function construct_value_function(::AbstractVector{<:AbstractVector{R}}, num_states) where {R}
+function construct_value_function(
+    ::AbstractVector{<:AbstractVector{R}},
+    num_states,
+) where {R}
     V = zeros(R, num_states)
     return V
 end
@@ -118,7 +130,6 @@ function step_imc!(
     return V
 end
 
-
 function interval_value_iteration(
     problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability};
     maximize = true,
@@ -147,7 +158,20 @@ function interval_value_iteration(
 
     nonterminal, nonterminal_actions = construct_nonterminal(mdp, terminal)
 
-    step_imdp!(ordering, p, prob, sptr, maxactions, prev_V, V, nonterminal, nonterminal_actions; maximize = maximize, upper_bound = upper_bound, discount = discount)
+    step_imdp!(
+        ordering,
+        p,
+        prob,
+        sptr,
+        maxactions,
+        prev_V,
+        V,
+        nonterminal,
+        nonterminal_actions;
+        maximize = maximize,
+        upper_bound = upper_bound,
+        discount = discount,
+    )
     prev_V .-= V
     rmul!(prev_V, -1.0)
     k = 1
@@ -164,7 +188,7 @@ function interval_value_iteration(
             V,
             nonterminal,
             nonterminal_actions;
-            maximize = maximize, 
+            maximize = maximize,
             upper_bound = upper_bound,
             discount = discount,
         )
@@ -182,7 +206,8 @@ function construct_nonterminal(mdp::IntervalMarkovDecisionProcess, terminal)
     sptr = stateptr(mdp)
 
     nonterminal = setdiff(collect(1:num_states(mdp)), terminal)
-    nonterminal_actions = mapreduce(i -> collect(sptr[i]:sptr[i + 1] - 1), vcat, nonterminal)
+    nonterminal_actions =
+        mapreduce(i -> collect(sptr[i]:(sptr[i + 1] - 1)), vcat, nonterminal)
     return nonterminal, nonterminal_actions
 end
 
@@ -196,7 +221,7 @@ function step_imdp!(
     V,
     state_indices,
     action_indices;
-    maximize, 
+    maximize,
     upper_bound,
     discount,
 )
@@ -227,7 +252,7 @@ function step_imdp!(
     V,
     state_indices,
     action_indices;
-    maximize, 
+    maximize,
     upper_bound,
     discount,
 )
@@ -238,7 +263,7 @@ function step_imdp!(
     res = transpose(transpose(prev_V) * p)
 
     @inbounds for j in state_indices
-        optV = optfun(view(res, stateptr[j]:stateptr[j + 1] - 1))
+        optV = optfun(view(res, stateptr[j]:(stateptr[j + 1] - 1)))
         V[j] = discount * optV
     end
 

@@ -52,7 +52,12 @@ initial_state(s::IntervalMarkovChain) = s.initial_state
 num_states(s::IntervalMarkovChain) = s.num_states
 
 ### Interval Markov Decision Process
-struct IntervalMarkovDecisionProcess{P <: IntervalProbabilities, T <: Integer, VT <: AbstractVector{T}, VA <: AbstractVector} <: System
+struct IntervalMarkovDecisionProcess{
+    P <: IntervalProbabilities,
+    T <: Integer,
+    VT <: AbstractVector{T},
+    VA <: AbstractVector,
+} <: System
     transition_prob::P
     stateptr::VT
     action_vals::VA
@@ -65,20 +70,43 @@ function IntervalMarkovDecisionProcess(
     stateptr::VT,
     action_vals::VA,
     initial_state::T,
-) where {P <: IntervalProbabilities, T <: Integer, VT <: AbstractVector{T}, VA <: AbstractVector}
+) where {
+    P <: IntervalProbabilities,
+    T <: Integer,
+    VT <: AbstractVector{T},
+    VA <: AbstractVector,
+}
     num_states = checksize_imdp!(transition_prob, stateptr)
     num_states = T(num_states)
 
-    return IntervalMarkovDecisionProcess(transition_prob, stateptr, action_vals, initial_state, num_states)
+    return IntervalMarkovDecisionProcess(
+        transition_prob,
+        stateptr,
+        action_vals,
+        initial_state,
+        num_states,
+    )
 end
 
-function IntervalMarkovDecisionProcess(transition_probs::Vector{P}, action_vals::VA, initial_state::T)  where {P <: IntervalProbabilities, T <: Integer, VA <: AbstractVector}
+function IntervalMarkovDecisionProcess(
+    transition_probs::Vector{P},
+    action_vals::VA,
+    initial_state::T,
+) where {P <: IntervalProbabilities, T <: Integer, VA <: AbstractVector}
     transition_prob, stateptr = interval_prob_hcat(T, transition_probs)
 
-    return IntervalMarkovDecisionProcess(transition_prob, stateptr, action_vals, initial_state)
+    return IntervalMarkovDecisionProcess(
+        transition_prob,
+        stateptr,
+        action_vals,
+        initial_state,
+    )
 end
 
-function IntervalMarkovDecisionProcess(transition_probs::Vector{Pair{VA, P}}, initial_state::T)  where {P <: IntervalProbabilities, T <: Integer, VA <: AbstractVector}
+function IntervalMarkovDecisionProcess(
+    transition_probs::Vector{Pair{VA, P}},
+    initial_state::T,
+) where {P <: IntervalProbabilities, T <: Integer, VA <: AbstractVector}
     action_vals = mapreduce(first, vcat, transition_probs)
     transition_probs = map(x -> x[2], transition_probs)
 
@@ -108,7 +136,7 @@ end
 function checksize_imdp!(p::MatrixIntervalProbabilities, stateptr)
     g = gap(p)
     num_states = length(stateptr) - 1
-    
+
     num_actions_per_state = diff(stateptr)
     @assert all(num_actions_per_state .> 0) "The number of actions per state must be positive"
 

@@ -1,10 +1,9 @@
 
-
 function write_prism_file(path_without_file_ending, mdp, terminal_states)
     write_prism_states_file(path_without_file_ending, mdp)
     write_prism_labels_file(path_without_file_ending, mdp, terminal_states)
     write_prism_transitions_file(path_without_file_ending, mdp)
-    write_prism_props_file(path_without_file_ending)
+    return write_prism_props_file(path_without_file_ending)
 end
 
 function write_prism_states_file(path_without_file_ending, mdp)
@@ -18,7 +17,7 @@ function write_prism_states_file(path_without_file_ending, mdp)
         lines[i + 1] = "$state:($state)"
     end
 
-    write(path_without_file_ending * ".sta", join(lines, "\n"))
+    return write(path_without_file_ending * ".sta", join(lines, "\n"))
 end
 
 function write_prism_labels_file(path_without_file_ending, mdp, terminal_states)
@@ -33,7 +32,7 @@ function write_prism_labels_file(path_without_file_ending, mdp, terminal_states)
         lines[i + 2] = "$state: 2"
     end
 
-    write(path_without_file_ending * ".lab", join(lines, "\n"))
+    return write(path_without_file_ending * ".lab", join(lines, "\n"))
 end
 
 function write_prism_transitions_file(path_without_file_ending, mdp)
@@ -77,12 +76,11 @@ function write_prism_transitions_file(path_without_file_ending, mdp)
 
             action_idx += 1
         end
-
     end
 end
 
 function write_prism_props_file(path_without_file_ending)
     line = "Pmaxmin=? [ F \"goal\" ]"
 
-    write(path_without_file_ending * ".pctl", line)
+    return write(path_without_file_ending * ".pctl", line)
 end

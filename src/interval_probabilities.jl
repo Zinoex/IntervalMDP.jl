@@ -27,7 +27,6 @@ function compute_gap(lower::VR, upper::VR) where {VR <: AbstractVector}
     return lower, gap
 end
 
-
 function compute_gap(lower::VR, upper::VR) where {VR <: AbstractSparseVector}
     indices = SparseArrays.nonzeroinds(upper)
     gap_nonzeros = map(i -> upper[i] - lower[i], indices)
@@ -45,7 +44,10 @@ sum_lower(s::StateIntervalProbabilities) = s.sum_lower
 gap(V::Vector{<:StateIntervalProbabilities}) = gap.(V)
 num_src(V::Vector{<:StateIntervalProbabilities}) = length(V)
 
-function interval_prob_hcat(T, transition_probs::Vector{<:Vector{<:StateIntervalProbabilities}}) 
+function interval_prob_hcat(
+    T,
+    transition_probs::Vector{<:Vector{<:StateIntervalProbabilities}},
+)
     lengths = map(num_src, transition_probs)
     stateptr = T[1; cumsum(lengths) .+ 1]
 
