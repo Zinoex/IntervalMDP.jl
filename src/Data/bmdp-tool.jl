@@ -1,57 +1,91 @@
+function read_intline(line)
+    return parse(Int32, line)
+end
 
-function readnumbers(types, line)
-    words = split(line)
+function read_transition_line(line)
+    words = eachsplit(line; limit = 5)
 
-    @assert length(words) == length(types)
+    (item, state) = iterate(words)
+    src = parse(Int32, item)
 
-    return [parse(t, w) for (t, w) in zip(types, words)]
+    (item, state) = iterate(words, state)
+    act = parse(Int32, item)
+
+    (item, state) = iterate(words, state)
+    dest = parse(Int32, item)
+
+    (item, state) = iterate(words, state)
+    lower = parse(Float64, item)
+
+    (item, state) = iterate(words, state)
+    upper = parse(Float64, item)
+
+    return src, act, dest, lower, upper
 end
 
 function read_bmdp_tool_file(path)
-    lines = readlines(path)
+    open(path, "r") do io
+        number_states = read_intline(readline(io))
+        number_actions = read_intline(readline(io))
+        number_terminal = read_intline(readline(io))
 
-    number_states = readnumbers([Int32], lines[1])[1]
-    number_actions = readnumbers([Int32], lines[2])[1]
-    number_terminal = readnumbers([Int32], lines[3])[1]
+        terminal_states = map(1:number_terminal) do _
+            return read_intline(readline(io)) + Int32(1)
+        end
 
-    terminal_states =
-        first.(readnumbers.(tuple([Int32]), lines[4:(4 + number_terminal - 1)])) .+ Int32(1)
+        probs = Vector{
+            MatrixIntervalProbabilities{
+                Float64,
+                Vector{Float64},
+                SparseArrays.FixedSparseCSC{Float64, Int32},
+            },
+        }(
+            undef,
+            number_states,
+        )
 
-    probs = Vector{MatrixIntervalProbabilities{Float64}}(undef, number_states)
+        lines_it = eachline(io)
+        next = iterate(lines_it)
 
-    cur_line = 4 + number_terminal
-    for j in 0:(number_states - 1)
-        probs_lower = spzeros(Float64, Int32, number_states, number_actions)
-        probs_upper = spzeros(Float64, Int32, number_states, number_actions)
+        if !isnothing(next)
+            cur_line, state = next
+            src, act, dest, lower, upper = read_transition_line(cur_line)
+        end
 
-        for k in 0:(number_actions - 1)
-            src, act, dest, lower, upper =
-                readnumbers([Int32, Int32, Int32, Float64, Float64], lines[cur_line])
+        for j in 0:(number_states - 1)
+            probs_lower = spzeros(Float64, Int32, number_states, number_actions)
+            probs_upper = spzeros(Float64, Int32, number_states, number_actions)
 
-            while src == j && act == k
-                probs_lower[dest + 1, k + 1] = lower
-                probs_upper[dest + 1, k + 1] = upper
-
-                cur_line += 1
-                if cur_line > length(lines)
+            for k in 0:(number_actions - 1)
+                if isnothing(next)
                     break
                 end
 
-                src, act, dest, lower, upper =
-                    readnumbers([Int32, Int32, Int32, Float64, Float64], lines[cur_line])
+                while src == j && act == k
+                    probs_lower[dest + 1, k + 1] = lower
+                    probs_upper[dest + 1, k + 1] = upper
+
+                    next = iterate(lines_it, state)
+                    if isnothing(next)
+                        break
+                    end
+
+                    cur_line, state = next
+                    src, act, dest, lower, upper = read_transition_line(cur_line)
+                end
             end
+
+            probs[j + 1] =
+                MatrixIntervalProbabilities(; lower = probs_lower, upper = probs_upper)
         end
 
-        probs[j + 1] =
-            MatrixIntervalProbabilities(; lower = probs_lower, upper = probs_upper)
+        action_list_per_state = collect(0:(number_actions - 1))
+        action_list =
+            convert.(Int32, mapreduce(_ -> action_list_per_state, vcat, 1:number_states))
+
+        mdp = IntervalMarkovDecisionProcess(probs, action_list, Int32(1))
+        return mdp, terminal_states
     end
-
-    action_list_per_state = 0:(number_actions - 1)
-    action_list =
-        convert.(Int32, mapreduce(_ -> action_list_per_state, vcat, 1:number_states))
-
-    mdp = IntervalMarkovDecisionProcess(probs, action_list, Int32(1))
-    return mdp, terminal_states
 end
 
 function write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states)
@@ -65,38 +99,35 @@ function write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal
     number_actions = length(unique(act))
     number_terminal = length(terminal_states)
 
-    lines = Vector{String}(undef, 3 + number_terminal + nnz(g))
+    open(path, "w") do io
+        println(io, number_states)
+        println(io, number_actions)
+        println(io, number_terminal)
 
-    lines[1] = string(number_states)
-    lines[2] = string(number_actions)
-    lines[3] = string(number_terminal)
-
-    lines[4:(4 + number_terminal - 1)] = string.(terminal_states .- 1)
-
-    s = 1
-    cur_line = 4 + number_terminal
-    for j in 1:nsrc
-        action = act[j]
-
-        if sptr[s + 1] == j
-            s += 1
+        for terminal_state in terminal_states
+            println(io, terminal_state - 1)
         end
-        src = s - 1
 
-        column_lower = view(l, :, j)
-        I, V = SparseArrays.findnz(column_lower)
+        s = 1
+        for j in 1:nsrc
+            action = act[j]
 
-        for (i, v) in zip(I, V)
-            dest = i - 1
-            pl = v
-            pu = pl + g[i, j]
+            if sptr[s + 1] == j
+                s += 1
+            end
+            src = s - 1
 
-            transition = "$src $action $dest $pl $pu"
+            column_lower = view(l, :, j)
+            I, V = SparseArrays.findnz(column_lower)
 
-            lines[cur_line] = transition
-            cur_line += 1
+            for (i, v) in zip(I, V)
+                dest = i - 1
+                pl = v
+                pu = pl + g[i, j]
+
+                transition = "$src $action $dest $pl $pu"
+                println(io, transition)
+            end
         end
     end
-
-    return write(path, join(lines, "\n"))
 end

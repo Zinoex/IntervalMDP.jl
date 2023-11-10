@@ -115,9 +115,30 @@ lower(s::MatrixIntervalProbabilities) = s.lower
 sum_lower(s::MatrixIntervalProbabilities) = s.sum_lower
 num_src(s::MatrixIntervalProbabilities) = size(gap(s), 2)
 
-function interval_prob_hcat(T, transition_probs::Vector{<:MatrixIntervalProbabilities})
+function interval_prob_hcat(
+    T,
+    transition_probs::Vector{<:MatrixIntervalProbabilities{R, VR, MR}},
+) where {R, VR, MR <: AbstractMatrix{R}}
     l = mapreduce(lower, hcat, transition_probs)
     g = mapreduce(gap, hcat, transition_probs)
+
+    sl = mapreduce(sum_lower, vcat, transition_probs)
+
+    lengths = map(num_src, transition_probs)
+    stateptr = T[1; cumsum(lengths) .+ 1]
+
+    return MatrixIntervalProbabilities(l, g, sl), stateptr
+end
+
+function interval_prob_hcat(
+    T,
+    transition_probs::Vector{<:MatrixIntervalProbabilities{R, VR, MR}},
+) where {R, VR, MR <: SparseArrays.AbstractSparseMatrixCSC{R}}
+    l = map(lower, transition_probs)
+    l = hcat(l...)
+
+    g = map(gap, transition_probs)
+    g = hcat(g...)
 
     sl = mapreduce(sum_lower, vcat, transition_probs)
 
