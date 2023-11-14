@@ -1,13 +1,13 @@
 
-function write_prism_file(path_without_file_ending, mdp, terminal_states)
-    write_prism_states_file(path_without_file_ending, mdp)
-    write_prism_labels_file(path_without_file_ending, mdp, terminal_states)
-    write_prism_transitions_file(path_without_file_ending, mdp)
+function write_prism_file(path_without_file_ending, mdp_or_mc, terminal_states)
+    write_prism_states_file(path_without_file_ending, mdp_or_mc)
+    write_prism_labels_file(path_without_file_ending, mdp_or_mc, terminal_states)
+    write_prism_transitions_file(path_without_file_ending, mdp_or_mc)
     return write_prism_props_file(path_without_file_ending)
 end
 
-function write_prism_states_file(path_without_file_ending, mdp)
-    number_states = num_states(mdp)
+function write_prism_states_file(path_without_file_ending, mdp_or_mc)
+    number_states = num_states(mdp_or_mc)
 
     lines = Vector{String}(undef, 1 + number_states)
     lines[1] = "(s)"
@@ -20,8 +20,8 @@ function write_prism_states_file(path_without_file_ending, mdp)
     return write(path_without_file_ending * ".sta", join(lines, "\n"))
 end
 
-function write_prism_labels_file(path_without_file_ending, mdp, terminal_states)
-    istate = initial_state(mdp) - 1
+function write_prism_labels_file(path_without_file_ending, mdp_or_mc, terminal_states)
+    istate = initial_state(mdp_or_mc) - 1
 
     lines = Vector{String}(undef, 2 + length(terminal_states))
     lines[1] = "0=\"init\" 1=\"deadlock\" 2=\"goal\""
@@ -35,13 +35,13 @@ function write_prism_labels_file(path_without_file_ending, mdp, terminal_states)
     return write(path_without_file_ending * ".lab", join(lines, "\n"))
 end
 
-function write_prism_transitions_file(path_without_file_ending, mdp)
+function write_prism_transitions_file(path_without_file_ending, mdp::IntervalMarkovDecisionProcess)
     number_states = num_states(mdp)
 
     prob = transition_prob(mdp)
     l, g = lower(prob), gap(prob)
 
-    transition_lines = num_src(prob)
+    num_columns = num_src(prob)
     num_transitions = nnz(l)
 
     sptr = IMDP.stateptr(mdp)
@@ -53,7 +53,7 @@ function write_prism_transitions_file(path_without_file_ending, mdp)
 
         s = 1
         action_idx = 0
-        for j in 1:transition_lines
+        for j in 1:num_columns
             action = act[j]
 
             if sptr[s + 1] == j
@@ -75,6 +75,36 @@ function write_prism_transitions_file(path_without_file_ending, mdp)
             end
 
             action_idx += 1
+        end
+    end
+end
+
+function write_prism_transitions_file(path_without_file_ending, mc::IntervalMarkovChain)
+    number_states = num_states(mc)
+
+    prob = transition_prob(mc)
+    l, g = lower(prob), gap(prob)
+
+    num_columns = num_src(prob)
+    num_transitions = nnz(l)
+
+    open(path_without_file_ending * ".tra", "w") do io
+        println(io, "$number_states 1 $num_transitions")  # number_states number_choices number_transitions
+
+        for j in 1:num_columns
+            src = j - 1
+
+            column_lower = view(l, :, j)
+            I, V = SparseArrays.findnz(column_lower)
+
+            for (i, v) in zip(I, V)
+                dest = i - 1
+                pl = v
+                pu = pl + g[i, j]
+                pl = max(pl, 1e-12)
+
+                println(io, "$src 0 $dest [$pl,$pu] mc")
+            end
         end
     end
 end

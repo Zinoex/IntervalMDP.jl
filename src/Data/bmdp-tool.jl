@@ -91,7 +91,7 @@ end
 function write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states)
     prob = transition_prob(mdp)
     l, g = lower(prob), gap(prob)
-    nsrc = num_src(prob)
+    num_columns = num_src(prob)
     sptr = IMDP.stateptr(mdp)
     act = actions(mdp)
 
@@ -109,7 +109,7 @@ function write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal
         end
 
         s = 1
-        for j in 1:nsrc
+        for j in 1:num_columns
             action = act[j]
 
             if sptr[s + 1] == j
@@ -126,6 +126,41 @@ function write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal
                 pu = pl + g[i, j]
 
                 transition = "$src $action $dest $pl $pu"
+                println(io, transition)
+            end
+        end
+    end
+end
+
+function write_bmdp_tool_file(path, mdp::IntervalMarkovChain, terminal_states)
+    prob = transition_prob(mdp)
+    l, g = lower(prob), gap(prob)
+    num_columns = num_src(prob)
+
+    number_states = num_states(mdp)
+    number_terminal = length(terminal_states)
+
+    open(path, "w") do io
+        println(io, number_states)
+        println(io, 1)  # number_actions
+        println(io, number_terminal)
+
+        for terminal_state in terminal_states
+            println(io, terminal_state - 1)
+        end
+
+        for j in 1:num_columns
+            src = j - 1
+
+            column_lower = view(l, :, j)
+            I, V = SparseArrays.findnz(column_lower)
+
+            for (i, v) in zip(I, V)
+                dest = i - 1
+                pl = v
+                pu = pl + g[i, j]
+
+                transition = "$src 0 $dest $pl $pu"
                 println(io, transition)
             end
         end
