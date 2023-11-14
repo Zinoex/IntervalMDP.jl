@@ -2,7 +2,7 @@
 function read_imdp_jl_file(path)
     mdp_or_mc, terminal_states = Dataset(path) do dataset
         n = Int32(dataset.attrib["num_states"] + 1)
-        initial_state = 0# dataset.attrib["initial_state"]
+        initial_state = Int32(1) # dataset.attrib["initial_state"]
         model = dataset.attrib["model"]
 
         @assert model ∈ ["imdp", "imc"]
