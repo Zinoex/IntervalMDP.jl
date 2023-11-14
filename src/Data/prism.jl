@@ -35,7 +35,10 @@ function write_prism_labels_file(path_without_file_ending, mdp_or_mc, terminal_s
     return write(path_without_file_ending * ".lab", join(lines, "\n"))
 end
 
-function write_prism_transitions_file(path_without_file_ending, mdp::IntervalMarkovDecisionProcess)
+function write_prism_transitions_file(
+    path_without_file_ending,
+    mdp::IntervalMarkovDecisionProcess,
+)
     number_states = num_states(mdp)
 
     prob = transition_prob(mdp)
