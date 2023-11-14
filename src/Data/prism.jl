@@ -92,7 +92,7 @@ function write_prism_transitions_file(path_without_file_ending, mc::IntervalMark
     num_transitions = nnz(l)
 
     open(path_without_file_ending * ".tra", "w") do io
-        println(io, "$number_states 1 $num_transitions")  # number_states number_choices number_transitions
+        println(io, "$number_states $number_states $num_transitions")  # number_states number_choices number_transitions
 
         for j in 1:num_columns
             src = j - 1
