@@ -27,11 +27,7 @@ function read_bmdp_tool_file(path)
     open(path, "r") do io
         number_states = read_intline(readline(io))
         number_actions = read_intline(readline(io))
-        number_terminal = read_intline(readline(io))
-
-        terminal_states = map(1:number_terminal) do _
-            return read_intline(readline(io)) + Int32(1)
-        end
+        terminal_states = read_intline.(split(readline(io))) .+ Int32(1)
 
         probs = Vector{
             MatrixIntervalProbabilities{
