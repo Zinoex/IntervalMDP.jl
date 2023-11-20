@@ -81,14 +81,14 @@ function construct_nonterminal(mc::IntervalMarkovChain, terminal)
 end
 
 struct IMCValueFunction
-    prev
-    prev_transpose
-    cur
-    nonterminal
-    nonterminal_indices
+    prev::Any
+    prev_transpose::Any
+    cur::Any
+    nonterminal::Any
+    nonterminal_indices::Any
 end
 
-function IMCValueFunction(problem::P) where {P<:Problem{<:IntervalMarkovChain}}
+function IMCValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovChain}}
     mc = system(problem)
     spec = specification(problem)
     terminal = terminal_states(spec)
@@ -128,7 +128,7 @@ end
 function step_imc!(
     ordering,
     p,
-    prob::MatrixIntervalProbabilities,
+    prob::IntervalProbabilities,
     value_function::IMCValueFunction;
     upper_bound,
     discount,
@@ -210,15 +210,15 @@ function construct_nonterminal(mdp::IntervalMarkovDecisionProcess, terminal)
 end
 
 struct IMDPValueFunction
-    prev
-    prev_transpose
-    cur
-    nonterminal
-    nonterminal_states
-    nonterminal_actions
+    prev::Any
+    prev_transpose::Any
+    cur::Any
+    nonterminal::Any
+    nonterminal_states::Any
+    nonterminal_actions::Any
 end
 
-function IMDPValueFunction(problem::P) where {P<:Problem{<:IntervalMarkovDecisionProcess}}
+function IMDPValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovDecisionProcess}}
     mdp = system(problem)
     spec = specification(problem)
     terminal = terminal_states(spec)
@@ -230,13 +230,20 @@ function IMDPValueFunction(problem::P) where {P<:Problem{<:IntervalMarkovDecisio
     nonterminal_states, nonterminal_actions = construct_nonterminal(mdp, terminal)
     nonterminal = similar(cur, 1, length(nonterminal_actions))
 
-    return IMDPValueFunction(prev, prev_transpose, cur, nonterminal, nonterminal_states, nonterminal_actions)
+    return IMDPValueFunction(
+        prev,
+        prev_transpose,
+        cur,
+        nonterminal,
+        nonterminal_states,
+        nonterminal_actions,
+    )
 end
 
 function step_imdp!(
     ordering,
     p,
-    prob::MatrixIntervalProbabilities,
+    prob::IntervalProbabilities,
     stateptr,
     maxactions,
     value_function;
@@ -244,7 +251,14 @@ function step_imdp!(
     upper_bound,
     discount,
 )
-    partial_ominmax!(ordering, p, prob, value_function.prev, value_function.nonterminal_actions; max = upper_bound)
+    partial_ominmax!(
+        ordering,
+        p,
+        prob,
+        value_function.prev,
+        value_function.nonterminal_actions;
+        max = upper_bound,
+    )
 
     optfun = maximize ? maximum : minimum
 
@@ -256,7 +270,8 @@ function step_imdp!(
         s1 = stateptr[j]
         s2 = stateptr[j + 1]
 
-        @inbounds value_function.cur[j] = optfun(view(value_function.nonterminal, s1:s2 - 1))
+        @inbounds value_function.cur[j] =
+            optfun(view(value_function.nonterminal, s1:(s2 - 1)))
     end
 
     return value_function

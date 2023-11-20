@@ -1,5 +1,5 @@
 #### Maximization
-prob = MatrixIntervalProbabilities(;
+prob = IntervalProbabilities(;
     lower = sparse_hcat(
         SparseVector(15, [4, 10], [0.1, 0.2]),
         SparseVector(15, [5, 6, 7], [0.5, 0.3, 0.1]),
@@ -17,7 +17,7 @@ p = ominmax(prob, V; max = true)
 @test p[:, 2] ≈ SparseVector(15, [5, 6, 7], [0.5, 0.3, 0.2])
 
 #### Minimization
-prob = MatrixIntervalProbabilities(;
+prob = IntervalProbabilities(;
     lower = sparse_hcat(
         SparseVector(15, [4, 10], [0.1, 0.2]),
         SparseVector(15, [5, 6, 7], [0.5, 0.3, 0.1]),

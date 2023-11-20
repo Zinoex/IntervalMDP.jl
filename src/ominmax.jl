@@ -35,7 +35,7 @@ end
 # Assign probabilities to the states in the ordering.
 function probability_assignment!(
     p::MR,
-    prob::MatrixIntervalProbabilities{R},
+    prob::IntervalProbabilities{R},
     ordering::AbstractStateOrdering,
 ) where {R, MR <: AbstractMatrix{R}}
     return probability_assignment!(p, prob, ordering, axes(p, 2))
@@ -43,7 +43,7 @@ end
 
 function probability_assignment!(
     p::MR,
-    prob::MatrixIntervalProbabilities{R},
+    prob::IntervalProbabilities{R},
     ordering::AbstractStateOrdering,
     indices,
 ) where {R, MR <: AbstractMatrix{R}}
@@ -62,7 +62,7 @@ end
 
 function probability_assignment!(
     p::MR,
-    prob::MatrixIntervalProbabilities{R},
+    prob::IntervalProbabilities{R},
     ordering::SparseOrdering,
     indices,
 ) where {R, MR <: AbstractSparseMatrix{R}}

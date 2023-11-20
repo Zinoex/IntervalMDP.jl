@@ -1,4 +1,4 @@
-prob1 = MatrixIntervalProbabilities(;
+prob1 = IntervalProbabilities(;
     lower = sparse([
         0.0 0.5
         0.1 0.3
@@ -11,7 +11,7 @@ prob1 = MatrixIntervalProbabilities(;
     ]),
 )
 
-prob2 = MatrixIntervalProbabilities(;
+prob2 = IntervalProbabilities(;
     lower = sparse([
         0.1 0.2
         0.2 0.3
@@ -24,7 +24,7 @@ prob2 = MatrixIntervalProbabilities(;
     ]),
 )
 
-prob3 = MatrixIntervalProbabilities(;
+prob3 = IntervalProbabilities(;
     lower = sparse([
         0.0
         0.0

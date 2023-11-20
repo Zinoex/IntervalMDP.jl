@@ -1,6 +1,6 @@
 prob = adapt(
     CuArray{Float64},
-    MatrixIntervalProbabilities(;
+    IntervalProbabilities(;
         lower = sparse_hcat(
             SparseVector(Int32(15), Int32[4, 10], [0.1, 0.2]),
             SparseVector(Int32(15), Int32[5, 6, 7], [0.5, 0.3, 0.1]),

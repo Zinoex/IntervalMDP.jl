@@ -13,26 +13,14 @@ function read_imdp_jl_file(path)
         lower_colptr = convert.(Int32, dataset["lower_colptr"][:])
         lower_rowval = convert.(Int32, dataset["lower_rowval"][:])
         lower_nzval = dataset["lower_nzval"][:]
-        P̲ = SparseMatrixCSC(
-            n,
-            n,
-            lower_colptr,
-            lower_rowval,
-            lower_nzval,
-        )
+        P̲ = SparseMatrixCSC(n, n, lower_colptr, lower_rowval, lower_nzval)
 
         upper_colptr = convert.(Int32, dataset["upper_colptr"][:])
         upper_rowval = convert.(Int32, dataset["upper_rowval"][:])
         upper_nzval = dataset["upper_nzval"][:]
-        P̅ = SparseMatrixCSC(
-            n,
-            n,
-            upper_colptr,
-            upper_rowval,
-            upper_nzval,
-        )
+        P̅ = SparseMatrixCSC(n, n, upper_colptr, upper_rowval, upper_nzval)
 
-        prob = MatrixIntervalProbabilities(; lower = P̲, upper = P̅)
+        prob = IntervalProbabilities(; lower = P̲, upper = P̅)
         terminal_states = convert.(Int32, dataset["terminal_states"][:])
 
         if model == "imdp"
@@ -103,7 +91,7 @@ function write_imdp_jl_file(path, mdp_or_mc, terminal_states)
         v = defVar(dataset, "terminal_states", Int32, ("terminal_states",))
         v[:] = terminal_states
 
-        write_imdp_jl_model_specific(dataset, mdp_or_mc)
+        return write_imdp_jl_model_specific(dataset, mdp_or_mc)
     end
 end
 
@@ -117,10 +105,10 @@ function write_imdp_jl_model_specific(dataset, mdp::IntervalMarkovDecisionProces
 
     defDim(dataset, "action_vals", length(actions(mdp)))
     v = defVar(dataset, "action_vals", eltype(actions(mdp)), ("action_vals",))
-    v[:] = actions(mdp)
+    return v[:] = actions(mdp)
 end
 
 function write_imdp_jl_model_specific(dataset, mc::IntervalMarkovChain)
     dataset.attrib["model"] = "imc"
-    dataset.attrib["cols"] = "from"
+    return dataset.attrib["cols"] = "from"
 end

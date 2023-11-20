@@ -1,7 +1,7 @@
 
 function IMDP.probability_assignment!(
     p::CuSparseMatrixCSC{Tv, Ti},
-    prob::MatrixIntervalProbabilities{Tv},
+    prob::IntervalProbabilities{Tv},
     ordering::CuSparseOrdering{Ti},
     indices::CuVector{Ti},
 ) where {Tv, Ti}
@@ -15,7 +15,7 @@ end
 
 function add_gap_scalar!(
     p::CuSparseMatrixCSC{Tv, Ti},
-    prob::MatrixIntervalProbabilities{Tv},
+    prob::IntervalProbabilities{Tv},
     ordering::CuSparseOrdering{Ti},
     indices::CuVector{Ti},
 ) where {Tv, Ti}
@@ -74,7 +74,7 @@ end
 
 function add_gap_vector!(
     p::CuSparseMatrixCSC{Tv, Ti},
-    prob::MatrixIntervalProbabilities{Tv},
+    prob::IntervalProbabilities{Tv},
     ordering::CuSparseOrdering{Ti},
     indices::CuVector{Ti},
 ) where {Tv, Ti}

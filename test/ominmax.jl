@@ -1,5 +1,5 @@
 #### Maximization
-prob = MatrixIntervalProbabilities(;
+prob = IntervalProbabilities(;
     lower = [0.0 0.5; 0.1 0.3; 0.2 0.1],
     upper = [0.5 0.7; 0.6 0.5; 0.7 0.3],
 )
@@ -11,7 +11,7 @@ p = ominmax(prob, V; max = true)
 @test p[:, 2] ≈ [0.5, 0.3, 0.2]
 
 #### Minimization
-prob = MatrixIntervalProbabilities(;
+prob = IntervalProbabilities(;
     lower = [0.0 0.5; 0.1 0.3; 0.2 0.1],
     upper = [0.5 0.7; 0.6 0.5; 0.7 0.3],
 )

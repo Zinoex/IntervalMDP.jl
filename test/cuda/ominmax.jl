@@ -3,7 +3,7 @@
 # Matrix
 prob = adapt(
     CuArray{Float64},
-    MatrixIntervalProbabilities(;
+    IntervalProbabilities(;
         lower = sparse_hcat(
             SparseVector(Int32(15), Int32[4, 10], [0.1, 0.2]),
             SparseVector(Int32(15), Int32[5, 6, 7], [0.5, 0.3, 0.1]),
@@ -23,7 +23,7 @@ p = SparseMatrixCSC(p)
 @test p[:, 2] ≈ SparseVector(15, [5, 6, 7], [0.5, 0.3, 0.2])
 
 # Matrix - to gpu first
-prob = MatrixIntervalProbabilities(;
+prob = IntervalProbabilities(;
     lower = adapt(
         CuArray{Float64},
         sparse_hcat(
@@ -52,7 +52,7 @@ p = SparseMatrixCSC(p)
 # Matrix
 prob = adapt(
     CuArray{Float64},
-    MatrixIntervalProbabilities(;
+    IntervalProbabilities(;
         lower = sparse_hcat(
             SparseVector(Int32(15), Int32[4, 10], [0.1, 0.2]),
             SparseVector(Int32(15), Int32[5, 6, 7], [0.5, 0.3, 0.1]),
@@ -93,7 +93,7 @@ function sample_sparse_interval_probabilities(n, m, nnz_per_column)
     lower = SparseMatrixCSC{Float64, Int32}(n, m, col_ptrs, row_vals, rand_val_lower)
     upper = SparseMatrixCSC{Float64, Int32}(n, m, col_ptrs, row_vals, rand_val_upper)
 
-    prob = MatrixIntervalProbabilities(; lower = lower, upper = upper)
+    prob = IntervalProbabilities(; lower = lower, upper = upper)
     V = rand(Float64, n)
 
     cuda_prob = adapt(CuArray{Float64}, prob)
