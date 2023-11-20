@@ -7,7 +7,7 @@ export IntervalProbabilities
 export lower, upper, gap, sum_lower, num_source, num_target
 
 include("models.jl")
-export System, IntervalMarkovChain, IntervalMarkovDecisionProcess
+export IntervalMarkovProcess, IntervalMarkovChain, IntervalMarkovDecisionProcess
 export transition_prob, num_states, initial_state, actions
 
 include("specification.jl")

@@ -117,13 +117,13 @@ end
 
 # Problem
 @enum SatisfactionMode Pessimistic Optimistic
-struct Problem{S <: System, F <: Specification}
+struct Problem{S <: IntervalMarkovProcess, F <: Specification}
     system::S
     spec::F
     mode::SatisfactionMode
 end
 
-function Problem(system::S, spec::F) where {S <: System, F <: Specification}
+function Problem(system::S, spec::F) where {S <: IntervalMarkovProcess, F <: Specification}
     return Problem(system, spec, Pessimistic)  # Default to Pessimistic
 end
 

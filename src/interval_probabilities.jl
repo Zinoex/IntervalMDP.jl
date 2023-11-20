@@ -1,12 +1,12 @@
 """
     IntervalProbabilities{R, VR <: AbstractVector{R}, MR <: AbstractMatrix{R}}
 
-Represent the lower and upper bound transition probabilities from a source state or source/action pair to a target state.
-The columns represent the source and the rows represent the target, as if the probability matrix was a linear transformation.
-Mathematically, entry ``p_{ij}`` represents the probability of transitioning from state ``j`` (or with state/action pair ``j``) to state ``i``.
-Due to the column-major format of Julia, this is also a more efficient representation (in terms of cache locality).
-
+A matrix pair to represent the lower and upper bound transition probabilities from a source state or source/action pair to a target state.
 The matrices can be `Matrix{R}` or `SparseMatrixCSC{R}`, or their CUDA equivalents. For memory efficiency, it is recommended to use sparse matrices.
+
+The columns represent the source and the rows represent the target, as if the probability matrix was a linear transformation.
+Mathematically, let ``P`` be the probability matrix. Then ``P_{ij}`` represents the probability of transitioning from state ``j`` (or with state/action pair ``j``) to state ``i``.
+Due to the column-major format of Julia, this is also a more efficient representation (in terms of cache locality).
 
 The lower bound is explicitly stored, while the upper bound is computed from the lower bound and the gap. This choice is 
 because it simplifies repeated probability assignment using O-maximization [1].
@@ -108,7 +108,8 @@ lower(s::IntervalProbabilities) = s.lower
 
 Return the upper bound transition probabilities from a source state or source/action pair to a target state.
 
-Warning: It is not recommended to use this function for the hot loop of O-minimization, because it requires an allocation and computation.
+!!! warning
+    It is not recommended to use this function for the hot loop of O-maximization, because it is not just an accessor and requires allocation and computation.
 """
 upper(s::IntervalProbabilities) = s.lower + s.gap
 
