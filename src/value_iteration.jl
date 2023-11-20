@@ -63,14 +63,6 @@ function interval_value_iteration(
     return value_function.cur, k, value_function.prev
 end
 
-function construct_value_function(
-    ::AbstractVector{<:AbstractVector{R}},
-    num_states,
-) where {R}
-    V = zeros(R, num_states)
-    return V
-end
-
 function construct_value_function(::AbstractMatrix{R}, num_states) where {R}
     V = zeros(R, num_states)
     return V
