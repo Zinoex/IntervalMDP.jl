@@ -38,30 +38,30 @@ function IMDP.step_imdp!(
     prob::MatrixIntervalProbabilities{R, VR, MR},
     stateptr,
     maxactions,
-    prev_V,
-    V,
-    state_indices,
-    action_indices;
+    value_function;
     maximize,
     upper_bound,
     discount,
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}}
-    partial_ominmax!(ordering, p, prob, V, action_indices; max = upper_bound)
+    partial_ominmax!(ordering, p, prob, value_function.prev, value_function.nonterminal_actions; max = upper_bound)
 
-    res = transpose(transpose(prev_V) * p)
-    V_per_state = CuVectorOfVector(stateptr, res, maxactions)
+    p = view(p, :, value_function.nonterminal_actions)
+    mul!(value_function.nonterminal, value_function.prev_transpose, p)
+    rmul!(value_function.nonterminal, discount)
+
+    V_per_state = CuVectorOfVector(stateptr, view(value_function.nonterminal, :), maxactions)
 
     blocks = length(state_indices)
     threads = 32
     @cuda blocks = blocks threads = threads extremum_vov_kernel!(
-        V,
+        value_function.cur,
         V_per_state,
         state_indices,
         discount,
         maximize,
     )
 
-    return V
+    return value_function
 end
 
 function extremum_vov_kernel!(
