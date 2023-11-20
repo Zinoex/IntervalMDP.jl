@@ -3,7 +3,7 @@ module IMDP
 using LinearAlgebra, SparseArrays
 
 include("interval_probabilities.jl")
-export StateIntervalProbabilities, MatrixIntervalProbabilities
+export MatrixIntervalProbabilities
 export gap, lower, sum_lower, num_src
 
 include("models.jl")

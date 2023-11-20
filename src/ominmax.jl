@@ -32,36 +32,7 @@ function partial_ominmax!(ordering::AbstractStateOrdering, p, prob, V, indices; 
     return p
 end
 
-# Vector of vectors
-function probability_assignment!(
-    p::VVR,
-    prob::Vector{<:StateIntervalProbabilities{R}},
-    ordering::AbstractStateOrdering,
-) where {R, VVR <: AbstractVector{<:AbstractVector{R}}}
-    return probability_assignment!(p, prob, ordering, eachindex(p))
-end
-
-function probability_assignment!(
-    p::VVR,
-    prob::Vector{<:StateIntervalProbabilities{R}},
-    ordering::AbstractStateOrdering,
-    indices,
-) where {R, VVR <: AbstractVector{<:AbstractVector{R}}}
-    Threads.@threads for j in indices
-        probⱼ = prob[j]
-
-        @inbounds copyto!(p[j], lower(probⱼ))
-
-        gⱼ = gap(probⱼ)
-        lⱼ = sum_lower(probⱼ)
-
-        add_gap!(p[j], gⱼ, lⱼ, perm(ordering, j))
-    end
-
-    return p
-end
-
-# Matrix
+# Assign probabilities to the states in the ordering.
 function probability_assignment!(
     p::MR,
     prob::MatrixIntervalProbabilities{R},
@@ -84,26 +55,6 @@ function probability_assignment!(
         lⱼ = sum_lower(prob)[j]
 
         add_gap!(pⱼ, gⱼ, lⱼ, perm(ordering, j))
-    end
-
-    return p
-end
-
-function probability_assignment!(
-    p::VVR,
-    prob::Vector{<:StateIntervalProbabilities{R}},
-    ordering::SparseOrdering,
-    indices,
-) where {R, VVR <: AbstractVector{<:AbstractSparseVector{R}}}
-    Threads.@threads for j in indices
-        probⱼ = prob[j]
-
-        @inbounds copyto!(nonzeros(p[j]), nonzeros(lower(probⱼ)))
-
-        gⱼ = gap(probⱼ)
-        lⱼ = sum_lower(probⱼ)
-
-        add_gap!(nonzeros(p[j]), nonzeros(gⱼ), lⱼ, perm(ordering, j))
     end
 
     return p

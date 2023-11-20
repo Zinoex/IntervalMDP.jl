@@ -128,24 +128,6 @@ end
 function step_imc!(
     ordering,
     p,
-    prob::Vector{<:StateIntervalProbabilities},
-    value_function::IMCValueFunction;
-    upper_bound,
-    discount,
-)
-    indices = value_function.nonterminal_indices
-    partial_ominmax!(ordering, p, prob, value_function.prev, indices; max = upper_bound)
-
-    @inbounds for (i, j) in enumerate(indices)
-        value_function.nonterminal[i] = discount * dot(p[j], value_function.prev)
-    end
-
-    return value_function
-end
-
-function step_imc!(
-    ordering,
-    p,
     prob::MatrixIntervalProbabilities,
     value_function::IMCValueFunction;
     upper_bound,
@@ -249,35 +231,6 @@ function IMDPValueFunction(problem::P) where {P<:Problem{<:IntervalMarkovDecisio
     nonterminal = similar(cur, 1, length(nonterminal_actions))
 
     return IMDPValueFunction(prev, prev_transpose, cur, nonterminal, nonterminal_states, nonterminal_actions)
-end
-
-function step_imdp!(
-    ordering,
-    p,
-    prob::Vector{<:StateIntervalProbabilities},
-    stateptr,
-    maxactions,
-    value_function;
-    maximize,
-    upper_bound,
-    discount,
-)
-    partial_ominmax!(ordering, p, prob, value_function.prev, value_function.nonterminal_actions; max = upper_bound)
-
-    optfun = maximize ? max : min
-
-    @inbounds for j in value_function.nonterminal_actions
-        @inbounds value_function.nonterminal[j] = discount * dot(p[j], value_function.prev)
-    end
-
-    @inbounds for j in value_function.nonterminal_states
-        s1 = stateptr[j]
-        s2 = stateptr[j + 1]
-
-        @inbounds alue_function.cur[j] = optfun(view(alue_function.nonterminal, s1:s2 - 1))
-    end
-
-    return value_function
 end
 
 function step_imdp!(

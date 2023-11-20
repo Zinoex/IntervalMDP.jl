@@ -1,4 +1,3 @@
-# Matrix
 prob = adapt(
     CuArray{Float64},
     MatrixIntervalProbabilities(;

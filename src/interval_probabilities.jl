@@ -1,60 +1,3 @@
-# Vector of probabilities
-struct StateIntervalProbabilities{R, VR <: AbstractVector{R}}
-    lower::VR
-    gap::VR
-
-    sum_lower::R
-end
-
-function StateIntervalProbabilities(lower::VR, gap::VR) where {R, VR <: AbstractVector{R}}
-    joint_lower_bound = sum(lower)
-    @assert joint_lower_bound <= 1 "The joint lower bound transition probability (is $joint_lower_bound) should be less than or equal to 1."
-
-    joint_upper_bound = joint_lower_bound + sum(gap)
-    @assert joint_upper_bound >= 1 "The joint upper bound transition probability (is $joint_upper_bound) should be greater than or equal to 1."
-
-    return StateIntervalProbabilities(lower, gap, joint_lower_bound)
-end
-
-# Keyword constructor
-function StateIntervalProbabilities(; lower::VR, upper::VR) where {VR <: AbstractVector}
-    lower, gap = compute_gap(lower, upper)
-    return StateIntervalProbabilities(lower, gap)
-end
-
-function compute_gap(lower::VR, upper::VR) where {VR <: AbstractVector}
-    gap = upper - lower
-    return lower, gap
-end
-
-function compute_gap(lower::VR, upper::VR) where {VR <: AbstractSparseVector}
-    indices = SparseArrays.nonzeroinds(upper)
-    gap_nonzeros = map(i -> upper[i] - lower[i], indices)
-    lower_nonzeros = map(i -> lower[i], indices)
-
-    gap = SparseArrays.FixedSparseVector(length(lower), indices, gap_nonzeros)
-    lower = SparseArrays.FixedSparseVector(length(lower), indices, lower_nonzeros)
-    return lower, gap
-end
-
-gap(s::StateIntervalProbabilities) = s.gap
-lower(s::StateIntervalProbabilities) = s.lower
-sum_lower(s::StateIntervalProbabilities) = s.sum_lower
-
-gap(V::Vector{<:StateIntervalProbabilities}) = gap.(V)
-num_src(V::Vector{<:StateIntervalProbabilities}) = length(V)
-
-function interval_prob_hcat(
-    T,
-    transition_probs::Vector{<:Vector{<:StateIntervalProbabilities}},
-)
-    lengths = map(num_src, transition_probs)
-    stateptr = T[1; cumsum(lengths) .+ 1]
-
-    return reduce(vcat, transition_probs), stateptr
-end
-
-# Matrix interface
 struct MatrixIntervalProbabilities{R, VR <: AbstractVector{R}, MR <: AbstractMatrix{R}}
     lower::MR
     gap::MR
@@ -147,6 +90,3 @@ function interval_prob_hcat(
 
     return MatrixIntervalProbabilities(l, g, sl), stateptr
 end
-
-const IntervalProbabilities{R} =
-    Union{Vector{<:StateIntervalProbabilities{R}}, <:MatrixIntervalProbabilities{R}}

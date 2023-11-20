@@ -1,4 +1,3 @@
-# Matrix
 prob1 = MatrixIntervalProbabilities(;
     lower = [
         0.0 0.5
