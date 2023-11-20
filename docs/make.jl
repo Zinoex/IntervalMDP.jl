@@ -1,6 +1,7 @@
 using IMDP
 using Documenter
 
+push!(LOAD_PATH,"../src/")
 DocMeta.setdocmeta!(IMDP, :DocTestSetup, :(using IMDP); recursive = true)
 
 makedocs(;
@@ -14,7 +15,13 @@ makedocs(;
         edit_link = "main",
         assets = String[],
     ),
-    pages = ["Home" => "index.md"],
+    pages = [
+        "Home" => "index.md",
+        "Installation" => "installation.md",
+        "Usage" => "usage.md",
+        "Reference" => "reference.md",
+    ],
+    doctest=false
 )
 
 deploydocs(; repo = "github.com/zinoex/IMDP.jl", devbranch = "main")

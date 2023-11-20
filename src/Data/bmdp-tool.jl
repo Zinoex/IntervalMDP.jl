@@ -90,7 +90,7 @@ end
 function write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states)
     prob = transition_prob(mdp)
     l, g = lower(prob), gap(prob)
-    num_columns = num_src(prob)
+    num_columns = num_source(prob)
     sptr = IMDP.stateptr(mdp)
     act = actions(mdp)
 
@@ -134,7 +134,7 @@ end
 function write_bmdp_tool_file(path, mdp::IntervalMarkovChain, terminal_states)
     prob = transition_prob(mdp)
     l, g = lower(prob), gap(prob)
-    num_columns = num_src(prob)
+    num_columns = num_source(prob)
 
     number_states = num_states(mdp)
     number_terminal = length(terminal_states)

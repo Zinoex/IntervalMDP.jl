@@ -49,7 +49,7 @@ function IMDP.interval_prob_hcat(
 
     sl = mapreduce(sum_lower, vcat, transition_probs)
 
-    lengths = map(num_src, transition_probs)
+    lengths = map(num_source, transition_probs)
     stateptr = CuVector{Ti}([1; cumsum(lengths) .+ 1])  # Prioritize Ti over T
 
     return IntervalProbabilities(l, g, sl), stateptr

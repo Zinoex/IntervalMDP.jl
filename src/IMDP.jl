@@ -4,7 +4,7 @@ using LinearAlgebra, SparseArrays
 
 include("interval_probabilities.jl")
 export IntervalProbabilities
-export gap, lower, sum_lower, num_src
+export lower, upper, gap, sum_lower, num_source, num_target
 
 include("models.jl")
 export System, IntervalMarkovChain, IntervalMarkovDecisionProcess

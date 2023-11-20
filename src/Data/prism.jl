@@ -44,7 +44,7 @@ function write_prism_transitions_file(
     prob = transition_prob(mdp)
     l, g = lower(prob), gap(prob)
 
-    num_columns = num_src(prob)
+    num_columns = num_source(prob)
     num_transitions = nnz(l)
 
     sptr = IMDP.stateptr(mdp)
@@ -88,7 +88,7 @@ function write_prism_transitions_file(path_without_file_ending, mc::IntervalMark
     prob = transition_prob(mc)
     l, g = lower(prob), gap(prob)
 
-    num_columns = num_src(prob)
+    num_columns = num_source(prob)
     num_transitions = nnz(l)
 
     open(path_without_file_ending * ".tra", "w") do io
