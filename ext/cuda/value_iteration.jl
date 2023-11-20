@@ -40,6 +40,7 @@ function IMDP.step_imdp!(
     maxactions,
     prev_V,
     V,
+    V_nonterminal,
     state_indices,
     action_indices;
     maximize,
@@ -48,8 +49,11 @@ function IMDP.step_imdp!(
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}}
     partial_ominmax!(ordering, p, prob, V, action_indices; max = upper_bound)
 
-    res = transpose(transpose(prev_V) * p)
-    V_per_state = CuVectorOfVector(stateptr, res, maxactions)
+    p = view(p, :, action_indices)
+    mul!(V_nonterminal, transpose(prev_V), p)
+    rmul!(V_nonterminal, discount)
+
+    V_per_state = CuVectorOfVector(stateptr, view(V_nonterminal, :), maxactions)
 
     blocks = length(state_indices)
     threads = 32

@@ -33,19 +33,20 @@ function interval_value_iteration(
     ordering = construct_ordering(p)
 
     prev_V = construct_value_function(p, num_states(mc))
-    prev_V[target] .= 1.0
+    view(prev_V, target) .= 1.0
 
-    V = similar(prev_V)
-    V[terminal] .= prev_V[terminal]
+    V = copy(prev_V)
 
     nonterminal = construct_nonterminal(mc, terminal)
+    # Important to use view to avoid copying
+    V_nonterminal = reshape(view(V, nonterminal), 1, length(nonterminal))
 
     step_imc!(
         ordering,
         p,
         prob,
         prev_V,
-        V,
+        V_nonterminal,
         nonterminal;
         upper_bound = upper_bound,
         discount = discount,
@@ -61,7 +62,7 @@ function interval_value_iteration(
             p,
             prob,
             prev_V,
-            V,
+            V_nonterminal,
             nonterminal;
             upper_bound = upper_bound,
             discount = discount,
@@ -103,10 +104,10 @@ function step_imc!(
     upper_bound,
     discount,
 )
-    partial_ominmax!(ordering, p, prob, V, indices; max = upper_bound)
+    partial_ominmax!(ordering, p, prob, prev_V, indices; max = upper_bound)
 
-    @inbounds for j in indices
-        V[j] = discount * dot(p[j], prev_V)
+    @inbounds for (i, j) in enumerate(indices)
+        V[i] = discount * dot(p[j], prev_V)
     end
 
     return V
@@ -122,10 +123,11 @@ function step_imc!(
     upper_bound,
     discount,
 )
-    partial_ominmax!(ordering, p, prob, V, indices; max = upper_bound)
+    partial_ominmax!(ordering, p, prob, prev_V, indices; max = upper_bound)
 
-    res = transpose(transpose(prev_V) * p)
-    V[indices] .= discount .* res[indices]
+    p = view(p, :, indices)
+    mul!(V, transpose(prev_V), p)
+    rmul!(V, discount)
 
     return V
 end
@@ -151,12 +153,12 @@ function interval_value_iteration(
     ordering = construct_ordering(p)
 
     prev_V = construct_value_function(p, num_states(mdp))
-    prev_V[target] .= 1.0
+    view(prev_V, target) .= 1.0
 
-    V = similar(prev_V)
-    V[terminal] .= prev_V[terminal]
+    V = copy(prev_V)
 
     nonterminal, nonterminal_actions = construct_nonterminal(mdp, terminal)
+    V_nonterminal = similar(V, 1, length(nonterminal_actions))
 
     step_imdp!(
         ordering,
@@ -166,6 +168,7 @@ function interval_value_iteration(
         maxactions,
         prev_V,
         V,
+        V_nonterminal,
         nonterminal,
         nonterminal_actions;
         maximize = maximize,
@@ -186,6 +189,7 @@ function interval_value_iteration(
             maxactions,
             prev_V,
             V,
+            V_nonterminal,
             nonterminal,
             nonterminal_actions;
             maximize = maximize,
@@ -219,24 +223,26 @@ function step_imdp!(
     maxactions,
     prev_V,
     V,
+    V_nonterminal,
     state_indices,
     action_indices;
     maximize,
     upper_bound,
     discount,
 )
-    partial_ominmax!(ordering, p, prob, V, action_indices; max = upper_bound)
+    partial_ominmax!(ordering, p, prob, prev_V, action_indices; max = upper_bound)
 
     optfun = maximize ? max : min
 
+    @inbounds for j in action_indices
+        @inbounds V_nonterminal[j] = discount * dot(p[j], prev_V)
+    end
+
     @inbounds for j in state_indices
-        s = stateptr[j]
-        num_actions = stateptr[j + 1] - s
-        optV = dot(p[s], prev_V)
-        for i in 2:num_actions
-            optV = optfun(optV, dot(p[s + i - 1], prev_V))
-        end
-        V[j] = discount * optV
+        s1 = stateptr[j]
+        s2 = stateptr[j + 1]
+
+        @inbounds V[j] = optfun(view(V_nonterminal, s1:s2 - 1))
     end
 
     return V
@@ -250,21 +256,26 @@ function step_imdp!(
     maxactions,
     prev_V,
     V,
+    V_nonterminal,
     state_indices,
     action_indices;
     maximize,
     upper_bound,
     discount,
 )
-    partial_ominmax!(ordering, p, prob, V, action_indices; max = upper_bound)
+    partial_ominmax!(ordering, p, prob, prev_V, action_indices; max = upper_bound)
 
     optfun = maximize ? maximum : minimum
 
-    res = transpose(transpose(prev_V) * p)
+    p = view(p, :, action_indices)
+    mul!(V_nonterminal, transpose(prev_V), p)
+    rmul!(V_nonterminal, discount)
 
     @inbounds for j in state_indices
-        optV = optfun(view(res, stateptr[j]:(stateptr[j + 1] - 1)))
-        V[j] = discount * optV
+        s1 = stateptr[j]
+        s2 = stateptr[j + 1]
+
+        @inbounds V[j] = optfun(view(V_nonterminal, s1:s2 - 1))
     end
 
     return V
