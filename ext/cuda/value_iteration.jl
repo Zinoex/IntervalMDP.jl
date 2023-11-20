@@ -8,7 +8,7 @@ function IMDP.construct_value_function(
 end
 
 function IMDP.construct_nonterminal(
-    mc::IntervalMarkovChain{<:MatrixIntervalProbabilities{R, VR, MR}},
+    mc::IntervalMarkovChain{<:IntervalProbabilities{R, VR, MR}},
     terminal::AbstractVector{Ti},
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}, Ti}
     nonterminal = setdiff(collect(Ti(1):Ti(num_states(mc))), terminal)
@@ -18,7 +18,7 @@ function IMDP.construct_nonterminal(
 end
 
 function IMDP.construct_nonterminal(
-    mdp::IntervalMarkovDecisionProcess{<:MatrixIntervalProbabilities{R, VR, MR}},
+    mdp::IntervalMarkovDecisionProcess{<:IntervalProbabilities{R, VR, MR}},
     terminal::AbstractVector{Ti},
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}, Ti}
     sptr = Vector(IMDP.stateptr(mdp))
@@ -35,7 +35,7 @@ end
 function IMDP.step_imdp!(
     ordering,
     p,
-    prob::MatrixIntervalProbabilities{R, VR, MR},
+    prob::IntervalProbabilities{R, VR, MR},
     stateptr,
     maxactions,
     value_function;
@@ -43,13 +43,21 @@ function IMDP.step_imdp!(
     upper_bound,
     discount,
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}}
-    partial_ominmax!(ordering, p, prob, value_function.prev, value_function.nonterminal_actions; max = upper_bound)
+    partial_ominmax!(
+        ordering,
+        p,
+        prob,
+        value_function.prev,
+        value_function.nonterminal_actions;
+        max = upper_bound,
+    )
 
     p = view(p, :, value_function.nonterminal_actions)
     mul!(value_function.nonterminal, value_function.prev_transpose, p)
     rmul!(value_function.nonterminal, discount)
 
-    V_per_state = CuVectorOfVector(stateptr, view(value_function.nonterminal, :), maxactions)
+    V_per_state =
+        CuVectorOfVector(stateptr, view(value_function.nonterminal, :), maxactions)
 
     blocks = length(state_indices)
     threads = 32

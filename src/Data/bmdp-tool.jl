@@ -75,8 +75,7 @@ function read_bmdp_tool_file(path)
                 end
             end
 
-            probs[j + 1] =
-                MatrixIntervalProbabilities(; lower = probs_lower, upper = probs_upper)
+            probs[j + 1] = IntervalProbabilities(; lower = probs_lower, upper = probs_upper)
         end
 
         action_list_per_state = collect(0:(number_actions - 1))

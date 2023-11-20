@@ -17,23 +17,7 @@ function IntervalMarkovChain(
     return IntervalMarkovChain(transition_prob, initial_state, num_states)
 end
 
-function checksize_imc!(p::AbstractVector{<:StateIntervalProbabilities})
-    g = gap(p)
-    num_states = length(g)
-    for j in eachindex(g)
-        if length(g[j]) != num_states
-            throw(
-                DimensionMismatch(
-                    "The number of transition probabilities in the vector at index $j is not equal to the number of states in the problem",
-                ),
-            )
-        end
-    end
-
-    return num_states
-end
-
-function checksize_imc!(p::MatrixIntervalProbabilities)
+function checksize_imc!(p::IntervalProbabilities)
     g = gap(p)
     num_states = size(g, 1)
     if size(g, 2) != num_states
@@ -113,27 +97,7 @@ function IntervalMarkovDecisionProcess(
     return IntervalMarkovDecisionProcess(transition_probs, action_vals, initial_state)
 end
 
-function checksize_imdp!(p::AbstractVector{<:StateIntervalProbabilities}, stateptr)
-    g = gap(p)
-    num_states = length(stateptr) - 1
-
-    num_actions_per_state = diff(stateptr)
-    @assert all(num_actions_per_state .> 0) "The number of actions per state must be positive"
-
-    for j in eachindex(g)
-        if length(g[j]) != num_states
-            throw(
-                DimensionMismatch(
-                    "The number of transition probabilities in the vector at index $j is not equal to the number of states in the problem",
-                ),
-            )
-        end
-    end
-
-    return num_states
-end
-
-function checksize_imdp!(p::MatrixIntervalProbabilities, stateptr)
+function checksize_imdp!(p::IntervalProbabilities, stateptr)
     g = gap(p)
     num_states = length(stateptr) - 1
 

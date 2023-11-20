@@ -2,11 +2,7 @@
 function IMDP.interval_prob_hcat(
     T,
     transition_probs::Vector{
-        <:MatrixIntervalProbabilities{
-            Tv,
-            <:AbstractVector{Tv},
-            <:CuSparseMatrixCSC{Tv, Ti},
-        },
+        <:IntervalProbabilities{Tv, <:AbstractVector{Tv}, <:CuSparseMatrixCSC{Tv, Ti}},
     },
 ) where {Tv, Ti}
     num_dest = size(lower(first(transition_probs)), 1)
@@ -56,5 +52,5 @@ function IMDP.interval_prob_hcat(
     lengths = map(num_src, transition_probs)
     stateptr = CuVector{Ti}([1; cumsum(lengths) .+ 1])  # Prioritize Ti over T
 
-    return MatrixIntervalProbabilities(l, g, sl), stateptr
+    return IntervalProbabilities(l, g, sl), stateptr
 end

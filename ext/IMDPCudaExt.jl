@@ -7,7 +7,7 @@ using CUDA, CUDA.CUSPARSE, Adapt, SparseArrays
 
 using IMDP
 
-Adapt.@adapt_structure MatrixIntervalProbabilities
+Adapt.@adapt_structure IntervalProbabilities
 
 function Adapt.adapt_structure(::Type{<:CuArray}, mdp::IntervalMarkovChain)
     return IntervalMarkovChain(
