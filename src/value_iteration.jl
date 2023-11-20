@@ -25,56 +25,42 @@ function interval_value_iteration(
     term_criteria = termination_criteria(problem)
 
     prob = transition_prob(mc)
-    terminal = terminal_states(spec)
     target = reach(spec)
 
     # It is more efficient to use allocate first and reuse across iterations
     p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
     ordering = construct_ordering(p)
 
-    prev_V = construct_value_function(p, num_states(mc))
-    view(prev_V, target) .= 1.0
-
-    V = copy(prev_V)
-
-    nonterminal = construct_nonterminal(mc, terminal)
-    # Important to use view to avoid copying
-    V_nonterminal = reshape(view(V, nonterminal), 1, length(nonterminal))
+    value_function = IMCValueFunction(problem)
+    initialize!(value_function, target, 1.0)
 
     step_imc!(
         ordering,
         p,
         prob,
-        prev_V,
-        V_nonterminal,
-        nonterminal;
+        value_function;
         upper_bound = upper_bound,
         discount = discount,
     )
-    prev_V .-= V
-    rmul!(prev_V, -1.0)
     k = 1
 
-    while !term_criteria(V, k, prev_V)
-        copyto!(prev_V, V)
+    while !term_criteria(value_function.cur, k, lastdiff!(value_function))
+        nextiteration!(value_function)
         step_imc!(
             ordering,
             p,
             prob,
-            prev_V,
-            V_nonterminal,
-            nonterminal;
+            value_function;
             upper_bound = upper_bound,
             discount = discount,
         )
 
-        # Reuse prev_V to store the latest difference
-        prev_V .-= V
-        rmul!(prev_V, -1.0)
         k += 1
     end
 
-    return V, k, prev_V
+    # lastdiff! uses prev to store the latest difference
+    # and it is already computed from the condition in the loop
+    return value_function.cur, k, value_function.prev
 end
 
 function construct_value_function(
@@ -94,21 +80,47 @@ function construct_nonterminal(mc::IntervalMarkovChain, terminal)
     return setdiff(collect(1:num_states(mc)), terminal)
 end
 
-function step_imc!(
-    ordering,
-    p,
-    prob::Vector{<:StateIntervalProbabilities},
-    prev_V,
-    V,
-    indices;
-    upper_bound,
-    discount,
-)
-    partial_ominmax!(ordering, p, prob, prev_V, indices; max = upper_bound)
+struct IMCValueFunction
+    prev
+    prev_transpose
+    cur
+    nonterminal
+    nonterminal_indices
+end
 
-    @inbounds for (i, j) in enumerate(indices)
-        V[i] = discount * dot(p[j], prev_V)
-    end
+function IMCValueFunction(problem::P) where {P<:Problem{<:IntervalMarkovChain}}
+    mc = system(problem)
+    spec = specification(problem)
+    terminal = terminal_states(spec)
+
+    prev = construct_value_function(gap(transition_prob(mc)), num_states(mc))
+    prev_transpose = transpose(prev)
+    cur = copy(prev)
+
+    nonterminal_indices = construct_nonterminal(mc, terminal)
+    # Important to use view to avoid copying
+    nonterminal = reshape(view(cur, nonterminal_indices), 1, length(nonterminal_indices))
+
+    return IMCValueFunction(prev, prev_transpose, cur, nonterminal, nonterminal_indices)
+end
+
+function initialize!(V, indices, values)
+    view(V.prev, indices) .= values
+    view(V.cur, indices) .= values
+
+    return V
+end
+
+function lastdiff!(V)
+    # Reuse prev to store the latest difference
+    V.prev .-= V.cur
+    rmul!(V.prev, -1.0)
+
+    return V.prev
+end
+
+function nextiteration!(V)
+    copyto!(V.prev, V.cur)
 
     return V
 end
@@ -116,20 +128,37 @@ end
 function step_imc!(
     ordering,
     p,
-    prob::MatrixIntervalProbabilities,
-    prev_V,
-    V,
-    indices;
+    prob::Vector{<:StateIntervalProbabilities},
+    value_function::IMCValueFunction;
     upper_bound,
     discount,
 )
-    partial_ominmax!(ordering, p, prob, prev_V, indices; max = upper_bound)
+    indices = value_function.nonterminal_indices
+    partial_ominmax!(ordering, p, prob, value_function.prev, indices; max = upper_bound)
+
+    @inbounds for (i, j) in enumerate(indices)
+        value_function.nonterminal[i] = discount * dot(p[j], value_function.prev)
+    end
+
+    return value_function
+end
+
+function step_imc!(
+    ordering,
+    p,
+    prob::MatrixIntervalProbabilities,
+    value_function::IMCValueFunction;
+    upper_bound,
+    discount,
+)
+    indices = value_function.nonterminal_indices
+    partial_ominmax!(ordering, p, prob, value_function.prev, indices; max = upper_bound)
 
     p = view(p, :, indices)
-    mul!(V, transpose(prev_V), p)
-    rmul!(V, discount)
+    mul!(value_function.nonterminal, value_function.prev_transpose, p)
+    rmul!(value_function.nonterminal, discount)
 
-    return V
+    return value_function
 end
 
 function interval_value_iteration(
@@ -145,20 +174,14 @@ function interval_value_iteration(
     prob = transition_prob(mdp)
     sptr = stateptr(mdp)
     maxactions = maximum(diff(sptr))
-    terminal = terminal_states(spec)
     target = reach(spec)
 
     # It is more efficient to use allocate first and reuse across iterations
     p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
     ordering = construct_ordering(p)
 
-    prev_V = construct_value_function(p, num_states(mdp))
-    view(prev_V, target) .= 1.0
-
-    V = copy(prev_V)
-
-    nonterminal, nonterminal_actions = construct_nonterminal(mdp, terminal)
-    V_nonterminal = similar(V, 1, length(nonterminal_actions))
+    value_function = IMDPValueFunction(problem)
+    initialize!(value_function, target, 1.0)
 
     step_imdp!(
         ordering,
@@ -166,44 +189,33 @@ function interval_value_iteration(
         prob,
         sptr,
         maxactions,
-        prev_V,
-        V,
-        V_nonterminal,
-        nonterminal,
-        nonterminal_actions;
+        value_function;
         maximize = maximize,
         upper_bound = upper_bound,
         discount = discount,
     )
-    prev_V .-= V
-    rmul!(prev_V, -1.0)
     k = 1
 
-    while !term_criteria(V, k, prev_V)
-        copyto!(prev_V, V)
+    while !term_criteria(value_function.cur, k, lastdiff!(value_function))
+        nextiteration!(value_function)
         step_imdp!(
             ordering,
             p,
             prob,
             sptr,
             maxactions,
-            prev_V,
-            V,
-            V_nonterminal,
-            nonterminal,
-            nonterminal_actions;
+            value_function;
             maximize = maximize,
             upper_bound = upper_bound,
             discount = discount,
         )
 
-        # Reuse prev_V to store the latest difference
-        prev_V .-= V
-        rmul!(prev_V, -1.0)
         k += 1
     end
 
-    return V, k, prev_V
+    # lastdiff! uses prev to store the latest difference
+    # and it is already computed from the condition in the loop
+    return value_function.cur, k, value_function.prev
 end
 
 function construct_nonterminal(mdp::IntervalMarkovDecisionProcess, terminal)
@@ -215,37 +227,57 @@ function construct_nonterminal(mdp::IntervalMarkovDecisionProcess, terminal)
     return nonterminal, nonterminal_actions
 end
 
+struct IMDPValueFunction
+    prev
+    prev_transpose
+    cur
+    nonterminal
+    nonterminal_states
+    nonterminal_actions
+end
+
+function IMDPValueFunction(problem::P) where {P<:Problem{<:IntervalMarkovDecisionProcess}}
+    mdp = system(problem)
+    spec = specification(problem)
+    terminal = terminal_states(spec)
+
+    prev = construct_value_function(gap(transition_prob(mdp)), num_states(mdp))
+    prev_transpose = transpose(prev)
+    cur = copy(prev)
+
+    nonterminal_states, nonterminal_actions = construct_nonterminal(mdp, terminal)
+    nonterminal = similar(cur, 1, length(nonterminal_actions))
+
+    return IMDPValueFunction(prev, prev_transpose, cur, nonterminal, nonterminal_states, nonterminal_actions)
+end
+
 function step_imdp!(
     ordering,
     p,
     prob::Vector{<:StateIntervalProbabilities},
     stateptr,
     maxactions,
-    prev_V,
-    V,
-    V_nonterminal,
-    state_indices,
-    action_indices;
+    value_function;
     maximize,
     upper_bound,
     discount,
 )
-    partial_ominmax!(ordering, p, prob, prev_V, action_indices; max = upper_bound)
+    partial_ominmax!(ordering, p, prob, value_function.prev, value_function.nonterminal_actions; max = upper_bound)
 
     optfun = maximize ? max : min
 
-    @inbounds for j in action_indices
-        @inbounds V_nonterminal[j] = discount * dot(p[j], prev_V)
+    @inbounds for j in value_function.nonterminal_actions
+        @inbounds value_function.nonterminal[j] = discount * dot(p[j], value_function.prev)
     end
 
-    @inbounds for j in state_indices
+    @inbounds for j in value_function.nonterminal_states
         s1 = stateptr[j]
         s2 = stateptr[j + 1]
 
-        @inbounds V[j] = optfun(view(V_nonterminal, s1:s2 - 1))
+        @inbounds alue_function.cur[j] = optfun(view(alue_function.nonterminal, s1:s2 - 1))
     end
 
-    return V
+    return value_function
 end
 
 function step_imdp!(
@@ -254,29 +286,25 @@ function step_imdp!(
     prob::MatrixIntervalProbabilities,
     stateptr,
     maxactions,
-    prev_V,
-    V,
-    V_nonterminal,
-    state_indices,
-    action_indices;
+    value_function;
     maximize,
     upper_bound,
     discount,
 )
-    partial_ominmax!(ordering, p, prob, prev_V, action_indices; max = upper_bound)
+    partial_ominmax!(ordering, p, prob, value_function.prev, value_function.nonterminal_actions; max = upper_bound)
 
     optfun = maximize ? maximum : minimum
 
-    p = view(p, :, action_indices)
-    mul!(V_nonterminal, transpose(prev_V), p)
-    rmul!(V_nonterminal, discount)
+    p = view(p, :, value_function.nonterminal_actions)
+    mul!(value_function.nonterminal, value_function.prev_transpose, p)
+    rmul!(value_function.nonterminal, discount)
 
-    @inbounds for j in state_indices
+    @inbounds for j in value_function.nonterminal_states
         s1 = stateptr[j]
         s2 = stateptr[j + 1]
 
-        @inbounds V[j] = optfun(view(V_nonterminal, s1:s2 - 1))
+        @inbounds value_function.cur[j] = optfun(view(value_function.nonterminal, s1:s2 - 1))
     end
 
-    return V
+    return value_function
 end
