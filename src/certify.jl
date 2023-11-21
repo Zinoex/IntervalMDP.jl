@@ -20,6 +20,12 @@ function satisfaction_probability(problem::Problem{S, LTLfFormula}) where {S <: 
     return satisfaction_probability(problem)
 end
 
+"""
+    satisfaction_probability(problem::Problem{<:IntervalMarkovChain, <:AbstractReachability})
+
+Compute the probability of satisfying the reachability-like specification from the initial state.
+If access to the underlying value function is needed, use [`value_iteration`](@ref) instead.
+"""
 function satisfaction_probability(
     problem::Problem{<:IntervalMarkovChain, <:AbstractReachability},
 )

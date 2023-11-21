@@ -28,7 +28,7 @@ export partial_ominmax, partial_ominmax!
 export probability_assignment!, probability_assignment_from!
 
 include("value_iteration.jl")
-export interval_value_iteration, termination_criteria
+export value_iteration, termination_criteria
 export TerminationCriteria, FixedIterationsCriteria, CovergenceCriteria
 
 include("certify.jl")

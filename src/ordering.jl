@@ -1,5 +1,17 @@
 # Default ordering type
-construct_ordering(p) = construct_ordering(Int32, p)
+
+"""
+    construct_ordering(p::AbstractMatrix)
+
+Construct a workspace for constructing and storing orderings of
+states, given a value function. If O-maximization is used in a hot-loop,
+it is more efficient to use this function to preallocate the workspace
+and reuse across iterations.
+
+An alternative constructor is `construct_ordering(prob::IntervalProbabilities)`.
+"""
+construct_ordering(p::AbstractMatrix) = construct_ordering(Int32, p)
+construct_ordering(prob::IntervalProbabilities) = construct_ordering(gap(prob))
 
 abstract type AbstractStateOrdering{T} end
 

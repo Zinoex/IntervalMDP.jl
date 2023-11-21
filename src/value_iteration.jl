@@ -15,11 +15,19 @@ end
 termination_criteria(spec::Union{InfiniteTimeReachability, InfiniteTimeReachAvoid}) =
     CovergenceCriteria(eps(spec))
 
-function interval_value_iteration(
+"""
+    value_iteration(problem::Problem{<:IntervalMarkovChain, <:AbstractReachability}; upper_bound = true, discount = 1.0)
+
+Solve reachability and reach-avoid problems using value iteration for interval Markov chains. If `upper_bound == true`
+then the optimistic probability of reachability or reach-avoid is computed. Otherwise, the pessimistic probability is
+computed.
+"""
+function value_iteration(
     problem::Problem{<:IntervalMarkovChain, <:AbstractReachability};
     upper_bound = true,
     discount = 1.0,
 )
+    # TODO: The discount factor probably ought to be a parameter on a reward min/max specification.
     mc = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(problem)
@@ -135,7 +143,14 @@ function step_imc!(
     return value_function
 end
 
-function interval_value_iteration(
+
+"""
+    value_iteration(problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability}; upper_bound = true, discount = 1.0)
+
+Solve reachability and reach-avoid problems using value iteration for interval Markov decision processes. If `upper_bound == true`
+then the optimistic probability of reachability or reach-avoid is computed. Otherwise, the pessimistic probability is computed.
+"""
+function value_iteration(
     problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability};
     maximize = true,
     upper_bound = true,

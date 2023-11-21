@@ -108,7 +108,7 @@ lower(s::IntervalProbabilities) = s.lower
 
 Return the upper bound transition probabilities from a source state or source/action pair to a target state.
 
-!!! warning
+!!! note
     It is not recommended to use this function for the hot loop of O-maximization, because it is not just an accessor and requires allocation and computation.
 """
 upper(s::IntervalProbabilities) = s.lower + s.gap
