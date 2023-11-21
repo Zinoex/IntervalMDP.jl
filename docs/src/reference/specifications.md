@@ -18,7 +18,7 @@ PCTLFormula
 ## Reachability
 
 ```@docs
-IMDP.AbstractReachability
+AbstractReachability
 
 FiniteTimeReachability
 terminal_states(spec::FiniteTimeReachability)

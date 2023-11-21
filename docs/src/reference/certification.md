@@ -1,5 +1,5 @@
 # Certification
 
 ```@docs
-satisfaction_probability(problem::Problem{<:IntervalMarkovChain, <:IMDP.AbstractReachability})
+satisfaction_probability(problem::Problem{IntervalMarkovProcess, IMDP.AbstractReachability})
 ```

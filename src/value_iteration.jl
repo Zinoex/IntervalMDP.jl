@@ -15,13 +15,6 @@ end
 termination_criteria(spec::Union{InfiniteTimeReachability, InfiniteTimeReachAvoid}) =
     CovergenceCriteria(eps(spec))
 
-"""
-    value_iteration(problem::Problem{<:IntervalMarkovChain, <:AbstractReachability}; upper_bound = true, discount = 1.0)
-
-Solve reachability and reach-avoid problems using value iteration for interval Markov chains. If `upper_bound == true`
-then the optimistic probability of reachability or reach-avoid is computed. Otherwise, the pessimistic probability is
-computed.
-"""
 function value_iteration(
     problem::Problem{<:IntervalMarkovChain, <:AbstractReachability};
     upper_bound = true,
@@ -145,10 +138,14 @@ end
 
 
 """
-    value_iteration(problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability}; upper_bound = true, discount = 1.0)
+    value_iteration(problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability})
 
 Solve reachability and reach-avoid problems using value iteration for interval Markov decision processes. If `upper_bound == true`
 then the optimistic probability of reachability or reach-avoid is computed. Otherwise, the pessimistic probability is computed.
+
+!!! note
+    There is a similar method for `IntervalMarkovChain` (without the `maxmize` keyword argument) but Documenter throws an error
+    if we include it. This is most likely a bug in Documenter, so we leave it like this for now. TODO: Make an MWE and report the bug.
 """
 function value_iteration(
     problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability};

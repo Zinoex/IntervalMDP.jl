@@ -26,7 +26,7 @@ p = ominmax(prob, V; max = true)
 !!! note
     This function will construct a workspace object for the ordering and an output vector.
     For a hot-loop, it is more efficient to use `ominmax!` and pass in pre-allocated objects.
-    See [`construct_ordering(p)`] for how to pre-allocate the workspace.
+    See [`construct_ordering(p::AbstractMatrix)`](@ref) for how to pre-allocate the workspace.
 
 [1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
 
@@ -93,7 +93,7 @@ on what O-maximization is.
 !!! note
     This function will construct a workspace object for the ordering and an output vector.
     For a hot-loop, it is more efficient to use `ominmax!` and pass in pre-allocated objects.
-    See [`construct_ordering(p)`] for how to pre-allocate the workspace.
+    See [`construct_ordering(p::AbstractMatrix)`](@ref) for how to pre-allocate the workspace.
 """
 function partial_ominmax(prob, V, indices; max = true)
     ordering = construct_ordering(prob)

@@ -21,16 +21,15 @@ function satisfaction_probability(problem::Problem{S, LTLfFormula}) where {S <: 
 end
 
 """
-    satisfaction_probability(problem::Problem{<:IntervalMarkovChain, <:AbstractReachability})
+    satisfaction_probability(problem::Problem{<:IntervalMarkovProcess, <:AbstractReachability})
 
 Compute the probability of satisfying the reachability-like specification from the initial state.
-If access to the underlying value function is needed, use [`value_iteration`](@ref) instead.
 """
 function satisfaction_probability(
-    problem::Problem{<:IntervalMarkovChain, <:AbstractReachability},
+    problem::Problem{<:IntervalMarkovProcess, <:AbstractReachability},
 )
     upper_bound = satisfaction_mode(problem) == Optimistic
-    V, _, _ = interval_value_iteration(problem; upper_bound = upper_bound)
+    V, _, _ = value_iteration(problem; upper_bound = upper_bound)
     V = Vector(V)   # Convert to CPU vector if not already
 
     sat_prob = V[initial_state(system(problem))]
