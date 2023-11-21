@@ -161,5 +161,58 @@ This is more efficient, since `setindex!` of `SparseMatrixCSC` needs to perform 
 and possibly expand the size of the array.
 
 ## CUDA
-- Pacakges that are required for CUDA to work
-- Transfer matrices vs transfer model
+Part of the innovation of this package is GPU-accelerated value iteration via CUDA. This includes not only
+trivial parallelization across states but also parallel algorithms for O-maximization within each state
+for better computational efficiency and coalesced memory access for more speed. 
+
+To use CUDA, you need to first install `CUDA.jl`. For more information about this, see [Installation](@ref).
+Next, you need to load the package with the following command:
+```julia
+using CUDA
+```
+
+Loading CUDA will automatically load an extension that defines value iteration with CUDA arrays.
+It has been separated out into an extension to reduce precompilation time for users that do not need CUDA.
+Note that loading CUDA on a system without a CUDA-capable GPU, will not cause any errors, but will simply not load the extension.
+You can check if CUDA is correctly loaded using `CUDA.is_functional()`.
+
+To use CUDA, you need to transfer the model to the GPU. Once on the GPU, you can use the same functions as the CPU implementation.
+Using Julia's multiple dispatch, the package will automatically call the appropriate functions for the given variable types.
+
+Similar to `CUDA.jl`, we provide a `cu` function that transfers the model to the GPU[^1]. You can either transfer the entire model
+or transfer the transition matrices separately. 
+```julia
+# Transfer entire model to GPU
+prob = IntervalProbabilities(;
+    lower = sparse_hcat(
+        SparseVector(3, [2, 3], [0.1, 0.2]),
+        SparseVector(3, [1, 2, 3], [0.5, 0.3, 0.1]),
+        SparseVector(3, [3], [1.0]),
+    ),
+    upper = sparse_hcat(
+        SparseVector(3, [1, 2, 3], [0.5, 0.6, 0.7]),
+        SparseVector(3, [1, 2, 3], [0.7, 0.5, 0.3]),
+        SparseVector(3, [3], [1.0]),
+    ),
+)
+
+mc = IMDP.cu(IntervalMarkovChain(prob, 1))
+
+# Transfer transition matrices separately
+prob = IntervalProbabilities(;
+    lower = IMDP.cu(sparse_hcat(
+        SparseVector(3, [2, 3], [0.1, 0.2]),
+        SparseVector(3, [1, 2, 3], [0.5, 0.3, 0.1]),
+        SparseVector(3, [3], [1.0]),
+    )),
+    upper = IMDP.cu(sparse_hcat(
+        SparseVector(3, [1, 2, 3], [0.5, 0.6, 0.7]),
+        SparseVector(3, [1, 2, 3], [0.7, 0.5, 0.3]),
+        SparseVector(3, [3], [1.0]),
+    )),
+)
+
+mc = IntervalMarkovChain(prob, 1)
+```
+
+[^1]: The difference to `CUDA.jl`s `cu` function is that we allow the specification of both the value and index type, which is important due to register pressure. To reduce register pressure but maintain accuracy, we are opinoinated to `Float64` values and `Int32` indices.
