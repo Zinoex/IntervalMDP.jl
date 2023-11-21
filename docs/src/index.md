@@ -9,14 +9,14 @@ and certifying Interval Markov Decision Processes (IMDPs) via Value Iteration.
 IMDPs are a generalization of Markov Decision Processes (MDPs) where the transition probabilities
 are represented by intervals instead of point values, to model uncertainty. IMDPs are also frequently
 chosen as the model for abstracting the dynamics of a stochastic system, as one may compute upper
-and lower bounds on transitioning from one state to another.
+and lower bounds on transitioning from one region to another.
 
 The aim of this package is to provide a user-friendly interface to solve value iteration for IMDPs
 with great efficiency. Furthermore, it provides methods for accelerating the computation of the
 certificate using CUDA hardware. See [Algorithms](@ref) for algorithmic advances that this package
 introduces for enabling better use of the available hardware and higher performance.
 
-Features:
+#### Features
 - O-maximization and value iteration
 - Dense and sparse matrix support
 - Parametric probability types for customizable precision

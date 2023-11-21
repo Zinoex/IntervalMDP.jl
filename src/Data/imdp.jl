@@ -1,4 +1,11 @@
+"""
+    read_imdp_jl_file(path)
 
+Read an IMDP.jl data file and return an `IntervalMarkovDecisionProcess`
+or `IntervalMarkovChain` and a list of terminal states. 
+
+See [Data storage formats](@ref) for more information on the file format.
+"""
 function read_imdp_jl_file(path)
     mdp_or_mc, terminal_states = Dataset(path) do dataset
         n = Int32(dataset.attrib["num_states"])
@@ -52,7 +59,16 @@ function read_imdp_jl_mc(dataset, prob, initial_state)
     return mc
 end
 
+"""
+    write_imdp_jl_file(path, mdp_or_mc, terminal_states)
+
+Write an `IntervalMarkovDecisionProcess` or `IntervalMarkovChain` to an IMDP.jl data file.
+
+See [Data storage formats](@ref) for more information on the file format.
+"""
 function write_imdp_jl_file(path, mdp_or_mc, terminal_states)
+    # TODO: Support specification
+
     Dataset(path, "c") do dataset
         dataset.attrib["format"] = "sparse_csc"
         dataset.attrib["num_states"] = num_states(mdp_or_mc)
