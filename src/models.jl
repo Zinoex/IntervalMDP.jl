@@ -9,7 +9,7 @@ abstract type IntervalMarkovProcess end
 """
     IntervalMarkovChain{P <: IntervalProbabilities, T <: Integer}
 
-A type representing Interval Markov Chains, which are Markov Chains with uncertainty in the form of intervals on
+A type representing Interval Markov Chains (IMC), which are Markov Chains with uncertainty in the form of intervals on
 the transition probabilities.
 
 Formally, let ``(S, s_0, \\bar{P}, \\underbar{P})`` be an interval Markov chain, where ``S`` is the set of states, ``s_0`` is the initial state,
@@ -100,7 +100,7 @@ num_states(s::IntervalMarkovChain) = s.num_states
         VA <: AbstractVector,
     }
 
-A type representing Interval Markov Decision Processes, which are Markov Decision Processes with uncertainty in the form of intervals on
+A type representing Interval Markov Decision Processes (IMDP), which are Markov Decision Processes with uncertainty in the form of intervals on
 the transition probabilities.
 
 Formally, let ``(S, s_0, A, \\bar{P}, \\underbar{P})`` be an interval Markov decision processes, where ``S`` is the set of states, ``s_0`` is the initial state,
@@ -111,7 +111,8 @@ defined as follows: indices `1:num_states` are the states in ``S``, `transition_
 
 ### Fields
 - `transition_prob::P`: interval on transition probabilities where columns represent source/action pairs and rows represent target states.
-- `stateptr::VT`: pointer to the start of each source state in `transition_prob` (i.e. `transition_prob[:, stateptr[j]:stateptr[j + 1] - 1]` is the transition probability matrix for state `j`) in the style of sparse CSC colptr's.
+- `stateptr::VT`: pointer to the start of each source state in `transition_prob` (i.e. `transition_prob[:, stateptr[j]:stateptr[j + 1] - 1]` is the transition
+    probability matrix for source state `j`) in the style of colptr for sparse matrices in CSC format.
 - `action_vals::VA`: actions available in each state. Can be any eltype.
 - `initial_state::T`: initial state.
 - `num_states::T`: number of states.

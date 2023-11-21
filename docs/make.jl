@@ -17,9 +17,13 @@ makedocs(;
     ),
     pages = [
         "Home" => "index.md",
-        "Installation" => "installation.md",
         "Usage" => "usage.md",
-        "Reference" => "reference.md",
+        "Data formats" => "data.md",
+        "Reference" => Any[
+            "Systems" => "reference/systems.md",
+            "Specifications" => "reference/specifications.md",
+        ],
+        "Index" => "api.md",
     ],
     doctest=false
 )
