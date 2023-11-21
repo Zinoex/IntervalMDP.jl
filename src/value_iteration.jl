@@ -15,6 +15,40 @@ end
 termination_criteria(spec::Union{InfiniteTimeReachability, InfiniteTimeReachAvoid}) =
     CovergenceCriteria(eps(spec))
 
+"""
+    value_iteration(problem::Problem{<:IntervalMarkovChain, <:AbstractReachability};
+        upper_bound = true,
+        discount = 1.0
+    )
+
+Solve reachability and reach-avoid problems using value iteration for interval Markov chain. If `upper_bound == true`
+then the optimistic probability of reachability or reach-avoid is computed. Otherwise, the pessimistic probability is computed.
+
+### Examples
+
+```jldoctest
+prob = IntervalProbabilities(;
+    lower = [
+        0.0 0.5 0.0
+        0.1 0.3 0.0
+        0.2 0.1 1.0
+    ],
+    upper = [
+        0.5 0.7 0.0
+        0.6 0.5 0.0
+        0.7 0.3 1.0
+    ],
+)
+
+mc = IntervalMarkovChain(prob, 1)
+
+terminal_states = [3]
+time_horizon = 10
+problem = Problem(mc, FiniteTimeReachability(terminal_states, time_horizon))
+V, k, residual = value_iteration(problem; upper_bound = false)
+```
+
+"""
 function value_iteration(
     problem::Problem{<:IntervalMarkovChain, <:AbstractReachability};
     upper_bound = true,
@@ -138,14 +172,60 @@ end
 
 
 """
-    value_iteration(problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability})
+    value_iteration(problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability};
+        maximize = true,
+        upper_bound = true,
+        discount = 1.0
+    )
 
 Solve reachability and reach-avoid problems using value iteration for interval Markov decision processes. If `upper_bound == true`
 then the optimistic probability of reachability or reach-avoid is computed. Otherwise, the pessimistic probability is computed.
+The maximize keyword argument determines whether the action that maximizes or minimizes the probability is chosen.
 
-!!! note
-    There is a similar method for `IntervalMarkovChain` (without the `maxmize` keyword argument) but Documenter throws an error
-    if we include it. This is most likely a bug in Documenter, so we leave it like this for now. TODO: Make an MWE and report the bug.
+### Examples
+
+```jldoctest
+prob1 = IntervalProbabilities(;
+    lower = [
+        0.0 0.5
+        0.1 0.3
+        0.2 0.1
+    ],
+    upper = [
+        0.5 0.7
+        0.6 0.5
+        0.7 0.3
+    ],
+)
+
+prob2 = IntervalProbabilities(;
+    lower = [
+        0.1 0.2
+        0.2 0.3
+        0.3 0.4
+    ],
+    upper = [
+        0.6 0.6
+        0.5 0.5
+        0.4 0.4
+    ],
+)
+
+prob3 = IntervalProbabilities(;
+    lower = [0.0; 0.0; 1.0],
+    upper = [0.0; 0.0; 1.0]
+)
+
+transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
+initial_state = 1
+mdp = IntervalMarkovDecisionProcess(transition_probs, initial_state)
+
+terminal_states = [3]
+time_horizon = 10
+problem = Problem(mdp, FiniteTimeReachability(terminal_states, time_horizon))
+V, k, residual = value_iteration(problem; maximize = true, upper_bound = false)
+```
+
 """
 function value_iteration(
     problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability};

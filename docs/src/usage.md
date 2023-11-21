@@ -1,8 +1,12 @@
 # Usage
 
-1. Construct system (transition probability, initial state)
-2. Construct specification (temporal logic formula or reachability/avoidance)
-3. Either call `interval_value_iteration` or `satisfaction_prob` depending on whether access to the value function is required or not.
+The general usage of this package can be described as 3 steps
+1. Construct interval Markov process (IMC or IMDP)
+2. Choose specification (reachability or reach-avoid)
+3. Call `value_iteration` or `satisfaction_prob`.
+
+First, we construct a system. We can either construct an interval Markov chain or an interval Markov decision process.
+
 
 
 ## Sparse matrices

@@ -6,18 +6,17 @@ CurrentModule = IMDP.Data
 
 ## PRISM
 ```@docs
-write_prism_file(path_without_file_ending, mdp_or_mc, terminal_states)
+write_prism_file
 ```
 
 ## bmdp-tool
 ```@docs
-read_bmdp_tool_file(path)
-write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, spec::AbstractReachability)
-write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{<:Integer})
+read_bmdp_tool_file
+write_bmdp_tool_file
 ```
 
 ## IMDP.jl
 ```@docs
-read_imdp_jl_file(path)
-write_imdp_jl_file(path, mdp_or_mc, terminal_states)
+read_imdp_jl_file
+write_imdp_jl_file
 ```

@@ -113,7 +113,7 @@ write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, spec::AbstractRea
 )
 
 """
-    write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{<:Integer})
+    write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{T})
 
 Write a bmdp-tool transition probability file for the given an IMDP and a list of terminal states.
 The file will not contain enough information to specify a reachability specification. The remaining
@@ -121,7 +121,7 @@ parameters are rather command line arguments.
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-function write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{<:Integer})
+function write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{T}) where {T <: Integer}
     prob = transition_prob(mdp)
     l, g = lower(prob), gap(prob)
     num_columns = num_source(prob)

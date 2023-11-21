@@ -341,3 +341,5 @@ specification(prob::Problem) = prob.spec
 Return the satisfaction mode of a problem.
 """
 satisfaction_mode(prob::Problem) = prob.mode
+
+# TODO: Add `checkspecification!(spec, system)` to ensure that the specification is valid for the system.
