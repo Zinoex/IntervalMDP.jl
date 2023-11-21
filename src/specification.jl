@@ -7,7 +7,6 @@ Super type for all system specficiations
 """
 abstract type Specification end
 
-
 # Temporal logics
 
 """
@@ -67,7 +66,6 @@ struct PCTLFormula <: AbstractTemporalLogic
     formula::String
 end
 
-
 # Reachability
 
 """
@@ -121,7 +119,6 @@ property. See [`FiniteTimeReachAvoid`](@ref) for a more complex specification wh
 terminal states differ.
 """
 reach(spec::FiniteTimeReachability) = spec.terminal_states
-
 
 """
     InfiniteTimeReachability{R <: Real, T <: Integer} 

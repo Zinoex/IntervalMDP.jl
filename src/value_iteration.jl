@@ -173,7 +173,6 @@ function step_imc!(
     return value_function
 end
 
-
 """
     value_iteration(problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability};
         maximize = true,

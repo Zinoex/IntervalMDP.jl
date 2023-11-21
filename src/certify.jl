@@ -7,7 +7,9 @@ function satisfaction_probability(
     return satisfaction_probability(Problem(s, f, mode))
 end
 
-function satisfaction_probability(problem::Problem{S, LTLfFormula}) where {S <: IntervalMarkovProcess}
+function satisfaction_probability(
+    problem::Problem{S, LTLfFormula},
+) where {S <: IntervalMarkovProcess}
     spec = specification(problem)
     prod_system, terminal_states = product_system(problem)
 

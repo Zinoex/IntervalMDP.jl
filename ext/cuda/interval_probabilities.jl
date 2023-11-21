@@ -6,9 +6,9 @@ function IMDP.compute_gap(lower::M, upper::M) where {Tv, Ti, M <: CuSparseMatrix
     upper = SparseMatrixCSC(upper)
     lower = SparseMatrixCSC(lower)
     lower, gap = IMDP.compute_gap(lower, upper)
-    return adapt(IMDP.CuModelAdaptor{Tv, Ti}, lower), adapt(IMDP.CuModelAdaptor{Tv, Ti}, gap)
+    return adapt(IMDP.CuModelAdaptor{Tv, Ti}, lower),
+    adapt(IMDP.CuModelAdaptor{Tv, Ti}, gap)
 end
-
 
 function IMDP.interval_prob_hcat(
     T,

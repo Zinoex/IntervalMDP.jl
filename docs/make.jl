@@ -1,7 +1,7 @@
 using IMDP
 using Documenter
 
-push!(LOAD_PATH,"../src/")
+push!(LOAD_PATH, "../src/")
 DocMeta.setdocmeta!(IMDP, :DocTestSetup, :(using IMDP); recursive = true)
 
 makedocs(;
@@ -24,12 +24,12 @@ makedocs(;
             "Systems" => "reference/systems.md",
             "Specifications" => "reference/specifications.md",
             "Value Iteration" => "reference/value_iteration.md",
-            "Certification" => "reference/certification.md", 
+            "Certification" => "reference/certification.md",
             "Data Storage" => "reference/data.md",
         ],
         "Index" => "api.md",
     ],
-    doctest=false
+    doctest = false,
 )
 
 deploydocs(; repo = "github.com/zinoex/IMDP.jl", devbranch = "main")

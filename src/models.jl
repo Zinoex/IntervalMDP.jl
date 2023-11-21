@@ -42,7 +42,8 @@ mc = IntervalMarkovChain(prob, 1)
 ```
 
 """
-struct IntervalMarkovChain{P <: IntervalProbabilities, T <: Integer} <: IntervalMarkovProcess
+struct IntervalMarkovChain{P <: IntervalProbabilities, T <: Integer} <:
+       IntervalMarkovProcess
     transition_prob::P
     initial_state::T
     num_states::T

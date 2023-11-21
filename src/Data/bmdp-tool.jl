@@ -106,11 +106,8 @@ parameters are rather command line arguments.
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, spec::AbstractReachability) = write_bmdp_tool_file(
-    path,
-    mdp,
-    reach(spec)
-)
+write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, spec::AbstractReachability) =
+    write_bmdp_tool_file(path, mdp, reach(spec))
 
 """
     write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{T})
@@ -121,7 +118,11 @@ parameters are rather command line arguments.
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-function write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{T}) where {T <: Integer}
+function write_bmdp_tool_file(
+    path,
+    mdp::IntervalMarkovDecisionProcess,
+    terminal_states::Vector{T},
+) where {T <: Integer}
     prob = transition_prob(mdp)
     l, g = lower(prob), gap(prob)
     num_columns = num_source(prob)

@@ -20,7 +20,10 @@ function Adapt.adapt_structure(::Type{<:IMDP.CuModelAdaptor}, mc::IntervalMarkov
     )
 end
 
-function Adapt.adapt_structure(T::Type{<:IMDP.CuModelAdaptor}, mdp::IntervalMarkovDecisionProcess)
+function Adapt.adapt_structure(
+    T::Type{<:IMDP.CuModelAdaptor},
+    mdp::IntervalMarkovDecisionProcess,
+)
     return IntervalMarkovDecisionProcess(
         adapt(T, transition_prob(mdp)),
         adapt(CuArray{indtype(T)}, IMDP.stateptr(mdp)),

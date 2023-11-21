@@ -12,8 +12,11 @@ export transition_prob, num_states, initial_state, actions
 
 include("specification.jl")
 export Specification, LTLFormula, LTLfFormula, PCTLFormula
-export AbstractReachability, FiniteTimeReachability,
-    InfiniteTimeReachability, FiniteTimeReachAvoid, InfiniteTimeReachAvoid
+export AbstractReachability,
+    FiniteTimeReachability,
+    InfiniteTimeReachability,
+    FiniteTimeReachAvoid,
+    InfiniteTimeReachAvoid
 export reach, avoid, terminal_states, time_horizon, eps
 export Problem, SatisfactionMode, Pessimistic, Optimistic
 export system, specification, satisfaction_mode

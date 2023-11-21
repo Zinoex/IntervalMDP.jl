@@ -143,7 +143,6 @@ Return the number of target states.
 """
 num_target(s::IntervalProbabilities) = size(gap(s), 1)
 
-
 function interval_prob_hcat(
     T,
     transition_probs::Vector{<:IntervalProbabilities{R, VR, MR}},

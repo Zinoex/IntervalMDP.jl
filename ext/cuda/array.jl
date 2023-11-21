@@ -46,8 +46,10 @@ function CuVectorOfVector(vecs::Vector{Vector{T}}) where {T}
     )
 end
 
-Adapt.adapt_structure(::CUDA.CuArrayKernelAdaptor, xs::Vector{Vector{T}}) where {T <: Number} =
-    CuVectorOfVector(xs)
+Adapt.adapt_structure(
+    ::CUDA.CuArrayKernelAdaptor,
+    xs::Vector{Vector{T}},
+) where {T <: Number} = CuVectorOfVector(xs)
 
 # GPU to CPU
 function Vector(xs::CuVectorOfVector{T}) where {T}
@@ -135,24 +137,22 @@ CUDA.CUSPARSE.CuSparseMatrixCSC{Tv, Ti}(M::SparseArrays.FixedSparseCSC) where {T
     )
 
 CUDA.CUSPARSE.CuSparseMatrixCSC{Tv, Ti}(M::SparseMatrixCSC) where {Tv, Ti} =
-        CuSparseMatrixCSC{Tv, Ti}(
-            CuVector{Ti}(M.colptr),
-            CuVector{Ti}(M.rowval),
-            CuVector{Tv}(M.nzval),
-            size(M),
-        )
+    CuSparseMatrixCSC{Tv, Ti}(
+        CuVector{Ti}(M.colptr),
+        CuVector{Ti}(M.rowval),
+        CuVector{Tv}(M.nzval),
+        size(M),
+    )
 
-Adapt.adapt_storage(::Type{IMDP.CuModelAdaptor{Tv, Ti}}, M::SparseArrays.FixedSparseCSC) where {
-    Tv,
-    Ti,
-} = CuSparseMatrixCSC{Tv, Ti}(M)
+Adapt.adapt_storage(
+    ::Type{IMDP.CuModelAdaptor{Tv, Ti}},
+    M::SparseArrays.FixedSparseCSC,
+) where {Tv, Ti} = CuSparseMatrixCSC{Tv, Ti}(M)
 
-Adapt.adapt_storage(::Type{IMDP.CuModelAdaptor{Tv, Ti}}, M::SparseMatrixCSC) where {
-    Tv,
-    Ti,
-} = CuSparseMatrixCSC{Tv, Ti}(M)
+Adapt.adapt_storage(
+    ::Type{IMDP.CuModelAdaptor{Tv, Ti}},
+    M::SparseMatrixCSC,
+) where {Tv, Ti} = CuSparseMatrixCSC{Tv, Ti}(M)
 
-Adapt.adapt_storage(::Type{IMDP.CuModelAdaptor{Tv, Ti}}, x::AbstractArray) where {
-    Tv,
-    Ti
-} = adapt(CuArray{Tv}, x)
+Adapt.adapt_storage(::Type{IMDP.CuModelAdaptor{Tv, Ti}}, x::AbstractArray) where {Tv, Ti} =
+    adapt(CuArray{Tv}, x)
