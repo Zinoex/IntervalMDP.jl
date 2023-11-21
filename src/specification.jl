@@ -82,7 +82,7 @@ abstract type AbstractReachability <: Specification end
 
 Finite time reachability specified by a set of target/terminal states and a time horizon. 
 That is, if ``T`` is the set of target states and ``H`` is the time horizon, compute
-``ℙ(∃k = 0…H, s_k ∈ T)``
+``ℙ(∃k = 0…H, s_k ∈ T)``.
 """
 struct FiniteTimeReachability{T <: Integer} <: AbstractReachability
     terminal_states::Vector{T}
@@ -172,7 +172,7 @@ reach(spec::InfiniteTimeReachability) = spec.terminal_states
 
 Finite time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
 That is, if ``T`` is the set of target states, ``A`` is the set of states to avoid, and ``H`` is the time horizon, compute
-``ℙ(∃k = 0…H, s_k ∈ T and ∀k' = 0…k, s_k' ∉ A)`` and ``ℙ()``.
+``ℙ(∃k = 0…H, s_k ∈ T and ∀k' = 0…k, s_k' ∉ A)``.
 """
 struct FiniteTimeReachAvoid{T <: Integer} <: AbstractReachability
     reach::Vector{T}
@@ -293,8 +293,8 @@ end
     SatisfactionMode
 
 When computing the satisfaction probability of a specification over an interval Markov process,
-be it IMC or IMDP, the desired satisfaction probability to verify can either be optimistic or
-pessimistic. That is, upper and lower bounds on the satisfaction probability within
+be it IMC or IMDP, the desired satisfaction probability to verify can either be `Optimistic` or
+`Pessimistic`. That is, upper and lower bounds on the satisfaction probability within
 the probability uncertainty.
 """
 @enum SatisfactionMode Pessimistic Optimistic
@@ -303,7 +303,7 @@ the probability uncertainty.
     Problem{S <: IntervalMarkovProcess, F <: Specification}
 
 A problem is a tuple of an interval Markov process and a specification together with
-a satisfaction mode. The satisfaction mode is either optimistic or pessimistic.
+a satisfaction mode. The satisfaction mode is either `Optimistic` or `Pessimistic`.
 See [`SatisfactionMode`](@ref) for more details.
 
 ### Fields
