@@ -1,6 +1,6 @@
 # Usage
 
-The general usage of this package can be described as 3 steps
+The general procedure for using this package can be described in 3 steps
 1. Construct interval Markov process (IMC or IMDP)
 2. Choose specification (reachability or reach-avoid)
 3. Call `value_iteration` or `satisfaction_prob`.

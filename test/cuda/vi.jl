@@ -1,5 +1,4 @@
-prob = adapt(
-    CuArray{Float64},
+prob = IMDP.cu(
     IntervalProbabilities(;
         lower = sparse_hcat(
             SparseVector(3, [2, 3], [0.1, 0.2]),

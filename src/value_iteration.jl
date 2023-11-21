@@ -121,7 +121,9 @@ function IMCValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovChain}
     terminal = terminal_states(spec)
 
     prev = construct_value_function(gap(transition_prob(mc)), num_states(mc))
-    prev_transpose = transpose(prev)
+
+    # Reshape is guaranteed to share the same underlying memory while transpose is not.
+    prev_transpose = reshape(prev, 1, length(prev))
     cur = copy(prev)
 
     nonterminal_indices = construct_nonterminal(mc, terminal)
@@ -165,6 +167,7 @@ function step_imc!(
 
     p = view(p, :, indices)
     mul!(value_function.nonterminal, value_function.prev_transpose, p)
+    value_function.nonterminal .= transpose(value_function.prev) * p
     rmul!(value_function.nonterminal, discount)
 
     return value_function
@@ -308,7 +311,9 @@ function IMDPValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovDecis
     terminal = terminal_states(spec)
 
     prev = construct_value_function(gap(transition_prob(mdp)), num_states(mdp))
-    prev_transpose = transpose(prev)
+
+    # Reshape is guaranteed to share the same underlying memory while transpose is not.
+    prev_transpose = reshape(prev, 1, length(prev))
     cur = copy(prev)
 
     nonterminal_states, nonterminal_actions = construct_nonterminal(mdp, terminal)

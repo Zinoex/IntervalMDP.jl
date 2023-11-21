@@ -34,6 +34,8 @@ export TerminationCriteria, FixedIterationsCriteria, CovergenceCriteria
 include("certify.jl")
 export satisfaction_probability
 
+include("cuda.jl")
+
 include("Data/Data.jl")
 
 end
