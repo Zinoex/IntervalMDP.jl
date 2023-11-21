@@ -2,3 +2,4 @@
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 IMDP = "051c988a-e73c-45a4-90ec-875cac0402c7"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"

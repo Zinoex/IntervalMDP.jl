@@ -23,6 +23,10 @@ introduces for enabling better use of the available hardware and higher performa
 - Multithreaded CPU and CUDA-accelerated value iteration
 - Data loading and writing in formats by various tools (PRISM, bmdp-tool, IMDP.jl)
 
+!!! info
+    Until now, all state-of-the-art tools for IMDPs have been standalone programs. 
+    This is explicitly a package, enabling better integration with other tools and libraries.
+
 ## Installation
 
 This package requires Julia v1.9 or later. Refer to the [official documentation](https://julialang.org/downloads/) on how to install it for your system.
