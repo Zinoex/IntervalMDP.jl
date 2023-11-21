@@ -18,6 +18,8 @@ IMDPCudaExt = ["Adapt", "CUDA", "LLVM"]
 
 [compat]
 julia = "1.9"
+CUDA = "5.1"
+NCDatasets = "0.13"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
