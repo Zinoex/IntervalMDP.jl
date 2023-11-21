@@ -1,38 +1,41 @@
 prob1 = IntervalProbabilities(;
-    lower = [
+    lower = sparse([
         0.0 0.5
         0.1 0.3
         0.2 0.1
-    ],
-    upper = [
+    ]),
+    upper = sparse([
         0.5 0.7
         0.6 0.5
         0.7 0.3
-    ],
+    ]),
 )
 
 prob2 = IntervalProbabilities(;
-    lower = [
+    lower = sparse([
         0.1 0.2
         0.2 0.3
         0.3 0.4
-    ],
-    upper = [
+    ]),
+    upper = sparse([
         0.6 0.6
         0.5 0.5
         0.4 0.4
-    ],
+    ]),
 )
 
-prob3 = IntervalProbabilities(; lower = [
-    0.0
-    0.0
-    1.0
-][:, :], upper = [
-    0.0
-    0.0
-    1.0
-][:, :])
+prob3 = IntervalProbabilities(;
+    lower = sparse([
+        0.0
+        0.0
+        1.0
+    ][:, :]),
+    upper = sparse([
+        0.0
+        0.0
+        1.0
+    ][:, :]),
+)
 
 transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
 initial_state = Int32(1)
@@ -40,7 +43,7 @@ initial_state = Int32(1)
 mdp = IntervalMarkovDecisionProcess(transition_probs, initial_state)
 
 # Finite time reachability
-problem = Problem(mdp, FiniteTimeReachability([3], 3, 10))
+problem = IMDP.cu(Problem(mdp, FiniteTimeReachability([3], 3, 10)))
 V_fixed_it1, k, _ = value_iteration(problem; maximize = true, upper_bound = false)
 @test k == 10
 

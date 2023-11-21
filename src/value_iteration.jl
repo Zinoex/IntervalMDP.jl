@@ -15,11 +15,46 @@ end
 termination_criteria(spec::Union{InfiniteTimeReachability, InfiniteTimeReachAvoid}) =
     CovergenceCriteria(eps(spec))
 
-function interval_value_iteration(
+"""
+    value_iteration(problem::Problem{<:IntervalMarkovChain, <:AbstractReachability};
+        upper_bound = true,
+        discount = 1.0
+    )
+
+Solve reachability and reach-avoid problems using value iteration for interval Markov chain. If `upper_bound == true`
+then the optimistic probability of reachability or reach-avoid is computed. Otherwise, the pessimistic probability is computed.
+
+### Examples
+
+```jldoctest
+prob = IntervalProbabilities(;
+    lower = [
+        0.0 0.5 0.0
+        0.1 0.3 0.0
+        0.2 0.1 1.0
+    ],
+    upper = [
+        0.5 0.7 0.0
+        0.6 0.5 0.0
+        0.7 0.3 1.0
+    ],
+)
+
+mc = IntervalMarkovChain(prob, 1)
+
+terminal_states = [3]
+time_horizon = 10
+problem = Problem(mc, FiniteTimeReachability(terminal_states, time_horizon))
+V, k, residual = value_iteration(problem; upper_bound = false)
+```
+
+"""
+function value_iteration(
     problem::Problem{<:IntervalMarkovChain, <:AbstractReachability};
     upper_bound = true,
     discount = 1.0,
 )
+    # TODO: The discount factor probably ought to be a parameter on a reward min/max specification.
     mc = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(problem)
@@ -86,7 +121,9 @@ function IMCValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovChain}
     terminal = terminal_states(spec)
 
     prev = construct_value_function(gap(transition_prob(mc)), num_states(mc))
-    prev_transpose = transpose(prev)
+
+    # Reshape is guaranteed to share the same underlying memory while transpose is not.
+    prev_transpose = reshape(prev, 1, length(prev))
     cur = copy(prev)
 
     nonterminal_indices = construct_nonterminal(mc, terminal)
@@ -130,12 +167,69 @@ function step_imc!(
 
     p = view(p, :, indices)
     mul!(value_function.nonterminal, value_function.prev_transpose, p)
+    value_function.nonterminal .= transpose(value_function.prev) * p
     rmul!(value_function.nonterminal, discount)
 
     return value_function
 end
 
-function interval_value_iteration(
+"""
+    value_iteration(problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability};
+        maximize = true,
+        upper_bound = true,
+        discount = 1.0
+    )
+
+Solve reachability and reach-avoid problems using value iteration for interval Markov decision processes. If `upper_bound == true`
+then the optimistic probability of reachability or reach-avoid is computed. Otherwise, the pessimistic probability is computed.
+The maximize keyword argument determines whether the action that maximizes or minimizes the probability is chosen.
+
+### Examples
+
+```jldoctest
+prob1 = IntervalProbabilities(;
+    lower = [
+        0.0 0.5
+        0.1 0.3
+        0.2 0.1
+    ],
+    upper = [
+        0.5 0.7
+        0.6 0.5
+        0.7 0.3
+    ],
+)
+
+prob2 = IntervalProbabilities(;
+    lower = [
+        0.1 0.2
+        0.2 0.3
+        0.3 0.4
+    ],
+    upper = [
+        0.6 0.6
+        0.5 0.5
+        0.4 0.4
+    ],
+)
+
+prob3 = IntervalProbabilities(;
+    lower = [0.0; 0.0; 1.0],
+    upper = [0.0; 0.0; 1.0]
+)
+
+transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
+initial_state = 1
+mdp = IntervalMarkovDecisionProcess(transition_probs, initial_state)
+
+terminal_states = [3]
+time_horizon = 10
+problem = Problem(mdp, FiniteTimeReachability(terminal_states, time_horizon))
+V, k, residual = value_iteration(problem; maximize = true, upper_bound = false)
+```
+
+"""
+function value_iteration(
     problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability};
     maximize = true,
     upper_bound = true,
@@ -216,7 +310,9 @@ function IMDPValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovDecis
     terminal = terminal_states(spec)
 
     prev = construct_value_function(gap(transition_prob(mdp)), num_states(mdp))
-    prev_transpose = transpose(prev)
+
+    # Reshape is guaranteed to share the same underlying memory while transpose is not.
+    prev_transpose = reshape(prev, 1, length(prev))
     cur = copy(prev)
 
     nonterminal_states, nonterminal_actions = construct_nonterminal(mdp, terminal)

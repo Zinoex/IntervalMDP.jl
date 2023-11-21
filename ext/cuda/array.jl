@@ -1,13 +1,3 @@
-function IMDP.compute_gap(lower::MR, upper::MR) where {R, MR <: CuSparseMatrixCSC{R}}
-    # lower = CuSparseMatrixCOO(lower)
-
-    # FIXME: This is an ugly, non-robust hack.
-    upper = SparseMatrixCSC(upper)
-    lower = SparseMatrixCSC(lower)
-    lower, gap = IMDP.compute_gap(lower, upper)
-    return adapt(CuArray{R}, lower), adapt(CuArray{R}, gap)
-end
-
 ### Vector of Vector
 struct CuVectorOfVector{Tv, Ti} <: AbstractVector{AbstractVector{Tv}}
     vecptr::CuVector{Ti}
@@ -56,8 +46,10 @@ function CuVectorOfVector(vecs::Vector{Vector{T}}) where {T}
     )
 end
 
-Adapt.adapt_storage(::CUDA.CuArrayAdaptor, xs::Vector{Vector{T}}) where {T <: Number} =
-    CuVectorOfVector(xs)
+Adapt.adapt_structure(
+    ::CUDA.CuArrayKernelAdaptor,
+    xs::Vector{Vector{T}},
+) where {T <: Number} = CuVectorOfVector(xs)
 
 # GPU to CPU
 function Vector(xs::CuVectorOfVector{T}) where {T}
@@ -71,7 +63,7 @@ function Vector(xs::CuVectorOfVector{T}) where {T}
     return vecs
 end
 
-Adapt.adapt_storage(::Type{Array}, xs::CuVectorOfVector) = Vector(xs)
+Adapt.adapt_structure(::Type{Array}, xs::CuVectorOfVector) = Vector(xs)
 
 # Indexing
 Base.getindex(xs::CuVectorOfVector, i::Ti) where {Ti} =
@@ -101,7 +93,7 @@ end
 maxlength(xs::CuDeviceVectorOfVector) = xs.maxlength
 Base.length(xs::CuDeviceVectorOfVector{Tv, Ti}) where {Tv, Ti} = length(xs.vecptr) - Ti(1)
 
-function Adapt.adapt_structure(to::CUDA.Adaptor, x::CuVectorOfVector)
+function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuVectorOfVector)
     return CuDeviceVectorOfVector(adapt(to, x.vecptr), adapt(to, x.val), maxlength(x))
 end
 
@@ -135,22 +127,32 @@ function Base.setindex!(xs::CuDeviceVectorInstance{Tv, Ti, A}, v, i) where {Tv, 
     return xs.parent[xs.offset + i - Ti(1)] = v
 end
 
-# This is type piracy - please port to CUDA when FixedSparseVector and FixedSparseCSC are stable.
-CUDA.CUSPARSE.CuSparseVector{T}(Vec::SparseArrays.FixedSparseVector) where {T} =
-    CuSparseVector(CuVector{Cint}(Vec.nzind), CuVector{T}(Vec.nzval), length(Vec))
-CUDA.CUSPARSE.CuSparseMatrixCSC{T}(Mat::SparseArrays.FixedSparseCSC) where {T} =
-    CuSparseMatrixCSC{T}(
-        CuVector{Cint}(Mat.colptr),
-        CuVector{Cint}(Mat.rowval),
-        CuVector{T}(Mat.nzval),
-        size(Mat),
+# This is type piracy - please port upstream to CUDA when FixedSparseCSC are stable.
+CUDA.CUSPARSE.CuSparseMatrixCSC{Tv, Ti}(M::SparseArrays.FixedSparseCSC) where {Tv, Ti} =
+    CuSparseMatrixCSC{Tv, Ti}(
+        CuVector{Ti}(M.colptr),
+        CuVector{Ti}(M.rowval),
+        CuVector{Tv}(M.nzval),
+        size(M),
     )
 
-Adapt.adapt_storage(::Type{CuArray}, xs::SparseArrays.FixedSparseVector) =
-    CuSparseVector(xs)
-Adapt.adapt_storage(::Type{CuArray}, xs::SparseArrays.FixedSparseCSC) =
-    CuSparseMatrixCSC(xs)
-Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseArrays.FixedSparseVector) where {T} =
-    CuSparseVector{T}(xs)
-Adapt.adapt_storage(::Type{CuArray{T}}, xs::SparseArrays.FixedSparseCSC) where {T} =
-    CuSparseMatrixCSC{T}(xs)
+CUDA.CUSPARSE.CuSparseMatrixCSC{Tv, Ti}(M::SparseMatrixCSC) where {Tv, Ti} =
+    CuSparseMatrixCSC{Tv, Ti}(
+        CuVector{Ti}(M.colptr),
+        CuVector{Ti}(M.rowval),
+        CuVector{Tv}(M.nzval),
+        size(M),
+    )
+
+Adapt.adapt_storage(
+    ::Type{IMDP.CuModelAdaptor{Tv, Ti}},
+    M::SparseArrays.FixedSparseCSC,
+) where {Tv, Ti} = CuSparseMatrixCSC{Tv, Ti}(M)
+
+Adapt.adapt_storage(
+    ::Type{IMDP.CuModelAdaptor{Tv, Ti}},
+    M::SparseMatrixCSC,
+) where {Tv, Ti} = CuSparseMatrixCSC{Tv, Ti}(M)
+
+Adapt.adapt_storage(::Type{IMDP.CuModelAdaptor{Tv, Ti}}, x::AbstractArray) where {Tv, Ti} =
+    adapt(CuArray{Tv}, x)

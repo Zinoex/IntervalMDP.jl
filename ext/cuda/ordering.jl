@@ -11,7 +11,7 @@ function CUDA.unsafe_free!(o::CuSparseOrdering)
     return
 end
 
-function Adapt.adapt_structure(to::CUDA.Adaptor, o::CuSparseOrdering)
+function Adapt.adapt_structure(to::CUDA.KernelAdaptor, o::CuSparseOrdering)
     return CuSparseDeviceOrdering(adapt(to, o.subsets), adapt(to, o.rowvals))
 end
 

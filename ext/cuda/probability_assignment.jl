@@ -3,9 +3,12 @@ function IMDP.probability_assignment!(
     p::CuSparseMatrixCSC{Tv, Ti},
     prob::IntervalProbabilities{Tv},
     ordering::CuSparseOrdering{Ti},
-    indices::CuVector{Ti},
+    indices,
 ) where {Tv, Ti}
     copyto!(nonzeros(p), nonzeros(lower(prob)))
+
+    # This will only convert/copy the indices if necessary.
+    indices = adapt(CuArray{Ti}, indices)
 
     # add_gap_scalar!(p, prob, ordering, indices)
     add_gap_vector!(p, prob, ordering, indices)
@@ -17,7 +20,7 @@ function add_gap_scalar!(
     p::CuSparseMatrixCSC{Tv, Ti},
     prob::IntervalProbabilities{Tv},
     ordering::CuSparseOrdering{Ti},
-    indices::CuVector{Ti},
+    indices,
 ) where {Tv, Ti}
     n = size(p, 2)
 
@@ -40,7 +43,7 @@ function add_gap_scalar_kernel!(
     gap::CuSparseDeviceMatrixCSC{Tv, Ti, A},
     sum_lower::CuDeviceVector{Tv, A},
     ordering::CuSparseDeviceOrdering{Ti, A},
-    indices::CuDeviceVector{Ti, A},
+    indices,
 ) where {Tv, Ti, A}
     k = (blockIdx().x - Ti(1)) * blockDim().x + threadIdx().x
 
@@ -76,7 +79,7 @@ function add_gap_vector!(
     p::CuSparseMatrixCSC{Tv, Ti},
     prob::IntervalProbabilities{Tv},
     ordering::CuSparseOrdering{Ti},
-    indices::CuVector{Ti},
+    indices,
 ) where {Tv, Ti}
     n = size(p, 2) * 32
 
@@ -99,7 +102,7 @@ function add_gap_vector_kernel!(
     gap::CuSparseDeviceMatrixCSC{Tv, Ti, A},
     sum_lower::CuDeviceVector{Tv, A},
     ordering::CuSparseDeviceOrdering{Ti, A},
-    indices::CuDeviceVector{Ti, A},
+    indices,
 ) where {Tv, Ti, A}
     assume(warpsize() == 32)
 

@@ -23,6 +23,16 @@ function read_transition_line(line)
     return src, act, dest, lower, upper
 end
 
+"""
+    read_bmdp_tool_file(path)
+
+Read a bmdp-tool transition probability file and return an `IntervalMarkovDecisionProcess` and a list of terminal states.
+From the file format, it is not clear if the desired reachability verification if the reachability specification is finite
+or infinite horizon, the satisfaction_mode is pessimistic or optimistic, or if the actions should minimize or maximize
+the probability of reachability.
+
+See [Data storage formats](@ref) for more information on the file format.
+"""
 function read_bmdp_tool_file(path)
     open(path, "r") do io
         number_states = read_intline(readline(io))
@@ -87,10 +97,35 @@ function read_bmdp_tool_file(path)
     end
 end
 
-function write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states)
+"""
+    write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, spec::AbstractReachability)
+
+Write a bmdp-tool transition probability file for the given an IMDP and a reachability specification.
+The file will not contain enough information to specify a reachability specification. The remaining
+parameters are rather command line arguments.
+
+See [Data storage formats](@ref) for more information on the file format.
+"""
+write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, spec::AbstractReachability) =
+    write_bmdp_tool_file(path, mdp, reach(spec))
+
+"""
+    write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{T})
+
+Write a bmdp-tool transition probability file for the given an IMDP and a list of terminal states.
+The file will not contain enough information to specify a reachability specification. The remaining
+parameters are rather command line arguments.
+
+See [Data storage formats](@ref) for more information on the file format.
+"""
+function write_bmdp_tool_file(
+    path,
+    mdp::IntervalMarkovDecisionProcess,
+    terminal_states::Vector{T},
+) where {T <: Integer}
     prob = transition_prob(mdp)
     l, g = lower(prob), gap(prob)
-    num_columns = num_src(prob)
+    num_columns = num_source(prob)
     sptr = IMDP.stateptr(mdp)
     act = actions(mdp)
 
@@ -134,7 +169,7 @@ end
 function write_bmdp_tool_file(path, mdp::IntervalMarkovChain, terminal_states)
     prob = transition_prob(mdp)
     l, g = lower(prob), gap(prob)
-    num_columns = num_src(prob)
+    num_columns = num_source(prob)
 
     number_states = num_states(mdp)
     number_terminal = length(terminal_states)

@@ -1,5 +1,38 @@
+"""
+    ominmax(prob, V; max = true)
+
+Compute probability assignment within the interval probabilities `prob` that upper or lower bounds
+the expectation of the value function `V` via O-maximization [1]. Whether the expectation is
+maximized or minimized is determined by the `max` keyword argument. That is, if `max == true`
+then an upper bound is computed and if `max == false` then a lower bound is computed.
+
+### Examples
+```jldoctest
+prob = IntervalProbabilities(;
+    lower = sparse_hcat(
+        SparseVector(15, [4, 10], [0.1, 0.2]),
+        SparseVector(15, [5, 6, 7], [0.5, 0.3, 0.1]),
+    ),
+    upper = sparse_hcat(
+        SparseVector(15, [1, 4, 10], [0.5, 0.6, 0.7]),
+        SparseVector(15, [5, 6, 7], [0.7, 0.5, 0.3]),
+    ),
+)
+
+V = collect(1:15)
+p = ominmax(prob, V; max = true)
+```
+
+!!! note
+    This function will construct a workspace object for the ordering and an output vector.
+    For a hot-loop, it is more efficient to use `ominmax!` and pass in pre-allocated objects.
+    See [`construct_ordering`](@ref) for how to pre-allocate the workspace.
+
+[1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
+
+"""
 function ominmax(prob, V; max = true)
-    ordering = construct_ordering(gap(prob))
+    ordering = construct_ordering(prob)
     return ominmax!(ordering, prob, V; max = max)
 end
 
@@ -8,6 +41,41 @@ function ominmax!(ordering::AbstractStateOrdering, prob, V; max = true)
     return ominmax!(ordering, p, prob, V; max = max)
 end
 
+"""
+    ominmax!(ordering, p, prob, V; max = true)
+
+Compute in-place the probability assignment within the interval probabilities `prob` that upper or
+lower bounds the expectation of the value function `V` via O-maximization [1]. Whether the
+expectation is maximized or minimized is determined by the `max` keyword argument. That is, if
+`max == true` then an upper bound is computed and if `max == false` then a lower bound is computed.
+
+The output is constructed in the input vector `p` and returned. The ordering workspace object
+is also modified.
+
+### Examples
+
+```jldoctest
+prob = IntervalProbabilities(;
+    lower = sparse_hcat(
+        SparseVector(15, [4, 10], [0.1, 0.2]),
+        SparseVector(15, [5, 6, 7], [0.5, 0.3, 0.1]),
+    ),
+    upper = sparse_hcat(
+        SparseVector(15, [1, 4, 10], [0.5, 0.6, 0.7]),
+        SparseVector(15, [5, 6, 7], [0.7, 0.5, 0.3]),
+    ),
+)
+
+V = collect(1:15)
+ordering = construct_ordering(prob)
+p = deepcopy(gap(p))
+
+p = ominmax!(ordering, p, prob, V; max = true)
+```
+
+[1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
+
+"""
 function ominmax!(ordering::AbstractStateOrdering, p, prob, V; max = true)
     sort_states!(ordering, V; max = max)
     probability_assignment!(p, prob, ordering)
@@ -15,8 +83,20 @@ function ominmax!(ordering::AbstractStateOrdering, p, prob, V; max = true)
     return p
 end
 
+"""
+    partial_ominmax(prob, V, indices; max = true)
+
+Perform O-maximization on a subset of source states or source/action pairs according to
+`indices`. This corresponds to the columns in `prob`. See [`ominmax`](@ref) for more details
+on what O-maximization is.
+
+!!! note
+    This function will construct a workspace object for the ordering and an output vector.
+    For a hot-loop, it is more efficient to use `ominmax!` and pass in pre-allocated objects.
+    See [`construct_ordering`](@ref) for how to pre-allocate the workspace.
+"""
 function partial_ominmax(prob, V, indices; max = true)
-    ordering = construct_ordering(gap(prob))
+    ordering = construct_ordering(prob)
     return partial_ominmax!(ordering, prob, V, indices; max = max)
 end
 
@@ -25,6 +105,13 @@ function partial_ominmax!(ordering::AbstractStateOrdering, prob, V, indices; max
     return partial_ominmax!(ordering, p, prob, V, indices; max = max)
 end
 
+"""
+    partial_ominmax!(ordering, p, prob, V, indices; max = true)
+
+Perform O-maximization in-place on a subset of source states or source/action pairs according to
+`indices`. This corresponds to the columns in `prob`. See [`ominmax`](@ref) for more details
+on what O-maximization is.
+"""
 function partial_ominmax!(ordering::AbstractStateOrdering, p, prob, V, indices; max = true)
     sort_states!(ordering, V; max = max)
     probability_assignment!(p, prob, ordering, indices)

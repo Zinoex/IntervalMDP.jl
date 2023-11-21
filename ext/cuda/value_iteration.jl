@@ -32,13 +32,32 @@ function IMDP.construct_nonterminal(
     return nonterminal, nonterminal_actions
 end
 
+function IMDP.step_imc!(
+    ordering,
+    p,
+    prob::IntervalProbabilities{R, VR, MR},
+    value_function::IMDP.IMCValueFunction;
+    upper_bound,
+    discount,
+) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}}
+    indices = value_function.nonterminal_indices
+    partial_ominmax!(ordering, p, prob, value_function.prev, indices; max = upper_bound)
+
+    # For CUDA, we have to create a result array as reshape gives a copy.
+    res = transpose(value_function.prev) * p
+    res .*= discount
+    value_function.cur[indices] .= view(res, 1, indices)
+
+    return value_function
+end
+
 function IMDP.step_imdp!(
     ordering,
     p,
     prob::IntervalProbabilities{R, VR, MR},
     stateptr,
     maxactions,
-    value_function;
+    value_function::IMDP.IMDPValueFunction;
     maximize,
     upper_bound,
     discount,
@@ -52,12 +71,14 @@ function IMDP.step_imdp!(
         max = upper_bound,
     )
 
-    p = view(p, :, value_function.nonterminal_actions)
-    mul!(value_function.nonterminal, value_function.prev_transpose, p)
-    rmul!(value_function.nonterminal, discount)
+    res = transpose(value_function.prev) * p
+    res .*= discount
 
-    V_per_state =
-        CuVectorOfVector(stateptr, view(value_function.nonterminal, :), maxactions)
+    V_per_state = CuVectorOfVector(
+        stateptr,
+        view(res, 1, value_function.nonterminal_actions),
+        maxactions,
+    )
 
     blocks = length(state_indices)
     threads = 32

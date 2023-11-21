@@ -1,4 +1,15 @@
 
+"""
+    write_prism_file(path_without_file_ending, mdp_or_mc, terminal_states)
+
+Write the files required by PRISM explicit engine/format to 
+- `path_without_file_ending.sta` (states),
+- `path_without_file_ending.lab` (labels),
+- `path_without_file_ending.tra` (transitions), and
+- `path_without_file_ending.pctl` (properties).
+
+See [Data storage formats](@ref) for more information on the file format.
+"""
 function write_prism_file(path_without_file_ending, mdp_or_mc, terminal_states)
     write_prism_states_file(path_without_file_ending, mdp_or_mc)
     write_prism_labels_file(path_without_file_ending, mdp_or_mc, terminal_states)
@@ -44,7 +55,7 @@ function write_prism_transitions_file(
     prob = transition_prob(mdp)
     l, g = lower(prob), gap(prob)
 
-    num_columns = num_src(prob)
+    num_columns = num_source(prob)
     num_transitions = nnz(l)
 
     sptr = IMDP.stateptr(mdp)
@@ -88,7 +99,7 @@ function write_prism_transitions_file(path_without_file_ending, mc::IntervalMark
     prob = transition_prob(mc)
     l, g = lower(prob), gap(prob)
 
-    num_columns = num_src(prob)
+    num_columns = num_source(prob)
     num_transitions = nnz(l)
 
     open(path_without_file_ending * ".tra", "w") do io
@@ -113,7 +124,13 @@ function write_prism_transitions_file(path_without_file_ending, mc::IntervalMark
 end
 
 function write_prism_props_file(path_without_file_ending)
+    # TODO: Support finite and infinite horizon reachability
+    # and reach-avoid. Should be easy to do by taking the spec
+    # as an argument and appropriately labeling states.
+
     line = "Pmaxmin=? [ F \"goal\" ]"
 
     return write(path_without_file_ending * ".pctl", line)
 end
+
+# TODO: Read PRISM
