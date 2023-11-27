@@ -1,4 +1,10 @@
+"""
+    control_synthesis(problem::Problem{<:IntervalMarkovDecisionProcess}; maximize = true)
 
+Compute the optimal control policy for the given problem (system + specification). If the specification is finite time, then the policy is time-varying,
+with the returned policy being in step order (i.e., the first element of the returned vector is the policy for the first time step).
+If the specification is infinite time, then the policy is stationary and only a single vector of length `num_states(system)` is returned.
+"""
 function control_synthesis(problem::Problem{<:IntervalMarkovDecisionProcess}; maximize = true)
     spec = specification(problem)
     return control_synthesis(problem, Val(isfinitetime(spec)); maximize = maximize)

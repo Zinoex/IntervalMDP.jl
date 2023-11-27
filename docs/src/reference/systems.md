@@ -19,6 +19,7 @@ transition_prob(mdp::IntervalMarkovDecisionProcess)
 num_states(mdp::IntervalMarkovDecisionProcess)
 initial_state(mdp::IntervalMarkovDecisionProcess)
 actions(mdp::IntervalMarkovDecisionProcess)
+num_choices(mdp::IntervalMarkovDecisionProcess)
 ```
 
 ## Probability representation
