@@ -143,6 +143,7 @@ function value_iteration(
     ordering = construct_ordering(p)
 
     value_function = IMCValueFunction(problem)
+    initialize!(value_function, 1:num_states(mdp), reward(spec))
 
     step_imc!(
         ordering,
@@ -451,6 +452,7 @@ function value_iteration(
     ordering = construct_ordering(p)
 
     value_function = IMDPValueFunction(problem)
+    initialize!(value_function, 1:num_states(mdp), reward(spec))
 
     step_imdp!(
         ordering,
