@@ -38,7 +38,7 @@ function IMDP.step_imc!(
     prob::IntervalProbabilities{R, VR, MR},
     value_function::IMDP.IMCValueFunction;
     upper_bound,
-    discount,
+    discount = 1.0,
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}}
     indices = value_function.nonterminal_indices
     partial_ominmax!(ordering, p, prob, value_function.prev, indices; max = upper_bound)
@@ -60,7 +60,7 @@ function IMDP.step_imdp!(
     value_function::IMDP.IMDPValueFunction;
     maximize,
     upper_bound,
-    discount,
+    discount = 1.0,
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}}
     partial_ominmax!(
         ordering,

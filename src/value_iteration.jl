@@ -17,8 +17,7 @@ termination_criteria(spec::Union{InfiniteTimeReachability, InfiniteTimeReachAvoi
 
 """
     value_iteration(problem::Problem{<:IntervalMarkovChain, <:AbstractReachability};
-        upper_bound = true,
-        discount = 1.0
+        upper_bound = true
     )
 
 Solve reachability and reach-avoid problems using value iteration for interval Markov chain. If `upper_bound == true`
@@ -51,10 +50,8 @@ V, k, residual = value_iteration(problem; upper_bound = false)
 """
 function value_iteration(
     problem::Problem{<:IntervalMarkovChain, <:AbstractReachability};
-    upper_bound = true,
-    discount = 1.0,
+    upper_bound = true
 )
-    # TODO: The discount factor probably ought to be a parameter on a reward min/max specification.
     mc = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(problem)
@@ -75,7 +72,6 @@ function value_iteration(
         prob,
         value_function;
         upper_bound = upper_bound,
-        discount = discount,
     )
     k = 1
 
@@ -87,7 +83,6 @@ function value_iteration(
             prob,
             value_function;
             upper_bound = upper_bound,
-            discount = discount,
         )
 
         k += 1
@@ -115,7 +110,7 @@ struct IMCValueFunction
     nonterminal_indices::Any
 end
 
-function IMCValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovChain}}
+function IMCValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovChain, <:AbstractReachability}}
     mc = system(problem)
     spec = specification(problem)
     terminal = terminal_states(spec)
@@ -160,7 +155,7 @@ function step_imc!(
     prob::IntervalProbabilities,
     value_function::IMCValueFunction;
     upper_bound,
-    discount,
+    discount = 1.0,
 )
     indices = value_function.nonterminal_indices
     partial_ominmax!(ordering, p, prob, value_function.prev, indices; max = upper_bound)
@@ -176,8 +171,7 @@ end
 """
     value_iteration(problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability};
         maximize = true,
-        upper_bound = true,
-        discount = 1.0
+        upper_bound = true
     )
 
 Solve reachability and reach-avoid problems using value iteration for interval Markov decision processes. If `upper_bound == true`
@@ -233,7 +227,6 @@ function value_iteration(
     problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability};
     maximize = true,
     upper_bound = true,
-    discount = 1.0,
 )
     mdp = system(problem)
     spec = specification(problem)
@@ -260,7 +253,6 @@ function value_iteration(
         value_function;
         maximize = maximize,
         upper_bound = upper_bound,
-        discount = discount,
     )
     k = 1
 
@@ -275,7 +267,6 @@ function value_iteration(
             value_function;
             maximize = maximize,
             upper_bound = upper_bound,
-            discount = discount,
         )
 
         k += 1
@@ -304,7 +295,7 @@ struct IMDPValueFunction
     nonterminal_actions::Any
 end
 
-function IMDPValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovDecisionProcess}}
+function IMDPValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability}}
     mdp = system(problem)
     spec = specification(problem)
     terminal = terminal_states(spec)
@@ -337,7 +328,7 @@ function step_imdp!(
     value_function;
     maximize,
     upper_bound,
-    discount,
+    discount = 1.0,
 )
     partial_ominmax!(
         ordering,
@@ -355,8 +346,8 @@ function step_imdp!(
     rmul!(value_function.nonterminal, discount)
 
     @inbounds for j in value_function.nonterminal_states
-        s1 = stateptr[j]
-        s2 = stateptr[j + 1]
+        @inbounds s1 = stateptr[j]
+        @inbounds s2 = stateptr[j + 1]
 
         @inbounds value_function.cur[j] =
             optfun(view(value_function.nonterminal, s1:(s2 - 1)))
