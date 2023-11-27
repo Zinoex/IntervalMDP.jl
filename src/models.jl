@@ -276,6 +276,13 @@ Return a vector of actions (choices in PRISM terminology).
 actions(s::IntervalMarkovDecisionProcess) = s.action_vals
 
 """
+    num_choices(s::IntervalMarkovDecisionProcess)
+
+Return the sum of the number of actions available in each state ``\\sum_{j} \\mathrm{num_actions}(s_j)``.
+"""
+num_choices(s::IntervalMarkovDecisionProcess) = length(actions(s))
+
+"""
     initial_state(s::IntervalMarkovDecisionProcess)
 
 Return the initial state.
