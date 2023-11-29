@@ -34,6 +34,8 @@ IMDP.eps(spec::InfiniteTimeReachability)
 ## Reach-avoid
 
 ```@docs
+AbstractReachAvoid
+
 FiniteTimeReachAvoid
 terminal_states(spec::FiniteTimeReachAvoid)
 reach(spec::FiniteTimeReachAvoid)

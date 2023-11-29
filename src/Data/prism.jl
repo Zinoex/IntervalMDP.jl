@@ -1,6 +1,6 @@
 
 """
-    write_prism_file(path_without_file_ending, mdp_or_mc, terminal_states)
+    write_prism_file(path_without_file_ending, problem)
 
 Write the files required by PRISM explicit engine/format to 
 - `path_without_file_ending.sta` (states),
@@ -8,13 +8,19 @@ Write the files required by PRISM explicit engine/format to
 - `path_without_file_ending.tra` (transitions), and
 - `path_without_file_ending.pctl` (properties).
 
+If the specification is a reward optimization problem, then a state rewards file .srew is also written.
+
 See [Data storage formats](@ref) for more information on the file format.
 """
-function write_prism_file(path_without_file_ending, mdp_or_mc, terminal_states)
+write_prism_file(path_without_file_ending, problem; maximize = true) = 
+    write_prism_file(path_without_file_ending, system(problem), specification(problem), satisfaction_mode(problem); maximize)
+
+function write_prism_file(path_without_file_ending, mdp_or_mc, spec, satisfaction_mode; maximize = true)
     write_prism_states_file(path_without_file_ending, mdp_or_mc)
-    write_prism_labels_file(path_without_file_ending, mdp_or_mc, terminal_states)
     write_prism_transitions_file(path_without_file_ending, mdp_or_mc)
-    return write_prism_props_file(path_without_file_ending)
+    write_prism_spec(path_without_file_ending, mdp_or_mc, spec, satisfaction_mode, maximize)
+
+    return nothing
 end
 
 function write_prism_states_file(path_without_file_ending, mdp_or_mc)
@@ -28,22 +34,7 @@ function write_prism_states_file(path_without_file_ending, mdp_or_mc)
         lines[i + 1] = "$state:($state)"
     end
 
-    return write(path_without_file_ending * ".sta", join(lines, "\n"))
-end
-
-function write_prism_labels_file(path_without_file_ending, mdp_or_mc, terminal_states)
-    istate = initial_state(mdp_or_mc) - 1
-
-    lines = Vector{String}(undef, 2 + length(terminal_states))
-    lines[1] = "0=\"init\" 1=\"deadlock\" 2=\"goal\""
-    lines[2] = "$istate: 0"
-
-    for (i, tstate) in enumerate(terminal_states)
-        state = tstate - 1  # PRISM uses 0-based indexing
-        lines[i + 2] = "$state: 2"
-    end
-
-    return write(path_without_file_ending * ".lab", join(lines, "\n"))
+    write(path_without_file_ending * ".sta", join(lines, "\n"))
 end
 
 function write_prism_transitions_file(
@@ -123,14 +114,99 @@ function write_prism_transitions_file(path_without_file_ending, mc::IntervalMark
     end
 end
 
-function write_prism_props_file(path_without_file_ending)
-    # TODO: Support finite and infinite horizon reachability
-    # and reach-avoid. Should be easy to do by taking the spec
-    # as an argument and appropriately labeling states.
+function write_prism_spec(path_without_file_ending, mdp_or_mc, spec, satisfaction_mode, maximize)
+    write_prism_labels_file(path_without_file_ending, mdp_or_mc, spec)
+    write_prism_rewards_file(path_without_file_ending, spec)
+    write_prism_props_file(path_without_file_ending, spec, satisfaction_mode, maximize)
+end
 
-    line = "Pmaxmin=? [ F \"goal\" ]"
+function write_prism_labels_file(path_without_file_ending, mdp_or_mc, spec::AbstractReachability)
+    istate = initial_state(mdp_or_mc) - 1
+    target_states = reach(spec)
 
-    return write(path_without_file_ending * ".pctl", line)
+    open(path_without_file_ending * ".lab", "w") do io
+        println(io, "0=\"init\" 1=\"deadlock\" 2=\"reach\"")
+        println(io, "$istate: 0")
+
+        for tstate in target_states
+            state = tstate - 1  # PRISM uses 0-based indexing
+            println(io, "$state: 2")
+        end
+    end
+end
+
+function write_prism_labels_file(path_without_file_ending, mdp_or_mc, spec::AbstractReachAvoid)
+    istate = initial_state(mdp_or_mc) - 1
+    target_states = reach(spec)
+    avoid_states = avoid(spec)
+
+    open(path_without_file_ending * ".lab", "w") do io
+        println(io, "0=\"init\" 1=\"deadlock\" 2=\"reach\" 3=\"avoid\"")
+        println(io, "$istate: 0")
+
+        for tstate in target_states
+            state = tstate - 1  # PRISM uses 0-based indexing
+            println(io, "$state: 2")
+        end
+
+        for astate in avoid_states
+            state = astate - 1  # PRISM uses 0-based indexing
+            println(io, "$state: 3")
+        end
+    end
+end
+
+function write_prism_rewards_file(path_without_file_ending, spec::AbstractReachability)
+    # Do nothing - no rewards for reachability
+end
+
+function write_prism_rewards_file(path_without_file_ending, spec::AbstractReward)
+    # TODO: Implement
+end
+
+function write_prism_props_file(path_without_file_ending, spec::FiniteTimeReachability, satisfaction_mode, maximize)
+    strategy = maximize ? "max" : "min"
+    adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
+
+    line = "P$strategy$adversary=? [ F<=$(time_horizon(spec)) \"reach\" ]"
+
+    write(path_without_file_ending * ".pctl", line)
+end
+
+function write_prism_props_file(path_without_file_ending, spec::InfiniteTimeReachability, satisfaction_mode, maximize)
+    strategy = maximize ? "max" : "min"
+    adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
+
+    line = "P$strategy$adversary=? [ F \"reach\" ]"
+
+    write(path_without_file_ending * ".pctl", line)
+end
+
+function write_prism_props_file(path_without_file_ending, spec::FiniteTimeReachAvoid, satisfaction_mode, maximize)
+    strategy = maximize ? "max" : "min"
+    adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
+
+    line = "P$strategy$adversary=? [ !\"avoid\" U<=$(time_horizon(spec)) \"reach\" ]"
+
+    write(path_without_file_ending * ".pctl", line)
+end
+
+function write_prism_props_file(path_without_file_ending, spec::InfiniteTimeReachAvoid, satisfaction_mode, maximize)
+    strategy = maximize ? "max" : "min"
+    adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
+
+    line = "P$strategy$adversary=? [ !\"avoid\" U \"reach\" ]"
+
+    write(path_without_file_ending * ".pctl", line)
+end
+
+function write_prism_props_file(path_without_file_ending, spec::FiniteTimeReward, satisfaction_mode, maximize)
+    strategy = maximize ? "max" : "min"
+    adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
+
+    line = "P$strategy$adversary=? [ !\"avoid\" U \"reach\" ]"
+
+    write(path_without_file_ending * ".pctl", line)
 end
 
 # TODO: Read PRISM

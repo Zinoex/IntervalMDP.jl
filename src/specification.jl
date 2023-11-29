@@ -165,13 +165,20 @@ terminal states differ.
 reach(spec::InfiniteTimeReachability) = spec.terminal_states
 
 """
+    AbstractReachAvoid
+
+A specialization of reachability that includes a set of states to avoid.
+"""
+abstract type AbstractReachAvoid <: AbstractReachability end
+
+"""
     FiniteTimeReachAvoid{T <: Integer}
 
 Finite time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
 That is, if ``T`` is the set of target states, ``A`` is the set of states to avoid, and ``H`` is the time horizon, compute
 ``ℙ(∃k = 0…H, s_k ∈ T and ∀k' = 0…k, s_k' ∉ A)``.
 """
-struct FiniteTimeReachAvoid{T <: Integer} <: AbstractReachability
+struct FiniteTimeReachAvoid{T <: Integer} <: AbstractReachAvoid
     reach::Vector{T}
     avoid::Vector{T}
     time_horizon::Any
@@ -223,7 +230,7 @@ avoid(spec::FiniteTimeReachAvoid) = spec.avoid
 
 `InfiniteTimeReachAvoid` is similar to [`FiniteTimeReachAvoid`](@ref) except that the time horizon is infinite.
 """
-struct InfiniteTimeReachAvoid{R <: Real, T <: Integer} <: AbstractReachability
+struct InfiniteTimeReachAvoid{R <: Real, T <: Integer} <: AbstractReachAvoid
     reach::Vector{T}
     avoid::Vector{T}
     eps::R
