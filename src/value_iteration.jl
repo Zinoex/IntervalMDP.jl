@@ -1,24 +1,24 @@
 abstract type TerminationCriteria end
-termination_criteria(problem::Problem) = termination_criteria(specification(problem))
+function termination_criteria(problem::Problem)
+    spec = specification(problem)
+    return termination_criteria(spec, Val(isfinitetime(spec)))
+end
 
 struct FixedIterationsCriteria{T <: Integer} <: TerminationCriteria
     n::T
 end
 (f::FixedIterationsCriteria)(V, k, u) = k >= f.n
-termination_criteria(spec::Union{FiniteTimeReachability, FiniteTimeReachAvoid}) =
-    FixedIterationsCriteria(time_horizon(spec))
+termination_criteria(spec, finitetime::Val{true}) = FixedIterationsCriteria(time_horizon(spec))
 
 struct CovergenceCriteria{T <: AbstractFloat} <: TerminationCriteria
     tol::T
 end
 (f::CovergenceCriteria)(V, k, u) = maximum(u) < f.tol
-termination_criteria(spec::Union{InfiniteTimeReachability, InfiniteTimeReachAvoid}) =
-    CovergenceCriteria(eps(spec))
+termination_criteria(spec, finitetime::Val{false}) = CovergenceCriteria(eps(spec))
 
 """
     value_iteration(problem::Problem{<:IntervalMarkovChain, <:AbstractReachability};
-        upper_bound = true,
-        discount = 1.0
+        upper_bound = true
     )
 
 Solve reachability and reach-avoid problems using value iteration for interval Markov chain. If `upper_bound == true`
@@ -51,10 +51,8 @@ V, k, residual = value_iteration(problem; upper_bound = false)
 """
 function value_iteration(
     problem::Problem{<:IntervalMarkovChain, <:AbstractReachability};
-    upper_bound = true,
-    discount = 1.0,
+    upper_bound = true
 )
-    # TODO: The discount factor probably ought to be a parameter on a reward min/max specification.
     mc = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(problem)
@@ -75,7 +73,6 @@ function value_iteration(
         prob,
         value_function;
         upper_bound = upper_bound,
-        discount = discount,
     )
     k = 1
 
@@ -87,8 +84,91 @@ function value_iteration(
             prob,
             value_function;
             upper_bound = upper_bound,
-            discount = discount,
         )
+
+        k += 1
+    end
+
+    # lastdiff! uses prev to store the latest difference
+    # and it is already computed from the condition in the loop
+    return value_function.cur, k, value_function.prev
+end
+
+"""
+    value_iteration(problem::Problem{<:IntervalMarkovChain, <:AbstractReward};
+        upper_bound = true
+    )
+
+Solve minimize/maximize reward using value iteration for interval Markov chain. If `upper_bound == true`
+then the optimistic reward is computed. Otherwise, the pessimistic reward is computed.
+
+### Examples
+
+```jldoctest
+prob = IntervalProbabilities(;
+    lower = [
+        0.0 0.5 0.0
+        0.1 0.3 0.0
+        0.2 0.1 1.0
+    ],
+    upper = [
+        0.5 0.7 0.0
+        0.6 0.5 0.0
+        0.7 0.3 1.0
+    ],
+)
+
+mc = IntervalMarkovChain(prob, 1)
+
+reward = [2.0, 1.0, 0.0]
+discount = 0.9
+time_horizon = 10
+problem = Problem(mc, FiniteTimeReward(reward, discount, time_horizon))
+V, k, residual = value_iteration(problem; upper_bound = false)
+```
+
+"""
+function value_iteration(
+    problem::Problem{<:IntervalMarkovChain, <:AbstractReward};
+    upper_bound = true
+)
+    mc = system(problem)
+    spec = specification(problem)
+    term_criteria = termination_criteria(problem)
+
+    prob = transition_prob(mc)
+
+    # It is more efficient to use allocate first and reuse across iterations
+    p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
+    ordering = construct_ordering(p)
+
+    value_function = IMCValueFunction(problem)
+    initialize!(value_function, 1:num_states(mc), reward(spec))
+
+    step_imc!(
+        ordering,
+        p,
+        prob,
+        value_function;
+        upper_bound = upper_bound,
+        discount = discount(spec),
+    )
+    # Add immediate reward
+    value_function.cur += reward(spec)
+    k = 1
+
+    while !term_criteria(value_function.cur, k, lastdiff!(value_function))
+        nextiteration!(value_function)
+        step_imc!(
+            ordering,
+            p,
+            prob,
+            value_function;
+            upper_bound = upper_bound,
+            discount = discount(spec),
+        )
+        # Add immediate reward
+        value_function.cur += reward(spec)
 
         k += 1
     end
@@ -107,7 +187,7 @@ function construct_nonterminal(mc::IntervalMarkovChain, terminal)
     return setdiff(collect(1:num_states(mc)), terminal)
 end
 
-struct IMCValueFunction
+mutable struct IMCValueFunction
     prev::Any
     prev_transpose::Any
     cur::Any
@@ -115,7 +195,7 @@ struct IMCValueFunction
     nonterminal_indices::Any
 end
 
-function IMCValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovChain}}
+function IMCValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovChain, <:AbstractReachability}}
     mc = system(problem)
     spec = specification(problem)
     terminal = terminal_states(spec)
@@ -129,6 +209,22 @@ function IMCValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovChain}
     nonterminal_indices = construct_nonterminal(mc, terminal)
     # Important to use view to avoid copying
     nonterminal = reshape(view(cur, nonterminal_indices), 1, length(nonterminal_indices))
+
+    return IMCValueFunction(prev, prev_transpose, cur, nonterminal, nonterminal_indices)
+end
+
+function IMCValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovChain, <:AbstractReward}}
+    mc = system(problem)
+    spec = specification(problem)
+    prev = construct_value_function(gap(transition_prob(mc)), num_states(mc))
+
+    # Reshape is guaranteed to share the same underlying memory while transpose is not.
+    prev_transpose = reshape(prev, 1, length(prev))
+    cur = copy(prev)
+
+    nonterminal_indices = 1:num_states(mc)
+    # Important to use view to avoid copying
+    nonterminal = reshape(cur, 1, num_states(mc))
 
     return IMCValueFunction(prev, prev_transpose, cur, nonterminal, nonterminal_indices)
 end
@@ -160,7 +256,7 @@ function step_imc!(
     prob::IntervalProbabilities,
     value_function::IMCValueFunction;
     upper_bound,
-    discount,
+    discount = 1.0,
 )
     indices = value_function.nonterminal_indices
     partial_ominmax!(ordering, p, prob, value_function.prev, indices; max = upper_bound)
@@ -176,8 +272,7 @@ end
 """
     value_iteration(problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability};
         maximize = true,
-        upper_bound = true,
-        discount = 1.0
+        upper_bound = true
     )
 
 Solve reachability and reach-avoid problems using value iteration for interval Markov decision processes. If `upper_bound == true`
@@ -233,7 +328,6 @@ function value_iteration(
     problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability};
     maximize = true,
     upper_bound = true,
-    discount = 1.0,
 )
     mdp = system(problem)
     spec = specification(problem)
@@ -260,7 +354,6 @@ function value_iteration(
         value_function;
         maximize = maximize,
         upper_bound = upper_bound,
-        discount = discount,
     )
     k = 1
 
@@ -275,8 +368,122 @@ function value_iteration(
             value_function;
             maximize = maximize,
             upper_bound = upper_bound,
-            discount = discount,
         )
+
+        k += 1
+    end
+
+    # lastdiff! uses prev to store the latest difference
+    # and it is already computed from the condition in the loop
+    return value_function.cur, k, value_function.prev
+end
+
+"""
+    value_iteration(problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReward};
+        maximize = true,
+        upper_bound = true
+    )
+
+Solve minimize/maximize reward using value iteration for interval Markov decision process. If `upper_bound == true`
+then the optimistic reward is computed. Otherwise, the pessimistic reward is computed.
+The maximize keyword argument determines whether the action that maximizes or minimizes the reward is chosen.
+
+### Examples
+
+```jldoctest
+prob1 = IntervalProbabilities(;
+    lower = [
+        0.0 0.5
+        0.1 0.3
+        0.2 0.1
+    ],
+    upper = [
+        0.5 0.7
+        0.6 0.5
+        0.7 0.3
+    ],
+)
+
+prob2 = IntervalProbabilities(;
+    lower = [
+        0.1 0.2
+        0.2 0.3
+        0.3 0.4
+    ],
+    upper = [
+        0.6 0.6
+        0.5 0.5
+        0.4 0.4
+    ],
+)
+
+prob3 = IntervalProbabilities(;
+    lower = [0.0; 0.0; 1.0],
+    upper = [0.0; 0.0; 1.0]
+)
+
+transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
+initial_state = 1
+mdp = IntervalMarkovDecisionProcess(transition_probs, initial_state)
+
+reward = [2.0, 1.0, 0.0]
+discount = 0.9
+time_horizon = 10
+problem = Problem(mdp, FiniteTimeReward(reward, discount, time_horizon))
+V, k, residual = value_iteration(problem; maximize = true, upper_bound = false)
+```
+
+"""
+function value_iteration(
+    problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReward};
+    maximize = true,
+    upper_bound = true,
+)
+    mdp = system(problem)
+    spec = specification(problem)
+    term_criteria = termination_criteria(problem)
+
+    prob = transition_prob(mdp)
+    sptr = stateptr(mdp)
+    maxactions = maximum(diff(sptr))
+
+    # It is more efficient to use allocate first and reuse across iterations
+    p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
+    ordering = construct_ordering(p)
+
+    value_function = IMDPValueFunction(problem)
+    initialize!(value_function, 1:num_states(mdp), reward(spec))
+
+    step_imdp!(
+        ordering,
+        p,
+        prob,
+        sptr,
+        maxactions,
+        value_function;
+        maximize = maximize,
+        upper_bound = upper_bound,
+        discount = discount(spec),
+    )
+    # Add immediate reward
+    value_function.cur += reward(spec)
+    k = 1
+
+    while !term_criteria(value_function.cur, k, lastdiff!(value_function))
+        nextiteration!(value_function)
+        step_imdp!(
+            ordering,
+            p,
+            prob,
+            sptr,
+            maxactions,
+            value_function;
+            maximize = maximize,
+            upper_bound = upper_bound,
+            discount = discount(spec),
+        )
+        # Add immediate reward
+        value_function.cur += reward(spec)
 
         k += 1
     end
@@ -295,7 +502,7 @@ function construct_nonterminal(mdp::IntervalMarkovDecisionProcess, terminal)
     return nonterminal, nonterminal_actions
 end
 
-struct IMDPValueFunction
+mutable struct IMDPValueFunction
     prev::Any
     prev_transpose::Any
     cur::Any
@@ -304,7 +511,7 @@ struct IMDPValueFunction
     nonterminal_actions::Any
 end
 
-function IMDPValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovDecisionProcess}}
+function IMDPValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability}}
     mdp = system(problem)
     spec = specification(problem)
     terminal = terminal_states(spec)
@@ -328,6 +535,29 @@ function IMDPValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovDecis
     )
 end
 
+function IMDPValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovDecisionProcess, <:AbstractReward}}
+    mdp = system(problem)
+    spec = specification(problem)
+
+    prev = construct_value_function(gap(transition_prob(mdp)), num_states(mdp))
+
+    # Reshape is guaranteed to share the same underlying memory while transpose is not.
+    prev_transpose = reshape(prev, 1, length(prev))
+    cur = copy(prev)
+
+    nonterminal_states, nonterminal_actions = 1:num_states(mdp), 1:num_choices(mdp)
+    nonterminal = similar(cur, 1, num_choices(mdp))
+
+    return IMDPValueFunction(
+        prev,
+        prev_transpose,
+        cur,
+        nonterminal,
+        nonterminal_states,
+        nonterminal_actions,
+    )
+end
+
 function step_imdp!(
     ordering,
     p,
@@ -337,7 +567,7 @@ function step_imdp!(
     value_function;
     maximize,
     upper_bound,
-    discount,
+    discount = 1.0,
 )
     partial_ominmax!(
         ordering,
@@ -355,8 +585,8 @@ function step_imdp!(
     rmul!(value_function.nonterminal, discount)
 
     @inbounds for j in value_function.nonterminal_states
-        s1 = stateptr[j]
-        s2 = stateptr[j + 1]
+        @inbounds s1 = stateptr[j]
+        @inbounds s2 = stateptr[j + 1]
 
         @inbounds value_function.cur[j] =
             optfun(view(value_function.nonterminal, s1:(s2 - 1)))

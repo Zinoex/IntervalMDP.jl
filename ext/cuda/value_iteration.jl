@@ -38,7 +38,7 @@ function IMDP.step_imc!(
     prob::IntervalProbabilities{R, VR, MR},
     value_function::IMDP.IMCValueFunction;
     upper_bound,
-    discount,
+    discount = 1.0,
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}}
     indices = value_function.nonterminal_indices
     partial_ominmax!(ordering, p, prob, value_function.prev, indices; max = upper_bound)
@@ -60,7 +60,7 @@ function IMDP.step_imdp!(
     value_function::IMDP.IMDPValueFunction;
     maximize,
     upper_bound,
-    discount,
+    discount = 1.0,
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}}
     partial_ominmax!(
         ordering,
@@ -71,21 +71,21 @@ function IMDP.step_imdp!(
         max = upper_bound,
     )
 
-    res = transpose(value_function.prev) * p
+    res = vec(transpose(value_function.prev) * p)
     res .*= discount
 
     V_per_state = CuVectorOfVector(
         stateptr,
-        view(res, 1, value_function.nonterminal_actions),
+        res[value_function.nonterminal_actions],
         maxactions,
     )
 
-    blocks = length(state_indices)
+    blocks = length(value_function.nonterminal_states)
     threads = 32
     @cuda blocks = blocks threads = threads extremum_vov_kernel!(
         value_function.cur,
         V_per_state,
-        state_indices,
+        value_function.nonterminal_states,
         discount,
         maximize,
     )
@@ -95,8 +95,8 @@ end
 
 function extremum_vov_kernel!(
     V::CuDeviceVector{Tv, A},
-    V_per_state,
-    state_indices::CuDeviceVector{Ti, A},
+    V_per_state::CuDeviceVectorOfVector{Tv, Ti, A},
+    state_indices,
     discount,
     maximize,
 ) where {Tv, Ti, A}

@@ -1,4 +1,4 @@
-## Specification types
+### Specification types
 
 """
     Specification
@@ -7,7 +7,7 @@ Super type for all system specficiations
 """
 abstract type Specification end
 
-# Temporal logics
+## Temporal logics
 
 """
     AbstractTemporalLogic
@@ -29,6 +29,14 @@ struct LTLFormula <: AbstractTemporalLogic
 end
 
 """
+    isfinitetime(spec::LTLFormula)
+
+Return `false` for an LTL formula. LTL formulas are not finite time specifications.
+"""
+isfinitetime(spec::LTLFormula) = false
+
+
+"""
     LTLfFormula
 
 An LTL formula over finite traces [1]. See [`LTLFormula`](@ref) for the structure of LTL formulas.
@@ -45,6 +53,13 @@ struct LTLfFormula{T <: Integer} <: AbstractTemporalLogic
     formula::String
     time_horizon::T
 end
+
+"""
+    isfinitetime(spec::LTLfFormula)
+
+Return `true` for an LTLf formula. LTLf formulas are specifically over finite traces.
+"""
+isfinitetime(spec::LTLfFormula) = true
 
 """
     time_horizon(spec::LTLfFormula)
@@ -66,7 +81,7 @@ struct PCTLFormula <: AbstractTemporalLogic
     formula::String
 end
 
-# Reachability
+## Reachability
 
 """
     AbstractReachability
@@ -76,25 +91,27 @@ Super type for all reachability-like specifications.
 abstract type AbstractReachability <: Specification end
 
 """
-    FiniteTimeReachability{T <: Integer}
+    FiniteTimeReachability{T <: Integer, VT <: AbstractVector{T}}
 
 Finite time reachability specified by a set of target/terminal states and a time horizon. 
 That is, if ``T`` is the set of target states and ``H`` is the time horizon, compute
 ``ℙ(∃k = 0…H, s_k ∈ T)``.
 """
-struct FiniteTimeReachability{T <: Integer} <: AbstractReachability
-    terminal_states::Vector{T}
+struct FiniteTimeReachability{T <: Integer, VT <: AbstractVector{T}} <: AbstractReachability
+    terminal_states::VT
     time_horizon::Any
 end
 
-function FiniteTimeReachability(
-    terminal_states::Vector{T},
-    num_states::T,
-    time_horizon,
-) where {T <: Integer}
-    checkterminal!(terminal_states, num_states)
-    return FiniteTimeReachability(terminal_states, time_horizon)
+function checkspecification!(spec::FiniteTimeReachability, system::IntervalMarkovProcess)
+    checkterminal!(terminal_states(spec), num_states(system))
 end
+
+"""
+    isfinitetime(spec::FiniteTimeReachability)
+
+Return `true` for FiniteTimeReachability.
+"""
+isfinitetime(spec::FiniteTimeReachability) = true
 
 """
     time_horizon(spec::FiniteTimeReachability)
@@ -121,24 +138,26 @@ terminal states differ.
 reach(spec::FiniteTimeReachability) = spec.terminal_states
 
 """
-    InfiniteTimeReachability{R <: Real, T <: Integer} 
+    InfiniteTimeReachability{R <: Real, T <: Integer, VT <: AbstractVector{T}} 
  
 `InfiniteTimeReachability` is similar to [`FiniteTimeReachability`](@ref) except that the time horizon is infinite.
 The convergence threshold is that the largest value of the most recent Bellman residual is less than `eps`.
 """
-struct InfiniteTimeReachability{R <: Real, T <: Integer} <: AbstractReachability
-    terminal_states::Vector{T}
+struct InfiniteTimeReachability{R <: Real, T <: Integer, VT <: AbstractVector{T}} <: AbstractReachability
+    terminal_states::VT
     eps::R
 end
 
-function InfiniteTimeReachability(
-    terminal_states::Vector{T},
-    num_states::T,
-    eps::R,
-) where {R <: Real, T <: Integer}
-    checkterminal!(terminal_states, num_states)
-    return InfiniteTimeReachability(terminal_states, eps)
+function checkspecification!(spec::InfiniteTimeReachability, system::IntervalMarkovProcess)
+    checkterminal!(terminal_states(spec), num_states(system))
 end
+
+"""
+    isfinitetime(spec::InfiniteTimeReachability)
+
+Return `false` for InfiniteTimeReachability.
+"""
+isfinitetime(spec::InfiniteTimeReachability) = false
 
 """
     eps(spec::InfiniteTimeReachability)
@@ -164,6 +183,8 @@ terminal states differ.
 """
 reach(spec::InfiniteTimeReachability) = spec.terminal_states
 
+## Reach-avoid
+
 """
     AbstractReachAvoid
 
@@ -172,29 +193,29 @@ A specialization of reachability that includes a set of states to avoid.
 abstract type AbstractReachAvoid <: AbstractReachability end
 
 """
-    FiniteTimeReachAvoid{T <: Integer}
+    FiniteTimeReachAvoid{T <: Integer, VT <: AbstractVector{T}}
 
 Finite time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
 That is, if ``T`` is the set of target states, ``A`` is the set of states to avoid, and ``H`` is the time horizon, compute
 ``ℙ(∃k = 0…H, s_k ∈ T and ∀k' = 0…k, s_k' ∉ A)``.
 """
-struct FiniteTimeReachAvoid{T <: Integer} <: AbstractReachAvoid
-    reach::Vector{T}
-    avoid::Vector{T}
+struct FiniteTimeReachAvoid{T <: Integer, VT <: AbstractVector{T}} <: AbstractReachAvoid
+    reach::VT
+    avoid::VT
     time_horizon::Any
 end
 
-function FiniteTimeReachAvoid(
-    reach::Vector{T},
-    avoid::Vector{T},
-    num_states::T,
-    time_horizon,
-) where {T <: Integer}
-    checkterminal!(reach, num_states)
-    checkterminal!(avoid, num_states)
-    checkdisjoint!(reach, avoid)
-    return FiniteTimeReachAvoid(reach, avoid, time_horizon)
+function checkspecification!(spec::FiniteTimeReachAvoid, system::IntervalMarkovProcess)
+    checkterminal!(terminal_states(spec), num_states(system))
+    checkdisjoint!(reach(spec), avoid(spec))
 end
+
+"""
+    isfinitetime(spec::FiniteTimeReachAvoid)
+
+Return `true` for FiniteTimeReachAvoid.
+"""
+isfinitetime(spec::FiniteTimeReachAvoid) = true
 
 """
     time_horizon(spec::FiniteTimeReachAvoid)
@@ -226,27 +247,27 @@ Return the set of states to avoid.
 avoid(spec::FiniteTimeReachAvoid) = spec.avoid
 
 """
-    InfiniteTimeReachAvoid{R <: Real, T <: Integer}
+    InfiniteTimeReachAvoid{R <: Real, T <: Integer, VT <: AbstractVector{T}}
 
 `InfiniteTimeReachAvoid` is similar to [`FiniteTimeReachAvoid`](@ref) except that the time horizon is infinite.
 """
-struct InfiniteTimeReachAvoid{R <: Real, T <: Integer} <: AbstractReachAvoid
-    reach::Vector{T}
-    avoid::Vector{T}
+struct InfiniteTimeReachAvoid{R <: Real, T <: Integer, VT <: AbstractVector{T}} <: AbstractReachAvoid
+    reach::VT
+    avoid::VT
     eps::R
 end
 
-function InfiniteTimeReachAvoid(
-    reach::Vector{T},
-    avoid::Vector{T},
-    num_states::T,
-    eps::R,
-) where {R <: Real, T <: Integer}
-    checkterminal!(reach, num_states)
-    checkterminal!(avoid, num_states)
-    checkdisjoint!(reach, avoid)
-    return InfiniteTimeReachAvoid(reach, avoid, eps)
+function checkspecification!(spec::InfiniteTimeReachAvoid, system::IntervalMarkovProcess)
+    checkterminal!(terminal_states(spec), num_states(system))
+    checkdisjoint!(reach(spec), avoid(spec))
 end
+
+"""
+    isfinitetime(spec::InfiniteTimeReachAvoid)
+
+Return `false` for InfiniteTimeReachAvoid.
+"""
+isfinitetime(spec::InfiniteTimeReachAvoid) = false
 
 """
     eps(spec::InfiniteTimeReachAvoid)
@@ -291,7 +312,105 @@ function checkdisjoint!(reach, avoid)
     end
 end
 
-# Problem
+## Reward
+"""
+    AbstractReward{R <: Real}
+
+Super type for all reward specifications.
+"""
+abstract type AbstractReward{R <: Real} <: Specification end
+
+"""
+    FiniteTimeReward{R <: Real, T <: Integer, VR <: AbstractVector{R}}
+
+`FiniteTimeReward` is a specification of rewards assigned to each state at each iteration
+and a discount factor. The time horizon is finite, so the discount factor is optional and 
+the optimal policy will be time-varying.
+"""
+struct FiniteTimeReward{R <: Real, T <: Integer, VR <: AbstractVector{R}} <: AbstractReward{R}
+    reward::VR
+    discount::R
+    time_horizon::T
+end
+
+function checkspecification!(spec::FiniteTimeReward, system::IntervalMarkovProcess)
+    @assert length(reward(spec)) == num_states(system)
+end
+
+"""
+    isfinitetime(spec::FiniteTimeReward)
+
+Return `true` for FiniteTimeReward.
+"""
+isfinitetime(spec::FiniteTimeReward) = true
+
+"""
+    reward(spec::FiniteTimeReward)
+
+Return the reward vector of a finite time reward optimization.
+"""
+reward(spec::FiniteTimeReward) = spec.reward
+
+"""
+    discount(spec::FiniteTimeReward)
+
+Return the discount factor of a finite time reward optimization.
+"""
+discount(spec::FiniteTimeReward) = spec.discount
+
+"""
+    time_horizon(spec::FiniteTimeReward)
+
+Return the time horizon of a finite time reward optimization.
+"""
+time_horizon(spec::FiniteTimeReward) = spec.time_horizon
+
+"""
+    InfiniteTimeReward{R <: Real, VR <: AbstractVector{R}}
+
+`InfiniteTimeReward` is a specification of rewards assigned to each state at each iteration
+and a discount factor for guaranteed convergence. The time horizon is infinite, so the optimal
+policy will be stationary.
+"""
+struct InfiniteTimeReward{R <: Real, VR <: AbstractVector{R}} <: AbstractReward{R}
+    reward::VR
+    discount::R
+    eps::R
+end
+
+function checkspecification!(spec::InfiniteTimeReward, system::IntervalMarkovProcess)
+    @assert length(reward(spec)) == num_states(system)
+end
+
+"""
+    isfinitetime(spec::InfiniteTimeReward)
+
+Return `false` for InfiniteTimeReward.
+"""
+isfinitetime(spec::InfiniteTimeReward) = false
+
+"""
+    reward(spec::FiniteTimeReward)
+
+Return the reward vector of a finite time reward optimization.
+"""
+reward(spec::InfiniteTimeReward) = spec.reward
+
+"""
+    discount(spec::FiniteTimeReward)
+
+Return the discount factor of a finite time reward optimization.
+"""
+discount(spec::InfiniteTimeReward) = spec.discount
+
+"""
+    eps(spec::InfiniteTimeReward)
+
+Return the convergence threshold of an infinite time reward optimization.
+"""
+eps(spec::InfiniteTimeReward) = spec.eps
+
+## Problem
 
 """
     SatisfactionMode
@@ -319,6 +438,11 @@ struct Problem{S <: IntervalMarkovProcess, F <: Specification}
     system::S
     spec::F
     mode::SatisfactionMode
+
+    function Problem(system::S, spec::F, mode::SatisfactionMode) where {S <: IntervalMarkovProcess, F <: Specification}
+        checkspecification!(spec, system)
+        return new{S, F}(system, spec, mode)
+    end
 end
 
 function Problem(system::S, spec::F) where {S <: IntervalMarkovProcess, F <: Specification}
@@ -346,4 +470,3 @@ Return the satisfaction mode of a problem.
 """
 satisfaction_mode(prob::Problem) = prob.mode
 
-# TODO: Add `checkspecification!(spec, system)` to ensure that the specification is valid for the system.

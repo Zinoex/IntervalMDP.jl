@@ -8,13 +8,17 @@ export lower, upper, gap, sum_lower, num_source, num_target
 
 include("models.jl")
 export IntervalMarkovProcess, IntervalMarkovChain, IntervalMarkovDecisionProcess
-export transition_prob, num_states, initial_state, actions
+export transition_prob, num_states, initial_state, actions, num_choices
 
 include("specification.jl")
 export Specification, LTLFormula, LTLfFormula, PCTLFormula
+
 export AbstractReachability, FiniteTimeReachability, InfiniteTimeReachability,
 export AbstractReachAvoid, FiniteTimeReachAvoid, InfiniteTimeReachAvoid
-export reach, avoid, terminal_states, time_horizon, eps
+export AbstractReward, FiniteTimeReward, InfiniteTimeReward
+
+export reach, avoid, terminal_states, time_horizon, eps, reward, discount
+
 export Problem, SatisfactionMode, Pessimistic, Optimistic
 export system, specification, satisfaction_mode
 
@@ -33,6 +37,9 @@ export TerminationCriteria, FixedIterationsCriteria, CovergenceCriteria
 
 include("certify.jl")
 export satisfaction_probability
+
+include("synthesis.jl")
+export control_synthesis
 
 include("cuda.jl")
 

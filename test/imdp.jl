@@ -40,7 +40,7 @@ initial_state = Int32(1)
 mdp = IntervalMarkovDecisionProcess(transition_probs, initial_state)
 
 # Finite time reachability
-problem = Problem(mdp, FiniteTimeReachability([3], 3, 10))
+problem = Problem(mdp, FiniteTimeReachability([3], 10))
 V_fixed_it1, k, _ = value_iteration(problem; maximize = true, upper_bound = false)
 @test k == 10
 
@@ -56,12 +56,12 @@ V_fixed_it2, k, _ = value_iteration(problem; maximize = false, upper_bound = tru
 @test all(V_fixed_it1 .<= V_fixed_it2)
 
 # Infinite time reachability
-problem = Problem(mdp, InfiniteTimeReachability([3], 3, 1e-6))
+problem = Problem(mdp, InfiniteTimeReachability([3], 1e-6))
 V_conv, _, u = value_iteration(problem; maximize = true, upper_bound = false)
 @test maximum(u) <= 1e-6
 
 # Finite time reach avoid
-problem = Problem(mdp, FiniteTimeReachAvoid([3], [2], 3, 10))
+problem = Problem(mdp, FiniteTimeReachAvoid([3], [2], 10))
 V_fixed_it1, k, _ = value_iteration(problem; maximize = true, upper_bound = false)
 @test k == 10
 
@@ -77,6 +77,27 @@ V_fixed_it2, k, _ = value_iteration(problem; maximize = false, upper_bound = tru
 @test all(V_fixed_it1 .<= V_fixed_it2)
 
 # Infinite time reach avoid
-problem = Problem(mdp, InfiniteTimeReachAvoid([3], [2], 3, 1e-6))
+problem = Problem(mdp, InfiniteTimeReachAvoid([3], [2], 1e-6))
 V_conv, _, u = value_iteration(problem; maximize = true, upper_bound = false)
 @test maximum(u) <= 1e-6
+
+# Finite time reward
+problem = Problem(mdp, FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10))
+V_fixed_it1, k, _ = value_iteration(problem; maximize = true, upper_bound = false)
+@test k == 10
+
+V_fixed_it2, k, _ = value_iteration(problem; maximize = true, upper_bound = true)
+@test k == 10
+@test all(V_fixed_it1 .<= V_fixed_it2)
+
+V_fixed_it1, k, _ = value_iteration(problem; maximize = false, upper_bound = false)
+@test k == 10
+
+V_fixed_it2, k, _ = value_iteration(problem; maximize = false, upper_bound = true)
+@test k == 10
+@test all(V_fixed_it1 .<= V_fixed_it2)
+
+# Infinite time reward
+# problem = Problem(mdp, InfiniteTimeReward([2.0, 1.0, 0.0], 0.9, 1e-6))
+# V_conv, _, u = value_iteration(problem; maximize = true, upper_bound = false)
+# @test maximum(u) <= 1e-6

@@ -3,7 +3,7 @@ using Random, StatsBase
 using IMDP, SparseArrays, CUDA
 
 @testset "IMDP.jl" begin
-    test_files = ["ominmax.jl", "partial.jl", "vi.jl", "imdp.jl"]
+    test_files = ["ominmax.jl", "partial.jl", "vi.jl", "imdp.jl", "synthesis.jl"]
     for f in test_files
         @testset "$f" begin
             include(f)
