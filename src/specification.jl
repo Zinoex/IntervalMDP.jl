@@ -1,25 +1,25 @@
-### Specification types
+### Property types
 
 """
-    Specification
+    Property
 
-Super type for all system specficiations
+Super type for all system Property
 """
-abstract type Specification end
+abstract type Property end
 
 ## Temporal logics
 
 """
     AbstractTemporalLogic
 
-Super type for temporal logic specifications
+Super type for temporal logic property
 """
-abstract type AbstractTemporalLogic <: Specification end
+abstract type AbstractTemporalLogic <: Property end
 
 """
     LTLFormula
 
-Linear Temporal Logic (LTL) specifications (first-order logic + next and until operators) [1].
+Linear Temporal Logic (LTL) property (first-order logic + next and until operators) [1].
 Let ``ϕ`` denote the formula and ``M`` denote an interval Markov process. Then compute ``M ⊧ ϕ``.
 
 [1] Vardi, M.Y. (1996). An automata-theoretic approach to linear temporal logic. In: Moller, F., Birtwistle, G. (eds) Logics for Concurrency. Lecture Notes in Computer Science, vol 1043. Springer, Berlin, Heidelberg.
@@ -29,11 +29,11 @@ struct LTLFormula <: AbstractTemporalLogic
 end
 
 """
-    isfinitetime(spec::LTLFormula)
+    isfinitetime(prop::LTLFormula)
 
-Return `false` for an LTL formula. LTL formulas are not finite time specifications.
+Return `false` for an LTL formula. LTL formulas are not finite time property.
 """
-isfinitetime(spec::LTLFormula) = false
+isfinitetime(prop::LTLFormula) = false
 
 
 """
@@ -59,14 +59,14 @@ end
 
 Return `true` for an LTLf formula. LTLf formulas are specifically over finite traces.
 """
-isfinitetime(spec::LTLfFormula) = true
+isfinitetime(prop::LTLfFormula) = true
 
 """
     time_horizon(spec::LTLfFormula)
 
 Return the time horizon of an LTLf formula.
 """
-time_horizon(spec::LTLfFormula) = spec.time_horizon
+time_horizon(prop::LTLfFormula) = prop.time_horizon
 
 """
     PCTLFormula
@@ -86,9 +86,9 @@ end
 """
     AbstractReachability
 
-Super type for all reachability-like specifications.
+Super type for all reachability-like property.
 """
-abstract type AbstractReachability <: Specification end
+abstract type AbstractReachability <: Property end
 
 """
     FiniteTimeReachability{T <: Integer, VT <: AbstractVector{T}}
@@ -102,40 +102,40 @@ struct FiniteTimeReachability{T <: Integer, VT <: AbstractVector{T}} <: Abstract
     time_horizon::Any
 end
 
-function checkspecification!(spec::FiniteTimeReachability, system::IntervalMarkovProcess)
-    checkterminal!(terminal_states(spec), num_states(system))
+function checkproperty!(prop::FiniteTimeReachability, system::IntervalMarkovProcess)
+    checkterminal!(terminal_states(prop), num_states(system))
 end
 
 """
-    isfinitetime(spec::FiniteTimeReachability)
+    isfinitetime(prop::FiniteTimeReachability)
 
 Return `true` for FiniteTimeReachability.
 """
-isfinitetime(spec::FiniteTimeReachability) = true
+isfinitetime(prop::FiniteTimeReachability) = true
 
 """
-    time_horizon(spec::FiniteTimeReachability)
+    time_horizon(prop::FiniteTimeReachability)
 
-Return the time horizon of a finite time reachability specification.
+Return the time horizon of a finite time reachability property.
 """
-time_horizon(spec::FiniteTimeReachability) = spec.time_horizon
-
-"""
-    terminal_states(spec::FiniteTimeReachability)
-
-Return the set of terminal states of a finite time reachability specification.
-"""
-terminal_states(spec::FiniteTimeReachability) = spec.terminal_states
+time_horizon(prop::FiniteTimeReachability) = prop.time_horizon
 
 """
     terminal_states(spec::FiniteTimeReachability)
 
-Return the set of states with which to compute reachbility for a finite time reachability specification.
-This is equivalent for [`terminal_states(spec::FiniteTimeReachability)`](@ref) for a regular reachability
-property. See [`FiniteTimeReachAvoid`](@ref) for a more complex specification where the reachability and
+Return the set of terminal states of a finite time reachability property.
+"""
+terminal_states(prop::FiniteTimeReachability) = prop.terminal_states
+
+"""
+    terminal_states(prop::FiniteTimeReachability)
+
+Return the set of states with which to compute reachbility for a finite time reachability prop.
+This is equivalent for [`terminal_states(prop::FiniteTimeReachability)`](@ref) for a regular reachability
+property. See [`FiniteTimeReachAvoid`](@ref) for a more complex property where the reachability and
 terminal states differ.
 """
-reach(spec::FiniteTimeReachability) = spec.terminal_states
+reach(prop::FiniteTimeReachability) = prop.terminal_states
 
 """
     InfiniteTimeReachability{R <: Real, T <: Integer, VT <: AbstractVector{T}} 
@@ -148,47 +148,47 @@ struct InfiniteTimeReachability{R <: Real, T <: Integer, VT <: AbstractVector{T}
     eps::R
 end
 
-function checkspecification!(spec::InfiniteTimeReachability, system::IntervalMarkovProcess)
-    checkterminal!(terminal_states(spec), num_states(system))
+function checkproperty!(prop::InfiniteTimeReachability, system::IntervalMarkovProcess)
+    checkterminal!(terminal_states(prop), num_states(system))
 end
 
 """
-    isfinitetime(spec::InfiniteTimeReachability)
+    isfinitetime(prop::InfiniteTimeReachability)
 
 Return `false` for InfiniteTimeReachability.
 """
-isfinitetime(spec::InfiniteTimeReachability) = false
+isfinitetime(prop::InfiniteTimeReachability) = false
 
 """
-    eps(spec::InfiniteTimeReachability)
+    eps(prop::InfiniteTimeReachability)
 
-Return the convergence threshold of an infinite time reachability specification.
+Return the convergence threshold of an infinite time reachability property.
 """
-eps(spec::InfiniteTimeReachability) = spec.eps
-
-"""
-    terminal_states(spec::InfiniteTimeReachability)
-
-Return the set of terminal states of an infinite time reachability specification.
-"""
-terminal_states(spec::InfiniteTimeReachability) = spec.terminal_states
+eps(prop::InfiniteTimeReachability) = prop.eps
 
 """
-    reach(spec::InfiniteTimeReachability)
+    terminal_states(prop::InfiniteTimeReachability)
 
-Return the set of states with which to compute reachbility for a infinite time reachability specification.
-This is equivalent for [`terminal_states(spec::InfiniteTimeReachability)`](@ref) for a regular reachability
-property. See [`InfiniteTimeReachAvoid`](@ref) for a more complex specification where the reachability and
+Return the set of terminal states of an infinite time reachability property.
+"""
+terminal_states(prop::InfiniteTimeReachability) = prop.terminal_states
+
+"""
+    reach(prop::InfiniteTimeReachability)
+
+Return the set of states with which to compute reachbility for a infinite time reachability property.
+This is equivalent for [`terminal_states(prop::InfiniteTimeReachability)`](@ref) for a regular reachability
+property. See [`InfiniteTimeReachAvoid`](@ref) for a more complex property where the reachability and
 terminal states differ.
 """
-reach(spec::InfiniteTimeReachability) = spec.terminal_states
+reach(prop::InfiniteTimeReachability) = prop.terminal_states
 
 ## Reach-avoid
 
 """
     AbstractReachAvoid
 
-A specialization of reachability that includes a set of states to avoid.
+A property of reachability that includes a set of states to avoid.
 """
 abstract type AbstractReachAvoid <: AbstractReachability end
 
@@ -205,46 +205,46 @@ struct FiniteTimeReachAvoid{T <: Integer, VT <: AbstractVector{T}} <: AbstractRe
     time_horizon::Any
 end
 
-function checkspecification!(spec::FiniteTimeReachAvoid, system::IntervalMarkovProcess)
-    checkterminal!(terminal_states(spec), num_states(system))
-    checkdisjoint!(reach(spec), avoid(spec))
+function checkproperty!(prop::FiniteTimeReachAvoid, system::IntervalMarkovProcess)
+    checkterminal!(terminal_states(prop), num_states(system))
+    checkdisjoint!(reach(prop), avoid(spec))
 end
 
 """
-    isfinitetime(spec::FiniteTimeReachAvoid)
+    isfinitetime(prop::FiniteTimeReachAvoid)
 
 Return `true` for FiniteTimeReachAvoid.
 """
-isfinitetime(spec::FiniteTimeReachAvoid) = true
+isfinitetime(prop::FiniteTimeReachAvoid) = true
 
 """
-    time_horizon(spec::FiniteTimeReachAvoid)
+    time_horizon(prop::FiniteTimeReachAvoid)
 
-Return the time horizon of a finite time reach-avoid specification.
+Return the time horizon of a finite time reach-avoid property.
 """
-time_horizon(spec::FiniteTimeReachAvoid) = spec.time_horizon
+time_horizon(prop::FiniteTimeReachAvoid) = prop.time_horizon
 
 """
-    terminal_states(spec::FiniteTimeReachAvoid)
+    terminal_states(prop::FiniteTimeReachAvoid)
 
-Return the set of terminal states of a finite time reach-avoid specification.
+Return the set of terminal states of a finite time reach-avoid property.
 That is, the union of the reach and avoid sets.
 """
-terminal_states(spec::FiniteTimeReachAvoid) = [spec.reach; spec.avoid]
+terminal_states(prop::FiniteTimeReachAvoid) = [prop.reach; prop.avoid]
 
 """
-    reach(spec::FiniteTimeReachAvoid)
+    reach(prop::FiniteTimeReachAvoid)
 
 Return the set of target states.
 """
-reach(spec::FiniteTimeReachAvoid) = spec.reach
+reach(prop::FiniteTimeReachAvoid) = prop.reach
 
 """
-    avoid(spec::FiniteTimeReachAvoid)
+    avoid(prop::FiniteTimeReachAvoid)
 
 Return the set of states to avoid.
 """
-avoid(spec::FiniteTimeReachAvoid) = spec.avoid
+avoid(prop::FiniteTimeReachAvoid) = prop.avoid
 
 """
     InfiniteTimeReachAvoid{R <: Real, T <: Integer, VT <: AbstractVector{T}}
@@ -257,46 +257,46 @@ struct InfiniteTimeReachAvoid{R <: Real, T <: Integer, VT <: AbstractVector{T}} 
     eps::R
 end
 
-function checkspecification!(spec::InfiniteTimeReachAvoid, system::IntervalMarkovProcess)
-    checkterminal!(terminal_states(spec), num_states(system))
-    checkdisjoint!(reach(spec), avoid(spec))
+function checkproperty!(prop::InfiniteTimeReachAvoid, system::IntervalMarkovProcess)
+    checkterminal!(terminal_states(prop), num_states(system))
+    checkdisjoint!(reach(prop), avoid(prop))
 end
 
 """
-    isfinitetime(spec::InfiniteTimeReachAvoid)
+    isfinitetime(prop::InfiniteTimeReachAvoid)
 
 Return `false` for InfiniteTimeReachAvoid.
 """
-isfinitetime(spec::InfiniteTimeReachAvoid) = false
+isfinitetime(prop::InfiniteTimeReachAvoid) = false
 
 """
-    eps(spec::InfiniteTimeReachAvoid)
+    eps(prop::InfiniteTimeReachAvoid)
 
-Return the convergence threshold of an infinite time reach-avoid specification.
+Return the convergence threshold of an infinite time reach-avoid property.
 """
-eps(spec::InfiniteTimeReachAvoid) = spec.eps
+eps(prop::InfiniteTimeReachAvoid) = prop.eps
 
 """
-    terminal_states(spec::InfiniteTimeReachAvoid)
+    terminal_states(prop::InfiniteTimeReachAvoid)
 
-Return the set of terminal states of an infinite time reach-avoid specification.
+Return the set of terminal states of an infinite time reach-avoid property.
 That is, the union of the reach and avoid sets.
 """
-terminal_states(spec::InfiniteTimeReachAvoid) = [spec.reach; spec.avoid]
+terminal_states(prop::InfiniteTimeReachAvoid) = [prop.reach; prop.avoid]
 
 """
-    reach(spec::InfiniteTimeReachAvoid)
+    reach(prop::InfiniteTimeReachAvoid)
 
 Return the set of target states.
 """
-reach(spec::InfiniteTimeReachAvoid) = spec.reach
+reach(prop::InfiniteTimeReachAvoid) = prop.reach
 
 """
-    avoid(spec::InfiniteTimeReachAvoid)
+    avoid(prop::InfiniteTimeReachAvoid)
 
 Return the set of states to avoid.
 """
-avoid(spec::InfiniteTimeReachAvoid) = spec.avoid
+avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
 
 function checkterminal!(terminal_states, num_states)
     for j in terminal_states
@@ -318,12 +318,12 @@ end
 
 Super type for all reward specifications.
 """
-abstract type AbstractReward{R <: Real} <: Specification end
+abstract type AbstractReward{R <: Real} <: Property end
 
 """
     FiniteTimeReward{R <: Real, T <: Integer, VR <: AbstractVector{R}}
 
-`FiniteTimeReward` is a specification of rewards assigned to each state at each iteration
+`FiniteTimeReward` is a property of rewards assigned to each state at each iteration
 and a discount factor. The time horizon is finite, so the discount factor is optional and 
 the optimal policy will be time-varying.
 """
@@ -333,42 +333,42 @@ struct FiniteTimeReward{R <: Real, T <: Integer, VR <: AbstractVector{R}} <: Abs
     time_horizon::T
 end
 
-function checkspecification!(spec::FiniteTimeReward, system::IntervalMarkovProcess)
-    @assert length(reward(spec)) == num_states(system)
+function checkproperty!(prop::FiniteTimeReward, system::IntervalMarkovProcess)
+    @assert length(reward(prop)) == num_states(system)
 end
 
 """
-    isfinitetime(spec::FiniteTimeReward)
+    isfinitetime(prop::FiniteTimeReward)
 
 Return `true` for FiniteTimeReward.
 """
-isfinitetime(spec::FiniteTimeReward) = true
+isfinitetime(prop::FiniteTimeReward) = true
 
 """
-    reward(spec::FiniteTimeReward)
+    reward(prop::FiniteTimeReward)
 
 Return the reward vector of a finite time reward optimization.
 """
-reward(spec::FiniteTimeReward) = spec.reward
+reward(prop::FiniteTimeReward) = prop.reward
 
 """
-    discount(spec::FiniteTimeReward)
+    discount(prop::FiniteTimeReward)
 
 Return the discount factor of a finite time reward optimization.
 """
-discount(spec::FiniteTimeReward) = spec.discount
+discount(prop::FiniteTimeReward) = prop.discount
 
 """
-    time_horizon(spec::FiniteTimeReward)
+    time_horizon(prop::FiniteTimeReward)
 
 Return the time horizon of a finite time reward optimization.
 """
-time_horizon(spec::FiniteTimeReward) = spec.time_horizon
+time_horizon(prop::FiniteTimeReward) = prop.time_horizon
 
 """
     InfiniteTimeReward{R <: Real, VR <: AbstractVector{R}}
 
-`InfiniteTimeReward` is a specification of rewards assigned to each state at each iteration
+`InfiniteTimeReward` is a property of rewards assigned to each state at each iteration
 and a discount factor for guaranteed convergence. The time horizon is infinite, so the optimal
 policy will be stationary.
 """
@@ -378,44 +378,44 @@ struct InfiniteTimeReward{R <: Real, VR <: AbstractVector{R}} <: AbstractReward{
     eps::R
 end
 
-function checkspecification!(spec::InfiniteTimeReward, system::IntervalMarkovProcess)
-    @assert length(reward(spec)) == num_states(system)
+function checkproperty!(prop::InfiniteTimeReward, system::IntervalMarkovProcess)
+    @assert length(reward(prop)) == num_states(system)
 end
 
 """
-    isfinitetime(spec::InfiniteTimeReward)
+    isfinitetime(prop::InfiniteTimeReward)
 
 Return `false` for InfiniteTimeReward.
 """
-isfinitetime(spec::InfiniteTimeReward) = false
+isfinitetime(prop::InfiniteTimeReward) = false
 
 """
-    reward(spec::FiniteTimeReward)
+    reward(prop::FiniteTimeReward)
 
 Return the reward vector of a finite time reward optimization.
 """
-reward(spec::InfiniteTimeReward) = spec.reward
+reward(prop::InfiniteTimeReward) = prop.reward
 
 """
-    discount(spec::FiniteTimeReward)
+    discount(prop::FiniteTimeReward)
 
 Return the discount factor of a finite time reward optimization.
 """
-discount(spec::InfiniteTimeReward) = spec.discount
+discount(prop::InfiniteTimeReward) = prop.discount
 
 """
-    eps(spec::InfiniteTimeReward)
+    eps(prop::InfiniteTimeReward)
 
 Return the convergence threshold of an infinite time reward optimization.
 """
-eps(spec::InfiniteTimeReward) = spec.eps
+eps(prop::InfiniteTimeReward) = prop.eps
 
 ## Problem
 
 """
     SatisfactionMode
 
-When computing the satisfaction probability of a specification over an interval Markov process,
+When computing the satisfaction probability of a property over an interval Markov process,
 be it IMC or IMDP, the desired satisfaction probability to verify can either be `Optimistic` or
 `Pessimistic`. That is, upper and lower bounds on the satisfaction probability within
 the probability uncertainty.
@@ -423,32 +423,75 @@ the probability uncertainty.
 @enum SatisfactionMode Pessimistic Optimistic
 
 """
+    StrategyMode
+
+When computing the satisfaction probability of a property over an IMDP, the strategy
+can either maximize or minimize the satisfaction probability (wrt. the satisfaction mode).
+"""
+@enum StrategyMode Maximize minimize
+
+"""
+    Specification{F <: Property}
+
+A specfication is a property together with a satisfaction mode and a strategy mode. 
+The satisfaction mode is either `Optimistic` or `Pessimistic`. See [`SatisfactionMode`](@ref) for more details.
+The strategy  mode is either `Maxmize` or `Minimize`. See [`StrategyMode`](@ref) for more details.
+
+### Fields
+- `prop::F`: verification property (either temporal logic or reachability-like).
+- `satisfaction::SatisfactionMode`: satisfaction mode (either optimistic or pessimistic). Default is pessimistic.
+- `strategy::StrategyMode`: strategy mode (either maximize or minimize). Default is maximize.
+"""
+struct Specification{F <: Property}
+    prop::F
+    satisfaction::SatisfactionMode
+    strategy::StrategyMode
+end
+
+Specification(prop::Property) = Specification(prop, Pessimistic)
+Specification(prop::Property, satisfaction::SatisfactionMode) = Specification(prop, satisfaction, Maximize)
+
+function checkspecification!(spec::Specification, system)
+    checkproperty!(spec, system)
+end
+
+"""
+    system_property(spec::Specification)
+"""
+system_property(spec::Specfication) = spec.prop
+
+"""
+    satisfaction_mode(spec::Specfication)
+
+Return the satisfaction mode of a specification.
+"""
+satisfaction_mode(spec::Specfication) = spec.satisfaction
+
+"""
+    strategy_mode(spec::Specfication)
+
+Return the strategy mode of a specification.
+"""
+strategy_mode(spec::Specfication) = spec.strategy
+
+"""
     Problem{S <: IntervalMarkovProcess, F <: Specification}
 
-A problem is a tuple of an interval Markov process and a specification together with
-a satisfaction mode. The satisfaction mode is either `Optimistic` or `Pessimistic`.
-See [`SatisfactionMode`](@ref) for more details.
+A problem is a tuple of an interval Markov process and a specification.
 
 ### Fields
 - `system::S`: interval Markov process.
 - `spec::F`: specification (either temporal logic or reachability-like).
-- `mode::SatisfactionMode`: satisfaction mode (either optimistic or pessimistic). Default is pessimistic.
 """
 struct Problem{S <: IntervalMarkovProcess, F <: Specification}
     system::S
     spec::F
-    mode::SatisfactionMode
 
-    function Problem(system::S, spec::F, mode::SatisfactionMode) where {S <: IntervalMarkovProcess, F <: Specification}
+    function Problem(system::S, spec::F) where {S <: IntervalMarkovProcess, F <: Specification}
         checkspecification!(spec, system)
         return new{S, F}(system, spec, mode)
     end
 end
-
-function Problem(system::S, spec::F) where {S <: IntervalMarkovProcess, F <: Specification}
-    return Problem(system, spec, Pessimistic)  # Default to Pessimistic
-end
-
 """
     system(prob::Problem)
 
@@ -462,11 +505,4 @@ system(prob::Problem) = prob.system
 Return the specification of a problem.
 """
 specification(prob::Problem) = prob.spec
-
-"""
-    satisfaction_mode(prob::Problem)
-
-Return the satisfaction mode of a problem.
-"""
-satisfaction_mode(prob::Problem) = prob.mode
 
