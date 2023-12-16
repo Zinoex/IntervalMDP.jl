@@ -1,7 +1,16 @@
-# Specifications
+# Problem
 
 ```@docs
+Problem
+system
+specification
 Specification
+system_property
+Property
+satisfaction_mode
+SatisfactionMode
+strategy_mode
+StrategyMode
 ```
 
 ## Temporal logic
@@ -71,13 +80,4 @@ IMDP.isfinitetime(spec::InfiniteTimeReward)
 reward(spec::InfiniteTimeReward)
 discount(spec::InfiniteTimeReward)
 IMDP.eps(spec::InfiniteTimeReward)
-```
-
-## Problem
-```@docs
-SatisfactionMode
-Problem
-system
-specification
-satisfaction_mode
 ```
