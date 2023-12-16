@@ -7,6 +7,7 @@ CurrentModule = IMDP.Data
 ## PRISM
 ```@docs
 write_prism_file
+read_prism_file
 ```
 
 ## bmdp-tool
