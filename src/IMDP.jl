@@ -11,7 +11,7 @@ export IntervalMarkovProcess, IntervalMarkovChain, IntervalMarkovDecisionProcess
 export transition_prob, num_states, initial_state, actions, num_choices
 
 include("specification.jl")
-export Specification, LTLFormula, LTLfFormula, PCTLFormula
+export Property, LTLFormula, LTLfFormula, PCTLFormula
 
 export AbstractReachability, FiniteTimeReachability, InfiniteTimeReachability
 export AbstractReachAvoid, FiniteTimeReachAvoid, InfiniteTimeReachAvoid
@@ -19,8 +19,10 @@ export AbstractReward, FiniteTimeReward, InfiniteTimeReward
 
 export reach, avoid, terminal_states, time_horizon, eps, reward, discount
 
-export Problem, SatisfactionMode, Pessimistic, Optimistic
-export system, specification, satisfaction_mode
+export SatisfactionMode, Pessimistic, Optimistic
+export StrategyMode, Maximize, Minimize
+export Specfication, Problem
+export system, specification, system_property, satisfaction_mode, strategy_mode
 
 include("ordering.jl")
 export construct_ordering, sort_states!, perm
