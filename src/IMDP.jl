@@ -13,7 +13,7 @@ export transition_prob, num_states, initial_state, actions, num_choices
 include("specification.jl")
 export Specification, LTLFormula, LTLfFormula, PCTLFormula
 
-export AbstractReachability, FiniteTimeReachability, InfiniteTimeReachability,
+export AbstractReachability, FiniteTimeReachability, InfiniteTimeReachability
 export AbstractReachAvoid, FiniteTimeReachAvoid, InfiniteTimeReachAvoid
 export AbstractReward, FiniteTimeReward, InfiniteTimeReward
 

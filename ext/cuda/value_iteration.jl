@@ -74,11 +74,8 @@ function IMDP.step_imdp!(
     res = vec(transpose(value_function.prev) * p)
     res .*= discount
 
-    V_per_state = CuVectorOfVector(
-        stateptr,
-        res[value_function.nonterminal_actions],
-        maxactions,
-    )
+    V_per_state =
+        CuVectorOfVector(stateptr, res[value_function.nonterminal_actions], maxactions)
 
     blocks = length(value_function.nonterminal_states)
     threads = 32
