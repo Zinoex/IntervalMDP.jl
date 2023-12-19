@@ -1,20 +1,21 @@
 abstract type TerminationCriteria end
-function termination_criteria(problem::Problem)
-    spec = specification(problem)
-    return termination_criteria(spec, Val(isfinitetime(spec)))
+function termination_criteria(spec::Specification)
+    prop = system_property(spec)
+    return termination_criteria(prop, Val(isfinitetime(prop)))
 end
 
 struct FixedIterationsCriteria{T <: Integer} <: TerminationCriteria
     n::T
 end
 (f::FixedIterationsCriteria)(V, k, u) = k >= f.n
-termination_criteria(spec, finitetime::Val{true}) = FixedIterationsCriteria(time_horizon(spec))
+termination_criteria(prop, finitetime::Val{true}) =
+    FixedIterationsCriteria(time_horizon(prop))
 
 struct CovergenceCriteria{T <: AbstractFloat} <: TerminationCriteria
     tol::T
 end
 (f::CovergenceCriteria)(V, k, u) = maximum(u) < f.tol
-termination_criteria(spec, finitetime::Val{false}) = CovergenceCriteria(eps(spec))
+termination_criteria(prop, finitetime::Val{false}) = CovergenceCriteria(eps(prop))
 
 """
     value_iteration(problem::Problem{<:IntervalMarkovChain, Specification{<:AbstractReachability}})
@@ -49,13 +50,13 @@ V, k, residual = value_iteration(problem)
 
 """
 function value_iteration(
-    problem::Problem{<:IntervalMarkovChain, <:Specfication{<:AbstractReachability}}
-)
+    problem::Problem{M, S},
+) where {M <: IntervalMarkovChain, S <: Specification{<:AbstractReachability}}
     mc = system(problem)
     spec = specification(problem)
     prop = system_property(spec)
-    term_criteria = termination_criteria(problem)
-    upper_bound = satisfaction_mode(problem) == Optimistic
+    term_criteria = termination_criteria(spec)
+    upper_bound = satisfaction_mode(spec) == Optimistic
 
     prob = transition_prob(mc)
     target = reach(prop)
@@ -67,24 +68,12 @@ function value_iteration(
     value_function = IMCValueFunction(problem)
     initialize!(value_function, target, 1.0)
 
-    step_imc!(
-        ordering,
-        p,
-        prob,
-        value_function;
-        upper_bound = upper_bound,
-    )
+    step_imc!(ordering, p, prob, value_function; upper_bound = upper_bound)
     k = 1
 
     while !term_criteria(value_function.cur, k, lastdiff!(value_function))
         nextiteration!(value_function)
-        step_imc!(
-            ordering,
-            p,
-            prob,
-            value_function;
-            upper_bound = upper_bound,
-        )
+        step_imc!(ordering, p, prob, value_function; upper_bound = upper_bound)
 
         k += 1
     end
@@ -129,12 +118,12 @@ V, k, residual = value_iteration(problem)
 
 """
 function value_iteration(
-    problem::Problem{<:IntervalMarkovChain, <:Specification{<:AbstractReward}}
-)
+    problem::Problem{M, S},
+) where {M <: IntervalMarkovChain, S <: Specification{<:AbstractReward}}
     mc = system(problem)
     spec = specification(problem)
     prop = system_property(spec)
-    term_criteria = termination_criteria(problem)
+    term_criteria = termination_criteria(spec)
     upper_bound = satisfaction_mode(spec) == Optimistic
 
     prob = transition_prob(mc)
@@ -155,7 +144,7 @@ function value_iteration(
         discount = discount(prop),
     )
     # Add immediate reward
-    value_function.cur += reward(spec)
+    value_function.cur += reward(prop)
     k = 1
 
     while !term_criteria(value_function.cur, k, lastdiff!(value_function))
@@ -196,9 +185,11 @@ mutable struct IMCValueFunction
     nonterminal_indices::Any
 end
 
-function IMCValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovChain, <:AbstractReachability}}
+function IMCValueFunction(
+    problem::Problem{M, S},
+) where {M <: IntervalMarkovChain, S <: Specification{<:AbstractReachability}}
     mc = system(problem)
-    spec = specfication(problem)
+    spec = specification(problem)
     prop = system_property(spec)
     terminal = terminal_states(prop)
 
@@ -215,7 +206,9 @@ function IMCValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovChain,
     return IMCValueFunction(prev, prev_transpose, cur, nonterminal, nonterminal_indices)
 end
 
-function IMCValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovChain, <:AbstractReward}}
+function IMCValueFunction(
+    problem::Problem{M, S},
+) where {M <: IntervalMarkovChain, S <: Specification{<:AbstractReward}}
     mc = system(problem)
     prev = construct_value_function(gap(transition_prob(mc)), num_states(mc))
 
@@ -323,14 +316,14 @@ V, k, residual = value_iteration(problem)
 
 """
 function value_iteration(
-    problem::Problem{<:IntervalMarkovDecisionProcess, <:Specification{<:AbstractReachability}}
-)
+    problem::Problem{M, S},
+) where {M <: IntervalMarkovDecisionProcess, S <: Specification{<:AbstractReachability}}
     mdp = system(problem)
     spec = specification(problem)
     prop = system_property(spec)
-    term_criteria = termination_criteria(problem)
+    term_criteria = termination_criteria(spec)
     upper_bound = satisfaction_mode(spec) == Optimistic
-    maximize = strategy_mode == Maximize
+    maximize = strategy_mode(spec) == Maximize
 
     prob = transition_prob(mdp)
     sptr = stateptr(mdp)
@@ -431,14 +424,14 @@ V, k, residual = value_iteration(problem)
 
 """
 function value_iteration(
-    problem::Problem{<:IntervalMarkovDecisionProcess, <:Specfication{<:AbstractReward}}
-)
+    problem::Problem{M, S},
+) where {M <: IntervalMarkovDecisionProcess, S <: Specification{<:AbstractReward}}
     mdp = system(problem)
     spec = specification(problem)
     prop = system_property(spec)
-    term_criteria = termination_criteria(problem)
+    term_criteria = termination_criteria(spec)
     upper_bound = satisfaction_mode(spec) == Optimistic
-    maxmize = strategy_mode(spec) == Maximize
+    maximize = strategy_mode(spec) == Maximize
 
     prob = transition_prob(mdp)
     sptr = stateptr(mdp)
@@ -508,7 +501,9 @@ mutable struct IMDPValueFunction
     nonterminal_actions::Any
 end
 
-function IMDPValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability}}
+function IMDPValueFunction(
+    problem::Problem{M, S},
+) where {M <: IntervalMarkovDecisionProcess, S <: Specification{<:AbstractReachability}}
     mdp = system(problem)
     spec = specification(problem)
     prop = system_property(spec)
@@ -533,7 +528,9 @@ function IMDPValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovDecis
     )
 end
 
-function IMDPValueFunction(problem::P) where {P <: Problem{<:IntervalMarkovDecisionProcess, <:AbstractReward}}
+function IMDPValueFunction(
+    problem::Problem{M, S},
+) where {M <: IntervalMarkovDecisionProcess, S <: Specification{<:AbstractReward}}
     mdp = system(problem)
 
     prev = construct_value_function(gap(transition_prob(mdp)), num_states(mdp))

@@ -13,22 +13,32 @@ prob = IntervalProbabilities(;
 
 mc = IMDP.cu(IntervalMarkovChain(prob, 1))
 
-problem = Problem(mc, IMDP.cu(FiniteTimeReachability([3], 10)))
-V_fixed_it, k, _ = value_iteration(problem; upper_bound = false)
+prop = FiniteTimeReachability([3], 10)
+spec = Specification(prop, Pessimistic)
+problem = Problem(mc, spec)
+V_fixed_it, k, _ = value_iteration(problem)
 @test k == 10
 
-problem = Problem(mc, IMDP.cu(InfiniteTimeReachability([3], 1e-6)))
-V_conv, _, u = value_iteration(problem; upper_bound = false)
+prop = InfiniteTimeReachability([3], 1e-6)
+spec = Specification(prop, Pessimistic)
+problem = Problem(mc, spec)
+V_conv, _, u = value_iteration(problem)
 @test maximum(u) <= 1e-6
 
-problem = Problem(mc, IMDP.cu(FiniteTimeReachAvoid([3], [2], 10)))
-V_fixed_it, k, _ = value_iteration(problem; upper_bound = false)
+prop = FiniteTimeReachAvoid([3], [2], 10)
+spec = Specification(prop, Pessimistic)
+problem = Problem(mc, spec)
+V_fixed_it, k, _ = value_iteration(problem)
 @test k == 10
 
-problem = Problem(mc, IMDP.cu(InfiniteTimeReachAvoid([3], [2], 1e-6)))
-V_conv, _, u = value_iteration(problem; upper_bound = false)
+prop = InfiniteTimeReachAvoid([3], [2], 1e-6)
+spec = Specification(prop, Pessimistic)
+problem = Problem(mc, spec)
+V_conv, _, u = value_iteration(problem)
 @test maximum(u) <= 1e-6
 
-problem = Problem(mc, IMDP.cu(FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10)))
-V_fixed_it, k, _ = value_iteration(problem; upper_bound = false)
+prop = FiniteTimeReward(IMDP.cu([2.0, 1.0, 0.0]), 0.9, 10)
+spec = Specification(prop, Pessimistic)
+problem = Problem(mc, spec)
+V_fixed_it, k, _ = value_iteration(problem)
 @test k == 10

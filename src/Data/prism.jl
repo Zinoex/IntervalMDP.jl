@@ -427,7 +427,8 @@ function read_prism_spec(path_without_file_ending, num_states)
     rewards = read_prism_rewards_file(path_without_file_ending, prop_type, num_states)
 
     # Read at least the initial state but possibly also the reach and avoid sets.
-    prop, initial_state = read_prism_labels_file(path_without_file_ending, prop_type, prop_meta, rewards)
+    prop, initial_state =
+        read_prism_labels_file(path_without_file_ending, prop_type, prop_meta, rewards)
     spec = Specification(prop, satisfaction_mode, strategy_mode)
 
     return initial_state, spec
@@ -499,7 +500,7 @@ end
 read_prism_rewards_file(
     path_without_file_ending,
     prop_type::Type{AbstractReachability},
-    num_states
+    num_states,
 ) = nothing
 
 function read_prism_rewards_header(line)
@@ -529,7 +530,7 @@ end
 function read_prism_rewards_file(
     path_without_file_ending,
     prop_type::Type{AbstractReward},
-    num_states
+    num_states,
 )
     return open(path_without_file_ending * ".pctl", "r") do io
         num_rewards, num_nonzero_rewards = read_prism_rewards_header(readline(io))
@@ -541,12 +542,17 @@ function read_prism_rewards_file(
             index, reward = read_prism_rewards_line(readline(io))
             rewards[index] = reward
         end
-        
+
         return rewards
     end
 end
 
-function read_prism_labels_file(path_without_file_ending, spec_type::Type{AbstractReachability}, spec_meta, rewards)
+function read_prism_labels_file(
+    path_without_file_ending,
+    spec_type::Type{AbstractReachability},
+    spec_meta,
+    rewards,
+)
     state_labels = read_prism_labels(path_without_file_ending)
     initial_state = find_initial_state(state_labels)
 
@@ -556,7 +562,12 @@ function read_prism_labels_file(path_without_file_ending, spec_type::Type{Abstra
     return spec, initial_state
 end
 
-function read_prism_labels_file(path_without_file_ending, spec_type::Type{AbstractReachAvoid}, spec_meta, rewards)
+function read_prism_labels_file(
+    path_without_file_ending,
+    spec_type::Type{AbstractReachAvoid},
+    spec_meta,
+    rewards,
+)
     state_labels = read_prism_labels(path_without_file_ending)
     initial_state = find_initial_state(state_labels)
 
@@ -567,10 +578,15 @@ function read_prism_labels_file(path_without_file_ending, spec_type::Type{Abstra
     return spec, initial_state
 end
 
-function read_prism_labels_file(path_without_file_ending, spec_type::Type{AbstractReward}, spec_meta, rewards)
+function read_prism_labels_file(
+    path_without_file_ending,
+    spec_type::Type{AbstractReward},
+    spec_meta,
+    rewards,
+)
     state_labels = read_prism_labels(path_without_file_ending)
     initial_state = find_initial_state(state_labels)
-    
+
     spec = spec_type(rewards, spec_meta...)
 
     return spec, initial_state
@@ -581,11 +597,11 @@ function read_prism_labels(path_without_file_ending)
         labels = read_prism_labels_header(readline(io))
 
         state_labels = Dict{Int32, Vector{String}}()
-        
+
         for line in eachline(io)
             words = split(line)
 
-            state_index = parse(Int32, words[1][1:end - 1])
+            state_index = parse(Int32, words[1][1:(end - 1)])
             state_labels = map(words[2:end]) do word
                 label_index = parse(Int32, word)
                 return labels[label_index]
@@ -608,7 +624,7 @@ function read_prism_labels_header(line)
         index = parse(Int32, item)
 
         (item, state) = iterate(terms)
-        label = item[2:end - 1]
+        label = item[2:(end - 1)]
 
         return index => label
     end)

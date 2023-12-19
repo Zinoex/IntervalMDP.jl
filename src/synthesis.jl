@@ -1,32 +1,40 @@
 """
-    control_synthesis(problem::Problem{<:IntervalMarkovDecisionProcess}; maximize = true)
+    control_synthesis(problem::Problem{<:IntervalMarkovDecisionProcess})
 
 Compute the optimal control policy for the given problem (system + specification). If the specification is finite time, then the policy is time-varying,
 with the returned policy being in step order (i.e., the first element of the returned vector is the policy for the first time step).
 If the specification is infinite time, then the policy is stationary and only a single vector of length `num_states(system)` is returned.
 """
-function control_synthesis(problem::Problem{<:IntervalMarkovDecisionProcess}; maximize = true)
+function control_synthesis(problem::Problem{<:IntervalMarkovDecisionProcess})
     spec = specification(problem)
-    return control_synthesis(problem, Val(isfinitetime(spec)); maximize = maximize)
+    prop = system_property(spec)
+    return control_synthesis(problem, Val(isfinitetime(prop)))
 end
 
-function control_synthesis(problem::Problem{<:IntervalMarkovDecisionProcess}, time_varying::Val{true}; maximize = true)
-    upper_bound = satisfaction_mode(problem) == Optimistic
-    policy_indices = extract_time_varying_policy(problem; maximize = maximize, upper_bound = upper_bound)
+function control_synthesis(
+    problem::Problem{<:IntervalMarkovDecisionProcess},
+    time_varying::Val{true},
+)
+    policy_indices = extract_time_varying_policy(problem)
 
     act = actions(system(problem))
 
     return [act[indices] for indices in policy_indices]
 end
 
-function extract_time_varying_policy(problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReachability}; maximize, upper_bound)
+function extract_time_varying_policy(
+    problem::Problem{M, S},
+) where {M <: IntervalMarkovDecisionProcess, S <: Specification{<:AbstractReachability}}
     mdp = system(problem)
     spec = specification(problem)
-    term_criteria = termination_criteria(problem)
+    prop = system_property(spec)
+    term_criteria = termination_criteria(spec)
+    upper_bound = satisfaction_mode(spec) == Optimistic
+    maximize = strategy_mode(spec) == Maximize
 
     prob = transition_prob(mdp)
     maxactions = maximum(diff(stateptr(mdp)))
-    target = reach(spec)
+    target = reach(prop)
 
     # It is more efficient to use allocate first and reuse across iterations
     p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
@@ -71,10 +79,15 @@ function extract_time_varying_policy(problem::Problem{<:IntervalMarkovDecisionPr
     return reverse(policy)
 end
 
-function extract_time_varying_policy(problem::Problem{<:IntervalMarkovDecisionProcess, <:AbstractReward}; maximize, upper_bound)
+function extract_time_varying_policy(
+    problem::Problem{M, S},
+) where {M <: IntervalMarkovDecisionProcess, S <: Specification{<:AbstractReward}}
     mdp = system(problem)
     spec = specification(problem)
-    term_criteria = termination_criteria(problem)
+    prop = system_property(spec)
+    term_criteria = termination_criteria(spec)
+    upper_bound = satisfaction_mode(spec) == Optimistic
+    maximize = strategy_mode(spec) == Maximize
 
     prob = transition_prob(mdp)
     maxactions = maximum(diff(stateptr(mdp)))
@@ -84,7 +97,7 @@ function extract_time_varying_policy(problem::Problem{<:IntervalMarkovDecisionPr
     ordering = construct_ordering(p)
 
     value_function = IMDPValueFunction(problem)
-    initialize!(value_function, 1:num_states(mdp), reward(spec))
+    initialize!(value_function, 1:num_states(mdp), reward(prop))
 
     policy = Vector{Vector{Int}}(undef, 1)
 
@@ -97,10 +110,10 @@ function extract_time_varying_policy(problem::Problem{<:IntervalMarkovDecisionPr
         value_function;
         maximize = maximize,
         upper_bound = upper_bound,
-        discount = discount(spec),
+        discount = discount(prop),
     )
     # Add immediate reward
-    value_function.cur += reward(spec)
+    value_function.cur += reward(prop)
     policy[1] = step_policy
     k = 1
 
@@ -115,10 +128,10 @@ function extract_time_varying_policy(problem::Problem{<:IntervalMarkovDecisionPr
             value_function;
             maximize = maximize,
             upper_bound = upper_bound,
-            discount = discount(spec),
+            discount = discount(prop),
         )
         # Add immediate reward
-        value_function.cur += reward(spec)
+        value_function.cur += reward(prop)
         push!(policy, step_policy)
         k += 1
     end
@@ -163,25 +176,37 @@ function step_imdp_with_extract!(
         @inbounds s1 = sptr[j]
         @inbounds s2 = sptr[j + 1]
 
-        @inbounds indices[j] = optfun(view(value_function.nonterminal, s1:(s2 - 1))) + s1 - 1
+        @inbounds indices[j] =
+            optfun(view(value_function.nonterminal, s1:(s2 - 1))) + s1 - 1
         @inbounds value_function.cur[j] = value_function.nonterminal[indices[j]]
     end
 
     return indices
 end
 
-function control_synthesis(problem::Problem{<:IntervalMarkovDecisionProcess}, time_varying::Val{false}; maximize = true)
+function control_synthesis(
+    problem::Problem{<:IntervalMarkovDecisionProcess},
+    time_varying::Val{false},
+)
     sys = system(problem)
+    spec = specification(problem)
 
-    upper_bound = satisfaction_mode(problem) == Optimistic
-    V, _, _ = value_iteration(problem; maximize = maximize, upper_bound = upper_bound)
+    upper_bound = satisfaction_mode(spec) == Optimistic
+    maximize = strategy_mode(spec) == Maximize
 
-    indices = extract_stationary_policy(sys, V; maximize = maximize, upper_bound = upper_bound)
+    V, _, _ = value_iteration(problem)
+    indices =
+        extract_stationary_policy(sys, V; maximize = maximize, upper_bound = upper_bound)
 
     return actions(sys)[indices]
 end
 
-function extract_stationary_policy(system::IntervalMarkovDecisionProcess, V; maximize, upper_bound)
+function extract_stationary_policy(
+    system::IntervalMarkovDecisionProcess,
+    V;
+    maximize,
+    upper_bound,
+)
     sptr = stateptr(system)
     p = ominmax(transition_prob(system), V; max = upper_bound)
 

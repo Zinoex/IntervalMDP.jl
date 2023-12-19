@@ -35,7 +35,6 @@ Return `false` for an LTL formula. LTL formulas are not finite time property.
 """
 isfinitetime(prop::LTLFormula) = false
 
-
 """
     LTLfFormula
 
@@ -103,7 +102,7 @@ struct FiniteTimeReachability{T <: Integer, VT <: AbstractVector{T}} <: Abstract
 end
 
 function checkproperty!(prop::FiniteTimeReachability, system::IntervalMarkovProcess)
-    checkterminal!(terminal_states(prop), num_states(system))
+    return checkterminal!(terminal_states(prop), num_states(system))
 end
 
 """
@@ -143,13 +142,14 @@ reach(prop::FiniteTimeReachability) = prop.terminal_states
 `InfiniteTimeReachability` is similar to [`FiniteTimeReachability`](@ref) except that the time horizon is infinite.
 The convergence threshold is that the largest value of the most recent Bellman residual is less than `eps`.
 """
-struct InfiniteTimeReachability{R <: Real, T <: Integer, VT <: AbstractVector{T}} <: AbstractReachability
+struct InfiniteTimeReachability{R <: Real, T <: Integer, VT <: AbstractVector{T}} <:
+       AbstractReachability
     terminal_states::VT
     eps::R
 end
 
 function checkproperty!(prop::InfiniteTimeReachability, system::IntervalMarkovProcess)
-    checkterminal!(terminal_states(prop), num_states(system))
+    return checkterminal!(terminal_states(prop), num_states(system))
 end
 
 """
@@ -207,7 +207,7 @@ end
 
 function checkproperty!(prop::FiniteTimeReachAvoid, system::IntervalMarkovProcess)
     checkterminal!(terminal_states(prop), num_states(system))
-    checkdisjoint!(reach(prop), avoid(spec))
+    return checkdisjoint!(reach(prop), avoid(prop))
 end
 
 """
@@ -251,7 +251,8 @@ avoid(prop::FiniteTimeReachAvoid) = prop.avoid
 
 `InfiniteTimeReachAvoid` is similar to [`FiniteTimeReachAvoid`](@ref) except that the time horizon is infinite.
 """
-struct InfiniteTimeReachAvoid{R <: Real, T <: Integer, VT <: AbstractVector{T}} <: AbstractReachAvoid
+struct InfiniteTimeReachAvoid{R <: Real, T <: Integer, VT <: AbstractVector{T}} <:
+       AbstractReachAvoid
     reach::VT
     avoid::VT
     eps::R
@@ -259,7 +260,7 @@ end
 
 function checkproperty!(prop::InfiniteTimeReachAvoid, system::IntervalMarkovProcess)
     checkterminal!(terminal_states(prop), num_states(system))
-    checkdisjoint!(reach(prop), avoid(prop))
+    return checkdisjoint!(reach(prop), avoid(prop))
 end
 
 """
@@ -327,7 +328,8 @@ abstract type AbstractReward{R <: Real} <: Property end
 and a discount factor. The time horizon is finite, so the discount factor is optional and 
 the optimal policy will be time-varying.
 """
-struct FiniteTimeReward{R <: Real, T <: Integer, VR <: AbstractVector{R}} <: AbstractReward{R}
+struct FiniteTimeReward{R <: Real, T <: Integer, VR <: AbstractVector{R}} <:
+       AbstractReward{R}
     reward::VR
     discount::R
     time_horizon::T
@@ -428,7 +430,7 @@ the probability uncertainty.
 When computing the satisfaction probability of a property over an IMDP, the strategy
 can either maximize or minimize the satisfaction probability (wrt. the satisfaction mode).
 """
-@enum StrategyMode Maximize minimize
+@enum StrategyMode Maximize Minimize
 
 """
     Specification{F <: Property}
@@ -449,30 +451,31 @@ struct Specification{F <: Property}
 end
 
 Specification(prop::Property) = Specification(prop, Pessimistic)
-Specification(prop::Property, satisfaction::SatisfactionMode) = Specification(prop, satisfaction, Maximize)
+Specification(prop::Property, satisfaction::SatisfactionMode) =
+    Specification(prop, satisfaction, Maximize)
 
 function checkspecification!(spec::Specification, system)
-    checkproperty!(spec, system)
+    return checkproperty!(system_property(spec), system)
 end
 
 """
     system_property(spec::Specification)
 """
-system_property(spec::Specfication) = spec.prop
+system_property(spec::Specification) = spec.prop
 
 """
-    satisfaction_mode(spec::Specfication)
+    satisfaction_mode(spec::Specification)
 
 Return the satisfaction mode of a specification.
 """
-satisfaction_mode(spec::Specfication) = spec.satisfaction
+satisfaction_mode(spec::Specification) = spec.satisfaction
 
 """
-    strategy_mode(spec::Specfication)
+    strategy_mode(spec::Specification)
 
 Return the strategy mode of a specification.
 """
-strategy_mode(spec::Specfication) = spec.strategy
+strategy_mode(spec::Specification) = spec.strategy
 
 """
     Problem{S <: IntervalMarkovProcess, F <: Specification}
@@ -487,9 +490,12 @@ struct Problem{S <: IntervalMarkovProcess, F <: Specification}
     system::S
     spec::F
 
-    function Problem(system::S, spec::F) where {S <: IntervalMarkovProcess, F <: Specification}
+    function Problem(
+        system::S,
+        spec::F,
+    ) where {S <: IntervalMarkovProcess, F <: Specification}
         checkspecification!(spec, system)
-        return new{S, F}(system, spec, mode)
+        return new{S, F}(system, spec)
     end
 end
 """
@@ -505,4 +511,3 @@ system(prob::Problem) = prob.system
 Return the specification of a problem.
 """
 specification(prob::Problem) = prob.spec
-

@@ -21,7 +21,7 @@ export reach, avoid, terminal_states, time_horizon, eps, reward, discount
 
 export SatisfactionMode, Pessimistic, Optimistic
 export StrategyMode, Maximize, Minimize
-export Specfication, Problem
+export Specification, Problem
 export system, specification, system_property, satisfaction_mode, strategy_mode
 
 include("ordering.jl")

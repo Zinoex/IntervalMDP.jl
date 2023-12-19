@@ -37,28 +37,33 @@ prob3 = IntervalProbabilities(;
     ][:, :]),
 )
 
-
 transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
 initial_state = Int32(1)
 
 mdp = IntervalMarkovDecisionProcess(transition_probs, initial_state)
 
-problem = Problem(mdp, FiniteTimeReachability([3], 10))
-policy = control_synthesis(problem; maximize = true)
+prop = FiniteTimeReachability([3], 10)
+spec = Specification(prop, Pessimistic, Maximize)
+problem = Problem(mdp, spec)
+policy = control_synthesis(problem)
 
 @test length(policy) == 10
 for row in policy
     @test row == ["a1", "a2", "sinking"]
 end
 
-problem = Problem(mdp, FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10))
-policy = control_synthesis(problem; maximize = true)
+prop = FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10)
+spec = Specification(prop, Pessimistic, Maximize)
+problem = Problem(mdp, spec)
+policy = control_synthesis(problem)
 @test length(policy) == 10
 
 for row in policy
     @test row == ["a2", "a2", "sinking"]
 end
 
-problem = Problem(mdp, InfiniteTimeReachability([3], 1e-6))
-policy = control_synthesis(problem; maximize = true)
+prop = InfiniteTimeReachability([3], 1e-6)
+spec = Specification(prop, Pessimistic, Maximize)
+problem = Problem(mdp, spec)
+policy = control_synthesis(problem)
 @test policy == ["a1", "a2", "sinking"]
