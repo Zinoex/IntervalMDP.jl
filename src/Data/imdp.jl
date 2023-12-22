@@ -66,7 +66,7 @@ function read_imdp_jl_mc(dataset, prob, initial_state)
 end
 
 function read_imdp_jl_spec(spec_path)
-    data = JSON.parsefile(spec_path; inttype=Int32)
+    data = JSON.parsefile(spec_path; inttype = Int32)
 
     prop = read_imdp_jl_property(data["property"])
 
@@ -75,7 +75,11 @@ function read_imdp_jl_spec(spec_path)
     elseif data["satisfaction_mode"] == "pessimistic"
         satisfaction_mode = Pessimistic
     else
-        throw(ValueError("Invalid satisfaction mode: $(data["satisfaction_mode"]). Expected \"optimistic\" or \"pessimistic\"."))
+        throw(
+            ValueError(
+                "Invalid satisfaction mode: $(data["satisfaction_mode"]). Expected \"optimistic\" or \"pessimistic\".",
+            ),
+        )
     end
 
     if data["strategy_mode"] == "minimize"
@@ -83,7 +87,11 @@ function read_imdp_jl_spec(spec_path)
     elseif data["strategy_mode"] == "maximize"
         strategy_mode = Maximize
     else
-        throw(ValueError("Invalid strategy mode: $(data["strategy_mode"]). Expected \"minimize\" or \"maximize\"."))
+        throw(
+            ValueError(
+                "Invalid strategy mode: $(data["strategy_mode"]). Expected \"minimize\" or \"maximize\".",
+            ),
+        )
     end
 
     return Specification(prop, satisfaction_mode, strategy_mode)
@@ -97,7 +105,11 @@ function read_imdp_jl_property(prop_dict)
     elseif prop_dict["type"] == "reward"
         return read_imdp_jl_reward_property(prop_dict)
     else
-        throw(ValueError("Invalid property_type: $(data["type"]). Expected \"reachability\", \"reach-avoid\", or \"reward\"."))
+        throw(
+            ValueError(
+                "Invalid property_type: $(data["type"]). Expected \"reachability\", \"reach-avoid\", or \"reward\".",
+            ),
+        )
     end
 end
 
@@ -158,34 +170,47 @@ function write_imdp_jl_model(model_path, mdp_or_mc::IntervalMarkovProcess)
         g = gap(prob)
 
         defDim(dataset, "lower_colptr", length(l.colptr))
-        v = defVar(dataset, "lower_colptr", Int32, ("lower_colptr",))
+        v = defVar(dataset, "lower_colptr", Int32, ("lower_colptr",); deflatelevel = 5)
         v[:] = l.colptr
 
         defDim(dataset, "lower_rowval", length(l.rowval))
-        v = defVar(dataset, "lower_rowval", Int32, ("lower_rowval",))
+        v = defVar(dataset, "lower_rowval", Int32, ("lower_rowval",); deflatelevel = 5)
         v[:] = l.rowval
 
         defDim(dataset, "lower_nzval", length(l.nzval))
-        v = defVar(dataset, "lower_nzval", eltype(l.nzval), ("lower_nzval",))
+        v = defVar(
+            dataset,
+            "lower_nzval",
+            eltype(l.nzval),
+            ("lower_nzval",);
+            deflatelevel = 5,
+        )
         v[:] = l.nzval
 
         defDim(dataset, "upper_colptr", length(g.colptr))
-        v = defVar(dataset, "upper_colptr", Int32, ("upper_colptr",))
+        v = defVar(dataset, "upper_colptr", Int32, ("upper_colptr",); deflatelevel = 5)
         v[:] = g.colptr
 
         defDim(dataset, "upper_rowval", length(g.rowval))
-        v = defVar(dataset, "upper_rowval", Int32, ("upper_rowval",))
+        v = defVar(dataset, "upper_rowval", Int32, ("upper_rowval",); deflatelevel = 5)
         v[:] = g.rowval
 
         defDim(dataset, "upper_nzval", length(g.nzval))
-        v = defVar(dataset, "upper_nzval", eltype(g.nzval), ("upper_nzval",))
+        v = defVar(
+            dataset,
+            "upper_nzval",
+            eltype(g.nzval),
+            ("upper_nzval",);
+            deflatelevel = 5,
+        )
         v[:] = l.nzval + g.nzval
 
         return write_imdp_jl_model_specific(dataset, mdp_or_mc)
     end
 end
 
-write_imdp_jl_model(model_path, problem::Problem) = write_imdp_jl_model(model_path, system(problem))
+write_imdp_jl_model(model_path, problem::Problem) =
+    write_imdp_jl_model(model_path, system(problem))
 
 function write_imdp_jl_model_specific(dataset, mdp::IntervalMarkovDecisionProcess)
     dataset.attrib["model"] = "imdp"
@@ -220,7 +245,7 @@ function write_imdp_jl_spec(spec_path, spec::Specification)
     )
 
     open(spec_path, "w") do io
-        JSON.print(io, data)
+        return JSON.print(io, data)
     end
 end
 
