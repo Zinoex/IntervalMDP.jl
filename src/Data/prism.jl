@@ -457,7 +457,7 @@ function read_prism_props_file(path_without_file_ending)
 end
 
 function read_prism_path_prob(::Type{AbstractReachability}, pathprop)
-    eps = 1e-6
+    convergence_eps = 1e-6
 
     m = match(r"F \"reach\"", pathprop)
     if !isnothing(m)
@@ -471,7 +471,7 @@ function read_prism_path_prob(::Type{AbstractReachability}, pathprop)
 
     m = match(r"!\"avoid\" U \"reach\"", pathprop)
     if !isnothing(m)
-        return InfiniteTimeReachAvoid, eps
+        return InfiniteTimeReachAvoid, convergence_eps
     end
 
     m = match(r"!\"avoid\" U<=(?<time_horizon>\d+) \"reach\"", pathprop)
@@ -485,8 +485,8 @@ end
 function read_prism_path_prob(::Type{AbstractReward}, pathprop)
     m = match(r"C", pathprop)
     if !isnothing(m)
-        eps = 1e-6
-        return InfiniteTimeReward, eps
+        convergence_eps = 1e-6
+        return InfiniteTimeReward, convergence_eps
     end
 
     m = match(r"C<=(?<time_horizon>\d+)", pathprop)

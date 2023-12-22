@@ -145,7 +145,7 @@ The convergence threshold is that the largest value of the most recent Bellman r
 struct InfiniteTimeReachability{R <: Real, T <: Integer, VT <: AbstractVector{T}} <:
        AbstractReachability
     terminal_states::VT
-    eps::R
+    convergence_eps::R
 end
 
 function checkproperty!(prop::InfiniteTimeReachability, system::IntervalMarkovProcess)
@@ -160,11 +160,11 @@ Return `false` for InfiniteTimeReachability.
 isfinitetime(prop::InfiniteTimeReachability) = false
 
 """
-    eps(prop::InfiniteTimeReachability)
+    convergence_eps(prop::InfiniteTimeReachability)
 
 Return the convergence threshold of an infinite time reachability property.
 """
-eps(prop::InfiniteTimeReachability) = prop.eps
+convergence_eps(prop::InfiniteTimeReachability) = prop.convergence_eps
 
 """
     terminal_states(prop::InfiniteTimeReachability)
@@ -255,7 +255,7 @@ struct InfiniteTimeReachAvoid{R <: Real, T <: Integer, VT <: AbstractVector{T}} 
        AbstractReachAvoid
     reach::VT
     avoid::VT
-    eps::R
+    convergence_eps::R
 end
 
 function checkproperty!(prop::InfiniteTimeReachAvoid, system::IntervalMarkovProcess)
@@ -271,11 +271,11 @@ Return `false` for InfiniteTimeReachAvoid.
 isfinitetime(prop::InfiniteTimeReachAvoid) = false
 
 """
-    eps(prop::InfiniteTimeReachAvoid)
+    convergence_eps(prop::InfiniteTimeReachAvoid)
 
 Return the convergence threshold of an infinite time reach-avoid property.
 """
-eps(prop::InfiniteTimeReachAvoid) = prop.eps
+convergence_eps(prop::InfiniteTimeReachAvoid) = prop.convergence_eps
 
 """
     terminal_states(prop::InfiniteTimeReachAvoid)
@@ -377,7 +377,7 @@ policy will be stationary.
 struct InfiniteTimeReward{R <: Real, VR <: AbstractVector{R}} <: AbstractReward{R}
     reward::VR
     discount::R
-    eps::R
+    convergence_eps::R
 end
 
 function checkproperty!(prop::InfiniteTimeReward, system::IntervalMarkovProcess)
@@ -406,11 +406,11 @@ Return the discount factor of a finite time reward optimization.
 discount(prop::InfiniteTimeReward) = prop.discount
 
 """
-    eps(prop::InfiniteTimeReward)
+    convergence_eps(prop::InfiniteTimeReward)
 
 Return the convergence threshold of an infinite time reward optimization.
 """
-eps(prop::InfiniteTimeReward) = prop.eps
+convergence_eps(prop::InfiniteTimeReward) = prop.convergence_eps
 
 ## Problem
 

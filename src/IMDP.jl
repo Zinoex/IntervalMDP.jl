@@ -17,7 +17,8 @@ export AbstractReachability, FiniteTimeReachability, InfiniteTimeReachability
 export AbstractReachAvoid, FiniteTimeReachAvoid, InfiniteTimeReachAvoid
 export AbstractReward, FiniteTimeReward, InfiniteTimeReward
 
-export reach, avoid, terminal_states, time_horizon, eps, reward, discount
+export isfinitetime
+export reach, avoid, terminal_states, time_horizon, convergence_eps, reward, discount
 
 export SatisfactionMode, Pessimistic, Optimistic
 export StrategyMode, Maximize, Minimize

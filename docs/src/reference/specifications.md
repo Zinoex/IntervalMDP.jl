@@ -41,7 +41,7 @@ InfiniteTimeReachability
 IMDP.isfinitetime(spec::InfiniteTimeReachability)
 terminal_states(spec::InfiniteTimeReachability)
 reach(spec::InfiniteTimeReachability)
-IMDP.eps(spec::InfiniteTimeReachability)
+convergence_eps(spec::InfiniteTimeReachability)
 ```
 
 ## Reach-avoid
@@ -61,7 +61,7 @@ IMDP.isfinitetime(spec::InfiniteTimeReachAvoid)
 terminal_states(spec::InfiniteTimeReachAvoid)
 reach(spec::InfiniteTimeReachAvoid)
 avoid(spec::InfiniteTimeReachAvoid)
-IMDP.eps(spec::InfiniteTimeReachAvoid)
+convergence_eps(spec::InfiniteTimeReachAvoid)
 ```
 
 ## Reward specification
@@ -79,5 +79,5 @@ InfiniteTimeReward
 IMDP.isfinitetime(spec::InfiniteTimeReward)
 reward(spec::InfiniteTimeReward)
 discount(spec::InfiniteTimeReward)
-IMDP.eps(spec::InfiniteTimeReward)
+convergence_eps(spec::InfiniteTimeReward)
 ```

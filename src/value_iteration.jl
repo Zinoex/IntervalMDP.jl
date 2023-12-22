@@ -15,7 +15,7 @@ struct CovergenceCriteria{T <: AbstractFloat} <: TerminationCriteria
     tol::T
 end
 (f::CovergenceCriteria)(V, k, u) = maximum(u) < f.tol
-termination_criteria(prop, finitetime::Val{false}) = CovergenceCriteria(eps(prop))
+termination_criteria(prop, finitetime::Val{false}) = CovergenceCriteria(convergence_eps(prop))
 
 """
     value_iteration(problem::Problem{<:IntervalMarkovChain, Specification{<:AbstractReachability}})
