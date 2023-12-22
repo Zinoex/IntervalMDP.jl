@@ -102,7 +102,8 @@ struct FiniteTimeReachability{T <: Integer, VT <: AbstractVector{T}} <: Abstract
 end
 
 function checkproperty!(prop::FiniteTimeReachability, system::IntervalMarkovProcess)
-    return checkterminal!(terminal_states(prop), num_states(system))
+    checkterminal!(terminal_states(prop), num_states(system))
+    @assert time_horizon(prop) > 0
 end
 
 """
@@ -149,7 +150,8 @@ struct InfiniteTimeReachability{R <: Real, T <: Integer, VT <: AbstractVector{T}
 end
 
 function checkproperty!(prop::InfiniteTimeReachability, system::IntervalMarkovProcess)
-    return checkterminal!(terminal_states(prop), num_states(system))
+    checkterminal!(terminal_states(prop), num_states(system))
+    @assert convergence_eps(prop) > 0
 end
 
 """
@@ -207,7 +209,8 @@ end
 
 function checkproperty!(prop::FiniteTimeReachAvoid, system::IntervalMarkovProcess)
     checkterminal!(terminal_states(prop), num_states(system))
-    return checkdisjoint!(reach(prop), avoid(prop))
+    checkdisjoint!(reach(prop), avoid(prop))
+    @assert time_horizon(prop) > 0
 end
 
 """
@@ -260,7 +263,8 @@ end
 
 function checkproperty!(prop::InfiniteTimeReachAvoid, system::IntervalMarkovProcess)
     checkterminal!(terminal_states(prop), num_states(system))
-    return checkdisjoint!(reach(prop), avoid(prop))
+    checkdisjoint!(reach(prop), avoid(prop))
+    @assert convergence_eps(prop) > 0
 end
 
 """
@@ -337,6 +341,7 @@ end
 
 function checkproperty!(prop::FiniteTimeReward, system::IntervalMarkovProcess)
     @assert length(reward(prop)) == num_states(system)
+    @assert time_horizon(prop) > 0
 end
 
 """
@@ -382,6 +387,7 @@ end
 
 function checkproperty!(prop::InfiniteTimeReward, system::IntervalMarkovProcess)
     @assert length(reward(prop)) == num_states(system)
+    @assert convergence_eps(prop) > 0
 end
 
 """
