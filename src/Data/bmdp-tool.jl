@@ -44,7 +44,7 @@ function read_bmdp_tool_file(path)
         end
 
         probs = Vector{
-            MatrixIntervalProbabilities{
+            IntervalProbabilities{
                 Float64,
                 Vector{Float64},
                 SparseArrays.FixedSparseCSC{Float64, Int32},

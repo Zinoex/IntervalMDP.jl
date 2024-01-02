@@ -216,9 +216,9 @@ function write_imdp_jl_model_specific(dataset, mdp::IntervalMarkovDecisionProces
     dataset.attrib["model"] = "imdp"
     dataset.attrib["cols"] = "from/action"
 
-    defDim(dataset, "stateptr", length(stateptr(mdp)))
+    defDim(dataset, "stateptr", length(IMDP.stateptr(mdp)))
     v = defVar(dataset, "stateptr", Int32, ("stateptr",))
-    v[:] = stateptr(mdp)
+    v[:] = IMDP.stateptr(mdp)
 
     defDim(dataset, "action_vals", length(actions(mdp)))
     v = defVar(dataset, "action_vals", eltype(actions(mdp)), ("action_vals",))
@@ -241,13 +241,16 @@ function write_imdp_jl_spec(spec_path, spec::Specification)
     data = Dict(
         "property" => imdp_jl_property_dict(system_property(spec)),
         "satisfaction_mode" => imdp_jl_satisfaction_mode(satisfaction_mode(spec)),
-        "strategy_mode" => imdp_jl_strategy_mode(spec.strategy_mode),
+        "strategy_mode" => imdp_jl_strategy_mode(strategy_mode(spec)),
     )
 
     open(spec_path, "w") do io
         return JSON.print(io, data)
     end
 end
+
+write_imdp_jl_spec(spec_path, problem::Problem) =
+    write_imdp_jl_spec(spec_path, specification(problem))
 
 function imdp_jl_property_dict(prop::FiniteTimeReachability)
     return Dict(
@@ -262,7 +265,7 @@ function imdp_jl_property_dict(prop::InfiniteTimeReachability)
     return Dict(
         "type" => "reachability",
         "reach" => reach(prop),
-        "eps" => eps(prop),
+        "eps" => convergence_eps(prop),
         "infinite_time" => true,
     )
 end
@@ -282,7 +285,7 @@ function imdp_jl_property_dict(prop::InfiniteTimeReachAvoid)
         "type" => "reach-avoid",
         "reach" => reach(prop),
         "avoid" => avoid(prop),
-        "eps" => eps(prop),
+        "eps" => convergence_eps(prop),
         "infinite_time" => true,
     )
 end
@@ -302,7 +305,7 @@ function imdp_jl_property_dict(prop::InfiniteTimeReward)
         "type" => "reward",
         "reward" => reward(prop),
         "discount" => discount(prop),
-        "eps" => eps(prop),
+        "eps" => convergence_eps(prop),
         "infinite_time" => true,
     )
 end
