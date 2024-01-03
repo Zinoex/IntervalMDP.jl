@@ -157,21 +157,3 @@ function interval_prob_hcat(
 
     return IntervalProbabilities(l, g, sl), stateptr
 end
-
-function interval_prob_hcat(
-    T,
-    transition_probs::Vector{<:IntervalProbabilities{R, VR, MR}},
-) where {R, VR, MR <: SparseArrays.AbstractSparseMatrixCSC{R}}
-    l = map(lower, transition_probs)
-    l = hcat(l...)
-
-    g = map(gap, transition_probs)
-    g = hcat(g...)
-
-    sl = mapreduce(sum_lower, vcat, transition_probs)
-
-    lengths = map(num_source, transition_probs)
-    stateptr = T[1; cumsum(lengths) .+ 1]
-
-    return IntervalProbabilities(l, g, sl), stateptr
-end
