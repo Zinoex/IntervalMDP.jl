@@ -4,10 +4,9 @@ using Documenter
 push!(LOAD_PATH, "../src/")
 DocMeta.setdocmeta!(IMDP, :DocTestSetup, :(using IMDP); recursive = true)
 
-makedocs(;
+makedocs(; 
     modules = [IMDP],
     authors = "Frederik Baymler Mathiesen <frederik@baymler.com> and contributors",
-    repo = "https://github.com/zinoex/IMDP.jl/blob/{commit}{path}#{line}",
     sitename = "IMDP.jl",
     format = Documenter.HTML(;
         prettyurls = get(ENV, "CI", "false") == "true",
@@ -32,4 +31,4 @@ makedocs(;
     doctest = false,
 )
 
-deploydocs(; repo = "github.com/zinoex/IMDP.jl", devbranch = "main")
+deploydocs(; repo = "github.com/Zinoex/IMDP.jl", devbranch = "main")
