@@ -24,8 +24,8 @@ prob = IntervalProbabilities(;
     ],
 )
 
-initial_state = 1
-mc = IntervalMarkovChain(prob, initial_state)
+initial_states = [1]  # Initial states are optional
+mc = IntervalMarkovChain(prob, initial_states)
 
 # IMDP
 prob1 = IntervalProbabilities(;
@@ -60,8 +60,8 @@ prob3 = IntervalProbabilities(;
 )
 
 transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
-initial_state = 1
-mdp = IntervalMarkovDecisionProcess(transition_probs, initial_state)
+initial_states = [1]  # Initial states are optional
+mdp = IntervalMarkovDecisionProcess(transition_probs, initial_states)
 ```
 
 Note that for an IMDP, the transition probabilities are specified as a list of pairs from actions to transition probabilities for each state.
@@ -71,27 +71,40 @@ See [`IntervalMarkovDecisionProcess`](@ref) for more details on how to construct
 
 For IMC, it is signifianctly simpler with source states on the columns and target states on the rows of the transition matrices.
 
-Next, we choose a specification. Currently, we support reachability and reach-avoid specifications.
+Next, we choose a specification. Currently, we support reachability, reach-avoid, and reward specifications.
 For reachability, we specify a target set of states and for reach-avoid we specify a target set of states and an avoid set of states.
 Furthermore, we distinguish between finite and infinite horizon specifications.
 
 ```julia
+## Properties
 # Reachability
 target_set = [3]
 
-spec = FiniteHorizonReachability(target_set, 10)  # Time steps
-spec = InfiniteHorizonReachability(target_set, 1e-6)  # Residual tolerance
+prop = FiniteHorizonReachability(target_set, 10)  # Time steps
+prop = InfiniteHorizonReachability(target_set, 1e-6)  # Residual tolerance
 
 # Reach-avoid
 target_set = [3]
 avoid_set = [2]
 
-spec = FiniteHorizonReachAvoid(target_set, avoid_set, 10)  # Time steps
-spec = InfiniteHorizonReachAvoid(target_set, avoid_set, 1e-6)  # Residual tolerance
+prop = FiniteHorizonReachAvoid(target_set, avoid_set, 10)  # Time steps
+prop = InfiniteHorizonReachAvoid(target_set, avoid_set, 1e-6)  # Residual tolerance
 
-# Combine system and specification in a problem
-problem = Problem(imdp_or_imc, spec)  # Default: Pessimistic
-problem = Problem(imdp_or_imc, spec, Pessimistic)  # Explicit specification mode
+# Reward
+reward = [1.0, 2.0, 3.0]
+discount = 0.9  # Has to be between 0 and 1
+
+prop = FiniteHorizonReward(reward, discount, 10)  # Time steps
+prop = InfiniteHorizonReward(reward, discount, 1e-6)  # Residual tolerance
+
+## Specification
+spec = Specification(prop, Pessimistic, Maximize)
+spec = Specification(prop, Pessimistic, Minimize)
+spec = Specification(prop, Optimistic, Maximize)
+spec = Specification(prop, Optimistic, Minimize)
+
+## Combine system and specification in a Problem
+problem = Problem(imdp_or_imc, spec)
 ```
 
 Finally, we call `value_iteration` or `satisfaction_prob` to solve the specification.
@@ -99,12 +112,12 @@ Finally, we call `value_iteration` or `satisfaction_prob` to solve the specifica
 while `value_iteration` returns the value function for all states in addition to the number of iterations performed and the last Bellman residual.
 
 ```julia
-V, k, residual = value_iteration(problem; upper_bound = false)
+V, k, residual = value_iteration(problem)
 sat_prob = satisfaction_prob(problem)
 ```
 
 !!! tip
-    For less memory usage, it is recommended to use sparse matrix formats. Read [Sparse matrices](@ref) for more information.
+    For less memory usage, it is recommended to use [Sparse matrices](@ref) and `Int32` indices. 
 
 
 ## Sparse matrices
@@ -212,7 +225,7 @@ prob = IntervalProbabilities(;
     )),
 )
 
-mc = IntervalMarkovChain(prob, 1)
+mc = IntervalMarkovChain(prob,[1])
 ```
 
 [^1]: The difference to `CUDA.jl`s `cu` function is that we allow the specification of both the value and index type, which is important due to register pressure. To reduce register pressure but maintain accuracy, we are opinoinated to `Float64` values and `Int32` indices.

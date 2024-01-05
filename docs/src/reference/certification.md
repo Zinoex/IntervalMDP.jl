@@ -1,6 +1,6 @@
 # Certification
 
 ```@docs
-satisfaction_probability(problem::Problem{IntervalMarkovProcess, IMDP.AbstractReachability})
-control_synthesis(problem::Problem{IntervalMarkovDecisionProcess, Specification}; maximize = true)
+satisfaction_probability
+control_synthesis
 ```

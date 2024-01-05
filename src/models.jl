@@ -257,7 +257,7 @@ function IntervalMarkovDecisionProcess(
     transition_probs = map(x -> x[2], transition_probs)
     transition_prob, stateptr = interval_prob_hcat(T, transition_probs)
 
-    return IntervalMarkovDecisionProcess(transition_probs, action_vals, initial_states)
+    return IntervalMarkovDecisionProcess(transition_prob, stateptr, action_vals, initial_states)
 end
 
 function IntervalMarkovDecisionProcess(

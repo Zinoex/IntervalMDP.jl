@@ -9,7 +9,7 @@ IntervalMarkovProcess
 IntervalMarkovChain
 transition_prob(mc::IntervalMarkovChain)
 num_states(mc::IntervalMarkovChain)
-initial_state(mc::IntervalMarkovChain)
+initial_states(mc::IntervalMarkovChain)
 ```
 
 ## Markov decision process
@@ -17,7 +17,7 @@ initial_state(mc::IntervalMarkovChain)
 IntervalMarkovDecisionProcess
 transition_prob(mdp::IntervalMarkovDecisionProcess)
 num_states(mdp::IntervalMarkovDecisionProcess)
-initial_state(mdp::IntervalMarkovDecisionProcess)
+initial_states(mdp::IntervalMarkovDecisionProcess)
 actions(mdp::IntervalMarkovDecisionProcess)
 num_choices(mdp::IntervalMarkovDecisionProcess)
 ```
