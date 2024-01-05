@@ -145,14 +145,14 @@ CUDA.CUSPARSE.CuSparseMatrixCSC{Tv, Ti}(M::SparseMatrixCSC) where {Tv, Ti} =
     )
 
 Adapt.adapt_storage(
-    ::Type{IMDP.CuModelAdaptor{Tv, Ti}},
+    ::Type{IntervalMDP.CuModelAdaptor{Tv, Ti}},
     M::SparseArrays.FixedSparseCSC,
 ) where {Tv, Ti} = CuSparseMatrixCSC{Tv, Ti}(M)
 
 Adapt.adapt_storage(
-    ::Type{IMDP.CuModelAdaptor{Tv, Ti}},
+    ::Type{IntervalMDP.CuModelAdaptor{Tv, Ti}},
     M::SparseMatrixCSC,
 ) where {Tv, Ti} = CuSparseMatrixCSC{Tv, Ti}(M)
 
-Adapt.adapt_storage(::Type{IMDP.CuModelAdaptor{Tv, Ti}}, x::AbstractArray) where {Tv, Ti} =
+Adapt.adapt_storage(::Type{IntervalMDP.CuModelAdaptor{Tv, Ti}}, x::AbstractArray) where {Tv, Ti} =
     adapt(CuArray{Tv}, x)

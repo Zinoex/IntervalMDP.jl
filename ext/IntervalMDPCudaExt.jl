@@ -1,34 +1,34 @@
-module IMDPCudaExt
+module IntervalMDPCudaExt
 
 import LLVM
 using LLVM.Interop: assume
 
 using CUDA, CUDA.CUSPARSE, Adapt, SparseArrays
 
-using IMDP, LinearAlgebra
+using IntervalMDP, LinearAlgebra
 
 Adapt.@adapt_structure IntervalProbabilities
 
 # Opinionated conversion to GPU with Float64 values and Int32 indices
-IMDP.cu(model) = adapt(IMDP.CuModelAdaptor{Float64, Int32}, model)
+IntervalMDP.cu(model) = adapt(IntervalMDP.CuModelAdaptor{Float64, Int32}, model)
 
-function Adapt.adapt_structure(T::Type{<:IMDP.CuModelAdaptor}, mc::IntervalMarkovChain)
+function Adapt.adapt_structure(T::Type{<:IntervalMDP.CuModelAdaptor}, mc::IntervalMarkovChain)
     return IntervalMarkovChain(
         adapt(T, transition_prob(mc)),
-        adapt(CuArray{IMDP.indtype(T)}, initial_states(mc)),
+        adapt(CuArray{IntervalMDP.indtype(T)}, initial_states(mc)),
         num_states(mc),
     )
 end
 
 function Adapt.adapt_structure(
-    T::Type{<:IMDP.CuModelAdaptor},
+    T::Type{<:IntervalMDP.CuModelAdaptor},
     mdp::IntervalMarkovDecisionProcess,
 )
     return IntervalMarkovDecisionProcess(
         adapt(T, transition_prob(mdp)),
-        adapt(CuArray{IMDP.indtype(T)}, IMDP.stateptr(mdp)),
+        adapt(CuArray{IntervalMDP.indtype(T)}, IntervalMDP.stateptr(mdp)),
         actions(mdp),
-        adapt(CuArray{IMDP.indtype(T)}, initial_states(mdp)),
+        adapt(CuArray{IntervalMDP.indtype(T)}, initial_states(mdp)),
         num_states(mdp),
     )
 end

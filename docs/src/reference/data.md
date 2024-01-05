@@ -1,7 +1,7 @@
 # Data formats
 
 ```@meta
-CurrentModule = IMDP.Data
+CurrentModule = IntervalMDP.Data
 ```
 
 ## PRISM
@@ -16,7 +16,7 @@ read_bmdp_tool_file
 write_bmdp_tool_file
 ```
 
-## IMDP.jl
+## IntervalMDP.jl
 ```@docs
 read_imdp_jl
 read_imdp_jl_model

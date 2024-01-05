@@ -1,4 +1,4 @@
-module IMDP
+module IntervalMDP
 
 using LinearAlgebra, SparseArrays
 

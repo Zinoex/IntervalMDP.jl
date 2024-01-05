@@ -125,7 +125,7 @@ function write_bmdp_tool_file(
     prob = transition_prob(mdp)
     l, g = lower(prob), gap(prob)
     num_columns = num_source(prob)
-    sptr = IMDP.stateptr(mdp)
+    sptr = IntervalMDP.stateptr(mdp)
     act = actions(mdp)
 
     number_states = num_states(mdp)

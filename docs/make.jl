@@ -1,16 +1,16 @@
-using IMDP
+using IntervalMDP
 using Documenter
 
 push!(LOAD_PATH, "../src/")
-DocMeta.setdocmeta!(IMDP, :DocTestSetup, :(using IMDP); recursive = true)
+DocMeta.setdocmeta!(IntervalMDP, :DocTestSetup, :(using IntervalMDP); recursive = true)
 
 makedocs(; 
-    modules = [IMDP],
+    modules = [IntervalMDP],
     authors = "Frederik Baymler Mathiesen <frederik@baymler.com> and contributors",
-    sitename = "IMDP.jl",
+    sitename = "IntervalMDP.jl",
     format = Documenter.HTML(;
         prettyurls = get(ENV, "CI", "false") == "true",
-        canonical = "https://www.baymler.com/IMDP.jl",
+        canonical = "https://www.baymler.com/IntervalMDP.jl",
         edit_link = "main",
         assets = String[],
     ),
@@ -31,4 +31,4 @@ makedocs(;
     doctest = false,
 )
 
-deploydocs(; repo = "github.com/Zinoex/IMDP.jl", devbranch = "main")
+deploydocs(; repo = "github.com/Zinoex/IntervalMDP.jl", devbranch = "main")

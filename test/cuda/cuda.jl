@@ -1,6 +1,6 @@
 
 @testset "cuda/adapt" begin
-    adaptor = IMDP.CuModelAdaptor{Float64, Int32}
+    adaptor = IntervalMDP.CuModelAdaptor{Float64, Int32}
 
     @test valtype(adaptor) == Float64
     @test indtype(adaptor) == Int32

@@ -1,4 +1,4 @@
-name = "IMDP"
+name = "IntervalMDP"
 uuid = "051c988a-e73c-45a4-90ec-875cac0402c7"
 authors = ["Frederik Baymler Mathiesen <frederik@baymler.com> and contributors"]
 version = "0.1.0"
@@ -15,7 +15,7 @@ CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
 
 [extensions]
-IMDPCudaExt = ["Adapt", "CUDA", "LLVM"]
+IntervalMDPCudaExt = ["Adapt", "CUDA", "LLVM"]
 
 [compat]
 CUDA = "5.1.0"

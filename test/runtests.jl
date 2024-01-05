@@ -1,8 +1,8 @@
 using Test
 using Random, StatsBase
-using IMDP, SparseArrays, CUDA
+using IntervalMDP, SparseArrays, CUDA
 
-@testset "IMDP.jl" begin
+@testset "IntervalMDP.jl" begin
     test_files =
         ["ominmax.jl", "partial.jl", "vi.jl", "imdp.jl", "synthesis.jl", "specification.jl"]
     for f in test_files

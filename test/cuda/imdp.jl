@@ -40,7 +40,7 @@ prob3 = IntervalProbabilities(;
 transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
 initial_states = [Int32(1)]
 
-mdp = IMDP.cu(IntervalMarkovDecisionProcess(transition_probs, initial_states))
+mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs, initial_states))
 
 # Finite time reachability
 prop = FiniteTimeReachability([3], 10)
@@ -105,7 +105,7 @@ V_conv, _, u = value_iteration(problem)
 @test maximum(u) <= 1e-6
 
 # Finite time reward
-prop = FiniteTimeReward(IMDP.cu([2.0, 1.0, 0.0]), 0.9, 10)
+prop = FiniteTimeReward(IntervalMDP.cu([2.0, 1.0, 0.0]), 0.9, 10)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(mdp, spec)
 V_fixed_it1, k, _ = value_iteration(problem)

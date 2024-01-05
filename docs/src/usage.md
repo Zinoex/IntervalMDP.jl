@@ -10,6 +10,8 @@ Both systems consist of states, a designated initial state, and a transition mat
 An example of how to construct either is the following:
 
 ```julia
+using IntervalMDP
+
 # IMC
 prob = IntervalProbabilities(;
     lower = [
@@ -209,16 +211,16 @@ prob = IntervalProbabilities(;
     ),
 )
 
-mc = IMDP.cu(IntervalMarkovChain(prob, 1))
+mc = IntervalMDP.cu(IntervalMarkovChain(prob, 1))
 
 # Transfer transition matrices separately
 prob = IntervalProbabilities(;
-    lower = IMDP.cu(sparse_hcat(
+    lower = IntervalMDP.cu(sparse_hcat(
         SparseVector(3, [2, 3], [0.1, 0.2]),
         SparseVector(3, [1, 2, 3], [0.5, 0.3, 0.1]),
         SparseVector(3, [3], [1.0]),
     )),
-    upper = IMDP.cu(sparse_hcat(
+    upper = IntervalMDP.cu(sparse_hcat(
         SparseVector(3, [1, 2, 3], [0.5, 0.6, 0.7]),
         SparseVector(3, [1, 2, 3], [0.7, 0.5, 0.3]),
         SparseVector(3, [3], [1.0]),

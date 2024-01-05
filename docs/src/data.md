@@ -7,4 +7,4 @@
 
 ## bmdp-tool
 
-## IMDP.jl
+## IntervalMDP.jl

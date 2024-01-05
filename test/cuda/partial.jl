@@ -1,4 +1,4 @@
-prob = IMDP.cu(
+prob = IntervalMDP.cu(
     IntervalProbabilities(;
         lower = sparse_hcat(
             SparseVector(Int32(15), Int32[4, 10], [0.1, 0.2]),
@@ -11,7 +11,7 @@ prob = IMDP.cu(
     ),
 )
 
-V = IMDP.cu(collect(1.0:15.0))
+V = IntervalMDP.cu(collect(1.0:15.0))
 
 p = partial_ominmax(prob, V, Int32[2]; max = true)
 p = SparseMatrixCSC(p)

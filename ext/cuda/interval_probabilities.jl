@@ -1,16 +1,16 @@
 
-function IMDP.compute_gap(lower::M, upper::M) where {Tv, Ti, M <: CuSparseMatrixCSC{Tv, Ti}}
+function IntervalMDP.compute_gap(lower::M, upper::M) where {Tv, Ti, M <: CuSparseMatrixCSC{Tv, Ti}}
     # lower = CuSparseMatrixCOO(lower)
 
     # FIXME: This is an ugly, non-robust hack.
     upper = SparseMatrixCSC(upper)
     lower = SparseMatrixCSC(lower)
-    lower, gap = IMDP.compute_gap(lower, upper)
-    return adapt(IMDP.CuModelAdaptor{Tv, Ti}, lower),
-    adapt(IMDP.CuModelAdaptor{Tv, Ti}, gap)
+    lower, gap = IntervalMDP.compute_gap(lower, upper)
+    return adapt(IntervalMDP.CuModelAdaptor{Tv, Ti}, lower),
+    adapt(IntervalMDP.CuModelAdaptor{Tv, Ti}, gap)
 end
 
-function IMDP.interval_prob_hcat(
+function IntervalMDP.interval_prob_hcat(
     T,
     transition_probs::Vector{
         <:IntervalProbabilities{Tv, <:AbstractVector{Tv}, <:CuSparseMatrixCSC{Tv, Ti}},

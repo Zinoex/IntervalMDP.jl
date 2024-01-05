@@ -1,9 +1,9 @@
 ```@meta
-CurrentModule = IMDP
+CurrentModule = IntervalMDP
 ```
 
-# IMDP
-[IMDP.jl](https://github.com/zinoex/IMDP.jl) is a [Julia](https://julialang.org/) package for modeling
+# IntervalMDP
+[IntervalMDP.jl](https://github.com/zinoex/IntervalMDP.jl) is a [Julia](https://julialang.org/) package for modeling
 and certifying Interval Markov Decision Processes (IMDPs) via Value Iteration.
 
 IMDPs are a generalization of Markov Decision Processes (MDPs) where the transition probabilities
@@ -21,7 +21,7 @@ introduces for enabling better use of the available hardware and higher performa
 - Dense and sparse matrix support
 - Parametric probability types for customizable precision
 - Multithreaded CPU and CUDA-accelerated value iteration
-- Data loading and writing in formats by various tools (PRISM, bmdp-tool, IMDP.jl)
+- Data loading and writing in formats by various tools (PRISM, bmdp-tool, IntervalMDP.jl)
 
 !!! info
     Until now, all state-of-the-art tools for IMDPs have been standalone programs. 
@@ -31,10 +31,10 @@ introduces for enabling better use of the available hardware and higher performa
 
 This package requires Julia v1.9 or later. Refer to the [official documentation](https://julialang.org/downloads/) on how to install it for your system.
 
-To install `IMDP.jl`, use the following command inside Julia's REPL:
+To install `IntervalMDP.jl`, use the following command inside Julia's REPL:
 
 ```julia
-julia> import Pkg; Pkg.add("IMDP")
+julia> import Pkg; Pkg.add("IntervalMDP")
 ```
 
 If you want to use the CUDA extension, you also need to install `CUDA.jl`:

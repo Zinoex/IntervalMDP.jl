@@ -1,7 +1,7 @@
 """
     read_imdp_jl_file(path)
 
-Read an IMDP.jl data file and return an `IntervalMarkovDecisionProcess`
+Read an IntervalMDP.jl data file and return an `IntervalMarkovDecisionProcess`
 or `IntervalMarkovChain` and a list of terminal states. 
 
 See [Data storage formats](@ref) for more information on the file format.
@@ -16,7 +16,7 @@ end
 """
     read_imdp_jl_model(model_path)
 
-Read an `IntervalMarkovDecisionProcess` or `IntervalMarkovChain` from an IMDP.jl system file (netCDF sparse format).
+Read an `IntervalMarkovDecisionProcess` or `IntervalMarkovChain` from an IntervalMDP.jl system file (netCDF sparse format).
 
 See [Data storage formats](@ref) for more information on the file format.
 """
@@ -76,7 +76,7 @@ end
 """
     read_imdp_jl_spec(spec_path)
 
-Read a `Specification` from an IMDP.jl spec file (JSON-format).
+Read a `Specification` from an IntervalMDP.jl spec file (JSON-format).
 
 See [Data storage formats](@ref) for more information on the file format.
 """
@@ -169,7 +169,7 @@ end
 """
     write_imdp_jl_model(model_path, mdp_or_mc)
 
-Write an `IntervalMarkovDecisionProcess` or `IntervalMarkovChain` to an IMDP.jl system file (netCDF sparse format).
+Write an `IntervalMarkovDecisionProcess` or `IntervalMarkovChain` to an IntervalMDP.jl system file (netCDF sparse format).
 
 See [Data storage formats](@ref) for more information on the file format.
 """
@@ -235,9 +235,9 @@ function write_imdp_jl_model_specific(dataset, mdp::IntervalMarkovDecisionProces
     dataset.attrib["model"] = "imdp"
     dataset.attrib["cols"] = "from/action"
 
-    defDim(dataset, "stateptr", length(IMDP.stateptr(mdp)))
+    defDim(dataset, "stateptr", length(IntervalMDP.stateptr(mdp)))
     v = defVar(dataset, "stateptr", Int32, ("stateptr",))
-    v[:] = IMDP.stateptr(mdp)
+    v[:] = IntervalMDP.stateptr(mdp)
 
     defDim(dataset, "action_vals", length(actions(mdp)))
     v = defVar(dataset, "action_vals", eltype(actions(mdp)), ("action_vals",))
@@ -252,7 +252,7 @@ end
 """
     write_imdp_jl_spec(spec_path, spec::Specification)
 
-Write a `Specification` to an IMDP.jl spec file (JSON-format).
+Write a `Specification` to an IntervalMDP.jl spec file (JSON-format).
 
 See [Data storage formats](@ref) for more information on the file format.
 """

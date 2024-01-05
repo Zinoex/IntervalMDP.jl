@@ -1,10 +1,10 @@
-# IMDP.jl - Interval Markov Decision Processes
+# IntervalMDP.jl - Interval Markov Decision Processes
 
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://www.baymler.com/IMDP.jl/dev/usage/)
-[![Build Status](https://github.com/zinoex/IMDP.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/zinoex/IMDP.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Codecov](https://codecov.io/gh/Zinoex/IMDP.jl/graph/badge.svg?token=K62S0148BK)](https://codecov.io/gh/Zinoex/IMDP.jl)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://www.baymler.com/IntervalMDP.jl/dev/usage/)
+[![Build Status](https://github.com/zinoex/IntervalMDP.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/zinoex/IntervalMDP.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Codecov](https://codecov.io/gh/Zinoex/IntervalMDP.jl/graph/badge.svg?token=K62S0148BK)](https://codecov.io/gh/Zinoex/IntervalMDP.jl)
 
-IMDP.jl is a Julia package for modeling and certifying Interval Markov Decision Processes (IMDPs) via Value Iteration.
+IntervalMDP.jl is a Julia package for modeling and certifying Interval Markov Decision Processes (IMDPs) via Value Iteration.
 
 IMDPs are a generalization of Markov Decision Processes (MDPs) where the transition probabilities
 are represented by intervals instead of point values, to model uncertainty. IMDPs are also frequently
@@ -26,10 +26,10 @@ certificate using CUDA hardware.
 
 This package requires Julia v1.9 or later. Refer to the [official documentation](https://julialang.org/downloads/) on how to install it for your system.
 
-To install `IMDP.jl`, use the following command inside Julia's REPL:
+To install `IntervalMDP.jl`, use the following command inside Julia's REPL:
 
 ```julia
-julia> import Pkg; Pkg.add("IMDP")
+julia> import Pkg; Pkg.add("IntervalMDP")
 ```
 
 If you want to use the CUDA extension, you also need to install `CUDA.jl`:
@@ -41,6 +41,8 @@ julia> import Pkg; Pkg.add("CUDA")
 Here is an example of how to use the package to solve a finite horizon reachability problem for an Interval Markov Chain (IMC) with 3 states and 1 initial state.
 The goal is to compute the maximum pessimistic probability of reaching state 3 within 10 time steps.
 ```julia
+using IntervalMDP
+
 # IMC
 prob = IntervalProbabilities(;
     lower = [
@@ -67,9 +69,9 @@ problem = Problem(imc, spec)
 V, k, residual = value_iteration(problem)
 ```
 
-See [Usage](https://www.baymler.com/IMDP.jl/dev/usage/) for more information about different specifications, using sparse matrices, and CUDA.
+See [Usage](https://www.baymler.com/IntervalMDP.jl/dev/usage/) for more information about different specifications, using sparse matrices, and CUDA.
 
 ## Copyright notice
-Technische Universiteit Delft hereby disclaims all copyright interest in the program “IMDP.jl” (GPU-accelerated value iteration for Interval Markov Decision Processes) written by the Frederik Baymler Mathiesen. Fred van Keulen, Dean of Mechanical Engineering.
+Technische Universiteit Delft hereby disclaims all copyright interest in the program “IntervalMDP.jl” (GPU-accelerated value iteration for Interval Markov Decision Processes) written by the Frederik Baymler Mathiesen. Fred van Keulen, Dean of Mechanical Engineering.
 
 © 2024, Frederik Baymler Mathiesen, HERALD Lab, TU Delft

@@ -11,7 +11,7 @@ prob = IntervalProbabilities(;
     ),
 )
 
-mc = IMDP.cu(IntervalMarkovChain(prob, [1]))
+mc = IntervalMDP.cu(IntervalMarkovChain(prob, [1]))
 
 prop = FiniteTimeReachability([3], 10)
 spec = Specification(prop, Pessimistic)
@@ -37,7 +37,7 @@ problem = Problem(mc, spec)
 V_conv, _, u = value_iteration(problem)
 @test maximum(u) <= 1e-6
 
-prop = FiniteTimeReward(IMDP.cu([2.0, 1.0, 0.0]), 0.9, 10)
+prop = FiniteTimeReward(IntervalMDP.cu([2.0, 1.0, 0.0]), 0.9, 10)
 spec = Specification(prop, Pessimistic)
 problem = Problem(mc, spec)
 V_fixed_it, k, _ = value_iteration(problem)

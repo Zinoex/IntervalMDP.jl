@@ -1,5 +1,5 @@
 module Data
-using IMDP, SparseArrays
+using IntervalMDP, SparseArrays
 using NCDatasets, JSON
 
 include("bmdp-tool.jl")

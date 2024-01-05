@@ -1,5 +1,5 @@
 
-function IMDP.construct_value_function(
+function IntervalMDP.construct_value_function(
     ::MR,
     num_states,
 ) where {R, MR <: CuSparseMatrixCSC{R}}
@@ -7,7 +7,7 @@ function IMDP.construct_value_function(
     return V
 end
 
-function IMDP.construct_nonterminal(
+function IntervalMDP.construct_nonterminal(
     mc::IntervalMarkovChain{<:IntervalProbabilities{R, VR, MR}},
     terminal::AbstractVector{Ti},
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}, Ti}
@@ -17,11 +17,11 @@ function IMDP.construct_nonterminal(
     return nonterminal
 end
 
-function IMDP.construct_nonterminal(
+function IntervalMDP.construct_nonterminal(
     mdp::IntervalMarkovDecisionProcess{<:IntervalProbabilities{R, VR, MR}},
     terminal::AbstractVector{Ti},
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}, Ti}
-    sptr = Vector(IMDP.stateptr(mdp))
+    sptr = Vector(IntervalMDP.stateptr(mdp))
 
     nonterminal = convert.(Ti, setdiff(collect(1:num_states(mdp)), terminal))
     nonterminal_actions = mapreduce(i -> sptr[i]:(sptr[i + 1] - 1), vcat, nonterminal)
@@ -32,11 +32,11 @@ function IMDP.construct_nonterminal(
     return nonterminal, nonterminal_actions
 end
 
-function IMDP.step_imc!(
+function IntervalMDP.step_imc!(
     ordering,
     p,
     prob::IntervalProbabilities{R, VR, MR},
-    value_function::IMDP.IMCValueFunction;
+    value_function::IntervalMDP.IMCValueFunction;
     upper_bound,
     discount = 1.0,
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}}
@@ -51,13 +51,13 @@ function IMDP.step_imc!(
     return value_function
 end
 
-function IMDP.step_imdp!(
+function IntervalMDP.step_imdp!(
     ordering,
     p,
     prob::IntervalProbabilities{R, VR, MR},
     stateptr,
     maxactions,
-    value_function::IMDP.IMDPValueFunction;
+    value_function::IntervalMDP.IMDPValueFunction;
     maximize,
     upper_bound,
     discount = 1.0,

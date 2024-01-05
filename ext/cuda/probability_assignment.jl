@@ -1,5 +1,5 @@
 
-function IMDP.probability_assignment!(
+function IntervalMDP.probability_assignment!(
     p::CuSparseMatrixCSC{Tv, Ti},
     prob::IntervalProbabilities{Tv},
     ordering::CuSparseOrdering{Ti},

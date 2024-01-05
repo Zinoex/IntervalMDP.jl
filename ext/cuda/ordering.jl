@@ -21,10 +21,10 @@ struct CuSparseDeviceOrdering{T, A} <: AbstractStateOrdering{T}
 end
 
 # Permutations are specific to each state
-IMDP.perm(order::CuSparseOrdering, state) = order.subsets[state]
-IMDP.perm(order::CuSparseDeviceOrdering, state) = order.subsets[state]
+IntervalMDP.perm(order::CuSparseOrdering, state) = order.subsets[state]
+IntervalMDP.perm(order::CuSparseDeviceOrdering, state) = order.subsets[state]
 
-function IMDP.sort_states!(order::CuSparseOrdering, V; max = true)
+function IntervalMDP.sort_states!(order::CuSparseOrdering, V; max = true)
     sort_subsets!(order, V; max = max)
 
     return order
@@ -185,7 +185,7 @@ end
     return sync_threads()
 end
 
-function IMDP.construct_ordering(T, p::CuSparseMatrixCSC)
+function IntervalMDP.construct_ordering(T, p::CuSparseMatrixCSC)
     # Assume that input/start state is on the columns and output/target state is on the rows
     vecptr = CuVector{T}(p.colPtr)
     perm = CuVector{T}(SparseArrays.rowvals(p))

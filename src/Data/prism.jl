@@ -59,7 +59,7 @@ function write_prism_transitions_file(
     num_columns = num_source(prob)
     num_transitions = nnz(l)
 
-    sptr = IMDP.stateptr(mdp)
+    sptr = IntervalMDP.stateptr(mdp)
     act = actions(mdp)
     num_choices = length(act)
 
