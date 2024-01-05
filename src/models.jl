@@ -46,8 +46,11 @@ mc = IntervalMarkovChain(prob, initial_states)
 ```
 
 """
-struct IntervalMarkovChain{P <: IntervalProbabilities, T <: Integer, VT <: AbstractVector{T}} <:
-       IntervalMarkovProcess
+struct IntervalMarkovChain{
+    P <: IntervalProbabilities,
+    T <: Integer,
+    VT <: AbstractVector{T},
+} <: IntervalMarkovProcess
     transition_prob::P
     initial_states::VT
     num_states::T
@@ -63,9 +66,7 @@ function IntervalMarkovChain(
     return IntervalMarkovChain(transition_prob, initial_states, num_states)
 end
 
-function IntervalMarkovChain(
-    transition_prob::P
-) where {P <: IntervalProbabilities}
+function IntervalMarkovChain(transition_prob::P) where {P <: IntervalProbabilities}
     return IntervalMarkovChain(transition_prob, Base.OneTo(num_source(transition_prob)))
 end
 
@@ -235,12 +236,8 @@ end
 function IntervalMarkovDecisionProcess(
     transition_prob::P,
     stateptr::VT,
-    action_vals::VA
-) where {
-    P <: IntervalProbabilities,
-    VT <: AbstractVector{<:Integer},
-    VA <: AbstractVector,
-}
+    action_vals::VA,
+) where {P <: IntervalProbabilities, VT <: AbstractVector{<:Integer}, VA <: AbstractVector}
     return IntervalMarkovDecisionProcess(
         transition_prob,
         stateptr,
@@ -252,12 +249,22 @@ end
 function IntervalMarkovDecisionProcess(
     transition_probs::Vector{Pair{VA, P}},
     initial_states::VI,
-) where {P <: IntervalProbabilities, VA <: AbstractVector, T <: Integer, VI <: AbstractVector{T}}
+) where {
+    P <: IntervalProbabilities,
+    VA <: AbstractVector,
+    T <: Integer,
+    VI <: AbstractVector{T},
+}
     action_vals = mapreduce(first, vcat, transition_probs)
     transition_probs = map(x -> x[2], transition_probs)
     transition_prob, stateptr = interval_prob_hcat(T, transition_probs)
 
-    return IntervalMarkovDecisionProcess(transition_prob, stateptr, action_vals, initial_states)
+    return IntervalMarkovDecisionProcess(
+        transition_prob,
+        stateptr,
+        action_vals,
+        initial_states,
+    )
 end
 
 function IntervalMarkovDecisionProcess(

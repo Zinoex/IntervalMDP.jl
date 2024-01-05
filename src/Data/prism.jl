@@ -169,7 +169,7 @@ function write_prism_labels_file(
     mdp_or_mc,
     spec::AbstractReachAvoid,
 )
-    istates = initial_states(mdp_or_mc) 
+    istates = initial_states(mdp_or_mc)
     target_states = reach(spec)
     avoid_states = avoid(spec)
 
