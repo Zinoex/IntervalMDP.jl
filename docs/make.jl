@@ -10,7 +10,7 @@ makedocs(;
     sitename = "IMDP.jl",
     format = Documenter.HTML(;
         prettyurls = get(ENV, "CI", "false") == "true",
-        canonical = "https://zinoex.github.io/IMDP.jl",
+        canonical = "https://www.baymler.com/IMDP.jl",
         edit_link = "main",
         assets = String[],
     ),
