@@ -3,7 +3,7 @@ CurrentModule = IMDP
 ```
 
 # IMDP
-[IMDP](https://github.com/zinoex/IMDP.jl) is a [Julia](https://julialang.org/) package for modeling
+[IMDP.jl](https://github.com/zinoex/IMDP.jl) is a [Julia](https://julialang.org/) package for modeling
 and certifying Interval Markov Decision Processes (IMDPs) via Value Iteration.
 
 IMDPs are a generalization of Markov Decision Processes (MDPs) where the transition probabilities
