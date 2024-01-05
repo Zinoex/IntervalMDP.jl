@@ -15,7 +15,7 @@ IMDP.cu(model) = adapt(IMDP.CuModelAdaptor{Float64, Int32}, model)
 function Adapt.adapt_structure(T::Type{<:IMDP.CuModelAdaptor}, mc::IntervalMarkovChain)
     return IntervalMarkovChain(
         adapt(T, transition_prob(mc)),
-        initial_state(mc),
+        adapt(CuArray{IMDP.indtype(T)}, initial_states(mc)),
         num_states(mc),
     )
 end
@@ -28,7 +28,7 @@ function Adapt.adapt_structure(
         adapt(T, transition_prob(mdp)),
         adapt(CuArray{IMDP.indtype(T)}, IMDP.stateptr(mdp)),
         actions(mdp),
-        initial_state(mdp),
+        adapt(CuArray{IMDP.indtype(T)}, initial_states(mdp)),
         num_states(mdp),
     )
 end

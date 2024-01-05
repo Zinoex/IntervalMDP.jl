@@ -146,12 +146,16 @@ function write_prism_labels_file(
     mdp_or_mc,
     spec::AbstractReachability,
 )
-    istate = initial_state(mdp_or_mc) - 1
+    istates = initial_states(mdp_or_mc)
     target_states = reach(spec)
 
     open(path_without_file_ending * ".lab", "w") do io
         println(io, "0=\"init\" 1=\"deadlock\" 2=\"reach\"")
-        println(io, "$istate: 0")
+
+        for istate in istates
+            state = istate - 1  # PRISM uses 0-based indexing
+            println(io, "$state: 0")
+        end
 
         for tstate in target_states
             state = tstate - 1  # PRISM uses 0-based indexing
@@ -165,13 +169,17 @@ function write_prism_labels_file(
     mdp_or_mc,
     spec::AbstractReachAvoid,
 )
-    istate = initial_state(mdp_or_mc) - 1
+    istates = initial_states(mdp_or_mc) 
     target_states = reach(spec)
     avoid_states = avoid(spec)
 
     open(path_without_file_ending * ".lab", "w") do io
         println(io, "0=\"init\" 1=\"deadlock\" 2=\"reach\" 3=\"avoid\"")
-        println(io, "$istate: 0")
+
+        for istate in istates
+            state = istate - 1  # PRISM uses 0-based indexing
+            println(io, "$state: 0")
+        end
 
         for tstate in target_states
             state = tstate - 1  # PRISM uses 0-based indexing
@@ -300,9 +308,9 @@ See [PRISM Explicit Model Files](https://prismmodelchecker.org/manual/Appendices
 function read_prism_file(path_without_file_ending)
     num_states = read_prism_states_file(path_without_file_ending)
     prob = read_prism_transitions_file(path_without_file_ending, num_states)
-    initial_state, spec = read_prism_spec(path_without_file_ending, num_states)
+    initial_states, spec = read_prism_spec(path_without_file_ending, num_states)
 
-    mdp = IntervalMarkovDecisionProcess(prob, initial_state)
+    mdp = IntervalMarkovDecisionProcess(prob, initial_states)
 
     return Problem(mdp, spec)
 end
@@ -554,12 +562,12 @@ function read_prism_labels_file(
     rewards,
 )
     state_labels = read_prism_labels(path_without_file_ending)
-    initial_state = find_initial_state(state_labels)
+    initial_states = find_initial_state(state_labels)
 
     reach = map(first, findall((k, v) -> "reach" in V))
     spec = spec_type(reach, spec_meta...)
 
-    return spec, initial_state
+    return spec, initial_states
 end
 
 function read_prism_labels_file(
@@ -569,13 +577,13 @@ function read_prism_labels_file(
     rewards,
 )
     state_labels = read_prism_labels(path_without_file_ending)
-    initial_state = find_initial_state(state_labels)
+    initial_states = find_initial_state(state_labels)
 
     reach = map(first, findall((k, v) -> "reach" in V))
     avoid = map(first, findall((k, v) -> "avoid" in V))
     spec = spec_type(reach, avoid, spec_meta...)
 
-    return spec, initial_state
+    return spec, initial_states
 end
 
 function read_prism_labels_file(
@@ -585,11 +593,11 @@ function read_prism_labels_file(
     rewards,
 )
     state_labels = read_prism_labels(path_without_file_ending)
-    initial_state = find_initial_state(state_labels)
+    initial_states = find_initial_states(state_labels)
 
     spec = spec_type(rewards, spec_meta...)
 
-    return spec, initial_state
+    return spec, initial_states
 end
 
 function read_prism_labels(path_without_file_ending)
@@ -633,9 +641,7 @@ function read_prism_labels_header(line)
 end
 
 function find_initial_state(state_labels)
-    initial_states = map(first, findall((k, v) -> "init" in V))
+    initial_states = map(first, findall((k, v) -> "init" in v))
 
-    @assert length(initial_states) == 1
-
-    return initial_states[1]
+    return initial_states
 end

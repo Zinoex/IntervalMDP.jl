@@ -13,16 +13,24 @@ function read_imdp_jl(model_path, spec_path)
     return Problem(mdp_or_mc, spec)
 end
 
+"""
+    read_imdp_jl_model(model_path)
+
+Read an `IntervalMarkovDecisionProcess` or `IntervalMarkovChain` from an IMDP.jl system file (netCDF sparse format).
+
+See [Data storage formats](@ref) for more information on the file format.
+"""
 function read_imdp_jl_model(model_path)
     mdp_or_mc = Dataset(model_path) do dataset
         n = Int32(dataset.attrib["num_states"])
-        initial_state = dataset.attrib["initial_state"]
         model = dataset.attrib["model"]
 
         @assert model ∈ ["imdp", "imc"]
         @assert dataset.attrib["rows"] == "to"
         @assert dataset.attrib["cols"] ∈ ["from", "from/action"]
         @assert dataset.attrib["format"] == "sparse_csc"
+
+        initial_states = convert.(Int32, dataset["initial_states"][:])
 
         lower_colptr = convert.(Int32, dataset["lower_colptr"][:])
         lower_rowval = convert.(Int32, dataset["lower_rowval"][:])
@@ -65,6 +73,13 @@ function read_imdp_jl_mc(dataset, prob, initial_state)
     return mc
 end
 
+"""
+    read_imdp_jl_spec(spec_path)
+
+Read a `Specification` from an IMDP.jl spec file (JSON-format).
+
+See [Data storage formats](@ref) for more information on the file format.
+"""
 function read_imdp_jl_spec(spec_path)
     data = JSON.parsefile(spec_path; inttype = Int32)
 
@@ -163,7 +178,11 @@ function write_imdp_jl_model(model_path, mdp_or_mc::IntervalMarkovProcess)
         dataset.attrib["format"] = "sparse_csc"
         dataset.attrib["num_states"] = num_states(mdp_or_mc)
         dataset.attrib["rows"] = "to"
-        dataset.attrib["initial_state"] = initial_state(mdp_or_mc)
+
+        istates = initial_states(mdp_or_mc)
+        defDim(dataset, "initial_states", length(istates))
+        v = defVar(dataset, "initial_states", Int32, ("initial_states",); deflatelevel = 5)
+        v[:] = istates
 
         prob = transition_prob(mdp_or_mc)
         l = lower(prob)
@@ -231,7 +250,7 @@ function write_imdp_jl_model_specific(dataset, mc::IntervalMarkovChain)
 end
 
 """
-    write_imdp_jl_spec(spec_path, spec)
+    write_imdp_jl_spec(spec_path, spec::Specification)
 
 Write a `Specification` to an IMDP.jl spec file (JSON-format).
 

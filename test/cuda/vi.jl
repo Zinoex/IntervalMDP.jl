@@ -11,7 +11,7 @@ prob = IntervalProbabilities(;
     ),
 )
 
-mc = IMDP.cu(IntervalMarkovChain(prob, 1))
+mc = IMDP.cu(IntervalMarkovChain(prob, [1]))
 
 prop = FiniteTimeReachability([3], 10)
 spec = Specification(prop, Pessimistic)

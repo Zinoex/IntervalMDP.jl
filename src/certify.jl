@@ -26,7 +26,8 @@ function satisfaction_probability(
     V, _, _ = value_iteration(problem; upper_bound = upper_bound)
     V = Vector(V)   # Convert to CPU vector if not already
 
-    sat_prob = V[initial_state(system(problem))]
+    sys = system(problem)
+    sat_prob = V[initial_states(sys)]
 
     return sat_prob
 end

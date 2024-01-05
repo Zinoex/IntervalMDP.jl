@@ -8,10 +8,10 @@ If the specification is infinite time, then the policy is stationary and only a 
 function control_synthesis(problem::Problem{<:IntervalMarkovDecisionProcess})
     spec = specification(problem)
     prop = system_property(spec)
-    return control_synthesis(problem, Val(isfinitetime(prop)))
+    return _control_synthesis(problem, Val(isfinitetime(prop)))
 end
 
-function control_synthesis(
+function _control_synthesis(
     problem::Problem{<:IntervalMarkovDecisionProcess},
     time_varying::Val{true},
 )
@@ -184,7 +184,7 @@ function step_imdp_with_extract!(
     return indices
 end
 
-function control_synthesis(
+function _control_synthesis(
     problem::Problem{<:IntervalMarkovDecisionProcess},
     time_varying::Val{false},
 )

@@ -8,7 +8,7 @@ export lower, upper, gap, sum_lower, num_source, num_target
 
 include("models.jl")
 export IntervalMarkovProcess, IntervalMarkovChain, IntervalMarkovDecisionProcess
-export transition_prob, num_states, initial_state, actions, num_choices
+export transition_prob, num_states, initial_states, actions, num_choices
 
 include("specification.jl")
 export Property, LTLFormula, LTLfFormula, PCTLFormula
