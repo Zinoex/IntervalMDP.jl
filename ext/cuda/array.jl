@@ -154,5 +154,7 @@ Adapt.adapt_storage(
     M::SparseMatrixCSC,
 ) where {Tv, Ti} = CuSparseMatrixCSC{Tv, Ti}(M)
 
-Adapt.adapt_storage(::Type{IntervalMDP.CuModelAdaptor{Tv, Ti}}, x::AbstractArray) where {Tv, Ti} =
-    adapt(CuArray{Tv}, x)
+Adapt.adapt_storage(
+    ::Type{IntervalMDP.CuModelAdaptor{Tv, Ti}},
+    x::AbstractArray,
+) where {Tv, Ti} = adapt(CuArray{Tv}, x)
