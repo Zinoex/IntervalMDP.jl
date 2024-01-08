@@ -1,11 +1,11 @@
-using IntervalMDP
+using IntervalMDP, IntervalMDP.Data
 using Documenter
 
 push!(LOAD_PATH, "../src/")
 DocMeta.setdocmeta!(IntervalMDP, :DocTestSetup, :(using IntervalMDP); recursive = true)
 
 makedocs(; 
-    modules = [IntervalMDP],
+    modules = [IntervalMDP, IntervalMDP.Data],
     authors = "Frederik Baymler Mathiesen <frederik@baymler.com> and contributors",
     sitename = "IntervalMDP.jl",
     format = Documenter.HTML(;
@@ -18,7 +18,7 @@ makedocs(;
         "Home" => "index.md",
         "Usage" => "usage.md",
         "Data formats" => "data.md",
-        "Theory" => "theory.md"
+        "Theory" => "theory.md",
         "Algorithms" => "algorithms.md",
         "Reference" => Any[
             "Systems" => "reference/systems.md",

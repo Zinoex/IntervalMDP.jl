@@ -1,10 +1,9 @@
 # Data storage formats
-
-- ASCII seems to dominate (but is very inefficient)
-- Binary formats are more efficient but not standardized
+IntervalMDP.jl supports reading and writing data in various formats, namely PRISM explicit format, bmdp-tool, and our own format (model and specification).
+To justify introducing another standard ([see relevant XKCD](https://xkcd.com/927/)), note that the PRISM explicit format and the bmdp-tool format are all written in ASCII, which is very inefficient in terms of storage space (especially for storing floating point numbers) and parsing time. We propose a binary format for the most storage-intensive part of the data, namely the transition probabilities, and use JSON for the specification, which is human- and machine-readable and widely used.
 
 ## PRISM
-\IMDPjl supports reading and writing [PRISM](https://www.prismmodelchecker.org/) [1] explicit data format. 
+IntervalMDP.jl supports reading and writing [PRISM](https://www.prismmodelchecker.org/) [1] explicit data format. 
 The data format is split into 4 different files, one for the states, one for the labels, one for the transition probabilities, and one for the specification. Therefore, our interface for reading PRISM files takes the path without file ending and adds the appropriate ending to each of the four files.
 
 ```julia
@@ -22,25 +21,25 @@ The extended details of the PRISM explicit file format can be found in [the appe
 
 #### States .sta
 | Number of lines | Description                                                                                                   |
-|-----------------|---------------------------------------------------------------------------------------------------------------|
+|:----------------|:--------------------------------------------------------------------------------------------------------------|
 | First line      | The first line containing symbolically `(v1, v2, ..., vn)` is a list of ``n`` variables in the model.         |
 | ``m`` lines where ``m`` is the number of states | Each line contains `i:(v1, v2, ..., vn)` where `i` is the index of the state and `(v1, v2, ..., vn)`` is an assignment of values to the variables in the model. Indices are zero-indexed.                                                     |
 
 #### Labels .lab
 | Number of lines | Description                                                                                                   |
-|-----------------|---------------------------------------------------------------------------------------------------------------|
+|:----------------|:--------------------------------------------------------------------------------------------------------------|
 | First line      | Contains a space-separated list of labels with index `i="label"`. The first two must be `0="init" 1="deadlock"`.         |
 | All remaining lines | Contains `i: j1 j2 j3 ...` where `i` is a state index and `j1 j2 j3 ...` are space-separated indices of labels associated with state `i`.                                                    |
 
 #### Transitions .tra
 | Number of lines | Description                                                                                                   |
-|-----------------|---------------------------------------------------------------------------------------------------------------|
-| First line      | `num\_states num\_choices num\_transitions` where `num\_state` must match the number in the state file.       |
-| Following `num\_transitions` lines | A list of transition probabilities with the format `src\_idx act\_idx dest\_idx [p\_lower,p\_upper] action`.                                                    |
+|:----------------|:--------------------------------------------------------------------------------------------------------------|
+| First line      | `num_states num_choices num_transitions` where `num_state` must match the number in the state file.           |
+| Following `num_transitions` lines | A list of transition probabilities with the format `src_idx act_idx dest_idx [p_lower,p_upper] action`.                                                    |
 
 #### Property .pctl
 | Number of lines | Description                                                                                                   |
-|-----------------|---------------------------------------------------------------------------------------------------------------|
+|:----------------|:--------------------------------------------------------------------------------------------------------------|
 | First line      | PRISM property specification                                                                                  |
 
 ## bmdp-tool
@@ -55,17 +54,22 @@ write_bmdp_tool_file(path, problem)
 ```
 
 bmdp-tool uses only one ASCII file with the following format:
+
 | Number of lines | Description                                                                                                   |
-|-----------------|---------------------------------------------------------------------------------------------------------------|
-| First line      | `num\_states`.                                                                                                |
-| Second line     | `num\_actions` (not to be confused with `num\_choices` of PRISM).                                             |
-| Third line      | `num\_terminal`.                                                                                              |
-| The following `num\_terminal` lines | Indices (zero-indexed) of terminal states, one per line.                                  |
-| The following `num\_terminal` lines | Indices (zero-indexed) of terminal states, one per line.                                  |
-| All remaining lines | A list of transition probabilities with the format `src\_idx act\_idx dest\_idx p\_lower p\_upper`.       |
+|:----------------|:--------------------------------------------------------------------------------------------------------------|
+| First line      | `num_states`.                                                                                                 |
+| Second line     | `num_actions` (not to be confused with `num_choices` of PRISM).                                               |
+| Third line      | `num_terminal`.                                                                                               |
+| The following `num_terminal` lines | Indices (zero-indexed) of terminal states, one per line.                                   |
+| The following `num_terminal` lines | Indices (zero-indexed) of terminal states, one per line.                                   |
+| All remaining lines | A list of transition probabilities with the format `src_idx act_idx dest_idx p_lower p_upper`.            |
+
+!!! terminology "Choices vs actions"
+
+    In PRISM, the number of choices which is listed in the transition file is the sum of the number of feasible actions in each state. In bmdp-tool, the number of actions is the total number of different actions in the model, i.e. in each state up to `num_actions` may be feasible. This is a subtle difference, but it is important to be aware of as the parsing in either tool requires the right number to be specified.
 
 ## IntervalMDP.jl
-An important disadvantage of both PRISM and bmdp-tool data formats is that they store the data in ASCII. As a result, they both require the parsing of floating point numbers and each character requires one byte of storage space. To address this problem, IntervalMDP.jl also supports a different _binary_ format based on NetCDF to store transition probabilities. We use JSON to store the specification, as storage space for the specification is much less a concern, and because JSON is a widely used, human-readable, file format.
+IntervalMDP.jl also supports a different _binary_ format based on NetCDF to store transition probabilities. We use JSON to store the specification, as storage space for the specification is much less a concern, and because JSON is a widely used, human-readable, file format.
 
 ```julia
 # Read
@@ -83,23 +87,24 @@ write_imdp_jl_spec(spec_path, spec_or_problem)
 The new format proposed uses netCDF, which is based on HDF5 underlying, to store transition probabilities, and a JSON file to store the specification. Transition probabilities are stored in CSC-format, which is unfortunately not natively stored in netCDF, nor any widely available format.
 Therefore, we store the following attributes and variables in the netCDF file:
 
-+-------------------+---------------------------------------------------------------------------------+
-| Global attributes | - `num_states`                                                                  |
-|                   | - `model` (either `imc` or `imdp`)                                              |
-|                   | - `format` (assert `sparse_csc`)                                                |
-|                   | - `rows` (assert `to`)                                                          |
-|                   | - `cols` (assert `from` if model is `imc` and `from/action` if model is `imdp`) |
-+-------------------+---------------------------------------------------------------------------------+
-| Variables         | - `lower\_colptr` (integer)                                                     |
-|                   | - `lower\_rowval` (integer)                                                     |
-|                   | - `lower\_nzval` (floating point)                                               |
-|                   | - `upper\_colptr` (integer)                                                     |
-|                   | - `upper\_rowval` (integer)                                                     |
-|                   | - `upper\_nzval` (floating point)                                               |
-|                   | - `initial\_states` (integer)                                                   |
-|                   | - `stateptr` (integer, only for `imdp`)                                         |
-|                   | - `action\_vals` (any netCDF supported type, only for `imdp`)                   |
-+-------------------+---------------------------------------------------------------------------------+
+__Global attributes:__
+
+- `num_states`
+- `model` (either `imc` or `imdp`)
+- `format` (assert `sparse_csc`)
+- `rows` (assert `to`)
+- `cols` (assert `from` if model is `imc` and `from/action` if model is `imdp`)
+
+__Variables:__
+- `lower_colptr` (integer)
+- `lower_rowval` (integer)
+- `lower_nzval` (floating point)
+- `upper_colptr` (integer)
+- `upper_rowval` (integer)
+- `upper_nzval` (floating point)
+- `initial_states` (integer)
+- `stateptr` (integer, only for `imdp`)
+- `action_vals` (any netCDF supported type, only for `imdp`)
 
 We store the specification in a JSON format where the structure depends on the type of specification.
 For a reachability-like specification, the specification is the following format
