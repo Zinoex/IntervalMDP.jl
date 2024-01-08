@@ -67,15 +67,15 @@ mdp = IntervalMarkovDecisionProcess(transition_probs, initial_states)
 ```
 
 Note that for an IMDP, the transition probabilities are specified as a list of pairs from actions to transition probabilities for each state.
-The constructor with concatenate the transition probabilities into a single matrix, such that the columns represent source/action pairs and the rows represent target states.
+The constructor will concatenate the transition probabilities into a single matrix, such that the columns represent source/action pairs and the rows represent target states.
 It will in addition construct a state pointer `stateptr` pointing to the first column of each state and concatenate a list of actions.
 See [`IntervalMarkovDecisionProcess`](@ref) for more details on how to construct an IMDP.
 
-For IMC, it is signifianctly simpler with source states on the columns and target states on the rows of the transition matrices.
+For IMC, the transition probability structure is significantly simpler with source states on the columns and target states on the rows of the transition matrices.
 
-Next, we choose a specification. Currently, we support reachability, reach-avoid, and reward specifications.
+Next, we choose a specification. Currently, we support reachability, reach-avoid, and reward properties.
 For reachability, we specify a target set of states and for reach-avoid we specify a target set of states and an avoid set of states.
-Furthermore, we distinguish between finite and infinite horizon specifications.
+Furthermore, we distinguish between finite and infinite horizon properties. In addition to the property, we need to specify whether we want to maximize or minimize the optimistic or pessimistic satistisfaction probability or discounted reward.
 
 ```julia
 ## Properties
