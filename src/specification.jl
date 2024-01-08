@@ -7,6 +7,14 @@ Super type for all system Property
 """
 abstract type Property end
 
+function checktimehorizon!(prop)
+    @assert time_horizon(prop) > 0
+end
+
+function checkconvergence!(prop)
+    @assert convergence_eps(prop) > 0
+end
+
 ## Temporal logics
 
 """
@@ -103,7 +111,7 @@ end
 
 function checkproperty!(prop::FiniteTimeReachability, system::IntervalMarkovProcess)
     checkterminal!(terminal_states(prop), num_states(system))
-    @assert time_horizon(prop) > 0
+    checktimehorizon!(prop)
 end
 
 """
@@ -151,7 +159,7 @@ end
 
 function checkproperty!(prop::InfiniteTimeReachability, system::IntervalMarkovProcess)
     checkterminal!(terminal_states(prop), num_states(system))
-    @assert convergence_eps(prop) > 0
+    checkconvergence!(prop)
 end
 
 """
@@ -210,7 +218,7 @@ end
 function checkproperty!(prop::FiniteTimeReachAvoid, system::IntervalMarkovProcess)
     checkterminal!(terminal_states(prop), num_states(system))
     checkdisjoint!(reach(prop), avoid(prop))
-    @assert time_horizon(prop) > 0
+    checktimehorizon!(prop)
 end
 
 """
@@ -264,7 +272,7 @@ end
 function checkproperty!(prop::InfiniteTimeReachAvoid, system::IntervalMarkovProcess)
     checkterminal!(terminal_states(prop), num_states(system))
     checkdisjoint!(reach(prop), avoid(prop))
-    @assert convergence_eps(prop) > 0
+    checkconvergence!(prop)
 end
 
 """
@@ -325,6 +333,11 @@ Super type for all reward specifications.
 """
 abstract type AbstractReward{R <: Real} <: Property end
 
+function checkreward!(prop::AbstractReward, system::IntervalMarkovProcess)
+    @assert length(reward(prop)) == num_states(system)
+    @assert 0 < discount(prop) < 1
+end
+
 """
     FiniteTimeReward{R <: Real, T <: Integer, VR <: AbstractVector{R}}
 
@@ -340,8 +353,8 @@ struct FiniteTimeReward{R <: Real, T <: Integer, VR <: AbstractVector{R}} <:
 end
 
 function checkproperty!(prop::FiniteTimeReward, system::IntervalMarkovProcess)
-    @assert length(reward(prop)) == num_states(system)
-    @assert time_horizon(prop) > 0
+    checkreward!(prop, system)
+    checktimehorizon!(prop)
 end
 
 """
@@ -386,8 +399,8 @@ struct InfiniteTimeReward{R <: Real, VR <: AbstractVector{R}} <: AbstractReward{
 end
 
 function checkproperty!(prop::InfiniteTimeReward, system::IntervalMarkovProcess)
-    @assert length(reward(prop)) == num_states(system)
-    @assert convergence_eps(prop) > 0
+    checkreward!(prop, system)
+    checkconvergence!(prop)
 end
 
 """
