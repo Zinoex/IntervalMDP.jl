@@ -1,3 +1,4 @@
+# Theory 
 Interval Markov Decision Processes (IMDPs), also called bounded-parameter MDPs [1], are a generalization of MDPs, where the transition probabilities, given source state and action, are not known exactly, but they are constrained to be in some probability interval. 
 Formally, an IMDP ``M`` is a tuple ``M = (S, S_0`, A, \overline{P}, \underline{P})``, where
 
@@ -12,6 +13,7 @@ For each state-action pair ``(s,a) \in S \times A``, it holds that ``\sum_{s'\in
 A path of an IMDP is a sequence of states and actions ``\omega = (s_0,a_0),(s_1,a_1),\dots``, where ``(s_i,a_i)\in S \times A``. We denote by ``\omega(k) = s_k`` the state of the path at time ``k \in \mathbb{N}^0`` and by ``\Omega`` the set of all paths.  
 A _strategy_ or _policy_ for an IMDP is a function ``\pi`` that assigns an action to a given state of an IMDP. _Time-dependent_ strategies are functions from state and time step to an action, i.e. ``\pi: S\times \mathbb{N}^0 \to A``. If ``\pi`` does not depend on time and solely depends on the current state, it is called a _stationary_ strategy. Similar to a strategy, an adversary ``\eta`` is a function that assigns a feasible distribution to a given state. Given a strategy and an adversary, an IMDP collapses to a finite Markov chain.
 
+### Reachability
 In this formal framework, we can describe computing reachability given a target set ``G`` and a horizon ``K \in \mathbb{N} \cup \{\infty\}`` as the following objective 
 
 ```math
@@ -22,6 +24,7 @@ where ``\mathop{opt}^{\pi},\mathop{opt}^{\eta} \in \{\min, \max\}`` and ``\mathb
 When ``\mathop{opt}^{\eta} = \min``, the solution is called optimal _pessimistic_ probability (or reward), and conversely is called optimal _optimistic_ probability (or reward) when ``\mathop{opt}^{\eta} = \max``.
 The choice of the min/max for the action and pessimistic/optimistic probability depends on the application. 
 
+### Discounted reward
 Discounted reward is similar to reachability but instead of a target set, we have a reward function ``r: S \to \mathbb{R}`` and a discount factor ``\gamma \in (0, 1)``. The objective is then
 
 ```math
