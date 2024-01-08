@@ -1,5 +1,8 @@
 
-function IntervalMDP.compute_gap(lower::M, upper::M) where {Tv, Ti, M <: CuSparseMatrixCSC{Tv, Ti}}
+function IntervalMDP.compute_gap(
+    lower::M,
+    upper::M,
+) where {Tv, Ti, M <: CuSparseMatrixCSC{Tv, Ti}}
     # lower = CuSparseMatrixCOO(lower)
 
     # FIXME: This is an ugly, non-robust hack.

@@ -12,7 +12,10 @@ Adapt.@adapt_structure IntervalProbabilities
 # Opinionated conversion to GPU with Float64 values and Int32 indices
 IntervalMDP.cu(model) = adapt(IntervalMDP.CuModelAdaptor{Float64, Int32}, model)
 
-function Adapt.adapt_structure(T::Type{<:IntervalMDP.CuModelAdaptor}, mc::IntervalMarkovChain)
+function Adapt.adapt_structure(
+    T::Type{<:IntervalMDP.CuModelAdaptor},
+    mc::IntervalMarkovChain,
+)
     return IntervalMarkovChain(
         adapt(T, transition_prob(mc)),
         adapt(CuArray{IntervalMDP.indtype(T)}, initial_states(mc)),

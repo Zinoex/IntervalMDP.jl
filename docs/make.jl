@@ -4,7 +4,7 @@ using Documenter
 push!(LOAD_PATH, "../src/")
 DocMeta.setdocmeta!(IntervalMDP, :DocTestSetup, :(using IntervalMDP); recursive = true)
 
-makedocs(; 
+makedocs(;
     modules = [IntervalMDP, IntervalMDP.Data],
     authors = "Frederik Baymler Mathiesen <frederik@baymler.com> and contributors",
     sitename = "IntervalMDP.jl",
