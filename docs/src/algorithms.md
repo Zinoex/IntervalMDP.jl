@@ -112,7 +112,7 @@ Luckily, there is a well-studied algorithm for computing the cumulative sum in p
 
 ![](assets/tree_reduction_prefix_scan.svg)
 
-Here, we recursively compute the cumulative sum of larger and larger subsets of the array. The latency is ``O(lg n)``, and thus very efficient. See [Wikipedia](https://en.wikipedia.org/wiki/Prefix_sum) for more details. When implementing the tree reduction on GPU, it is possible to use warp shuffles to very efficiently perform tree reductions of up to 32 elements. For larger sets, shared memory to store the intermediate results, which is much faster than global memory. See [CUDA Programming Model](@ref) for more details on why these choices are important.
+Here, we recursively compute the cumulative sum of larger and larger subsets of the array. The latency is ``O(\lg n)``, and thus very efficient. See [Wikipedia](https://en.wikipedia.org/wiki/Prefix_sum) for more details. When implementing the tree reduction on GPU, it is possible to use warp shuffles to very efficiently perform tree reductions of up to 32 elements. For larger sets, shared memory to store the intermediate results, which is much faster than global memory. See [CUDA Programming Model](@ref) for more details on why these choices are important.
 
 Putting it all together, we get the following (pseudo-code) algorithm for O-maximization:
 ```julia

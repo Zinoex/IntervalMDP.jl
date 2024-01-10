@@ -82,22 +82,22 @@ Furthermore, we distinguish between finite and infinite horizon properties. In a
 # Reachability
 target_set = [3]
 
-prop = FiniteHorizonReachability(target_set, 10)  # Time steps
-prop = InfiniteHorizonReachability(target_set, 1e-6)  # Residual tolerance
+prop = FiniteTimeReachability(target_set, 10)  # Time steps
+prop = InfiniteTimeReachability(target_set, 1e-6)  # Residual tolerance
 
 # Reach-avoid
 target_set = [3]
 avoid_set = [2]
 
-prop = FiniteHorizonReachAvoid(target_set, avoid_set, 10)  # Time steps
-prop = InfiniteHorizonReachAvoid(target_set, avoid_set, 1e-6)  # Residual tolerance
+prop = FiniteTimeReachAvoid(target_set, avoid_set, 10)  # Time steps
+prop = InfiniteTimeReachAvoid(target_set, avoid_set, 1e-6)  # Residual tolerance
 
 # Reward
 reward = [1.0, 2.0, 3.0]
 discount = 0.9  # Has to be between 0 and 1
 
-prop = FiniteHorizonReward(reward, discount, 10)  # Time steps
-prop = InfiniteHorizonReward(reward, discount, 1e-6)  # Residual tolerance
+prop = FiniteTimeReward(reward, discount, 10)  # Time steps
+prop = InfiniteTimeReward(reward, discount, 1e-6)  # Residual tolerance
 
 ## Specification
 spec = Specification(prop, Pessimistic, Maximize)
