@@ -12,24 +12,24 @@ If the specification is a reward optimization problem, then a state rewards file
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-write_prism_file(path_without_file_ending, problem; maximize = true) = write_prism_file(
+write_prism_file(path_without_file_ending, problem) = write_prism_file(
     path_without_file_ending,
     system(problem),
     specification(problem),
-    satisfaction_mode(problem);
-    maximize,
+    satisfaction_mode(problem),
+    strategy_mode(problem),
 )
 
 function write_prism_file(
     path_without_file_ending,
     mdp_or_mc,
     spec,
-    satisfaction_mode;
-    maximize = true,
+    satisfaction_mode,
+    strategy_mode,
 )
     write_prism_states_file(path_without_file_ending, mdp_or_mc)
     write_prism_transitions_file(path_without_file_ending, mdp_or_mc)
-    write_prism_spec(path_without_file_ending, mdp_or_mc, spec, satisfaction_mode, maximize)
+    write_prism_spec(path_without_file_ending, mdp_or_mc, spec, satisfaction_mode, strategy_mode)
 
     return nothing
 end
@@ -129,7 +129,7 @@ function write_prism_spec(
     mdp_or_mc,
     spec,
     satisfaction_mode,
-    maximize,
+    strategy_mode,
 )
     write_prism_labels_file(path_without_file_ending, mdp_or_mc, spec)
     write_prism_rewards_file(path_without_file_ending, mdp_or_mc, spec)
@@ -137,7 +137,7 @@ function write_prism_spec(
         path_without_file_ending,
         spec,
         satisfaction_mode,
-        maximize,
+        strategy_mode,
     )
 end
 
@@ -218,9 +218,9 @@ function write_prism_props_file(
     path_without_file_ending,
     spec::FiniteTimeReachability,
     satisfaction_mode,
-    maximize,
+    strategy_mode,
 )
-    strategy = maximize ? "max" : "min"
+    strategy = (strategy_mode == Maximize) ? "max" : "min"
     adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
 
     line = "P$strategy$adversary=? [ F<=$(time_horizon(spec)) \"reach\" ]"
@@ -232,9 +232,9 @@ function write_prism_props_file(
     path_without_file_ending,
     spec::InfiniteTimeReachability,
     satisfaction_mode,
-    maximize,
+    strategy_mode,
 )
-    strategy = maximize ? "max" : "min"
+    strategy = (strategy_mode == Maximize) ? "max" : "min"
     adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
 
     line = "P$strategy$adversary=? [ F \"reach\" ]"
@@ -246,9 +246,9 @@ function write_prism_props_file(
     path_without_file_ending,
     spec::FiniteTimeReachAvoid,
     satisfaction_mode,
-    maximize,
+    strategy_mode,
 )
-    strategy = maximize ? "max" : "min"
+    strategy = (strategy_mode == Maximize) ? "max" : "min"
     adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
 
     line = "P$strategy$adversary=? [ !\"avoid\" U<=$(time_horizon(spec)) \"reach\" ]"
@@ -260,9 +260,9 @@ function write_prism_props_file(
     path_without_file_ending,
     spec::InfiniteTimeReachAvoid,
     satisfaction_mode,
-    maximize,
+    strategy_mode,
 )
-    strategy = maximize ? "max" : "min"
+    strategy = (strategy_mode == Maximize) ? "max" : "min"
     adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
 
     line = "P$strategy$adversary=? [ !\"avoid\" U \"reach\" ]"
@@ -274,9 +274,9 @@ function write_prism_props_file(
     path_without_file_ending,
     spec::FiniteTimeReward,
     satisfaction_mode,
-    maximize,
+    strategy_mode,
 )
-    strategy = maximize ? "max" : "min"
+    strategy = (strategy_mode == Maximize) ? "max" : "min"
     adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
 
     line = "R$strategy$adversary=? [ C<=$(time_horizon(spec)) ]"
@@ -288,9 +288,9 @@ function write_prism_props_file(
     path_without_file_ending,
     spec::InfiniteTimeReward,
     satisfaction_mode,
-    maximize,
+    strategy_mode,
 )
-    strategy = maximize ? "max" : "min"
+    strategy = (strategy_mode == Maximize) ? "max" : "min"
     adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
 
     line = "R$strategy$adversary=? [ C ]"
