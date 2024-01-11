@@ -345,18 +345,16 @@ function read_prism_transitions_file(tra_path, num_states)
         lines_it = eachline(io)
         next = iterate(lines_it)
 
-        if !isnothing(next)
-            cur_line, state = next
-            src, act_idx, dest, lower, upper, act = read_prism_transition_line(cur_line)
-
-            outer_src = src
+        if isnothing(next)
+            throw(ArgumentError("Transitions file is empty"))
         end
 
-        for j in 1:num_choices
-            if isnothing(next)
-                break
-            end
+        cur_line, state = next
+        src, act_idx, dest, lower, upper, act = read_prism_transition_line(cur_line)
 
+        outer_src = src
+
+        for j in 1:num_choices
             state_action_probs_lower = spzeros(Float64, Int32, num_states)
             state_action_probs_upper = spzeros(Float64, Int32, num_states)
 
@@ -627,7 +625,7 @@ function read_prism_labels(lab_path)
 
             # PRISM uses 0-based indexing
             index = parse(Int32, words[1][1:(end - 1)]) + 1
-            
+
             labels = map(words[2:end]) do word
                 label_index = parse(Int32, word)
                 return global_labels[label_index]

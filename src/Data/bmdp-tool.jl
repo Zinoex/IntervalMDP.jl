@@ -57,20 +57,18 @@ function read_bmdp_tool_file(path)
         lines_it = eachline(io)
         next = iterate(lines_it)
 
-        if !isnothing(next)
-            cur_line, state = next
-            src, act, dest, lower, upper = read_bmdp_tool_transition_line(cur_line)
+        if isnothing(next)
+            throw(ArgumentError("Transitions file is empty"))
         end
+
+        cur_line, state = next
+        src, act, dest, lower, upper = read_bmdp_tool_transition_line(cur_line)
 
         for j in 0:(number_states - 1)
             probs_lower = spzeros(Float64, Int32, number_states, number_actions)
             probs_upper = spzeros(Float64, Int32, number_states, number_actions)
 
             for k in 0:(number_actions - 1)
-                if isnothing(next)
-                    break
-                end
-
                 while src == j && act == k
                     probs_lower[dest + 1, k + 1] = lower
                     probs_upper[dest + 1, k + 1] = upper

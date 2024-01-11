@@ -39,3 +39,6 @@ prop = system_property(spec)
 @test prop isa InfiniteTimeReachability
 @test reach(prop) == [207]
 
+## TODO: Test writing IntervalMarkovChain
+## TODO: Test writing with explicit file num_states
+## TODO: Test reading and writing various properties

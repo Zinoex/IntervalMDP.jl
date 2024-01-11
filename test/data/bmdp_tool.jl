@@ -20,3 +20,5 @@ new_transition_probabilities = transition_prob(new_mdp)
 
 @test tstates == new_tstates
 
+## TODO: test writing an IntervalMarkovChain
+## TODO: test writing Problem
