@@ -38,9 +38,9 @@ prob3 = IntervalProbabilities(;
 )
 
 transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
-initial_states = [Int32(1)]
+istates = [Int32(1)]
 
-mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs, initial_states))
+mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs, istates))
 
 # Finite time reachability
 prop = FiniteTimeReachability([3], 10)
