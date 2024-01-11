@@ -22,8 +22,7 @@ Compute the probability of satisfying the reachability-like specification from t
 function satisfaction_probability(
     problem::Problem{<:IntervalMarkovProcess, <:AbstractReachability},
 )
-    upper_bound = satisfaction_mode(problem) == Optimistic
-    V, _, _ = value_iteration(problem; upper_bound = upper_bound)
+    V, _, _ = value_iteration(problem)
     V = Vector(V)   # Convert to CPU vector if not already
 
     sys = system(problem)
