@@ -92,7 +92,7 @@ function read_bmdp_tool_file(path)
         action_list =
             convert.(Int32, mapreduce(_ -> action_list_per_state, vcat, 1:number_states))
 
-        mdp = IntervalMarkovDecisionProcess(probs, action_list, Int32(1))
+        mdp = IntervalMarkovDecisionProcess(probs, action_list)
         return mdp, terminal_states
     end
 end

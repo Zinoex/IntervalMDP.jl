@@ -96,6 +96,9 @@ end
 
 # Accessors for properties of interval probabilities
 
+Base.size(s::IntervalProbabilities) = size(s.lower)
+Base.size(s::IntervalProbabilities, dim::Integer) = size(s.lower, dim)
+
 """
     lower(s::IntervalProbabilities)
 
