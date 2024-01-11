@@ -340,7 +340,7 @@ actions(s::IntervalMarkovDecisionProcess) = s.action_vals
 """
     num_choices(s::IntervalMarkovDecisionProcess)
 
-Return the sum of the number of actions available in each state ``\\sum_{j} \\mathrm{num_actions}(s_j)``.
+Return the sum of the number of actions available in each state ``\\sum_{j} \\mathrm{num\\_actions}(s_j)``.
 """
 num_choices(s::IntervalMarkovDecisionProcess) = length(actions(s))
 
