@@ -15,29 +15,39 @@ See [Data storage formats](@ref) for more information on the file format.
 write_prism_file(path_without_file_ending, problem) = write_prism_file(
     path_without_file_ending,
     system(problem),
-    specification(problem),
-    satisfaction_mode(problem),
-    strategy_mode(problem),
+    specification(problem)
+)
+
+write_prism_file(path_without_file_ending, mdp_or_mc, spec) = write_prism_file(
+    path_without_file_ending * ".sta",
+    path_without_file_ending * ".tra",
+    path_without_file_ending * ".lab",
+    path_without_file_ending * ".srew",
+    path_without_file_ending * ".pctl",
+    mdp_or_mc,
+    spec
+)
+
+write_prism_file(sta_path, tra_path, lab_path, srew_path, pctl_path, problem) = write_prism_file(
+    sta_path, tra_path, lab_path, srew_path, pctl_path,
+    system(problem),
+    specification(problem)
 )
 
 function write_prism_file(
-    path_without_file_ending,
+    sta_path, tra_path, lab_path, srew_path, pctl_path, 
     mdp_or_mc,
-    spec,
-    satisfaction_mode,
-    strategy_mode,
+    spec
 )
-    write_prism_states_file(path_without_file_ending, mdp_or_mc)
-    write_prism_transitions_file(path_without_file_ending, mdp_or_mc)
-    write_prism_spec(path_without_file_ending, mdp_or_mc, spec, satisfaction_mode, strategy_mode)
-
-    return nothing
+    write_prism_states_file(sta_path, mdp_or_mc)
+    write_prism_transitions_file(tra_path, mdp_or_mc)
+    write_prism_spec(lab_path, srew_path, pctl_path, mdp_or_mc, spec)
 end
 
-function write_prism_states_file(path_without_file_ending, mdp_or_mc)
+function write_prism_states_file(sta_path, mdp_or_mc)
     number_states = num_states(mdp_or_mc)
 
-    open(path_without_file_ending * ".sta", "w") do io
+    open(sta_path, "w") do io
         println(io, "$number_states")
 
         for i in 1:number_states
@@ -48,7 +58,7 @@ function write_prism_states_file(path_without_file_ending, mdp_or_mc)
 end
 
 function write_prism_transitions_file(
-    path_without_file_ending,
+    tra_path,
     mdp::IntervalMarkovDecisionProcess,
 )
     number_states = num_states(mdp)
@@ -63,7 +73,7 @@ function write_prism_transitions_file(
     act = actions(mdp)
     num_choices = length(act)
 
-    open(path_without_file_ending * ".tra", "w") do io
+    open(tra_path, "w") do io
         println(io, "$number_states $num_choices $num_transitions")
 
         s = 1
@@ -94,7 +104,7 @@ function write_prism_transitions_file(
     end
 end
 
-function write_prism_transitions_file(path_without_file_ending, mc::IntervalMarkovChain)
+function write_prism_transitions_file(tra_path, mc::IntervalMarkovChain)
     number_states = num_states(mc)
 
     prob = transition_prob(mc)
@@ -103,7 +113,7 @@ function write_prism_transitions_file(path_without_file_ending, mc::IntervalMark
     num_columns = num_source(prob)
     num_transitions = nnz(l)
 
-    open(path_without_file_ending * ".tra", "w") do io
+    open(tra_path, "w") do io
         println(io, "$number_states $number_states $num_transitions")  # number_states number_choices number_transitions
 
         for j in 1:num_columns
@@ -125,31 +135,24 @@ function write_prism_transitions_file(path_without_file_ending, mc::IntervalMark
 end
 
 function write_prism_spec(
-    path_without_file_ending,
+    lab_path, srew_path, pctl_path,
     mdp_or_mc,
     spec,
-    satisfaction_mode,
-    strategy_mode,
 )
-    write_prism_labels_file(path_without_file_ending, mdp_or_mc, spec)
-    write_prism_rewards_file(path_without_file_ending, mdp_or_mc, spec)
-    return write_prism_props_file(
-        path_without_file_ending,
-        spec,
-        satisfaction_mode,
-        strategy_mode,
-    )
+    write_prism_labels_file(lab_path, mdp_or_mc, system_property(spec))
+    write_prism_rewards_file(srew_path, mdp_or_mc, system_property(spec))
+    write_prism_props_file(pctl_path, spec)
 end
 
 function write_prism_labels_file(
-    path_without_file_ending,
+    lab_path,
     mdp_or_mc,
-    spec::AbstractReachability,
+    prop::AbstractReachability,
 )
     istates = initial_states(mdp_or_mc)
-    target_states = reach(spec)
+    target_states = reach(prop)
 
-    open(path_without_file_ending * ".lab", "w") do io
+    open(lab_path, "w") do io
         println(io, "0=\"init\" 1=\"deadlock\" 2=\"reach\"")
 
         for istate in istates
@@ -165,15 +168,15 @@ function write_prism_labels_file(
 end
 
 function write_prism_labels_file(
-    path_without_file_ending,
+    lab_path,
     mdp_or_mc,
-    spec::AbstractReachAvoid,
+    prop::AbstractReachAvoid,
 )
     istates = initial_states(mdp_or_mc)
-    target_states = reach(spec)
-    avoid_states = avoid(spec)
+    target_states = reach(prop)
+    avoid_states = avoid(prop)
 
-    open(path_without_file_ending * ".lab", "w") do io
+    open(lab_path, "w") do io
         println(io, "0=\"init\" 1=\"deadlock\" 2=\"reach\" 3=\"avoid\"")
 
         for istate in istates
@@ -194,17 +197,17 @@ function write_prism_labels_file(
 end
 
 function write_prism_rewards_file(
-    path_without_file_ending,
+    lab_path,
     mdp_or_mc,
-    spec::AbstractReachability,
+    prop::AbstractReachability,
 )
     # Do nothing - no rewards for reachability
 end
 
-function write_prism_rewards_file(path_without_file_ending, mdp_or_mc, spec::AbstractReward)
-    rew = reward(spec)
+function write_prism_rewards_file(srew_path, mdp_or_mc, prop::AbstractReward)
+    rew = reward(prop)
 
-    open(path_without_file_ending * ".srew", "w") do io
+    open(srew_path, "w") do io
         println(io, "$(num_states(mdp_or_mc)) $(length(rew))")
 
         for (i, r) in enumerate(rew)
@@ -215,87 +218,78 @@ function write_prism_rewards_file(path_without_file_ending, mdp_or_mc, spec::Abs
 end
 
 function write_prism_props_file(
-    path_without_file_ending,
-    spec::FiniteTimeReachability,
-    satisfaction_mode,
-    strategy_mode,
+    pctl_path,
+    spec::Specification{<:FiniteTimeReachability},
 )
-    strategy = (strategy_mode == Maximize) ? "max" : "min"
-    adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
+    strategy = (strategy_mode(spec) == Maximize) ? "max" : "min"
+    adversary = (satisfaction_mode(spec) == Optimistic) ? "max" : "min"
 
-    line = "P$strategy$adversary=? [ F<=$(time_horizon(spec)) \"reach\" ]"
+    prop = system_property(spec)
+    line = "P$strategy$adversary=? [ F<=$(time_horizon(prop)) \"reach\" ]"
 
-    return write(path_without_file_ending * ".pctl", line)
+    return write(pctl_path, line)
 end
 
 function write_prism_props_file(
-    path_without_file_ending,
-    spec::InfiniteTimeReachability,
-    satisfaction_mode,
-    strategy_mode,
+    pctl_path,
+    spec::Specification{<:InfiniteTimeReachability},
 )
-    strategy = (strategy_mode == Maximize) ? "max" : "min"
-    adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
+    strategy = (strategy_mode(spec) == Maximize) ? "max" : "min"
+    adversary = (satisfaction_mode(spec) == Optimistic) ? "max" : "min"
 
     line = "P$strategy$adversary=? [ F \"reach\" ]"
 
-    return write(path_without_file_ending * ".pctl", line)
+    return write(pctl_path, line)
 end
 
 function write_prism_props_file(
-    path_without_file_ending,
-    spec::FiniteTimeReachAvoid,
-    satisfaction_mode,
-    strategy_mode,
+    pctl_path,
+    spec::Specification{<:FiniteTimeReachAvoid},
 )
-    strategy = (strategy_mode == Maximize) ? "max" : "min"
-    adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
+    strategy = (strategy_mode(spec) == Maximize) ? "max" : "min"
+    adversary = (satisfaction_mode(spec) == Optimistic) ? "max" : "min"
 
-    line = "P$strategy$adversary=? [ !\"avoid\" U<=$(time_horizon(spec)) \"reach\" ]"
+    prop = system_property(spec)
+    line = "P$strategy$adversary=? [ !\"avoid\" U<=$(time_horizon(prop)) \"reach\" ]"
 
-    return write(path_without_file_ending * ".pctl", line)
+    return write(pctl_path, line)
 end
 
 function write_prism_props_file(
-    path_without_file_ending,
-    spec::InfiniteTimeReachAvoid,
-    satisfaction_mode,
-    strategy_mode,
+    pctl_path,
+    spec::Specification{<:InfiniteTimeReachAvoid},
 )
-    strategy = (strategy_mode == Maximize) ? "max" : "min"
-    adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
+    strategy = (strategy_mode(spec) == Maximize) ? "max" : "min"
+    adversary = (satisfaction_mode(spec) == Optimistic) ? "max" : "min"
 
     line = "P$strategy$adversary=? [ !\"avoid\" U \"reach\" ]"
 
-    return write(path_without_file_ending * ".pctl", line)
+    return write(pctl_path, line)
 end
 
 function write_prism_props_file(
-    path_without_file_ending,
-    spec::FiniteTimeReward,
-    satisfaction_mode,
-    strategy_mode,
+    pctl_path,
+    spec::Specification{<:FiniteTimeReward},
 )
-    strategy = (strategy_mode == Maximize) ? "max" : "min"
-    adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
+    strategy = (strategy_mode(spec) == Maximize) ? "max" : "min"
+    adversary = (satisfaction_mode(spec) == Optimistic) ? "max" : "min"
 
-    line = "R$strategy$adversary=? [ C<=$(time_horizon(spec)) ]"
+    prop = system_property(spec)
+    line = "R$strategy$adversary=? [ C<=$(time_horizon(prop)) ]"
 
-    return write(path_without_file_ending * ".pctl", line)
+    return write(pctl_path, line)
 end
 
 function write_prism_props_file(
-    path_without_file_ending,
-    spec::InfiniteTimeReward,
-    satisfaction_mode,
-    strategy_mode,
+    pctl_path,
+    spec::Specification{<:InfiniteTimeReward},
 )
-    strategy = (strategy_mode == Maximize) ? "max" : "min"
-    adversary = (satisfaction_mode == Optimistic) ? "max" : "min"
+    strategy = (strategy_mode(spec) == Maximize) ? "max" : "min"
+    adversary = (satisfaction_mode(spec) == Optimistic) ? "max" : "min"
 
     line = "R$strategy$adversary=? [ C ]"
 
-    return write(path_without_file_ending * ".pctl", line)
+    return write(pctl_path, line)
 end
 
 """
@@ -305,62 +299,81 @@ Read PRISM explicit file formats and pctl file, and return a Problem including s
 
 See [PRISM Explicit Model Files](https://prismmodelchecker.org/manual/Appendices/ExplicitModelFiles) for more information on the file format.
 """
-function read_prism_file(path_without_file_ending)
-    num_states = read_prism_states_file(path_without_file_ending)
-    prob = read_prism_transitions_file(path_without_file_ending, num_states)
-    initial_states, spec = read_prism_spec(path_without_file_ending, num_states)
+read_prism_file(path_without_file_ending) = read_prism_file(
+    path_without_file_ending * ".sta",
+    path_without_file_ending * ".tra",
+    path_without_file_ending * ".lab",
+    path_without_file_ending * ".srew",
+    path_without_file_ending * ".pctl",
+)
 
-    mdp = IntervalMarkovDecisionProcess(prob, initial_states)
+read_prism_file(sta_path, tra_path, lab_path, pctl_path) = read_prism_file(sta_path, tra_path, lab_path, missing, pctl_path)
+
+function read_prism_file(sta_path, tra_path, lab_path, srew_path, pctl_path)
+    num_states = read_prism_states_file(sta_path)
+    probs, stateptr, actions = read_prism_transitions_file(tra_path, num_states)
+    initial_states, spec = read_prism_spec(lab_path, srew_path, pctl_path, num_states)
+
+    mdp = IntervalMarkovDecisionProcess(probs, stateptr, actions, initial_states)
 
     return Problem(mdp, spec)
 end
 
-function read_prism_states_file(path_without_file_ending)
-    num_states = open(path_without_file_ending * ".sta", "r") do io
+function read_prism_states_file(sta_path)
+    num_states = open(sta_path, "r") do io
         return countlines(io) - 1
     end
 
     return num_states
 end
 
-function read_prism_transitions_file(path_without_file_ending, num_states)
-    open(path_without_file_ending * ".tra", "r") do io
+function read_prism_transitions_file(tra_path, num_states)
+    open(tra_path, "r") do io
         num_states_t, num_choices, num_transitions =
             read_prism_transitions_file_header(readline(io))
 
         @assert num_states == num_states_t
 
-        probs = Vector{
-            MatrixIntervalProbabilities{
-                Float64,
-                Vector{Float64},
-                SparseArrays.FixedSparseCSC{Float64, Int32},
-            },
-        }(
-            undef,
-            num_states,
-        )
+        probs_lower = Vector{SparseVector{Float64, Int32}}(undef, num_choices)
+        probs_upper = Vector{SparseVector{Float64, Int32}}(undef, num_choices)
         actions = Vector{Any}(undef, num_choices)
+
+        stateptr = Vector{Int32}(undef, num_states + 1)
+        stateptr[1] = 1
+        stateptr[end] = num_choices + 1
 
         lines_it = eachline(io)
         next = iterate(lines_it)
 
         if !isnothing(next)
             cur_line, state = next
-            src, act_index, dest, lower, upper, act = read_prism_transition_line(cur_line)
+            src, act_idx, dest, lower, upper, act = read_prism_transition_line(cur_line)
+
+            outer_src = src
         end
 
-        for j in 0:(num_states - 1)
-            probs_lower = spzeros(Float64, Int32, num_states, number_actions)
-            probs_upper = spzeros(Float64, Int32, num_states, number_actions)
-
+        for j in 1:num_choices
             if isnothing(next)
                 break
             end
 
-            while src == j && act == k
-                probs_lower[dest + 1, k + 1] = lower
-                probs_upper[dest + 1, k + 1] = upper
+            state_action_probs_lower = spzeros(Float64, Int32, num_states)
+            state_action_probs_upper = spzeros(Float64, Int32, num_states)
+
+            cur_src = src
+            cur_act_idx = act_idx
+            actions[j] = act
+
+            if src != outer_src
+                # PRISM uses 0-based indexing
+                stateptr[src + 1] = j
+                outer_src = src
+            end
+
+            while src == cur_src && act_idx == cur_act_idx
+                # PRISM uses 0-based indexing
+                state_action_probs_lower[dest + 1] = lower
+                state_action_probs_upper[dest + 1] = upper
 
                 next = iterate(lines_it, state)
                 if isnothing(next)
@@ -368,15 +381,19 @@ function read_prism_transitions_file(path_without_file_ending, num_states)
                 end
 
                 cur_line, state = next
-                src, act, dest, lower, upper = read_transition_line(cur_line)
+                src, act_idx, dest, lower, upper, act = read_prism_transition_line(cur_line)
             end
 
-            probs[j + 1] = IntervalProbabilities(; lower = probs_lower, upper = probs_upper)
+            probs_lower[j] = state_action_probs_lower
+            probs_upper[j] = state_action_probs_upper
         end
 
-        action_list_per_state = collect(0:(number_actions - 1))
-        return action_list =
-            convert.(Int32, mapreduce(_ -> action_list_per_state, vcat, 1:number_states))
+        probs_lower = sparse_hcat(probs_lower...)
+        probs_upper = sparse_hcat(probs_upper...)
+
+        probs = IntervalProbabilities(; lower = probs_lower, upper = probs_upper)
+
+        return probs, stateptr, actions
     end
 end
 
@@ -424,26 +441,26 @@ function read_prism_transition_line(line)
         act = item
     end
 
-    return src, act_index, dest, lower, upper, act
+    return src, act_idx, dest, lower, upper, act
 end
 
-function read_prism_spec(path_without_file_ending, num_states)
+function read_prism_spec(lab_path, srew_path, pctl_path, num_states)
     prop_type, prop_meta, satisfaction_mode, strategy_mode =
-        read_prism_props_file(path_without_file_ending)
+        read_prism_props_file(pctl_path)
 
     # Possibly read the rewards file, if the property is a reward optimization problem.
-    rewards = read_prism_rewards_file(path_without_file_ending, prop_type, num_states)
+    rewards = read_prism_rewards_file(srew_path, prop_type, num_states)
 
     # Read at least the initial state but possibly also the reach and avoid sets.
     prop, initial_state =
-        read_prism_labels_file(path_without_file_ending, prop_type, prop_meta, rewards)
+        read_prism_labels_file(lab_path, prop_type, prop_meta, rewards)
     spec = Specification(prop, satisfaction_mode, strategy_mode)
 
     return initial_state, spec
 end
 
-function read_prism_props_file(path_without_file_ending)
-    property = read(path_without_file_ending * ".pctl")
+function read_prism_props_file(pctl_path)
+    property = read(pctl_path, String)
     m = match(
         r"(?<probrew>(P|R))(?<strategy>max|min)(?<adversary>max|min)=\? \[ (?<pathprop>.+) \]",
         property,
@@ -454,9 +471,9 @@ function read_prism_props_file(path_without_file_ending)
     if m[:probrew] == "P"
         abstract_type = AbstractReachability
     elseif m[:probrew] == "R"
-        abstract_Type = AbstractReward
+        abstract_type = AbstractReward
     else
-        throw(ValueError("Incorrect property $property"))
+        throw(DomainError("Incorrect property $property"))
     end
 
     prop_type, prop_meta = read_prism_path_prob(abstract_type, m[:pathprop])
@@ -469,45 +486,45 @@ function read_prism_path_prob(::Type{AbstractReachability}, pathprop)
 
     m = match(r"F \"reach\"", pathprop)
     if !isnothing(m)
-        return InfiniteTimeReachability, eps
+        return InfiniteTimeReachability, (convergence_eps,)
     end
 
     m = match(r"F<=(?<time_horizon>\d+) \"reach\"", pathprop)
     if !isnothing(m)
-        return FiniteTimeReachability, parse_intline(m[:time_horizon])
+        return FiniteTimeReachability, (parse_intline(m[:time_horizon]),)
     end
 
     m = match(r"!\"avoid\" U \"reach\"", pathprop)
     if !isnothing(m)
-        return InfiniteTimeReachAvoid, convergence_eps
+        return InfiniteTimeReachAvoid, (convergence_eps,)
     end
 
     m = match(r"!\"avoid\" U<=(?<time_horizon>\d+) \"reach\"", pathprop)
     if !isnothing(m)
-        return FiniteTimeReachAvoid, m[:time_horizon]
+        return FiniteTimeReachAvoid, (parse_intline(m[:time_horizon]),)
     end
 
-    throw(ValueError("Invalid path property $pathprop"))
+    throw(DomainError("Invalid path property $pathprop"))
 end
 
-function read_prism_path_prob(::Type{AbstractReward}, pathprop)
+function read_prism_path_prob(::Type{<:AbstractReward}, pathprop)
     m = match(r"C", pathprop)
     if !isnothing(m)
         convergence_eps = 1e-6
-        return InfiniteTimeReward, convergence_eps
+        return InfiniteTimeReward, (convergence_eps,)
     end
 
     m = match(r"C<=(?<time_horizon>\d+)", pathprop)
     if !isnothing(m)
-        return FiniteTimeReward, read_intline(m[:time_horizon])
+        return FiniteTimeReward, (parse_intline(m[:time_horizon]),)
     end
 
-    throw(ValueError("Invalid path property $pathprop"))
+    throw(DomainError("Invalid path property $pathprop"))
 end
 
 read_prism_rewards_file(
-    path_without_file_ending,
-    prop_type::Type{AbstractReachability},
+    srew_path,
+    prop_type::Type{<:AbstractReachability},
     num_states,
 ) = nothing
 
@@ -536,11 +553,11 @@ function read_prism_rewards_line(line)
 end
 
 function read_prism_rewards_file(
-    path_without_file_ending,
-    prop_type::Type{AbstractReward},
+    srew_path,
+    prop_type::Type{<:AbstractReward},
     num_states,
 )
-    return open(path_without_file_ending * ".pctl", "r") do io
+    return open(srew_path, "r") do io
         num_rewards, num_nonzero_rewards = read_prism_rewards_header(readline(io))
 
         @assert num_rewards == num_states "The number of rewards must match the number of states"
@@ -556,66 +573,67 @@ function read_prism_rewards_file(
 end
 
 function read_prism_labels_file(
-    path_without_file_ending,
-    spec_type::Type{AbstractReachability},
-    spec_meta,
+    lab_path,
+    prop_type::Type{<:AbstractReachability},
+    prop_meta,
     rewards,
 )
-    state_labels = read_prism_labels(path_without_file_ending)
-    initial_states = find_initial_state(state_labels)
+    state_labels = read_prism_labels(lab_path)
+    initial_states = find_initial_states(state_labels)
 
-    reach = map(first, findall((k, v) -> "reach" in V))
-    spec = spec_type(reach, spec_meta...)
+    reach = find_states_label(state_labels, "reach")
+    prop = prop_type(reach, prop_meta...)
 
-    return spec, initial_states
+    return prop, initial_states
 end
 
 function read_prism_labels_file(
     path_without_file_ending,
-    spec_type::Type{AbstractReachAvoid},
-    spec_meta,
-    rewards,
-)
-    state_labels = read_prism_labels(path_without_file_ending)
-    initial_states = find_initial_state(state_labels)
-
-    reach = map(first, findall((k, v) -> "reach" in V))
-    avoid = map(first, findall((k, v) -> "avoid" in V))
-    spec = spec_type(reach, avoid, spec_meta...)
-
-    return spec, initial_states
-end
-
-function read_prism_labels_file(
-    path_without_file_ending,
-    spec_type::Type{AbstractReward},
-    spec_meta,
+    prop_type::Type{<:AbstractReachAvoid},
+    prop_meta,
     rewards,
 )
     state_labels = read_prism_labels(path_without_file_ending)
     initial_states = find_initial_states(state_labels)
 
-    spec = spec_type(rewards, spec_meta...)
+    reach = find_states_label(state_labels, "reach")
+    avoid = find_states_label(state_labels, "avoid")
+    prop = prop_type(reach, avoid, prop_meta...)
 
-    return spec, initial_states
+    return prop, initial_states
 end
 
-function read_prism_labels(path_without_file_ending)
-    return open(path_without_file_ending * ".lab", "r") do io
-        labels = read_prism_labels_header(readline(io))
+function read_prism_labels_file(
+    lab_path,
+    prop_type::Type{<:AbstractReward},
+    prop_meta,
+    rewards,
+)
+    state_labels = read_prism_labels(lab_path)
+    initial_states = find_initial_states(state_labels)
 
+    prop = prop_type(rewards, prop_meta...)
+
+    return prop, initial_states
+end
+
+function read_prism_labels(lab_path)
+    return open(lab_path, "r") do io
+        global_labels = read_prism_labels_header(readline(io))
         state_labels = Dict{Int32, Vector{String}}()
 
         for line in eachline(io)
             words = split(line)
 
-            state_index = parse(Int32, words[1][1:(end - 1)])
-            state_labels = map(words[2:end]) do word
+            # PRISM uses 0-based indexing
+            index = parse(Int32, words[1][1:(end - 1)]) + 1
+            
+            labels = map(words[2:end]) do word
                 label_index = parse(Int32, word)
-                return labels[label_index]
+                return global_labels[label_index]
             end
 
-            state_indices[state_index] = state_labels
+            state_labels[index] = labels
         end
 
         return state_labels
@@ -626,13 +644,13 @@ function read_prism_labels_header(line)
     words = eachsplit(line)
 
     words = Dict(map(words) do word
-        terms = eachsplit(word; limit = 2)
+        terms = eachsplit(word, "="; limit = 2)
 
         (item, state) = iterate(terms)
         index = parse(Int32, item)
 
-        (item, state) = iterate(terms)
-        label = item[2:(end - 1)]
+        (item, state) = iterate(terms, state)
+        label = strip(item, ['"'])
 
         return index => label
     end)
@@ -640,8 +658,5 @@ function read_prism_labels_header(line)
     return words
 end
 
-function find_initial_state(state_labels)
-    initial_states = map(first, findall((k, v) -> "init" in v))
-
-    return initial_states
-end
+find_states_label(state_labels, label) = collect(keys(filter(((k, v),) -> label in v, state_labels)))
+find_initial_states(state_labels) = find_states_label(state_labels, "init")
