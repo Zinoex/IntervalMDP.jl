@@ -335,7 +335,7 @@ abstract type AbstractReward{R <: Real} <: Property end
 
 function checkreward!(prop::AbstractReward, system::IntervalMarkovProcess)
     @assert length(reward(prop)) == num_states(system)
-    @assert 0 < discount(prop) < 1
+    @assert 0 < discount(prop)  # Discount must be non-negative.
 end
 
 """
@@ -400,6 +400,7 @@ end
 
 function checkproperty!(prop::InfiniteTimeReward, system::IntervalMarkovProcess)
     checkreward!(prop, system)
+    @assert discount(prop) < 1
     checkconvergence!(prop)
 end
 

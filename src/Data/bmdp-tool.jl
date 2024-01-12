@@ -57,18 +57,22 @@ function read_bmdp_tool_file(path)
         lines_it = eachline(io)
         next = iterate(lines_it)
 
-        if !isnothing(next)
-            cur_line, state = next
-            src, act, dest, lower, upper = read_bmdp_tool_transition_line(cur_line)
+        if isnothing(next)
+            throw(ArgumentError("Transitions file is empty"))
         end
+
+        cur_line, state = next
+        src, act, dest, lower, upper = read_bmdp_tool_transition_line(cur_line)
 
         for j in 0:(number_states - 1)
             probs_lower = spzeros(Float64, Int32, number_states, number_actions)
             probs_upper = spzeros(Float64, Int32, number_states, number_actions)
 
+            actions_to_remove = Int64[]
+
             for k in 0:(number_actions - 1)
-                if isnothing(next)
-                    break
+                if src != j || act != k
+                    push!(actions_to_remove, k + 1)
                 end
 
                 while src == j && act == k
@@ -85,6 +89,10 @@ function read_bmdp_tool_file(path)
                 end
             end
 
+            actions_to_keep = setdiff(collect(1:number_actions), actions_to_remove)
+            probs_lower = probs_lower[:, actions_to_keep]
+            probs_upper = probs_upper[:, actions_to_keep]
+
             probs[j + 1] = IntervalProbabilities(; lower = probs_lower, upper = probs_upper)
         end
 
@@ -92,7 +100,7 @@ function read_bmdp_tool_file(path)
         action_list =
             convert.(Int32, mapreduce(_ -> action_list_per_state, vcat, 1:number_states))
 
-        mdp = IntervalMarkovDecisionProcess(probs, action_list, Int32(1))
+        mdp = IntervalMarkovDecisionProcess(probs, action_list)
         return mdp, terminal_states
     end
 end
@@ -110,10 +118,17 @@ write_bmdp_tool_file(path, problem::Problem) =
     write_bmdp_tool_file(path, system(problem), specification(problem))
 
 """
-    write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, spec::AbstractReachability)
+    write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, spec::Specification)
 """
-write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, spec::AbstractReachability) =
-    write_bmdp_tool_file(path, mdp, reach(spec))
+write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, spec::Specification) =
+    write_bmdp_tool_file(path, mdp, system_property(spec))
+
+"""
+    write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, prop::AbstractReachability)
+"""
+write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, prop::AbstractReachability) =
+    write_bmdp_tool_file(path, mdp, reach(prop))
+
 """
     write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{T})
 """
