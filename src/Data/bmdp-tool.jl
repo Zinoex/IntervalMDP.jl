@@ -68,7 +68,13 @@ function read_bmdp_tool_file(path)
             probs_lower = spzeros(Float64, Int32, number_states, number_actions)
             probs_upper = spzeros(Float64, Int32, number_states, number_actions)
 
+            actions_to_remove = Int64[]
+
             for k in 0:(number_actions - 1)
+                if src != j || act != k
+                    push!(actions_to_remove, k + 1)
+                end
+
                 while src == j && act == k
                     probs_lower[dest + 1, k + 1] = lower
                     probs_upper[dest + 1, k + 1] = upper
@@ -82,6 +88,10 @@ function read_bmdp_tool_file(path)
                     src, act, dest, lower, upper = read_bmdp_tool_transition_line(cur_line)
                 end
             end
+
+            actions_to_keep = setdiff(collect(1:number_actions), actions_to_remove)
+            probs_lower = probs_lower[:, actions_to_keep]
+            probs_upper = probs_upper[:, actions_to_keep]
 
             probs[j + 1] = IntervalProbabilities(; lower = probs_lower, upper = probs_upper)
         end
@@ -108,10 +118,17 @@ write_bmdp_tool_file(path, problem::Problem) =
     write_bmdp_tool_file(path, system(problem), specification(problem))
 
 """
-    write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, spec::AbstractReachability)
+    write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, spec::Specification)
 """
-write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, spec::AbstractReachability) =
-    write_bmdp_tool_file(path, mdp, reach(spec))
+write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, spec::Specification) =
+    write_bmdp_tool_file(path, mdp, system_property(spec))
+
+"""
+    write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, prop::AbstractReachability)
+"""
+write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, prop::AbstractReachability) =
+    write_bmdp_tool_file(path, mdp, reach(prop))
+
 """
     write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{T})
 """
