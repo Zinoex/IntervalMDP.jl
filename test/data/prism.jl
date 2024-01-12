@@ -213,4 +213,284 @@ prop = system_property(spec)
 @test reward(prop) ≈ [1.0, 2.0, 3.0]
 @test discount(prop) ≈ 1.0
 
-## TODO: Test reading and writing various properties
+## Write and read reach avoid labels
+new_path = tempname()
+prop = FiniteTimeReachAvoid([3], [2], 10)
+
+IntervalMDP.Data.write_prism_labels_file(new_path, mc, prop)
+prop, istates = IntervalMDP.Data.read_prism_labels_file(new_path, FiniteTimeReachAvoid, (10,), nothing)
+
+@test prop isa FiniteTimeReachAvoid
+@test reach(prop) == [3]
+@test avoid(prop) == [2]
+@test time_horizon(prop) == 10
+
+## Write and read FTR min/max min/max
+prop = FiniteTimeReachability([3], 10)
+pes_min_spec = Specification(prop, Pessimistic, Minimize)
+pes_max_spec = Specification(prop, Pessimistic, Maximize)
+opt_min_spec = Specification(prop, Optimistic, Minimize)
+opt_max_spec = Specification(prop, Optimistic, Maximize)
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, pes_min_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == FiniteTimeReachability
+@test prop_meta == (10,)
+@test sat_mode == Pessimistic
+@test strat_mode == Minimize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, pes_max_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == FiniteTimeReachability
+@test prop_meta == (10,)
+@test sat_mode == Pessimistic
+@test strat_mode == Maximize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, opt_min_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == FiniteTimeReachability
+@test prop_meta == (10,)
+@test sat_mode == Optimistic
+@test strat_mode == Minimize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, opt_max_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == FiniteTimeReachability
+@test prop_meta == (10,)
+@test sat_mode == Optimistic
+@test strat_mode == Maximize
+
+## Write and read ITR min/max min/max
+prop = InfiniteTimeReachability([3], 1e-6)
+pes_min_spec = Specification(prop, Pessimistic, Minimize)
+pes_max_spec = Specification(prop, Pessimistic, Maximize)
+opt_min_spec = Specification(prop, Optimistic, Minimize)
+opt_max_spec = Specification(prop, Optimistic, Maximize)
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, pes_min_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == InfiniteTimeReachability
+@test sat_mode == Pessimistic
+@test strat_mode == Minimize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, pes_max_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == InfiniteTimeReachability
+@test sat_mode == Pessimistic
+@test strat_mode == Maximize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, opt_min_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == InfiniteTimeReachability
+@test sat_mode == Optimistic
+@test strat_mode == Minimize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, opt_max_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == InfiniteTimeReachability
+@test sat_mode == Optimistic
+@test strat_mode == Maximize
+
+## Write and read FTRA min/max min/max
+prop = FiniteTimeReachAvoid([3], [2], 10)
+pes_min_spec = Specification(prop, Pessimistic, Minimize)
+pes_max_spec = Specification(prop, Pessimistic, Maximize)
+opt_min_spec = Specification(prop, Optimistic, Minimize)
+opt_max_spec = Specification(prop, Optimistic, Maximize)
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, pes_min_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == FiniteTimeReachAvoid
+@test prop_meta == (10,)
+@test sat_mode == Pessimistic
+@test strat_mode == Minimize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, pes_max_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == FiniteTimeReachAvoid
+@test prop_meta == (10,)
+@test sat_mode == Pessimistic
+@test strat_mode == Maximize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, opt_min_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == FiniteTimeReachAvoid
+@test prop_meta == (10,)
+@test sat_mode == Optimistic
+@test strat_mode == Minimize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, opt_max_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == FiniteTimeReachAvoid
+@test prop_meta == (10,)
+@test sat_mode == Optimistic
+@test strat_mode == Maximize
+
+## Write and read ITRA min/max min/max
+prop = InfiniteTimeReachAvoid([3], [2], 1e-6)
+pes_min_spec = Specification(prop, Pessimistic, Minimize)
+pes_max_spec = Specification(prop, Pessimistic, Maximize)
+opt_min_spec = Specification(prop, Optimistic, Minimize)
+opt_max_spec = Specification(prop, Optimistic, Maximize)
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, pes_min_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == InfiniteTimeReachAvoid
+@test sat_mode == Pessimistic
+@test strat_mode == Minimize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, pes_max_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == InfiniteTimeReachAvoid
+@test sat_mode == Pessimistic
+@test strat_mode == Maximize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, opt_min_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == InfiniteTimeReachAvoid
+@test sat_mode == Optimistic
+@test strat_mode == Minimize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, opt_max_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == InfiniteTimeReachAvoid
+@test sat_mode == Optimistic
+@test strat_mode == Maximize
+
+## Write and read FTDR min/max min/max
+prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 10)
+pes_min_spec = Specification(prop, Pessimistic, Minimize)
+pes_max_spec = Specification(prop, Pessimistic, Maximize)
+opt_min_spec = Specification(prop, Optimistic, Minimize)
+opt_max_spec = Specification(prop, Optimistic, Maximize)
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, pes_min_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == FiniteTimeReward
+@test prop_meta == (1.0, 10)
+@test sat_mode == Pessimistic
+@test strat_mode == Minimize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, pes_max_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == FiniteTimeReward
+@test prop_meta == (1.0, 10)
+@test sat_mode == Pessimistic
+@test strat_mode == Maximize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, opt_min_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == FiniteTimeReward
+@test prop_meta == (1.0, 10)
+@test sat_mode == Optimistic
+@test strat_mode == Minimize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, opt_max_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == FiniteTimeReward
+@test prop_meta == (1.0, 10)
+@test sat_mode == Optimistic
+@test strat_mode == Maximize
+
+## Write and read ITDR min/max min/max
+prop = InfiniteTimeReward([1.0, 2.0, 3.0], 0.9, 1e-6)
+pes_min_spec = Specification(prop, Pessimistic, Minimize)
+pes_max_spec = Specification(prop, Pessimistic, Maximize)
+opt_min_spec = Specification(prop, Optimistic, Minimize)
+opt_max_spec = Specification(prop, Optimistic, Maximize)
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, pes_min_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == InfiniteTimeReward
+@test sat_mode == Pessimistic
+@test strat_mode == Minimize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, pes_max_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == InfiniteTimeReward
+@test sat_mode == Pessimistic
+@test strat_mode == Maximize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, opt_min_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == InfiniteTimeReward
+@test sat_mode == Optimistic
+@test strat_mode == Minimize
+
+new_path = tempname()
+IntervalMDP.Data.write_prism_props_file(new_path, opt_max_spec)
+@test isfile(new_path)
+prop_type, prop_meta, sat_mode, strat_mode = IntervalMDP.Data.read_prism_props_file(new_path)
+
+@test prop_type == InfiniteTimeReward
+@test sat_mode == Optimistic
+@test strat_mode == Maximize

@@ -566,12 +566,12 @@ function read_prism_labels_file(
 end
 
 function read_prism_labels_file(
-    path_without_file_ending,
+    lab_path,
     prop_type::Type{<:AbstractReachAvoid},
     prop_meta,
     rewards,
 )
-    state_labels = read_prism_labels(path_without_file_ending)
+    state_labels = read_prism_labels(lab_path)
     initial_states = find_initial_states(state_labels)
 
     reach = find_states_label(state_labels, "reach")
