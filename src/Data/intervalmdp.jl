@@ -259,7 +259,8 @@ See [Data storage formats](@ref) for more information on the file format.
 function write_intervalmdp_jl_spec(spec_path, spec::Specification)
     data = Dict(
         "property" => intervalmdp_jl_property_dict(system_property(spec)),
-        "satisfaction_mode" => intervalmdp_jl_satisfaction_mode(satisfaction_mode(spec)),
+        "satisfaction_mode" =>
+            intervalmdp_jl_satisfaction_mode(satisfaction_mode(spec)),
         "strategy_mode" => intervalmdp_jl_strategy_mode(strategy_mode(spec)),
     )
 

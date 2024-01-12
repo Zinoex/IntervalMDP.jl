@@ -10,6 +10,7 @@ write_bmdp_tool_file(new_path, mdp, tstates)
 
 # Read new file and check that the models are the same
 new_mdp, new_tstates = read_bmdp_tool_file(new_path)
+rm(new_path)
 
 @test num_states(mdp) == num_states(new_mdp)
 @test num_choices(mdp) == num_choices(new_mdp)
@@ -49,6 +50,7 @@ write_bmdp_tool_file(new_path, mc, tstates)
 
 # Read new file and check that the models represent the same system
 new_mdp, new_tstates = read_bmdp_tool_file(new_path)
+rm(new_path)
 
 @test num_states(mc) == num_states(new_mdp)
 @test num_states(mc) == num_choices(new_mdp)
