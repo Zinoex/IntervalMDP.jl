@@ -35,12 +35,24 @@ function read_intervalmdp_jl_model(model_path)
         lower_colptr = convert.(Int32, dataset["lower_colptr"][:])
         lower_rowval = convert.(Int32, dataset["lower_rowval"][:])
         lower_nzval = dataset["lower_nzval"][:]
-        P̲ = SparseMatrixCSC(n, length(lower_colptr) - 1, lower_colptr, lower_rowval, lower_nzval)
+        P̲ = SparseMatrixCSC(
+            n,
+            length(lower_colptr) - 1,
+            lower_colptr,
+            lower_rowval,
+            lower_nzval,
+        )
 
         upper_colptr = convert.(Int32, dataset["upper_colptr"][:])
         upper_rowval = convert.(Int32, dataset["upper_rowval"][:])
         upper_nzval = dataset["upper_nzval"][:]
-        P̅ = SparseMatrixCSC(n, length(upper_colptr) - 1, upper_colptr, upper_rowval, upper_nzval)
+        P̅ = SparseMatrixCSC(
+            n,
+            length(upper_colptr) - 1,
+            upper_colptr,
+            upper_rowval,
+            upper_nzval,
+        )
 
         prob = IntervalProbabilities(; lower = P̲, upper = P̅)
 
@@ -256,7 +268,7 @@ Write a `Specification` to an IntervalMDP.jl spec file (JSON-format).
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-function write_intervalmdp_jl_spec(spec_path, spec::Specification; indent=4)
+function write_intervalmdp_jl_spec(spec_path, spec::Specification; indent = 4)
     data = Dict(
         "property" => intervalmdp_jl_property_dict(system_property(spec)),
         "satisfaction_mode" =>
