@@ -35,41 +35,41 @@ function read_intervalmdp_jl_model(model_path)
         lower_colptr = convert.(Int32, dataset["lower_colptr"][:])
         lower_rowval = convert.(Int32, dataset["lower_rowval"][:])
         lower_nzval = dataset["lower_nzval"][:]
-        P̲ = SparseMatrixCSC(n, n, lower_colptr, lower_rowval, lower_nzval)
+        P̲ = SparseMatrixCSC(n, length(lower_colptr) - 1, lower_colptr, lower_rowval, lower_nzval)
 
         upper_colptr = convert.(Int32, dataset["upper_colptr"][:])
         upper_rowval = convert.(Int32, dataset["upper_rowval"][:])
         upper_nzval = dataset["upper_nzval"][:]
-        P̅ = SparseMatrixCSC(n, n, upper_colptr, upper_rowval, upper_nzval)
+        P̅ = SparseMatrixCSC(n, length(upper_colptr) - 1, upper_colptr, upper_rowval, upper_nzval)
 
         prob = IntervalProbabilities(; lower = P̲, upper = P̅)
 
         if model == "imdp"
-            return read_intervalmdp_jl_mdp(dataset, prob, initial_state)
+            return read_intervalmdp_jl_mdp(dataset, prob, initial_states)
         elseif model == "imc"
-            return read_intervalmdp_jl_mc(dataset, prob, initial_state)
+            return read_intervalmdp_jl_mc(dataset, prob, initial_states)
         end
     end
 
     return mdp_or_mc
 end
 
-function read_intervalmdp_jl_mdp(dataset, prob, initial_state)
+function read_intervalmdp_jl_mdp(dataset, prob, initial_states)
     @assert dataset.attrib["model"] == "imdp"
     @assert dataset.attrib["cols"] == "from/action"
 
     stateptr = convert.(Int32, dataset["stateptr"][:])
     action_vals = dataset["action_vals"][:]
 
-    mdp = IntervalMarkovDecisionProcess(prob, stateptr, action_vals, Int32(initial_state))
+    mdp = IntervalMarkovDecisionProcess(prob, stateptr, action_vals, initial_states)
     return mdp
 end
 
-function read_intervalmdp_jl_mc(dataset, prob, initial_state)
+function read_intervalmdp_jl_mc(dataset, prob, initial_states)
     @assert dataset.attrib["model"] == "imc"
     @assert dataset.attrib["cols"] == "from"
 
-    mc = IntervalMarkovChain(prob, Int32(initial_state))
+    mc = IntervalMarkovChain(prob, initial_states)
     return mc
 end
 
@@ -131,7 +131,7 @@ end
 function read_intervalmdp_jl_reachability_property(prop_dict)
     @assert prop_dict["type"] == "reachability"
 
-    reach = prop_dict["reach"]
+    reach = convert(Vector{Int32}, prop_dict["reach"])
 
     if prop_dict["infinite_time"]
         return InfiniteTimeReachability(reach, prop_dict["eps"])
@@ -143,8 +143,8 @@ end
 function read_intervalmdp_jl_reach_avoid_property(prop_dict)
     @assert prop_dict["type"] == "reach-avoid"
 
-    reach = prop_dict["reach"]
-    avoid = prop_dict["avoid"]
+    reach = convert(Vector{Int32}, prop_dict["reach"])
+    avoid = convert(Vector{Int32}, prop_dict["avoid"])
 
     if prop_dict["infinite_time"]
         return InfiniteTimeReachAvoid(reach, avoid, prop_dict["eps"])
@@ -156,7 +156,7 @@ end
 function read_intervalmdp_jl_reward_property(prop_dict)
     @assert prop_dict["type"] == "reward"
 
-    reward = prop_dict["reward"]
+    reward = convert(Vector{Float64}, prop_dict["reward"])
     discount = prop_dict["discount"]
 
     if prop_dict["infinite_time"]
@@ -256,7 +256,7 @@ Write a `Specification` to an IntervalMDP.jl spec file (JSON-format).
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-function write_intervalmdp_jl_spec(spec_path, spec::Specification)
+function write_intervalmdp_jl_spec(spec_path, spec::Specification; indent=4)
     data = Dict(
         "property" => intervalmdp_jl_property_dict(system_property(spec)),
         "satisfaction_mode" =>
@@ -265,7 +265,7 @@ function write_intervalmdp_jl_spec(spec_path, spec::Specification)
     )
 
     open(spec_path, "w") do io
-        return JSON.print(io, data)
+        return JSON.print(io, data, indent)
     end
 end
 
