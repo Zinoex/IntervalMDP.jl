@@ -74,10 +74,16 @@ end
 function compute_gap(
     lower::MR,
     upper::MR,
-) where {MR <: SparseArrays.AbstractSparseMatrixCSC}
+) where {R, MR <: SparseArrays.AbstractSparseMatrixCSC{R}}
     I, J, _ = findnz(upper)
-    gap_nonzeros = map((i, j) -> upper[i, j] - lower[i, j], I, J)
-    lower_nonzeros = map((i, j) -> lower[i, j], I, J)
+
+    gap_nonzeros = Vector{R}(undef, length(I))
+    lower_nonzeros = Vector{R}(undef, length(I))
+
+    for (k, (i, j)) in enumerate(zip(I, J))
+        gap_nonzeros[k] = upper[i, j] - lower[i, j]
+        lower_nonzeros[k] = lower[i, j]
+    end
 
     gap = SparseArrays.FixedSparseCSC(
         size(upper)...,
@@ -95,6 +101,9 @@ function compute_gap(
 end
 
 # Accessors for properties of interval probabilities
+
+Base.size(s::IntervalProbabilities) = size(s.lower)
+Base.size(s::IntervalProbabilities, dim::Integer) = size(s.lower, dim)
 
 """
     lower(s::IntervalProbabilities)

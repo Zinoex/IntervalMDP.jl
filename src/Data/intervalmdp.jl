@@ -1,26 +1,26 @@
 """
-    read_imdp_jl_file(path)
+    read_intervalmdp_jl_file(path)
 
 Read an IntervalMDP.jl data file and return an `IntervalMarkovDecisionProcess`
 or `IntervalMarkovChain` and a list of terminal states. 
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-function read_imdp_jl(model_path, spec_path)
-    mdp_or_mc = read_imdp_jl_model(model_path)
-    spec = read_imdp_jl_spec(spec_path)
+function read_intervalmdp_jl(model_path, spec_path)
+    mdp_or_mc = read_intervalmdp_jl_model(model_path)
+    spec = read_intervalmdp_jl_spec(spec_path)
 
     return Problem(mdp_or_mc, spec)
 end
 
 """
-    read_imdp_jl_model(model_path)
+    read_intervalmdp_jl_model(model_path)
 
 Read an `IntervalMarkovDecisionProcess` or `IntervalMarkovChain` from an IntervalMDP.jl system file (netCDF sparse format).
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-function read_imdp_jl_model(model_path)
+function read_intervalmdp_jl_model(model_path)
     mdp_or_mc = Dataset(model_path) do dataset
         n = Int32(dataset.attrib["num_states"])
         model = dataset.attrib["model"]
@@ -35,55 +35,67 @@ function read_imdp_jl_model(model_path)
         lower_colptr = convert.(Int32, dataset["lower_colptr"][:])
         lower_rowval = convert.(Int32, dataset["lower_rowval"][:])
         lower_nzval = dataset["lower_nzval"][:]
-        P̲ = SparseMatrixCSC(n, n, lower_colptr, lower_rowval, lower_nzval)
+        P̲ = SparseMatrixCSC(
+            n,
+            length(lower_colptr) - 1,
+            lower_colptr,
+            lower_rowval,
+            lower_nzval,
+        )
 
         upper_colptr = convert.(Int32, dataset["upper_colptr"][:])
         upper_rowval = convert.(Int32, dataset["upper_rowval"][:])
         upper_nzval = dataset["upper_nzval"][:]
-        P̅ = SparseMatrixCSC(n, n, upper_colptr, upper_rowval, upper_nzval)
+        P̅ = SparseMatrixCSC(
+            n,
+            length(upper_colptr) - 1,
+            upper_colptr,
+            upper_rowval,
+            upper_nzval,
+        )
 
         prob = IntervalProbabilities(; lower = P̲, upper = P̅)
 
         if model == "imdp"
-            return read_imdp_jl_mdp(dataset, prob, initial_state)
+            return read_intervalmdp_jl_mdp(dataset, prob, initial_states)
         elseif model == "imc"
-            return read_imdp_jl_mc(dataset, prob, initial_state)
+            return read_intervalmdp_jl_mc(dataset, prob, initial_states)
         end
     end
 
     return mdp_or_mc
 end
 
-function read_imdp_jl_mdp(dataset, prob, initial_state)
+function read_intervalmdp_jl_mdp(dataset, prob, initial_states)
     @assert dataset.attrib["model"] == "imdp"
     @assert dataset.attrib["cols"] == "from/action"
 
     stateptr = convert.(Int32, dataset["stateptr"][:])
     action_vals = dataset["action_vals"][:]
 
-    mdp = IntervalMarkovDecisionProcess(prob, stateptr, action_vals, Int32(initial_state))
+    mdp = IntervalMarkovDecisionProcess(prob, stateptr, action_vals, initial_states)
     return mdp
 end
 
-function read_imdp_jl_mc(dataset, prob, initial_state)
+function read_intervalmdp_jl_mc(dataset, prob, initial_states)
     @assert dataset.attrib["model"] == "imc"
     @assert dataset.attrib["cols"] == "from"
 
-    mc = IntervalMarkovChain(prob, Int32(initial_state))
+    mc = IntervalMarkovChain(prob, initial_states)
     return mc
 end
 
 """
-    read_imdp_jl_spec(spec_path)
+    read_intervalmdp_jl_spec(spec_path)
 
 Read a `Specification` from an IntervalMDP.jl spec file (JSON-format).
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-function read_imdp_jl_spec(spec_path)
+function read_intervalmdp_jl_spec(spec_path)
     data = JSON.parsefile(spec_path; inttype = Int32)
 
-    prop = read_imdp_jl_property(data["property"])
+    prop = read_intervalmdp_jl_property(data["property"])
 
     if data["satisfaction_mode"] == "optimistic"
         satisfaction_mode = Optimistic
@@ -112,13 +124,13 @@ function read_imdp_jl_spec(spec_path)
     return Specification(prop, satisfaction_mode, strategy_mode)
 end
 
-function read_imdp_jl_property(prop_dict)
+function read_intervalmdp_jl_property(prop_dict)
     if prop_dict["type"] == "reachability"
-        return read_imdp_jl_reachability_property(prop_dict)
+        return read_intervalmdp_jl_reachability_property(prop_dict)
     elseif prop_dict["type"] == "reach-avoid"
-        return read_imdp_jl_reach_avoid_property(prop_dict)
+        return read_intervalmdp_jl_reach_avoid_property(prop_dict)
     elseif prop_dict["type"] == "reward"
-        return read_imdp_jl_reward_property(prop_dict)
+        return read_intervalmdp_jl_reward_property(prop_dict)
     else
         throw(
             ValueError(
@@ -128,10 +140,10 @@ function read_imdp_jl_property(prop_dict)
     end
 end
 
-function read_imdp_jl_reachability_property(prop_dict)
+function read_intervalmdp_jl_reachability_property(prop_dict)
     @assert prop_dict["type"] == "reachability"
 
-    reach = prop_dict["reach"]
+    reach = convert(Vector{Int32}, prop_dict["reach"])
 
     if prop_dict["infinite_time"]
         return InfiniteTimeReachability(reach, prop_dict["eps"])
@@ -140,11 +152,11 @@ function read_imdp_jl_reachability_property(prop_dict)
     end
 end
 
-function read_imdp_jl_reach_avoid_property(prop_dict)
+function read_intervalmdp_jl_reach_avoid_property(prop_dict)
     @assert prop_dict["type"] == "reach-avoid"
 
-    reach = prop_dict["reach"]
-    avoid = prop_dict["avoid"]
+    reach = convert(Vector{Int32}, prop_dict["reach"])
+    avoid = convert(Vector{Int32}, prop_dict["avoid"])
 
     if prop_dict["infinite_time"]
         return InfiniteTimeReachAvoid(reach, avoid, prop_dict["eps"])
@@ -153,10 +165,10 @@ function read_imdp_jl_reach_avoid_property(prop_dict)
     end
 end
 
-function read_imdp_jl_reward_property(prop_dict)
+function read_intervalmdp_jl_reward_property(prop_dict)
     @assert prop_dict["type"] == "reward"
 
-    reward = prop_dict["reward"]
+    reward = convert(Vector{Float64}, prop_dict["reward"])
     discount = prop_dict["discount"]
 
     if prop_dict["infinite_time"]
@@ -167,13 +179,13 @@ function read_imdp_jl_reward_property(prop_dict)
 end
 
 """
-    write_imdp_jl_model(model_path, mdp_or_mc)
+    write_intervalmdp_jl_model(model_path, mdp_or_mc)
 
 Write an `IntervalMarkovDecisionProcess` or `IntervalMarkovChain` to an IntervalMDP.jl system file (netCDF sparse format).
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-function write_imdp_jl_model(model_path, mdp_or_mc::IntervalMarkovProcess)
+function write_intervalmdp_jl_model(model_path, mdp_or_mc::IntervalMarkovProcess)
     Dataset(model_path, "c") do dataset
         dataset.attrib["format"] = "sparse_csc"
         dataset.attrib["num_states"] = num_states(mdp_or_mc)
@@ -224,14 +236,14 @@ function write_imdp_jl_model(model_path, mdp_or_mc::IntervalMarkovProcess)
         )
         v[:] = l.nzval + g.nzval
 
-        return write_imdp_jl_model_specific(dataset, mdp_or_mc)
+        return write_intervalmdp_jl_model_specific(dataset, mdp_or_mc)
     end
 end
 
-write_imdp_jl_model(model_path, problem::Problem) =
-    write_imdp_jl_model(model_path, system(problem))
+write_intervalmdp_jl_model(model_path, problem::Problem) =
+    write_intervalmdp_jl_model(model_path, system(problem))
 
-function write_imdp_jl_model_specific(dataset, mdp::IntervalMarkovDecisionProcess)
+function write_intervalmdp_jl_model_specific(dataset, mdp::IntervalMarkovDecisionProcess)
     dataset.attrib["model"] = "imdp"
     dataset.attrib["cols"] = "from/action"
 
@@ -244,34 +256,35 @@ function write_imdp_jl_model_specific(dataset, mdp::IntervalMarkovDecisionProces
     return v[:] = actions(mdp)
 end
 
-function write_imdp_jl_model_specific(dataset, mc::IntervalMarkovChain)
+function write_intervalmdp_jl_model_specific(dataset, mc::IntervalMarkovChain)
     dataset.attrib["model"] = "imc"
     return dataset.attrib["cols"] = "from"
 end
 
 """
-    write_imdp_jl_spec(spec_path, spec::Specification)
+    write_intervalmdp_jl_spec(spec_path, spec::Specification)
 
 Write a `Specification` to an IntervalMDP.jl spec file (JSON-format).
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-function write_imdp_jl_spec(spec_path, spec::Specification)
+function write_intervalmdp_jl_spec(spec_path, spec::Specification; indent = 4)
     data = Dict(
-        "property" => imdp_jl_property_dict(system_property(spec)),
-        "satisfaction_mode" => imdp_jl_satisfaction_mode(satisfaction_mode(spec)),
-        "strategy_mode" => imdp_jl_strategy_mode(strategy_mode(spec)),
+        "property" => intervalmdp_jl_property_dict(system_property(spec)),
+        "satisfaction_mode" =>
+            intervalmdp_jl_satisfaction_mode(satisfaction_mode(spec)),
+        "strategy_mode" => intervalmdp_jl_strategy_mode(strategy_mode(spec)),
     )
 
     open(spec_path, "w") do io
-        return JSON.print(io, data)
+        return JSON.print(io, data, indent)
     end
 end
 
-write_imdp_jl_spec(spec_path, problem::Problem) =
-    write_imdp_jl_spec(spec_path, specification(problem))
+write_intervalmdp_jl_spec(spec_path, problem::Problem) =
+    write_intervalmdp_jl_spec(spec_path, specification(problem))
 
-function imdp_jl_property_dict(prop::FiniteTimeReachability)
+function intervalmdp_jl_property_dict(prop::FiniteTimeReachability)
     return Dict(
         "type" => "reachability",
         "reach" => reach(prop),
@@ -280,7 +293,7 @@ function imdp_jl_property_dict(prop::FiniteTimeReachability)
     )
 end
 
-function imdp_jl_property_dict(prop::InfiniteTimeReachability)
+function intervalmdp_jl_property_dict(prop::InfiniteTimeReachability)
     return Dict(
         "type" => "reachability",
         "reach" => reach(prop),
@@ -289,7 +302,7 @@ function imdp_jl_property_dict(prop::InfiniteTimeReachability)
     )
 end
 
-function imdp_jl_property_dict(prop::FiniteTimeReachAvoid)
+function intervalmdp_jl_property_dict(prop::FiniteTimeReachAvoid)
     return Dict(
         "type" => "reach-avoid",
         "reach" => reach(prop),
@@ -299,7 +312,7 @@ function imdp_jl_property_dict(prop::FiniteTimeReachAvoid)
     )
 end
 
-function imdp_jl_property_dict(prop::InfiniteTimeReachAvoid)
+function intervalmdp_jl_property_dict(prop::InfiniteTimeReachAvoid)
     return Dict(
         "type" => "reach-avoid",
         "reach" => reach(prop),
@@ -309,7 +322,7 @@ function imdp_jl_property_dict(prop::InfiniteTimeReachAvoid)
     )
 end
 
-function imdp_jl_property_dict(prop::FiniteTimeReward)
+function intervalmdp_jl_property_dict(prop::FiniteTimeReward)
     return Dict(
         "type" => "reward",
         "reward" => reward(prop),
@@ -319,7 +332,7 @@ function imdp_jl_property_dict(prop::FiniteTimeReward)
     )
 end
 
-function imdp_jl_property_dict(prop::InfiniteTimeReward)
+function intervalmdp_jl_property_dict(prop::InfiniteTimeReward)
     return Dict(
         "type" => "reward",
         "reward" => reward(prop),
@@ -329,7 +342,7 @@ function imdp_jl_property_dict(prop::InfiniteTimeReward)
     )
 end
 
-function imdp_jl_satisfaction_mode(mode::SatisfactionMode)
+function intervalmdp_jl_satisfaction_mode(mode::SatisfactionMode)
     if mode == Optimistic
         return "optimistic"
     else
@@ -337,7 +350,7 @@ function imdp_jl_satisfaction_mode(mode::SatisfactionMode)
     end
 end
 
-function imdp_jl_strategy_mode(mode::StrategyMode)
+function intervalmdp_jl_strategy_mode(mode::StrategyMode)
     if mode == Minimize
         return "minimize"
     else

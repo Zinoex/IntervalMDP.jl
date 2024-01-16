@@ -12,6 +12,9 @@ prob = IntervalProbabilities(;
 )
 
 mc = IntervalMarkovChain(prob, [1])
+@test initial_states(mc) == [1]
+
+mc = IntervalMarkovChain(prob)
 
 prop = FiniteTimeReachability([3], 10)
 spec = Specification(prop, Pessimistic)
