@@ -1,5 +1,5 @@
 """
-    read_intervalmdp_jl_file(path)
+read_intervalmdp_jl(model_path, spec_path)
 
 Read an IntervalMDP.jl data file and return an `IntervalMarkovDecisionProcess`
 or `IntervalMarkovChain` and a list of terminal states. 
