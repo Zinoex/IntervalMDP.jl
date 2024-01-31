@@ -73,15 +73,15 @@ IntervalMDP.jl also supports a different _binary_ format based on NetCDF to stor
 
 ```julia
 # Read
-imdp = read_imdp_jl_model(model_path)
-spec = read_imdp_jl_spec(spec_path)
+imdp = read_intervalmdp_jl_model(model_path)
+spec = read_intervalmdp_jl_spec(spec_path)
 problem = Problem(imdp, spec)
 
-problem = read_imdp_jl(model_path, spec_path)
+problem = read_intervalmdp_jl(model_path, spec_path)
 
 # Write
-write_imdp_jl_model(model_path, imdp_or_problem)
-write_imdp_jl_spec(spec_path, spec_or_problem)
+write_intervalmdp_jl_model(model_path, imdp_or_problem)
+write_intervalmdp_jl_spec(spec_path, spec_or_problem)
 ```
 
 The new format proposed uses netCDF, which is based on HDF5 underlying, to store transition probabilities, and a JSON file to store the specification. Transition probabilities are stored in CSC-format, which is unfortunately not natively stored in netCDF, nor any widely available format.
