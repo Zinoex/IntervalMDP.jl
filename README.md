@@ -61,7 +61,7 @@ initial_states = [1]  # Initial states are optional
 imc = IntervalMarkovChain(prob, initial_states)
 
 target_set = [3]
-prop = FiniteHorizonReachability(target_set, 10)  # Time steps
+prop = FiniteTimeReachability(target_set, 10)  # Time steps
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(imc, spec)
 
