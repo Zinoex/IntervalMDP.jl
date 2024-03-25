@@ -57,11 +57,11 @@ function write_prism_states_file(sta_path, mdp_or_mc)
     number_states = num_states(mdp_or_mc)
 
     open(sta_path, "w") do io
-        println(io, "$number_states")
+        println(io, "(s)")
 
         for i in 1:number_states
             state = i - 1
-            println(io, "$state")
+            println(io, "$state:($i)")
         end
     end
 end
