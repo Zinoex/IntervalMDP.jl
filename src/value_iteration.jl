@@ -158,6 +158,7 @@ function value_iteration(
             upper_bound = upper_bound,
             discount = discount(prop),
         )
+
         # Add immediate reward
         value_function.cur += reward(prop)
 
@@ -174,54 +175,21 @@ function construct_value_function(::AbstractMatrix{R}, num_states) where {R}
     return V
 end
 
-function construct_nonterminal(mc::IntervalMarkovChain, terminal)
-    return setdiff(collect(1:num_states(mc)), terminal)
-end
-
 mutable struct IMCValueFunction
-    prev::Any
-    prev_transpose::Any
-    cur::Any
-    nonterminal::Any
-    nonterminal_indices::Any
+    prev
+    prev_transpose
+    cur
 end
 
 function IMCValueFunction(
     problem::Problem{M, S},
-) where {M <: IntervalMarkovChain, S <: Specification{<:AbstractReachability}}
+) where {M <: IntervalMarkovChain, S}
     mc = system(problem)
-    spec = specification(problem)
-    prop = system_property(spec)
-    terminal = terminal_states(prop)
 
     prev = construct_value_function(gap(transition_prob(mc)), num_states(mc))
-
-    # Reshape is guaranteed to share the same underlying memory while transpose is not.
-    prev_transpose = reshape(prev, 1, length(prev))
     cur = copy(prev)
 
-    nonterminal_indices = construct_nonterminal(mc, terminal)
-    # Important to use view to avoid copying
-    nonterminal = reshape(view(cur, nonterminal_indices), 1, length(nonterminal_indices))
-
-    return IMCValueFunction(prev, prev_transpose, cur, nonterminal, nonterminal_indices)
-end
-
-function IMCValueFunction(
-    problem::Problem{M, S},
-) where {M <: IntervalMarkovChain, S <: Specification{<:AbstractReward}}
-    mc = system(problem)
-    prev = construct_value_function(gap(transition_prob(mc)), num_states(mc))
-
-    # Reshape is guaranteed to share the same underlying memory while transpose is not.
-    prev_transpose = reshape(prev, 1, length(prev))
-    cur = copy(prev)
-
-    nonterminal_indices = 1:num_states(mc)
-    # Important to use view to avoid copying
-    nonterminal = reshape(cur, 1, num_states(mc))
-
-    return IMCValueFunction(prev, prev_transpose, cur, nonterminal, nonterminal_indices)
+    return IMCValueFunction(prev, Transpose(prev), cur)
 end
 
 function initialize!(V, indices, values)
@@ -253,13 +221,10 @@ function step_imc!(
     upper_bound,
     discount = 1.0,
 )
-    indices = value_function.nonterminal_indices
-    partial_ominmax!(ordering, p, prob, value_function.prev, indices; max = upper_bound)
+    ominmax!(ordering, p, prob, value_function.prev; max = upper_bound)
 
-    p = view(p, :, indices)
-    mul!(value_function.nonterminal, value_function.prev_transpose, p)
-    value_function.nonterminal .= transpose(value_function.prev) * p
-    rmul!(value_function.nonterminal, discount)
+    value_function.cur .= Transpose(value_function.prev_transpose * p)
+    rmul!(value_function.cur, discount)
 
     return value_function
 end
@@ -343,7 +308,6 @@ function value_iteration(
         p,
         prob,
         sptr,
-        maxactions,
         value_function;
         maximize = maximize,
         upper_bound = upper_bound,
@@ -357,7 +321,6 @@ function value_iteration(
             p,
             prob,
             sptr,
-            maxactions,
             value_function;
             maximize = maximize,
             upper_bound = upper_bound,
@@ -436,7 +399,6 @@ function value_iteration(
 
     prob = transition_prob(mdp)
     sptr = stateptr(mdp)
-    maxactions = maximum(diff(sptr))
 
     # It is more efficient to use allocate first and reuse across iterations
     p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
@@ -450,7 +412,6 @@ function value_iteration(
         p,
         prob,
         sptr,
-        maxactions,
         value_function;
         maximize = maximize,
         upper_bound = upper_bound,
@@ -467,7 +428,6 @@ function value_iteration(
             p,
             prob,
             sptr,
-            maxactions,
             value_function;
             maximize = maximize,
             upper_bound = upper_bound,
@@ -484,72 +444,28 @@ function value_iteration(
     return value_function.cur, k, value_function.prev
 end
 
-function construct_nonterminal(mdp::IntervalMarkovDecisionProcess, terminal)
-    sptr = stateptr(mdp)
-
-    nonterminal = setdiff(collect(1:num_states(mdp)), terminal)
-    nonterminal_actions =
-        mapreduce(i -> collect(sptr[i]:(sptr[i + 1] - 1)), vcat, nonterminal)
-    return nonterminal, nonterminal_actions
-end
-
 mutable struct IMDPValueFunction
-    prev::Any
-    prev_transpose::Any
-    cur::Any
-    nonterminal::Any
-    nonterminal_states::Any
-    nonterminal_actions::Any
+    prev
+    prev_transpose
+    cur
+    action_values
 end
 
 function IMDPValueFunction(
     problem::Problem{M, S},
-) where {M <: IntervalMarkovDecisionProcess, S <: Specification{<:AbstractReachability}}
-    mdp = system(problem)
-    spec = specification(problem)
-    prop = system_property(spec)
-    terminal = terminal_states(prop)
-
-    prev = construct_value_function(gap(transition_prob(mdp)), num_states(mdp))
-
-    # Reshape is guaranteed to share the same underlying memory while transpose is not.
-    prev_transpose = reshape(prev, 1, length(prev))
-    cur = copy(prev)
-
-    nonterminal_states, nonterminal_actions = construct_nonterminal(mdp, terminal)
-    nonterminal = similar(cur, 1, length(nonterminal_actions))
-
-    return IMDPValueFunction(
-        prev,
-        prev_transpose,
-        cur,
-        nonterminal,
-        nonterminal_states,
-        nonterminal_actions,
-    )
-end
-
-function IMDPValueFunction(
-    problem::Problem{M, S},
-) where {M <: IntervalMarkovDecisionProcess, S <: Specification{<:AbstractReward}}
+) where {M <: IntervalMarkovDecisionProcess, S}
     mdp = system(problem)
 
     prev = construct_value_function(gap(transition_prob(mdp)), num_states(mdp))
-
-    # Reshape is guaranteed to share the same underlying memory while transpose is not.
-    prev_transpose = reshape(prev, 1, length(prev))
     cur = copy(prev)
 
-    nonterminal_states, nonterminal_actions = 1:num_states(mdp), 1:num_choices(mdp)
-    nonterminal = similar(cur, 1, num_choices(mdp))
+    action_values = similar(prev, num_choices(mdp))
 
     return IMDPValueFunction(
         prev,
-        prev_transpose,
+        Transpose(prev),
         cur,
-        nonterminal,
-        nonterminal_states,
-        nonterminal_actions,
+        action_values
     )
 end
 
@@ -558,33 +474,30 @@ function step_imdp!(
     p,
     prob::IntervalProbabilities,
     stateptr,
-    maxactions,
     value_function;
     maximize,
     upper_bound,
     discount = 1.0,
 )
-    partial_ominmax!(
+    ominmax!(
         ordering,
         p,
         prob,
-        value_function.prev,
-        value_function.nonterminal_actions;
+        value_function.prev;
         max = upper_bound,
     )
 
     optfun = maximize ? maximum : minimum
 
-    p = view(p, :, value_function.nonterminal_actions)
-    mul!(value_function.nonterminal, value_function.prev_transpose, p)
-    rmul!(value_function.nonterminal, discount)
+    value_function.action_values .= Transpose(value_function.prev_transpose * p)
+    rmul!(value_function.action_values, discount)
 
-    @inbounds for j in value_function.nonterminal_states
+    @inbounds for j in 1:num_target(prob)
         @inbounds s1 = stateptr[j]
         @inbounds s2 = stateptr[j + 1]
 
         @inbounds value_function.cur[j] =
-            optfun(view(value_function.nonterminal, s1:(s2 - 1)))
+            optfun(view(value_function.action_values, s1:(s2 - 1)))
     end
 
     return value_function

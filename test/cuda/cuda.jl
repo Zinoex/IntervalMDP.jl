@@ -2,8 +2,8 @@
 @testset "cuda/adapt" begin
     adaptor = IntervalMDP.CuModelAdaptor{Float64, Int32}
 
-    @test valtype(adaptor) == Float64
-    @test indtype(adaptor) == Int32
+    @test IntervalMDP.valtype(adaptor) == Float64
+    @test IntervalMDP.indtype(adaptor) == Int32
 end
 
 test_files = ["ominmax.jl", "partial.jl", "vi.jl", "imdp.jl"]

@@ -16,10 +16,11 @@ function Adapt.adapt_structure(
     T::Type{<:IntervalMDP.CuModelAdaptor},
     mc::IntervalMarkovChain,
 )
+    Itype = IntervalMDP.indtype(T)
     return IntervalMarkovChain(
         adapt(T, transition_prob(mc)),
-        adapt(CuArray{IntervalMDP.indtype(T)}, initial_states(mc)),
-        num_states(mc),
+        adapt(CuArray{Itype}, initial_states(mc)),
+        Itype(num_states(mc)),
     )
 end
 
@@ -27,12 +28,13 @@ function Adapt.adapt_structure(
     T::Type{<:IntervalMDP.CuModelAdaptor},
     mdp::IntervalMarkovDecisionProcess,
 )
+    Itype = IntervalMDP.indtype(T)
     return IntervalMarkovDecisionProcess(
         adapt(T, transition_prob(mdp)),
-        adapt(CuArray{IntervalMDP.indtype(T)}, IntervalMDP.stateptr(mdp)),
+        adapt(CuArray{Itype}, IntervalMDP.stateptr(mdp)),
         actions(mdp),
-        adapt(CuArray{IntervalMDP.indtype(T)}, initial_states(mdp)),
-        num_states(mdp),
+        adapt(CuArray{Itype}, initial_states(mdp)),
+        Itype(num_states(mdp)),
     )
 end
 
