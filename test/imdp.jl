@@ -74,20 +74,18 @@ V_conv, _, u = value_iteration(problem)
 @test maximum(u) <= 1e-6
 
 # Finite time reach avoid
-prob_reach_avoid2 = IntervalProbabilities(;
-    lower = [
-        0.0
-        1.0
-        0.0
-    ][:, :],
-    upper = [
-        0.0
-        1.0
-        0.0
-    ][:, :],
-)
+prob_reach_avoid2 = IntervalProbabilities(; lower = [
+    0.0
+    1.0
+    0.0
+][:, :], upper = [
+    0.0
+    1.0
+    0.0
+][:, :])
 
-transition_probs = [["a1", "a2"] => prob1, ["sinking"] => prob_reach_avoid2, ["sinking"] => prob3]
+transition_probs =
+    [["a1", "a2"] => prob1, ["sinking"] => prob_reach_avoid2, ["sinking"] => prob3]
 
 mdp_reach_avoid = IntervalMarkovDecisionProcess(transition_probs)
 

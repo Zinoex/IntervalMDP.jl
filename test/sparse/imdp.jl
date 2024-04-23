@@ -87,7 +87,8 @@ prob_reach_avoid2 = IntervalProbabilities(;
     ][:, :]),
 )
 
-transition_probs = [["a1", "a2"] => prob1, ["sinking"] => prob_reach_avoid2, ["sinking"] => prob3]
+transition_probs =
+    [["a1", "a2"] => prob1, ["sinking"] => prob_reach_avoid2, ["sinking"] => prob3]
 
 mdp_reach_avoid = IntervalMarkovDecisionProcess(transition_probs)
 

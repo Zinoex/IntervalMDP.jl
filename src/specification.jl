@@ -322,7 +322,10 @@ function checkterminalindices!(terminal_states, num_states)
     end
 end
 
-function checkterminalprob!(terminal_states, system::IntervalMarkovChain{<:IntervalProbabilities{R, VR, MR}}) where {R, VR, MR <: AbstractMatrix}
+function checkterminalprob!(
+    terminal_states,
+    system::IntervalMarkovChain{<:IntervalProbabilities{R, VR, MR}},
+) where {R, VR, MR <: AbstractMatrix}
     prob = transition_prob(system)
     lower_prob = lower(prob)
     gap_prob = gap(prob)
@@ -334,7 +337,10 @@ function checkterminalprob!(terminal_states, system::IntervalMarkovChain{<:Inter
     end
 end
 
-function checkterminalprob!(terminal_states, system::IntervalMarkovDecisionProcess{<:IntervalProbabilities{R, VR, MR}}) where {R, VR, MR <: AbstractMatrix}
+function checkterminalprob!(
+    terminal_states,
+    system::IntervalMarkovDecisionProcess{<:IntervalProbabilities{R, VR, MR}},
+) where {R, VR, MR <: AbstractMatrix}
     prob = transition_prob(system)
     lower_prob = lower(prob)
     gap_prob = gap(prob)
@@ -343,10 +349,9 @@ function checkterminalprob!(terminal_states, system::IntervalMarkovDecisionProce
     for j in terminal_states
         target = [Float64(i == j) for i in 1:num_states(system)]
 
-        for s in sptr[j]:sptr[j + 1] - 1
+        for s in sptr[j]:(sptr[j + 1] - 1)
             @assert all(iszero, @view(gap_prob[:, s])) && @view(lower_prob[:, s]) == target "The terminal state $j must have a probability of 1 to itself and 0 to all other states"
         end
-
     end
 end
 
