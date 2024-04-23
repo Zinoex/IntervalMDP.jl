@@ -110,7 +110,7 @@ struct FiniteTimeReachability{T <: Integer, VT <: AbstractVector{T}} <: Abstract
 end
 
 function checkproperty!(prop::FiniteTimeReachability, system::IntervalMarkovProcess)
-    checkterminal!(terminal_states(prop), num_states(system))
+    checkterminal!(terminal_states(prop), system)
     checktimehorizon!(prop)
 end
 
@@ -158,7 +158,7 @@ struct InfiniteTimeReachability{R <: Real, T <: Integer, VT <: AbstractVector{T}
 end
 
 function checkproperty!(prop::InfiniteTimeReachability, system::IntervalMarkovProcess)
-    checkterminal!(terminal_states(prop), num_states(system))
+    checkterminal!(terminal_states(prop), system)
     checkconvergence!(prop)
 end
 
@@ -216,7 +216,7 @@ struct FiniteTimeReachAvoid{T <: Integer, VT <: AbstractVector{T}} <: AbstractRe
 end
 
 function checkproperty!(prop::FiniteTimeReachAvoid, system::IntervalMarkovProcess)
-    checkterminal!(terminal_states(prop), num_states(system))
+    checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
     checktimehorizon!(prop)
 end
@@ -270,7 +270,7 @@ struct InfiniteTimeReachAvoid{R <: Real, T <: Integer, VT <: AbstractVector{T}} 
 end
 
 function checkproperty!(prop::InfiniteTimeReachAvoid, system::IntervalMarkovProcess)
-    checkterminal!(terminal_states(prop), num_states(system))
+    checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
     checkconvergence!(prop)
 end
@@ -311,18 +311,47 @@ Return the set of states to avoid.
 """
 avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
 
-function checkterminal!(terminal_states, num_states)
+function checkterminal!(terminal_states, system)
+    checkterminalindices!(terminal_states, num_states(system))
+    checkterminalprob!(terminal_states, system)
+end
+
+function checkterminalindices!(terminal_states, num_states)
     for j in terminal_states
-        if j < 1 || j > num_states
-            throw(ArgumentError("The terminal state $j is not a valid state"))
+        @assert 1 <= j <= num_states "The terminal state $j is not a valid state"
+    end
+end
+
+function checkterminalprob!(terminal_states, system::IntervalMarkovChain{<:IntervalProbabilities{R, VR, MR}}) where {R, VR, MR <: AbstractMatrix}
+    prob = transition_prob(system)
+    lower_prob = lower(prob)
+    gap_prob = gap(prob)
+
+    for j in terminal_states
+        target = [Float64(i == j) for i in 1:num_states(system)]
+
+        @assert all(iszero, @view(gap_prob[:, j])) && @view(lower_prob[:, j]) == target "The terminal state $j must have a probability of 1 to itself and 0 to all other states"
+    end
+end
+
+function checkterminalprob!(terminal_states, system::IntervalMarkovDecisionProcess{<:IntervalProbabilities{R, VR, MR}}) where {R, VR, MR <: AbstractMatrix}
+    prob = transition_prob(system)
+    lower_prob = lower(prob)
+    gap_prob = gap(prob)
+    sptr = stateptr(system)
+
+    for j in terminal_states
+        target = [Float64(i == j) for i in 1:num_states(system)]
+
+        for s in sptr[j]:sptr[j + 1] - 1
+            @assert all(iszero, @view(gap_prob[:, s])) && @view(lower_prob[:, s]) == target "The terminal state $j must have a probability of 1 to itself and 0 to all other states"
         end
+
     end
 end
 
 function checkdisjoint!(reach, avoid)
-    if !isdisjoint(reach, avoid)
-        throw(ArgumentError("The reach and avoid sets are not disjoint"))
-    end
+    @assert isdisjoint(reach, avoid) "The reach and avoid sets are not disjoint"
 end
 
 ## Reward

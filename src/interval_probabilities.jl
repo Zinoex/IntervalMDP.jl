@@ -47,6 +47,11 @@ end
 
 # Constructor from lower and gap with sanity assertions
 function IntervalProbabilities(lower::MR, gap::MR) where {R, MR <: AbstractMatrix{R}}
+    @assert all(lower .>= 0) "The lower bound transition probabilities must be non-negative."
+    @assert all(gap .>= 0) "The gap transition probabilities must be non-negative."
+    @assert all(gap .<= 1) "The gap transition probabilities must be less than or equal to 1."
+    @assert all(lower .+ gap .<= 1) "The sum of lower and gap transition probabilities must be less than or equal to 1."
+
     sum_lower = vec(sum(lower; dims = 1))
 
     max_lower_bound = maximum(sum_lower)
