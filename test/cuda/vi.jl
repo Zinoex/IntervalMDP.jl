@@ -19,6 +19,13 @@ problem = Problem(mc, spec)
 V_fixed_it, k, _ = value_iteration(problem)
 @test k == 10
 
+prop = FiniteTimeReachability([3], 11)
+spec = Specification(prop, Pessimistic)
+problem = Problem(mc, spec)
+V_fixed_it2, k, _ = value_iteration(problem)
+@test k == 11
+@test all(V_fixed_it .<= V_fixed_it2)
+
 prop = InfiniteTimeReachability([3], 1e-6)
 spec = Specification(prop, Pessimistic)
 problem = Problem(mc, spec)
