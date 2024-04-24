@@ -66,7 +66,8 @@ new_transition_probabilities = transition_prob(new_mdp)
 @test tstates == new_tstates
 
 # Write problem
-prop = FiniteTimeReachability([3], 10)
+tstates = [207]
+prop = FiniteTimeReachability(tstates, 10)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(mdp, spec)
 
