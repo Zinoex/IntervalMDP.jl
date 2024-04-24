@@ -19,9 +19,9 @@ termination_criteria(prop, finitetime::Val{false}) =
     CovergenceCriteria(convergence_eps(prop))
 
 """
-    value_iteration(problem::Problem{<:IntervalMarkovChain, Specification{<:AbstractReachability}})
+    value_iteration(problem::Problem{<:IntervalMarkovChain, <:Specification})
 
-Solve optimistic/pessimistic reachability and reach-avoid problems using value iteration for interval Markov chain.
+Solve optimistic/pessimistic specification problems using value iteration for interval Markov chain.
 
 ### Examples
 
@@ -52,115 +52,29 @@ V, k, residual = value_iteration(problem)
 """
 function value_iteration(
     problem::Problem{M, S},
-) where {M <: IntervalMarkovChain, S <: Specification{<:AbstractReachability}}
+) where {M <: IntervalMarkovChain, S <: Specification}
     mc = system(problem)
     spec = specification(problem)
-    prop = system_property(spec)
     term_criteria = termination_criteria(spec)
     upper_bound = satisfaction_mode(spec) == Optimistic
 
     prob = transition_prob(mc)
-    target = reach(prop)
 
     # It is more efficient to use allocate first and reuse across iterations
     p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
     ordering = construct_ordering(p)
 
     value_function = IMCValueFunction(problem)
-    initialize!(value_function, target, 1.0)
+    initialize!(value_function, spec)
 
     step_imc!(ordering, p, prob, value_function; upper_bound = upper_bound)
+    postprocess!(value_function, spec)
     k = 1
 
     while !term_criteria(value_function.cur, k, lastdiff!(value_function))
         nextiteration!(value_function)
         step_imc!(ordering, p, prob, value_function; upper_bound = upper_bound)
-
-        k += 1
-    end
-
-    # lastdiff! uses prev to store the latest difference
-    # and it is already computed from the condition in the loop
-    return value_function.cur, k, value_function.prev
-end
-
-"""
-    value_iteration(problem::Problem{<:IntervalMarkovChain, Specification{<:AbstractReward}}
-    )
-
-Find pessimistic/optimistic reward using value iteration for interval Markov chain.
-
-### Examples
-
-```jldoctest
-prob = IntervalProbabilities(;
-    lower = [
-        0.0 0.5 0.0
-        0.1 0.3 0.0
-        0.2 0.1 1.0
-    ],
-    upper = [
-        0.5 0.7 0.0
-        0.6 0.5 0.0
-        0.7 0.3 1.0
-    ],
-)
-
-mc = IntervalMarkovChain(prob, 1)
-
-reward = [2.0, 1.0, 0.0]
-discount = 0.9
-time_horizon = 10
-prop = FiniteTimeReward(reward, discount, time_horizon)
-spec = Specification(prop, Pessimistic)
-problem = Problem(mc, spec)
-V, k, residual = value_iteration(problem)
-```
-
-"""
-function value_iteration(
-    problem::Problem{M, S},
-) where {M <: IntervalMarkovChain, S <: Specification{<:AbstractReward}}
-    mc = system(problem)
-    spec = specification(problem)
-    prop = system_property(spec)
-    term_criteria = termination_criteria(spec)
-    upper_bound = satisfaction_mode(spec) == Optimistic
-
-    prob = transition_prob(mc)
-
-    # It is more efficient to use allocate first and reuse across iterations
-    p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
-    ordering = construct_ordering(p)
-
-    value_function = IMCValueFunction(problem)
-    initialize!(value_function, 1:num_states(mc), reward(prop))
-
-    step_imc!(
-        ordering,
-        p,
-        prob,
-        value_function;
-        upper_bound = upper_bound,
-        discount = discount(prop),
-    )
-    # Add immediate reward
-    value_function.cur += reward(prop)
-    k = 1
-
-    while !term_criteria(value_function.cur, k, lastdiff!(value_function))
-        nextiteration!(value_function)
-        step_imc!(
-            ordering,
-            p,
-            prob,
-            value_function;
-            upper_bound = upper_bound,
-            discount = discount(prop),
-        )
-
-        # Add immediate reward
-        value_function.cur += reward(prop)
+        postprocess!(value_function, spec)
 
         k += 1
     end
@@ -176,27 +90,18 @@ function construct_value_function(::AbstractMatrix{R}, num_states) where {R}
 end
 
 mutable struct IMCValueFunction
-    prev
-    prev_transpose
-    cur
+    prev::Any
+    prev_transpose::Any
+    cur::Any
 end
 
-function IMCValueFunction(
-    problem::Problem{M, S},
-) where {M <: IntervalMarkovChain, S}
+function IMCValueFunction(problem::Problem{M, S}) where {M <: IntervalMarkovChain, S}
     mc = system(problem)
 
     prev = construct_value_function(gap(transition_prob(mc)), num_states(mc))
     cur = copy(prev)
 
     return IMCValueFunction(prev, Transpose(prev), cur)
-end
-
-function initialize!(V, indices, values)
-    view(V.prev, indices) .= values
-    view(V.cur, indices) .= values
-
-    return V
 end
 
 function lastdiff!(V)
@@ -219,20 +124,17 @@ function step_imc!(
     prob::IntervalProbabilities,
     value_function::IMCValueFunction;
     upper_bound,
-    discount = 1.0,
 )
     ominmax!(ordering, p, prob, value_function.prev; max = upper_bound)
-
     value_function.cur .= Transpose(value_function.prev_transpose * p)
-    rmul!(value_function.cur, discount)
 
     return value_function
 end
 
 """
-    value_iteration(problem::Problem{<:IntervalMarkovDecisionProcess, Specification{<:AbstractReachability}})
+    value_iteration(problem::Problem{<:IntervalMarkovDecisionProcess, <:Specification})
 
-Solve minimizes/mazimizes optimistic/pessimistic reachability and reach-avoid problems using value iteration for interval Markov decision processes. 
+Solve minimizes/mazimizes optimistic/pessimistic specification problems using value iteration for interval Markov decision processes. 
 
 ### Examples
 
@@ -283,25 +185,22 @@ V, k, residual = value_iteration(problem)
 """
 function value_iteration(
     problem::Problem{M, S},
-) where {M <: IntervalMarkovDecisionProcess, S <: Specification{<:AbstractReachability}}
+) where {M <: IntervalMarkovDecisionProcess, S <: Specification}
     mdp = system(problem)
     spec = specification(problem)
-    prop = system_property(spec)
     term_criteria = termination_criteria(spec)
     upper_bound = satisfaction_mode(spec) == Optimistic
     maximize = strategy_mode(spec) == Maximize
 
     prob = transition_prob(mdp)
     sptr = stateptr(mdp)
-    maxactions = maximum(diff(sptr))
-    target = reach(prop)
 
     # It is more efficient to use allocate first and reuse across iterations
     p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
     ordering = construct_ordering(p)
 
     value_function = IMDPValueFunction(problem)
-    initialize!(value_function, target, 1.0)
+    initialize!(value_function, spec)
 
     step_imdp!(
         ordering,
@@ -312,6 +211,7 @@ function value_iteration(
         maximize = maximize,
         upper_bound = upper_bound,
     )
+    postprocess!(value_function, spec)
     k = 1
 
     while !term_criteria(value_function.cur, k, lastdiff!(value_function))
@@ -325,116 +225,7 @@ function value_iteration(
             maximize = maximize,
             upper_bound = upper_bound,
         )
-
-        k += 1
-    end
-
-    # lastdiff! uses prev to store the latest difference
-    # and it is already computed from the condition in the loop
-    return value_function.cur, k, value_function.prev
-end
-
-"""
-    value_iteration(problem::Problem{<:IntervalMarkovDecisionProcess, Specification{<:AbstractReward}})
-
-Find optimistic/pessimistic reward using value iteration for interval Markov decision process.
-
-### Examples
-
-```jldoctest
-prob1 = IntervalProbabilities(;
-    lower = [
-        0.0 0.5
-        0.1 0.3
-        0.2 0.1
-    ],
-    upper = [
-        0.5 0.7
-        0.6 0.5
-        0.7 0.3
-    ],
-)
-
-prob2 = IntervalProbabilities(;
-    lower = [
-        0.1 0.2
-        0.2 0.3
-        0.3 0.4
-    ],
-    upper = [
-        0.6 0.6
-        0.5 0.5
-        0.4 0.4
-    ],
-)
-
-prob3 = IntervalProbabilities(;
-    lower = [0.0; 0.0; 1.0],
-    upper = [0.0; 0.0; 1.0]
-)
-
-transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
-initial_state = 1
-mdp = IntervalMarkovDecisionProcess(transition_probs, initial_state)
-
-reward = [2.0, 1.0, 0.0]
-discount = 0.9
-time_horizon = 10
-prop = FiniteTimeReward(reward, discount, time_horizon)
-spec = Specification(prop, Pessimistic, Maximize)
-problem = Problem(mdp, spec)
-V, k, residual = value_iteration(problem)
-```
-
-"""
-function value_iteration(
-    problem::Problem{M, S},
-) where {M <: IntervalMarkovDecisionProcess, S <: Specification{<:AbstractReward}}
-    mdp = system(problem)
-    spec = specification(problem)
-    prop = system_property(spec)
-    term_criteria = termination_criteria(spec)
-    upper_bound = satisfaction_mode(spec) == Optimistic
-    maximize = strategy_mode(spec) == Maximize
-
-    prob = transition_prob(mdp)
-    sptr = stateptr(mdp)
-
-    # It is more efficient to use allocate first and reuse across iterations
-    p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
-    ordering = construct_ordering(p)
-
-    value_function = IMDPValueFunction(problem)
-    initialize!(value_function, 1:num_states(mdp), reward(prop))
-
-    step_imdp!(
-        ordering,
-        p,
-        prob,
-        sptr,
-        value_function;
-        maximize = maximize,
-        upper_bound = upper_bound,
-        discount = discount(prop),
-    )
-    # Add immediate reward
-    value_function.cur += reward(prop)
-    k = 1
-
-    while !term_criteria(value_function.cur, k, lastdiff!(value_function))
-        nextiteration!(value_function)
-        step_imdp!(
-            ordering,
-            p,
-            prob,
-            sptr,
-            value_function;
-            maximize = maximize,
-            upper_bound = upper_bound,
-            discount = discount(prop),
-        )
-        # Add immediate reward
-        value_function.cur += reward(prop)
+        postprocess!(value_function, spec)
 
         k += 1
     end
@@ -445,10 +236,10 @@ function value_iteration(
 end
 
 mutable struct IMDPValueFunction
-    prev
-    prev_transpose
-    cur
-    action_values
+    prev::Any
+    prev_transpose::Any
+    cur::Any
+    action_values::Any
 end
 
 function IMDPValueFunction(
@@ -461,12 +252,7 @@ function IMDPValueFunction(
 
     action_values = similar(prev, num_choices(mdp))
 
-    return IMDPValueFunction(
-        prev,
-        Transpose(prev),
-        cur,
-        action_values
-    )
+    return IMDPValueFunction(prev, Transpose(prev), cur, action_values)
 end
 
 function step_imdp!(
@@ -477,20 +263,12 @@ function step_imdp!(
     value_function;
     maximize,
     upper_bound,
-    discount = 1.0,
 )
-    ominmax!(
-        ordering,
-        p,
-        prob,
-        value_function.prev;
-        max = upper_bound,
-    )
+    ominmax!(ordering, p, prob, value_function.prev; max = upper_bound)
 
     optfun = maximize ? maximum : minimum
 
     value_function.action_values .= Transpose(value_function.prev_transpose * p)
-    rmul!(value_function.action_values, discount)
 
     @inbounds for j in 1:num_target(prob)
         @inbounds s1 = stateptr[j]

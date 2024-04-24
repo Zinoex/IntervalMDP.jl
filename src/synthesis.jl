@@ -24,24 +24,21 @@ end
 
 function extract_time_varying_policy(
     problem::Problem{M, S},
-) where {M <: IntervalMarkovDecisionProcess, S <: Specification{<:AbstractReachability}}
+) where {M <: IntervalMarkovDecisionProcess, S <: Specification}
     mdp = system(problem)
     spec = specification(problem)
-    prop = system_property(spec)
     term_criteria = termination_criteria(spec)
     upper_bound = satisfaction_mode(spec) == Optimistic
     maximize = strategy_mode(spec) == Maximize
 
     prob = transition_prob(mdp)
-    maxactions = maximum(diff(stateptr(mdp)))
-    target = reach(prop)
 
     # It is more efficient to use allocate first and reuse across iterations
     p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
     ordering = construct_ordering(p)
 
     value_function = IMDPValueFunction(problem)
-    initialize!(value_function, target, 1.0)
+    initialize!(value_function, spec)
 
     policy = Vector{Vector{Int}}(undef, 1)
 
@@ -54,6 +51,7 @@ function extract_time_varying_policy(
         maximize = maximize,
         upper_bound = upper_bound,
     )
+    postprocess!(value_function, spec)
     policy[1] = step_policy
     k = 1
 
@@ -68,65 +66,7 @@ function extract_time_varying_policy(
             maximize = maximize,
             upper_bound = upper_bound,
         )
-        push!(policy, step_policy)
-        k += 1
-    end
-
-    # The policy vector is built starting from the target state
-    # at the final time step, so we need to reverse it.
-    return reverse(policy)
-end
-
-function extract_time_varying_policy(
-    problem::Problem{M, S},
-) where {M <: IntervalMarkovDecisionProcess, S <: Specification{<:AbstractReward}}
-    mdp = system(problem)
-    spec = specification(problem)
-    prop = system_property(spec)
-    term_criteria = termination_criteria(spec)
-    upper_bound = satisfaction_mode(spec) == Optimistic
-    maximize = strategy_mode(spec) == Maximize
-
-    prob = transition_prob(mdp)
-
-    # It is more efficient to use allocate first and reuse across iterations
-    p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
-    ordering = construct_ordering(p)
-
-    value_function = IMDPValueFunction(problem)
-    initialize!(value_function, 1:num_states(mdp), reward(prop))
-
-    policy = Vector{Vector{Int}}(undef, 1)
-
-    step_policy = step_imdp_with_extract!(
-        ordering,
-        p,
-        mdp,
-        prob,
-        value_function;
-        maximize = maximize,
-        upper_bound = upper_bound,
-        discount = discount(prop),
-    )
-    # Add immediate reward
-    value_function.cur += reward(prop)
-    policy[1] = step_policy
-    k = 1
-
-    while !term_criteria(value_function.cur, k, lastdiff!(value_function))
-        nextiteration!(value_function)
-        step_policy = step_imdp_with_extract!(
-            ordering,
-            p,
-            mdp,
-            prob,
-            value_function;
-            maximize = maximize,
-            upper_bound = upper_bound,
-            discount = discount(prop),
-        )
-        # Add immediate reward
-        value_function.cur += reward(prop)
+        postprocess!(value_function, spec)
         push!(policy, step_policy)
         k += 1
     end
@@ -144,22 +84,14 @@ function step_imdp_with_extract!(
     value_function;
     maximize,
     upper_bound,
-    discount = 1.0,
 )
     sptr = stateptr(mdp)
 
-    ominmax!(
-        ordering,
-        p,
-        prob,
-        value_function.prev;
-        max = upper_bound,
-    )
+    ominmax!(ordering, p, prob, value_function.prev; max = upper_bound)
 
     optfun = maximize ? argmax : argmin
 
     value_function.action_values .= Transpose(value_function.prev_transpose * p)
-    rmul!(value_function.action_values, discount)
 
     # Copy to ensure that terminal states are assigned their first (and only) action.
     indices = sptr[1:num_states(mdp)]
@@ -169,7 +101,7 @@ function step_imdp_with_extract!(
         @inbounds s2 = sptr[j + 1]
 
         @inbounds indices[j] =
-            optfun(view(value_function.action_values, s1:(s2 - 1)))  + s1 - 1
+            optfun(view(value_function.action_values, s1:(s2 - 1))) + s1 - 1
         @inbounds value_function.cur[j] = value_function.action_values[indices[j]]
     end
 

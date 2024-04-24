@@ -47,10 +47,7 @@ end
 
 # Constructor from lower and gap with sanity assertions
 function IntervalProbabilities(lower::MR, gap::MR) where {R, MR <: AbstractMatrix{R}}
-    @assert all(lower .>= 0) "The lower bound transition probabilities must be non-negative."
-    @assert all(gap .>= 0) "The gap transition probabilities must be non-negative."
-    @assert all(gap .<= 1) "The gap transition probabilities must be less than or equal to 1."
-    @assert all(lower .+ gap .<= 1) "The sum of lower and gap transition probabilities must be less than or equal to 1."
+    checkprobabilities!(lower, gap)
 
     sum_lower = vec(sum(lower; dims = 1))
 
@@ -63,6 +60,20 @@ function IntervalProbabilities(lower::MR, gap::MR) where {R, MR <: AbstractMatri
     @assert max_upper_bound >= 1 "The joint upper bound transition probability per column (min is $max_upper_bound) should be greater than or equal to 1."
 
     return IntervalProbabilities(lower, gap, sum_lower)
+end
+
+function checkprobabilities!(lower::AbstractMatrix, gap::AbstractMatrix)
+    @assert all(lower .>= 0) "The lower bound transition probabilities must be non-negative."
+    @assert all(gap .>= 0) "The gap transition probabilities must be non-negative."
+    @assert all(gap .<= 1) "The gap transition probabilities must be less than or equal to 1."
+    @assert all(lower .+ gap .<= 1) "The sum of lower and gap transition probabilities must be less than or equal to 1."
+end
+
+function checkprobabilities!(lower::AbstractSparseMatrix, gap::AbstractSparseMatrix)
+    @assert all(nonzeros(lower) .>= 0) "The lower bound transition probabilities must be non-negative."
+    @assert all(nonzeros(gap) .>= 0) "The gap transition probabilities must be non-negative."
+    @assert all(nonzeros(gap) .<= 1) "The gap transition probabilities must be less than or equal to 1."
+    @assert all(nonzeros(lower) .+ nonzeros(gap) .<= 1) "The sum of lower and gap transition probabilities must be less than or equal to 1."
 end
 
 # Keyword constructor from lower and upper
