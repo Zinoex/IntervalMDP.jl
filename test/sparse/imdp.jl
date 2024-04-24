@@ -74,43 +74,25 @@ V_conv, _, u = value_iteration(problem)
 @test maximum(u) <= 1e-6
 
 # Finite time reach avoid
-prob_reach_avoid2 = IntervalProbabilities(;
-    lower = sparse([
-        0.0
-        1.0
-        0.0
-    ][:, :]),
-    upper = sparse([
-        0.0
-        1.0
-        0.0
-    ][:, :]),
-)
-
-transition_probs =
-    [["a1", "a2"] => prob1, ["sinking"] => prob_reach_avoid2, ["sinking"] => prob3]
-
-mdp_reach_avoid = IntervalMarkovDecisionProcess(transition_probs)
-
 prop = FiniteTimeReachAvoid([3], [2], 10)
 spec = Specification(prop, Pessimistic, Maximize)
-problem = Problem(mdp_reach_avoid, spec)
+problem = Problem(mdp, spec)
 V_fixed_it1, k, _ = value_iteration(problem)
 @test k == 10
 
 spec = Specification(prop, Optimistic, Maximize)
-problem = Problem(mdp_reach_avoid, spec)
+problem = Problem(mdp, spec)
 V_fixed_it2, k, _ = value_iteration(problem)
 @test k == 10
 @test all(V_fixed_it1 .<= V_fixed_it2)
 
 spec = Specification(prop, Pessimistic, Minimize)
-problem = Problem(mdp_reach_avoid, spec)
+problem = Problem(mdp, spec)
 V_fixed_it1, k, _ = value_iteration(problem)
 @test k == 10
 
 spec = Specification(prop, Optimistic, Minimize)
-problem = Problem(mdp_reach_avoid, spec)
+problem = Problem(mdp, spec)
 V_fixed_it2, k, _ = value_iteration(problem)
 @test k == 10
 @test all(V_fixed_it1 .<= V_fixed_it2)
@@ -118,7 +100,7 @@ V_fixed_it2, k, _ = value_iteration(problem)
 # Infinite time reach avoid
 prop = InfiniteTimeReachAvoid([3], [2], 1e-6)
 spec = Specification(prop, Pessimistic, Maximize)
-problem = Problem(mdp_reach_avoid, spec)
+problem = Problem(mdp, spec)
 V_conv, _, u = value_iteration(problem)
 @test maximum(u) <= 1e-6
 

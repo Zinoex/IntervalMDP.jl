@@ -1,12 +1,12 @@
 prob = IntervalProbabilities(;
     lower = sparse_hcat(
         SparseVector(3, [2, 3], [0.1, 0.2]),
-        SparseVector(3, [2], [1.0]),
+        SparseVector(3, [1, 2, 3], [0.5, 0.3, 0.1]),
         SparseVector(3, [3], [1.0]),
     ),
     upper = sparse_hcat(
         SparseVector(3, [1, 2, 3], [0.5, 0.6, 0.7]),
-        SparseVector(3, [2], [1.0]),
+        SparseVector(3, [1, 2, 3], [0.7, 0.5, 0.3]),
         SparseVector(3, [3], [1.0]),
     ),
 )
