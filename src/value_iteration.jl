@@ -90,14 +90,12 @@ function construct_value_function(::AbstractMatrix{R}, num_states) where {R}
 end
 
 mutable struct IMCValueFunction
-    prev
-    prev_transpose
-    cur
+    prev::Any
+    prev_transpose::Any
+    cur::Any
 end
 
-function IMCValueFunction(
-    problem::Problem{M, S},
-) where {M <: IntervalMarkovChain, S}
+function IMCValueFunction(problem::Problem{M, S}) where {M <: IntervalMarkovChain, S}
     mc = system(problem)
 
     prev = construct_value_function(gap(transition_prob(mc)), num_states(mc))
@@ -238,10 +236,10 @@ function value_iteration(
 end
 
 mutable struct IMDPValueFunction
-    prev
-    prev_transpose
-    cur
-    action_values
+    prev::Any
+    prev_transpose::Any
+    cur::Any
+    action_values::Any
 end
 
 function IMDPValueFunction(
@@ -254,12 +252,7 @@ function IMDPValueFunction(
 
     action_values = similar(prev, num_choices(mdp))
 
-    return IMDPValueFunction(
-        prev,
-        Transpose(prev),
-        cur,
-        action_values
-    )
+    return IMDPValueFunction(prev, Transpose(prev), cur, action_values)
 end
 
 function step_imdp!(
@@ -271,13 +264,7 @@ function step_imdp!(
     maximize,
     upper_bound,
 )
-    ominmax!(
-        ordering,
-        p,
-        prob,
-        value_function.prev;
-        max = upper_bound,
-    )
+    ominmax!(ordering, p, prob, value_function.prev; max = upper_bound)
 
     optfun = maximize ? maximum : minimum
 

@@ -493,8 +493,10 @@ Specification(prop::Property) = Specification(prop, Pessimistic)
 Specification(prop::Property, satisfaction::SatisfactionMode) =
     Specification(prop, satisfaction, Maximize)
 
-initialize!(value_function, spec::Specification) = initialize!(value_function, system_property(spec))
-postprocess!(value_function, spec::Specification) = postprocess!(value_function, system_property(spec))
+initialize!(value_function, spec::Specification) =
+    initialize!(value_function, system_property(spec))
+postprocess!(value_function, spec::Specification) =
+    postprocess!(value_function, system_property(spec))
 
 function checkspecification!(spec::Specification, system)
     return checkproperty!(system_property(spec), system)

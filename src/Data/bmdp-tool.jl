@@ -180,7 +180,9 @@ function write_bmdp_tool_file(
     end
 end
 
-function write_bmdp_tool_file(path, mdp::IntervalMarkovChain, 
+function write_bmdp_tool_file(
+    path,
+    mdp::IntervalMarkovChain,
     terminal_states::Vector{T},
 ) where {T <: Integer}
     prob = transition_prob(mdp)

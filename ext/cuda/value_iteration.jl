@@ -16,13 +16,7 @@ function IntervalMDP.step_imdp!(
     maximize,
     upper_bound,
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}}
-    ominmax!(
-        ordering,
-        p,
-        prob,
-        value_function.prev;
-        max = upper_bound,
-    )
+    ominmax!(ordering, p, prob, value_function.prev; max = upper_bound)
 
     value_function.action_values .= Transpose(value_function.prev_transpose * p)
 

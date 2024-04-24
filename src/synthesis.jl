@@ -87,13 +87,7 @@ function step_imdp_with_extract!(
 )
     sptr = stateptr(mdp)
 
-    ominmax!(
-        ordering,
-        p,
-        prob,
-        value_function.prev;
-        max = upper_bound,
-    )
+    ominmax!(ordering, p, prob, value_function.prev; max = upper_bound)
 
     optfun = maximize ? argmax : argmin
 
@@ -107,7 +101,7 @@ function step_imdp_with_extract!(
         @inbounds s2 = sptr[j + 1]
 
         @inbounds indices[j] =
-            optfun(view(value_function.action_values, s1:(s2 - 1)))  + s1 - 1
+            optfun(view(value_function.action_values, s1:(s2 - 1))) + s1 - 1
         @inbounds value_function.cur[j] = value_function.action_values[indices[j]]
     end
 
