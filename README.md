@@ -1,6 +1,6 @@
 # IntervalMDP.jl - Interval Markov Decision Processes
 
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://www.baymler.com/IntervalMDP.jl/dev/usage/)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://www.baymler.com/IntervalMDP.jl/dev/)
 [![Build Status](https://github.com/zinoex/IntervalMDP.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/zinoex/IntervalMDP.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Codecov](https://codecov.io/gh/Zinoex/IntervalMDP.jl/graph/badge.svg?token=K62S0148BK)](https://codecov.io/gh/Zinoex/IntervalMDP.jl)
 

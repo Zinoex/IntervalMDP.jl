@@ -50,7 +50,6 @@ function extract_time_varying_policy(
         p,
         mdp,
         prob,
-        maxactions,
         value_function;
         maximize = maximize,
         upper_bound = upper_bound,
@@ -65,7 +64,6 @@ function extract_time_varying_policy(
             p,
             mdp,
             prob,
-            maxactions,
             value_function;
             maximize = maximize,
             upper_bound = upper_bound,
@@ -90,7 +88,6 @@ function extract_time_varying_policy(
     maximize = strategy_mode(spec) == Maximize
 
     prob = transition_prob(mdp)
-    maxactions = maximum(diff(stateptr(mdp)))
 
     # It is more efficient to use allocate first and reuse across iterations
     p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
@@ -106,7 +103,6 @@ function extract_time_varying_policy(
         p,
         mdp,
         prob,
-        maxactions,
         value_function;
         maximize = maximize,
         upper_bound = upper_bound,
@@ -124,7 +120,6 @@ function extract_time_varying_policy(
             p,
             mdp,
             prob,
-            maxactions,
             value_function;
             maximize = maximize,
             upper_bound = upper_bound,
@@ -146,7 +141,6 @@ function step_imdp_with_extract!(
     p,
     mdp,
     prob::IntervalProbabilities,
-    maxactions,
     value_function;
     maximize,
     upper_bound,
@@ -154,31 +148,29 @@ function step_imdp_with_extract!(
 )
     sptr = stateptr(mdp)
 
-    partial_ominmax!(
+    ominmax!(
         ordering,
         p,
         prob,
-        value_function.prev,
-        value_function.nonterminal_actions;
+        value_function.prev;
         max = upper_bound,
     )
 
     optfun = maximize ? argmax : argmin
 
-    p = view(p, :, value_function.nonterminal_actions)
-    mul!(value_function.nonterminal, value_function.prev_transpose, p)
-    rmul!(value_function.nonterminal, discount)
+    value_function.action_values .= Transpose(value_function.prev_transpose * p)
+    rmul!(value_function.action_values, discount)
 
     # Copy to ensure that terminal states are assigned their first (and only) action.
     indices = sptr[1:num_states(mdp)]
 
-    @inbounds for j in value_function.nonterminal_states
+    @inbounds for j in 1:num_target(prob)
         @inbounds s1 = sptr[j]
         @inbounds s2 = sptr[j + 1]
 
         @inbounds indices[j] =
-            optfun(view(value_function.nonterminal, s1:(s2 - 1))) + s1 - 1
-        @inbounds value_function.cur[j] = value_function.nonterminal[indices[j]]
+            optfun(view(value_function.action_values, s1:(s2 - 1)))  + s1 - 1
+        @inbounds value_function.cur[j] = value_function.action_values[indices[j]]
     end
 
     return indices
