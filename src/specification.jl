@@ -312,46 +312,9 @@ Return the set of states to avoid.
 avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
 
 function checkterminal!(terminal_states, system)
-    checkterminalindices!(terminal_states, num_states(system))
-    checkterminalprob!(terminal_states, system)
-end
-
-function checkterminalindices!(terminal_states, num_states)
+    nstates = num_states(system)
     for j in terminal_states
-        @assert 1 <= j <= num_states "The terminal state $j is not a valid state"
-    end
-end
-
-function checkterminalprob!(
-    terminal_states,
-    system::IntervalMarkovChain{<:IntervalProbabilities{R, VR, MR}},
-) where {R, VR, MR <: AbstractMatrix}
-    prob = transition_prob(system)
-    lower_prob = lower(prob)
-    gap_prob = gap(prob)
-
-    for j in terminal_states
-        target = [Float64(i == j) for i in 1:num_states(system)]
-
-        @assert all(iszero, @view(gap_prob[:, j])) && @view(lower_prob[:, j]) == target "The terminal state $j must have a probability of 1 to itself and 0 to all other states"
-    end
-end
-
-function checkterminalprob!(
-    terminal_states,
-    system::IntervalMarkovDecisionProcess{<:IntervalProbabilities{R, VR, MR}},
-) where {R, VR, MR <: AbstractMatrix}
-    prob = transition_prob(system)
-    lower_prob = lower(prob)
-    gap_prob = gap(prob)
-    sptr = stateptr(system)
-
-    for j in terminal_states
-        target = [Float64(i == j) for i in 1:num_states(system)]
-
-        for s in sptr[j]:(sptr[j + 1] - 1)
-            @assert all(iszero, @view(gap_prob[:, s])) && @view(lower_prob[:, s]) == target "The terminal state $j must have a probability of 1 to itself and 0 to all other states"
-        end
+        @assert 1 <= j <= nstates "The terminal state $j is not a valid state"
     end
 end
 
