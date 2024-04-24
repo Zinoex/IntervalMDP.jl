@@ -118,7 +118,7 @@ struct FiniteTimeReachability{T <: Integer, VT <: AbstractVector{T}} <: Abstract
 end
 
 function checkproperty!(prop::FiniteTimeReachability, system::IntervalMarkovProcess)
-    checkterminal!(terminal_states(prop), num_states(system))
+    checkterminal!(terminal_states(prop), system)
     checktimehorizon!(prop)
 end
 
@@ -166,7 +166,7 @@ struct InfiniteTimeReachability{R <: Real, T <: Integer, VT <: AbstractVector{T}
 end
 
 function checkproperty!(prop::InfiniteTimeReachability, system::IntervalMarkovProcess)
-    checkterminal!(terminal_states(prop), num_states(system))
+    checkterminal!(terminal_states(prop), system)
     checkconvergence!(prop)
 end
 
@@ -229,7 +229,7 @@ struct FiniteTimeReachAvoid{T <: Integer, VT <: AbstractVector{T}} <: AbstractRe
 end
 
 function checkproperty!(prop::FiniteTimeReachAvoid, system::IntervalMarkovProcess)
-    checkterminal!(terminal_states(prop), num_states(system))
+    checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
     checktimehorizon!(prop)
 end
@@ -283,7 +283,7 @@ struct InfiniteTimeReachAvoid{R <: Real, T <: Integer, VT <: AbstractVector{T}} 
 end
 
 function checkproperty!(prop::InfiniteTimeReachAvoid, system::IntervalMarkovProcess)
-    checkterminal!(terminal_states(prop), num_states(system))
+    checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
     checkconvergence!(prop)
 end
@@ -324,18 +324,15 @@ Return the set of states to avoid.
 """
 avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
 
-function checkterminal!(terminal_states, num_states)
+function checkterminal!(terminal_states, system)
+    nstates = num_states(system)
     for j in terminal_states
-        if j < 1 || j > num_states
-            throw(ArgumentError("The terminal state $j is not a valid state"))
-        end
+        @assert 1 <= j <= nstates "The terminal state $j is not a valid state"
     end
 end
 
 function checkdisjoint!(reach, avoid)
-    if !isdisjoint(reach, avoid)
-        throw(ArgumentError("The reach and avoid sets are not disjoint"))
-    end
+    @assert isdisjoint(reach, avoid) "The reach and avoid sets are not disjoint"
 end
 
 ## Reward
