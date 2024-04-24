@@ -15,7 +15,6 @@ function IntervalMDP.step_imdp!(
     value_function::IntervalMDP.IMDPValueFunction;
     maximize,
     upper_bound,
-    discount = 1.0,
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}}
     ominmax!(
         ordering,
@@ -26,7 +25,6 @@ function IntervalMDP.step_imdp!(
     )
 
     value_function.action_values .= Transpose(value_function.prev_transpose * p)
-    rmul!(value_function.action_values, discount)
 
     V_per_state =
         CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
@@ -36,7 +34,6 @@ function IntervalMDP.step_imdp!(
     @cuda blocks = blocks threads = threads extremum_vov_kernel!(
         value_function.cur,
         V_per_state,
-        discount,
         maximize,
     )
 
@@ -46,7 +43,6 @@ end
 function extremum_vov_kernel!(
     V::CuDeviceVector{Tv, A},
     V_per_state::CuDeviceVectorOfVector{Tv, Ti, A},
-    discount,
     maximize,
 ) where {Tv, Ti, A}
     j = blockIdx().x
@@ -83,7 +79,6 @@ function extremum_vov_kernel!(
             i += blockDim().x
         end
 
-        V[j] *= discount
         j += gridDim().x
     end
 end
