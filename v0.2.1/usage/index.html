@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Usage · IntervalMDP.jl</title><meta name="title" content="Usage · IntervalMDP.jl"/><meta property="og:title" content="Usage · IntervalMDP.jl"/><meta property="twitter:title" content="Usage · IntervalMDP.jl"/><meta name="description" content="Documentation for IntervalMDP.jl."/><meta property="og:description" content="Documentation for IntervalMDP.jl."/><meta property="twitter:description" content="Documentation for IntervalMDP.jl."/><meta property="og:url" content="https://www.baymler.com/IntervalMDP.jl/usage/"/><meta property="twitter:url" content="https://www.baymler.com/IntervalMDP.jl/usage/"/><link rel="canonical" href="https://www.baymler.com/IntervalMDP.jl/usage/"/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../"><img src="../assets/logo.svg" alt="IntervalMDP.jl logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../">IntervalMDP.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li class="is-active"><a class="tocitem" href>Usage</a><ul class="internal"><li><a class="tocitem" href="#Sparse-matrices"><span>Sparse matrices</span></a></li><li><a class="tocitem" href="#CUDA"><span>CUDA</span></a></li></ul></li><li><a class="tocitem" href="../data/">Data formats</a></li><li><a class="tocitem" href="../theory/">Theory</a></li><li><a class="tocitem" href="../algorithms/">Algorithms</a></li><li><span class="tocitem">Reference</span><ul><li><a class="tocitem" href="../reference/systems/">Systems</a></li><li><a class="tocitem" href="../reference/specifications/">Specifications</a></li><li><a class="tocitem" href="../reference/value_iteration/">Value Iteration</a></li><li><a class="tocitem" href="../reference/certification/">Certification &amp; synthesis</a></li><li><a class="tocitem" href="../reference/data/">Data Storage</a></li></ul></li><li><a class="tocitem" href="../api/">Index</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Usage</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Usage</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/Zinoex/IntervalMDP.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/Zinoex/IntervalMDP.jl/blob/main/docs/src/usage.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Usage"><a class="docs-heading-anchor" href="#Usage">Usage</a><a id="Usage-1"></a><a class="docs-heading-anchor-permalink" href="#Usage" title="Permalink"></a></h1><p>The general procedure for using this package can be described in 3 steps</p><ol><li>Construct interval Markov process (IMC or IMDP)</li><li>Choose specification (reachability or reach-avoid)</li><li>Call <code>value_iteration</code> or <code>satisfaction_prob</code>.</li></ol><p>First, we construct a system. We can either construct an interval Markov chain (IMC) or an interval Markov decision process. (IMDP) Both systems consist of states, a designated initial state, and a transition matrix. In addition, an IMDP has actions.  An example of how to construct either is the following:</p><pre><code class="language-julia hljs">using IntervalMDP
+
+# IMC
+prob = IntervalProbabilities(;
+    lower = [
+        0.0 0.5 0.0
+        0.1 0.3 0.0
+        0.2 0.1 1.0
+    ],
+    upper = [
+        0.5 0.7 0.0
+        0.6 0.5 0.0
+        0.7 0.3 1.0
+    ],
+)
+
+initial_states = [1]  # Initial states are optional
+mc = IntervalMarkovChain(prob, initial_states)
+
+# IMDP
+prob1 = IntervalProbabilities(;
+    lower = [
+        0.0 0.5
+        0.1 0.3
+        0.2 0.1
+    ],
+    upper = [
+        0.5 0.7
+        0.6 0.5
+        0.7 0.3
+    ],
+)
+
+prob2 = IntervalProbabilities(;
+    lower = [
+        0.1 0.2
+        0.2 0.3
+        0.3 0.4
+    ],
+    upper = [
+        0.6 0.6
+        0.5 0.5
+        0.4 0.4
+    ],
+)
+
+prob3 = IntervalProbabilities(;
+    lower = [0.0; 0.0; 1.0],
+    upper = [0.0; 0.0; 1.0]
+)
+
+transition_probs = [[&quot;a1&quot;, &quot;a2&quot;] =&gt; prob1, [&quot;a1&quot;, &quot;a2&quot;] =&gt; prob2, [&quot;sinking&quot;] =&gt; prob3]
+initial_states = [1]  # Initial states are optional
+mdp = IntervalMarkovDecisionProcess(transition_probs, initial_states)</code></pre><p>Note that for an IMDP, the transition probabilities are specified as a list of pairs from actions to transition probabilities for each state. The constructor will concatenate the transition probabilities into a single matrix, such that the columns represent source/action pairs and the rows represent target states. It will in addition construct a state pointer <code>stateptr</code> pointing to the first column of each state and concatenate a list of actions. See <a href="../reference/systems/#IntervalMDP.IntervalMarkovDecisionProcess"><code>IntervalMarkovDecisionProcess</code></a> for more details on how to construct an IMDP.</p><p>For IMC, the transition probability structure is significantly simpler with source states on the columns and target states on the rows of the transition matrices.</p><p>Next, we choose a specification. Currently, we support reachability, reach-avoid, and reward properties. For reachability, we specify a target set of states and for reach-avoid we specify a target set of states and an avoid set of states. Furthermore, we distinguish between finite and infinite horizon properties. In addition to the property, we need to specify whether we want to maximize or minimize the optimistic or pessimistic satistisfaction probability or discounted reward.</p><pre><code class="language-julia hljs">## Properties
+# Reachability
+target_set = [3]
+
+prop = FiniteTimeReachability(target_set, 10)  # Time steps
+prop = InfiniteTimeReachability(target_set, 1e-6)  # Residual tolerance
+
+# Reach-avoid
+target_set = [3]
+avoid_set = [2]
+
+prop = FiniteTimeReachAvoid(target_set, avoid_set, 10)  # Time steps
+prop = InfiniteTimeReachAvoid(target_set, avoid_set, 1e-6)  # Residual tolerance
+
+# Reward
+reward = [1.0, 2.0, 3.0]
+discount = 0.9  # Has to be between 0 and 1
+
+prop = FiniteTimeReward(reward, discount, 10)  # Time steps
+prop = InfiniteTimeReward(reward, discount, 1e-6)  # Residual tolerance
+
+## Specification
+spec = Specification(prop, Pessimistic, Maximize)
+spec = Specification(prop, Pessimistic, Minimize)
+spec = Specification(prop, Optimistic, Maximize)
+spec = Specification(prop, Optimistic, Minimize)
+
+## Combine system and specification in a Problem
+problem = Problem(imdp_or_imc, spec)</code></pre><p>Finally, we call <code>value_iteration</code> or <code>satisfaction_prob</code> to solve the specification. <code>satisfaction_prob</code> returns the probability of satisfying the specification from the initial condition, while <code>value_iteration</code> returns the value function for all states in addition to the number of iterations performed and the last Bellman residual.</p><pre><code class="language-julia hljs">V, k, residual = value_iteration(problem)
+sat_prob = satisfaction_prob(problem)</code></pre><div class="admonition is-success"><header class="admonition-header">Tip</header><div class="admonition-body"><p>For less memory usage, it is recommended to use <a href="#Sparse-matrices">Sparse matrices</a> and <code>Int32</code> indices. </p></div></div><h2 id="Sparse-matrices"><a class="docs-heading-anchor" href="#Sparse-matrices">Sparse matrices</a><a id="Sparse-matrices-1"></a><a class="docs-heading-anchor-permalink" href="#Sparse-matrices" title="Permalink"></a></h2><p>A disadvantage of IMDPs is that the size of the transition matrices grows <span>$O(n^2 m)$</span> where <span>$n$</span> is the number of states and <span>$m$</span> is the number of actions. Quickly, this becomes infeasible to store in memory. However, IMDPs frequently have lots of sparsity we may exploit. We choose in particular to  store the transition matrices in the <a href="https://en.wikipedia.org/wiki/Sparse_matrix#Compressed_sparse_column_(CSC_or_CCS)">compressed sparse column (CSC)</a> format. This is a format that is widely used in Julia and other languages, and is supported by many linear algebra operations. It consists of three arrays: <code>colptr</code>, <code>rowval</code> and <code>nzval</code>. The <code>colptr</code> array stores the indices of the first non-zero value in each column. The <code>rowval</code> array stores the row indices of the non-zero values, and the <code>nzval</code> array stores the non-zero values. We choose this format, since source states are on the columns (see <a href="../reference/systems/#IntervalMDP.IntervalProbabilities"><code>IntervalProbabilities</code></a> for more information about the structure of the transition probability matrices). Thus the non-zero values for each source state is stored in sequentially in memory, enabling efficient memory access.</p><p>To use <code>SparseMatrixCSC</code>, we need to load <code>SparseArrays</code>. Below is an example of how to construct an <code>IntervalMarkovChain</code> with sparse transition matrices.</p><pre><code class="language-julia hljs">using SparseArrays
+
+lower = spzeros(3, 3)
+lower[2, 1] = 0.1
+lower[3, 1] = 0.2
+lower[1, 2] = 0.5
+lower[2, 2] = 0.3
+lower[3, 2] = 0.1
+lower[3, 3] = 1.0
+
+lower</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">3×3 SparseArrays.SparseMatrixCSC{Float64, Int64} with 6 stored entries:
+  ⋅   0.5   ⋅ 
+ 0.1  0.3   ⋅ 
+ 0.2  0.1  1.0</code></pre><pre><code class="language-julia hljs">upper = spzeros(3, 3)
+upper[1, 1] = 0.5
+upper[2, 1] = 0.6
+upper[3, 1] = 0.7
+upper[1, 2] = 0.7
+upper[2, 2] = 0.5
+upper[3, 2] = 0.3
+upper[3, 3] = 1.0
+
+upper</code></pre><pre class="documenter-example-output"><code class="nohighlight hljs ansi">3×3 SparseArrays.SparseMatrixCSC{Float64, Int64} with 7 stored entries:
+ 0.5  0.7   ⋅ 
+ 0.6  0.5   ⋅ 
+ 0.7  0.3  1.0</code></pre><pre><code class="language-julia hljs">prob = IntervalProbabilities(; lower = lower, upper = upper)
+initial_state = 1
+mc = IntervalMarkovChain(prob, initial_state)
+</code></pre><p>If you know that the matrix can be built sequentially, you can use the <code>SparseMatrixCSC</code> constructor directly with <code>colptr</code>, <code>rowval</code> and <code>nzval</code>. This is more efficient, since <code>setindex!</code> of <code>SparseMatrixCSC</code> needs to perform a binary search to find the correct index to insert the value, and possibly expand the size of the array.</p><h2 id="CUDA"><a class="docs-heading-anchor" href="#CUDA">CUDA</a><a id="CUDA-1"></a><a class="docs-heading-anchor-permalink" href="#CUDA" title="Permalink"></a></h2><p>Part of the innovation of this package is GPU-accelerated value iteration via CUDA. This includes not only trivial parallelization across states but also parallel algorithms for O-maximization within each state for better computational efficiency and coalesced memory access for more speed. </p><p>To use CUDA, you need to first install <code>CUDA.jl</code>. For more information about this, see <a href="../#Installation">Installation</a>. Next, you need to load the package with the following command:</p><pre><code class="language-julia hljs">using CUDA</code></pre><p>Loading CUDA will automatically load an extension that defines value iteration with CUDA arrays. It has been separated out into an extension to reduce precompilation time for users that do not need CUDA. Note that loading CUDA on a system without a CUDA-capable GPU, will not cause any errors, but will simply not load the extension. You can check if CUDA is correctly loaded using <code>CUDA.is_functional()</code>.</p><p>To use CUDA, you need to transfer the model to the GPU. Once on the GPU, you can use the same functions as the CPU implementation. Using Julia&#39;s multiple dispatch, the package will automatically call the appropriate functions for the given variable types.</p><p>Similar to <code>CUDA.jl</code>, we provide a <code>cu</code> function that transfers the model to the GPU<sup class="footnote-reference"><a id="citeref-1" href="#footnote-1">[1]</a></sup>. You can either transfer the entire model or transfer the transition matrices separately. </p><pre><code class="language-julia hljs"># Transfer entire model to GPU
+prob = IntervalProbabilities(;
+    lower = sparse_hcat(
+        SparseVector(3, [2, 3], [0.1, 0.2]),
+        SparseVector(3, [1, 2, 3], [0.5, 0.3, 0.1]),
+        SparseVector(3, [3], [1.0]),
+    ),
+    upper = sparse_hcat(
+        SparseVector(3, [1, 2, 3], [0.5, 0.6, 0.7]),
+        SparseVector(3, [1, 2, 3], [0.7, 0.5, 0.3]),
+        SparseVector(3, [3], [1.0]),
+    ),
+)
+
+mc = IntervalMDP.cu(IntervalMarkovChain(prob, 1))
+
+# Transfer transition matrices separately
+prob = IntervalProbabilities(;
+    lower = IntervalMDP.cu(sparse_hcat(
+        SparseVector(3, [2, 3], [0.1, 0.2]),
+        SparseVector(3, [1, 2, 3], [0.5, 0.3, 0.1]),
+        SparseVector(3, [3], [1.0]),
+    )),
+    upper = IntervalMDP.cu(sparse_hcat(
+        SparseVector(3, [1, 2, 3], [0.5, 0.6, 0.7]),
+        SparseVector(3, [1, 2, 3], [0.7, 0.5, 0.3]),
+        SparseVector(3, [3], [1.0]),
+    )),
+)
+
+mc = IntervalMarkovChain(prob,[1])</code></pre><section class="footnotes is-size-7"><ul><li class="footnote" id="footnote-1"><a class="tag is-link" href="#citeref-1">1</a>The difference to <code>CUDA.jl</code>s <code>cu</code> function is that we allow the specification of both the value and index type, which is important due to register pressure. To reduce register pressure but maintain accuracy, we are opinoinated to <code>Float64</code> values and <code>Int32</code> indices.</li></ul></section></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../data/">Data formats »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.4.0 on <span class="colophon-date" title="Monday 29 April 2024 16:03">Monday 29 April 2024</span>. Using Julia version 1.9.4.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
