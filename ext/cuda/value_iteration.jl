@@ -8,11 +8,12 @@ function IntervalMDP.construct_value_function(
 end
 
 function IntervalMDP.step_imdp!(
+    value_function::IntervalMDP.IMDPValueFunction,
+    policy_cache,
     ordering,
     p,
     prob::IntervalProbabilities{R, VR, MR},
-    stateptr,
-    value_function::IntervalMDP.IMDPValueFunction;
+    stateptr;
     maximize,
     upper_bound,
 ) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}}

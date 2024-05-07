@@ -67,13 +67,13 @@ function value_iteration(
     value_function = IMCValueFunction(problem)
     initialize!(value_function, spec)
 
-    step_imc!(ordering, p, prob, value_function; upper_bound = upper_bound)
+    step_imc!(value_function, ordering, p, prob; upper_bound = upper_bound)
     postprocess!(value_function, spec)
     k = 1
 
     while !term_criteria(value_function.cur, k, lastdiff!(value_function))
         nextiteration!(value_function)
-        step_imc!(ordering, p, prob, value_function; upper_bound = upper_bound)
+        step_imc!(value_function, ordering, p, prob; upper_bound = upper_bound)
         postprocess!(value_function, spec)
 
         k += 1
@@ -119,10 +119,10 @@ function nextiteration!(V)
 end
 
 function step_imc!(
+    value_function::IMCValueFunction,
     ordering,
     p,
-    prob::IntervalProbabilities,
-    value_function::IMCValueFunction;
+    prob::IntervalProbabilities;
     upper_bound,
 )
     ominmax!(ordering, p, prob, value_function.prev; max = upper_bound)
@@ -186,6 +186,14 @@ V, k, residual = value_iteration(problem)
 function value_iteration(
     problem::Problem{M, S},
 ) where {M <: IntervalMarkovDecisionProcess, S <: Specification}
+    no_policy_cache = NoPolicyCache()
+    return value_iteration!(no_policy_cache, problem)
+end
+
+function value_iteration!(
+    policy_cache::AbstractPolicyCache,
+    problem::Problem{M, S},
+) where {M <: IntervalMarkovDecisionProcess, S <: Specification}
     mdp = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(spec)
@@ -203,11 +211,12 @@ function value_iteration(
     initialize!(value_function, spec)
 
     step_imdp!(
+        value_function,
+        policy_cache,
         ordering,
         p,
         prob,
-        sptr,
-        value_function;
+        sptr;
         maximize = maximize,
         upper_bound = upper_bound,
     )
@@ -217,11 +226,12 @@ function value_iteration(
     while !term_criteria(value_function.cur, k, lastdiff!(value_function))
         nextiteration!(value_function)
         step_imdp!(
+            value_function,
+            policy_cache,
             ordering,
             p,
             prob,
-            sptr,
-            value_function;
+            sptr;
             maximize = maximize,
             upper_bound = upper_bound,
         )
@@ -256,27 +266,83 @@ function IMDPValueFunction(
 end
 
 function step_imdp!(
+    value_function,
+    policy_cache,
     ordering,
     p,
     prob::IntervalProbabilities,
-    stateptr,
-    value_function;
+    stateptr;
     maximize,
     upper_bound,
 )
     ominmax!(ordering, p, prob, value_function.prev; max = upper_bound)
 
-    optfun = maximize ? maximum : minimum
-
     value_function.action_values .= Transpose(value_function.prev_transpose * p)
+
+    extract_policy!(value_function, policy_cache, prob, stateptr, maximize)
+
+    return value_function
+end
+
+function extract_policy!(
+    value_function::IMDPValueFunction,
+    policy_cache::NoPolicyCache,
+    prob,
+    stateptr,
+    maximize,
+)
+    reduction = maximize ? maximum : minimum
 
     @inbounds for j in 1:num_target(prob)
         @inbounds s1 = stateptr[j]
         @inbounds s2 = stateptr[j + 1]
 
-        @inbounds value_function.cur[j] =
-            optfun(view(value_function.action_values, s1:(s2 - 1)))
+        @inbounds value_function.cur[j] = reduction(view(value_function.action_values, s1:(s2 - 1))) + s1 - 1
+    end
+end
+
+function extract_policy!(
+    value_function::IMDPValueFunction,
+    policy_cache::TimeVaryingPolicyCache,
+    prob,
+    stateptr,
+    maximize,
+)
+    reduction = maximize ? argmax : argmin
+
+    @inbounds for j in 1:num_target(prob)
+        @inbounds s1 = stateptr[j]
+        @inbounds s2 = stateptr[j + 1]
+
+        opt_index = reduction(view(value_function.action_values, s1:(s2 - 1))) + s1 - 1
+        @inbounds policy_cache.cur_policy[j] = opt_index
+        @inbounds value_function.cur[j] = value_function.action_values[opt_index]
     end
 
-    return value_function
+    push!(policy_cache.policy, copy(policy_cache.cur_policy))
+end
+
+function extract_policy!(
+    value_function::IMDPValueFunction,
+    policy_cache::StationaryPolicyCache,
+    prob,
+    stateptr,
+    maximize,
+)
+    reduction = maximize ? argmax : argmin
+    isbetterthan = maximize ? (>) : (<)
+
+    @inbounds for j in 1:num_target(prob)
+        @inbounds s1 = stateptr[j]
+        @inbounds s2 = stateptr[j + 1]
+
+        opt_index = reduction(view(value_function.action_values, s1:(s2 - 1))) + s1 - 1
+
+        if iszero(policy_cache.policy[j]) || isbetterthan(value_function.action_values[opt_index], value_function.prev[j])
+            @inbounds policy_cache.policy[j] = opt_index
+            @inbounds value_function.cur[j] = value_function.action_values[opt_index]
+        else
+            @inbounds value_function.cur[j] = value_function.prev[j]
+        end
+    end
 end

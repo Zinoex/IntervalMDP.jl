@@ -42,7 +42,7 @@ mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
 prop = FiniteTimeReachability([3], 10)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(mdp, spec)
-policy = control_synthesis(problem)
+policy, V, k, res = control_synthesis(problem)
 
 @test length(policy) == 10
 for row in policy
@@ -52,7 +52,7 @@ end
 prop = FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(mdp, spec)
-policy = control_synthesis(problem)
+policy, V, k, res = control_synthesis(problem)
 @test length(policy) == 10
 
 for row in policy
@@ -62,5 +62,5 @@ end
 prop = InfiniteTimeReachability([3], 1e-6)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(mdp, spec)
-policy = control_synthesis(problem)
+policy, V, k, res = control_synthesis(problem)
 @test policy == ["a1", "a2", "sinking"]
