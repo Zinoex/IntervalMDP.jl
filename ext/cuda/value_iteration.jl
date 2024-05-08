@@ -24,54 +24,89 @@ function IntervalMDP.step_imdp!(
     V_per_state =
         CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
 
-    blocks = num_target(prob)
-    threads = 32
-    @cuda blocks = blocks threads = threads extremum_vov_kernel!(
+    kernel = @cuda launch=false reduce_vov_kernel!(
+        maximize ? max : min,
+        maximize ? typemin(R) : typemax(R),
         value_function.cur,
         V_per_state,
-        maximize,
     )
 
-    return value_function
+    config = launch_configuration(kernel.fun)
+
+    blocks = num_target(prob)
+
+    max_threads = prevwarp(device(), config.threads)
+    wanted_threads = nextwarp(device(), maxlength(V_per_state))
+    threads = min(wanted_threads, max_threads)
+
+    kernel(
+        maximize ? max : min,
+        maximize ? typemin(R) : typemax(R),
+        value_function.cur,
+        V_per_state;
+        threads=threads,
+        blocks=blocks
+    )
+
+    return value_function, policy_cache
 end
 
-function extremum_vov_kernel!(
-    V::CuDeviceVector{Tv, A},
-    V_per_state::CuDeviceVectorOfVector{Tv, Ti, A},
-    maximize,
+function reduce_vov_kernel!(
+    op,
+    neutral,
+    res::CuDeviceVector{Tv, A},
+    vov::CuDeviceVectorOfVector{Tv, Ti, A},
 ) where {Tv, Ti, A}
+    assume(warpsize() == 32)
+    shared = CuStaticSharedArray(Tv, 32)
+
+    wid, lane = fldmod1(threadIdx().x, warpsize())
+
     j = blockIdx().x
-    while j <= length(V_per_state)
-        subset = V_per_state[j]
+    while j <= length(vov)
+        # Tree reduce
+        @inbounds subset = vov[j]
+        num_iter = nextpow(Ti(32), length(subset))
 
-        # Tree reduce to find the maximum/minimum
-        lane = threadIdx().x
+        if lane == 1
+            @inbounds shared[wid] = neutral
+        end
+
+        # Reduce within each warp
         i = lane
-        while i < nextpow(Ti(32), length(subset))
-            if i <= length(subset)
-                val = subset[i]
+        while i < num_iter
+            val = if i <= length(subset)
+                subset[i]
             else
-                val = maximize ? zero(Tv) : one(Tv)
+                neutral
             end
 
-            delta = Ti(16)
-            while delta > zero(Ti)
-                up = shfl_down_sync(0xffffffff, val, delta)
-                val = maximize ? max(val, up) : min(val, up)
+            val = CUDA.reduce_warp(op, val)
 
-                delta ÷= Ti(2)
-            end
-
-            # A bit of shared memory could reduce the number of global memory accesses
             if lane == 1
-                if i == 1
-                    V[j] = val
-                else
-                    V[j] = maximize ? max(V[j], val) : min(V[j], val)
-                end
+                @inbounds shared[wid] = op(shared[wid], val)
             end
 
             i += blockDim().x
+        end
+
+        # Wait for all partial reductions
+        sync_threads()
+
+        # read from shared memory only if that warp existed
+        val = if threadIdx().x <= fld1(blockDim().x, warpsize())
+            @inbounds shared[lane]
+        else
+            neutral
+        end
+
+        # final reduce within first warp
+        if wid == 1
+            val = CUDA.reduce_warp(op, val)
+        
+            if lane == 1
+                @inbounds res[j] = val
+            end
         end
 
         j += gridDim().x
