@@ -9,7 +9,7 @@ end
 
 function IntervalMDP.step_imdp!(
     value_function::IntervalMDP.IMDPValueFunction,
-    policy_cache,
+    policy_cache::IntervalMDP.NoPolicyCache,
     ordering,
     p,
     prob::IntervalProbabilities{R, VR, MR},

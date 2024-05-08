@@ -210,7 +210,7 @@ function value_iteration!(
     value_function = IMDPValueFunction(problem)
     initialize!(value_function, spec)
 
-    step_imdp!(
+    value_function, policy_cache = step_imdp!(
         value_function,
         policy_cache,
         ordering,
@@ -225,7 +225,7 @@ function value_iteration!(
 
     while !term_criteria(value_function.cur, k, lastdiff!(value_function))
         nextiteration!(value_function)
-        step_imdp!(
+        value_function, policy_cache = step_imdp!(
             value_function,
             policy_cache,
             ordering,
@@ -281,7 +281,7 @@ function step_imdp!(
 
     extract_policy!(value_function, policy_cache, prob, stateptr, maximize)
 
-    return value_function
+    return value_function, policy_cache
 end
 
 function extract_policy!(
