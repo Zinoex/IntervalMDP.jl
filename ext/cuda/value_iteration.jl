@@ -33,11 +33,11 @@ function IntervalMDP.step_imdp!(
 
     config = launch_configuration(kernel.fun)
 
-    blocks = num_target(prob)
-
     max_threads = prevwarp(device(), config.threads)
     wanted_threads = nextwarp(device(), maxlength(V_per_state))
     threads = min(wanted_threads, max_threads)
+
+    blocks = num_target(prob)
 
     kernel(
         maximize ? max : min,
