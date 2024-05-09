@@ -33,11 +33,10 @@ function IntervalMDP.step_imdp!(
 
     config = launch_configuration(kernel.fun)
 
-    max_threads = prevwarp(device(), config.threads)
-    wanted_threads = nextwarp(device(), maxlength(V_per_state))
-    threads = min(wanted_threads, max_threads)
+    threads = prevwarp(device(), config.threads)
 
-    blocks = num_target(prob)
+    states_per_block = threads ÷ 32
+    blocks = ceil(Int64, length(V_per_state) / states_per_block)
 
     kernel(
         maximize ? max : min,
@@ -58,14 +57,13 @@ function reduce_vov_kernel!(
     vov::CuDeviceVectorOfVector{Tv, Ti, A},
 ) where {Tv, Ti, A}
     assume(warpsize() == 32)
-    shared = CuStaticSharedArray(Tv, 32)
 
-    wid, lane = fldmod1(threadIdx().x, warpsize())
+    thread_id = (blockIdx().x - one(Ti)) * blockDim().x + threadIdx().x
+    wid, lane = fldmod1(thread_id, warpsize())
 
-    j = blockIdx().x
-    while j <= length(vov)
+    while wid <= length(vov)
         # Tree reduce
-        @inbounds subset = vov[j]
+        @inbounds subset = vov[wid]
         bound = kernel_nextwarp(length(subset))
 
         val = neutral
@@ -84,29 +82,12 @@ function reduce_vov_kernel!(
             i += blockDim().x
         end
 
-        # Wait for all partial reductions
         if lane == 1
-            @inbounds shared[wid] = val
-        end
-        sync_threads()
-
-        # read from shared memory only if that warp existed
-        val = if threadIdx().x <= fld1(blockDim().x, warpsize())
-            @inbounds shared[lane]
-        else
-            neutral
+            @inbounds res[wid] = val
         end
 
-        # final reduce within first warp
-        if wid == 1
-            val = CUDA.reduce_warp(op, val)
-        
-            if lane == 1
-                @inbounds res[j] = val
-            end
-        end
-
-        j += gridDim().x
+        thread_id += gridDim().x * blockDim().x
+        wid, lane = fldmod1(thread_id, warpsize())
     end
 end
 
