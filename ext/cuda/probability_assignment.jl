@@ -52,7 +52,7 @@ function add_gap_vector_kernel!(
     thread_id = (blockIdx().x - one(Ti)) * blockDim().x + threadIdx().x
     wid, lane = fldmod1(thread_id, warpsize())
 
-    if wid <= length(indices)
+    while wid <= length(indices)
         @inbounds j = Ti(indices[wid])
 
         # p and gap have the same sparsity pattern
@@ -102,6 +102,9 @@ function add_gap_vector_kernel!(
 
             s += warpsize()
         end
+
+        thread_id += gridDim().x * blockDim().x
+        wid, lane = fldmod1(thread_id, warpsize())
     end
 
     return nothing

@@ -66,31 +66,28 @@ function reduce_vov_kernel!(
     while j <= length(vov)
         # Tree reduce
         @inbounds subset = vov[j]
-        num_iter = nextpow(Ti(32), length(subset))
+        bound = kernel_nextwarp(length(subset))
 
-        if lane == 1
-            @inbounds shared[wid] = neutral
-        end
+        val = neutral
 
         # Reduce within each warp
         i = lane
-        while i < num_iter
-            val = if i <= length(subset)
-                subset[i]
+        while i <= bound
+            val = op(val, if i <= length(subset)
+                @inbounds subset[i]
             else
                 neutral
-            end
+            end)
 
             val = CUDA.reduce_warp(op, val)
-
-            if lane == 1
-                @inbounds shared[wid] = op(shared[wid], val)
-            end
 
             i += blockDim().x
         end
 
         # Wait for all partial reductions
+        if lane == 1
+            @inbounds shared[wid] = val
+        end
         sync_threads()
 
         # read from shared memory only if that warp existed
@@ -111,4 +108,11 @@ function reduce_vov_kernel!(
 
         j += gridDim().x
     end
+end
+
+@inline function kernel_nextwarp(threads)
+    assume(warpsize() == 32)
+
+    ws = warpsize()
+    return threads + (ws - threads % ws) % ws
 end
