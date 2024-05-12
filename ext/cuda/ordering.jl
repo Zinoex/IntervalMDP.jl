@@ -35,21 +35,27 @@ function sort_subsets!(
     V::CuVector{Tv};
     max = true,
 ) where {Ti, Tv}
-    n = length(order.subsets)
 
     ml = maxlength(order.subsets)
 
-    threads_per_subset = min(256, ispow2(ml) ? ml ÷ Ti(2) : prevpow(Ti(2), ml))
-
-    threads = threads_per_subset
-    blocks = min(65536, n)
     shmem = ml * (sizeof(Ti) + sizeof(Tv))
 
-    @cuda blocks = blocks threads = threads shmem = shmem sort_subsets_kernel!(
+    kernel = @cuda launch=false sort_subsets_kernel!(
         order,
         V,
-        max,
+        max ? (>=) : (<=),
     )
+
+    config = launch_configuration(kernel.fun; shmem=shmem)
+    max_threads = prevwarp(device(), config.threads)
+    wanted_threads = ceil(Ti, ml / 2)
+    threads = min(max_threads, wanted_threads)
+
+    blocks = min(65536, length(order.subsets))
+
+    # println(config, ", ", CUDA.registers(kernel), ", ", CUDA.occupancy(kernel.fun, threads; shmem=shmem))
+
+    kernel(order, V, max; blocks = blocks, threads = threads, shmem = shmem)
 
     return order
 end
@@ -57,7 +63,7 @@ end
 function sort_subsets_kernel!(
     order::CuSparseDeviceOrdering{Ti, A},
     V::CuDeviceVector{Tv, A},
-    max::Bool,
+    lt,
 ) where {Ti, Tv, A}
     ml = maxlength(order.subsets)
 
@@ -66,11 +72,11 @@ function sort_subsets_kernel!(
 
     s = blockIdx().x
     while s <= length(order.subsets)  # Grid-stride loop
-        subset = order.subsets[s]
+        @inbounds subset = order.subsets[s]
 
-        initialize_sorting_shared_memory!(order, subset, V, value, perm)
-        bitonic_sort!(subset, value, perm, max)
-        copy_perm_to_global!(subset, perm)
+        @inline initialize_sorting_shared_memory!(order, subset, V, value, perm)
+        @inline bitonic_sort!(subset, value, perm, lt)
+        @inline copy_perm_to_global!(subset, perm)
 
         s += gridDim().x
     end
@@ -88,101 +94,92 @@ end
     # Copy into shared memory
     i = threadIdx().x
     while i <= length(subset)
-        value_id = order.rowvals[subset.offset + i - one(Ti)]
-        value[i] = V[value_id]
-        perm[i] = i
+        @inbounds value_id = order.rowvals[subset.offset + i - one(Ti)]
+        @inbounds value[i] = V[value_id]
+        @inbounds perm[i] = i
         i += blockDim().x
     end
 
     # Need to synchronize to make sure all agree on the shared memory
-    return sync_threads()
+    sync_threads()
 end
 
 @inline function bitonic_sort!(
     subset::CuDeviceVectorInstance{Ti, Ti, A},
     value,
     perm,
-    max,
+    lt,
 ) where {Ti, A}
     #### Sort the shared memory with bitonic sort
-    subset_length = length(subset)
-    nextpow2_subset_length = nextpow(Ti(2), subset_length)
+    nextpow2_subset_length = nextpow(Ti(2), length(subset))
 
-    # Major step
     k = Ti(2)
     while k <= nextpow2_subset_length
-
-        # Minor step - Merge
-        k_half = k ÷ Ti(2)
-        i = threadIdx().x - Ti(1)
-        i_block, i_lane = fld(i, k_half), mod(i, k_half)
-        i_concrete = i_block * k + i_lane
-        while i_concrete < subset_length
-            l = (i_block + one(Ti)) * k - i_lane - one(Ti)
-
-            if l < subset_length # Ensure only one thread in each pair does the swap
-                i1 = i_concrete + Ti(1)
-                l1 = l + Ti(1)
-
-                if (value[i1] > value[l1]) != max
-                    perm[i1], perm[l1] = perm[l1], perm[i1]
-                    value[i1], value[l1] = value[l1], value[i1]
-                end
-            end
-
-            i += blockDim().x
-            i_block, i_lane = fld(i, k_half), mod(i, k_half)
-            i_concrete = i_block * k + i_lane
-        end
-
-        sync_threads()
-
-        # Minor step - Compare and swap
-        j = k ÷ Ti(4)
-        while j > Ti(0)
-
-            # Compare and swap
-            i = threadIdx().x - Ti(1)
-            i_block, i_lane = fld(i, j), mod(i, j)
-            i_concrete = i_block * j * Ti(2) + i_lane
-            while i_concrete < subset_length
-                l = i_concrete + j
-
-                if l < subset_length # Ensure only one thread in each pair does the swap
-                    i1 = i_concrete + Ti(1)
-                    l1 = l + Ti(1)
-
-                    if (value[i1] > value[l1]) != max
-                        perm[i1], perm[l1] = perm[l1], perm[i1]
-                        value[i1], value[l1] = value[l1], value[i1]
-                    end
-                end
-
-                i += blockDim().x
-                i_block, i_lane = fld(i, j), mod(i, j)
-                i_concrete = i_block * j * Ti(2) + i_lane
-            end
-
-            j ÷= Ti(2)
-
-            # Synchronize after minor step to make sure all threads agree on the shared memory
-            sync_threads()
-        end
+        bitonic_sort_major_step!(subset, value, perm, lt, k)
 
         k *= Ti(2)
     end
 end
 
+@inline function bitonic_sort_major_step!(subset::CuDeviceVectorInstance{Ti, Ti, A}, value, perm, lt, k) where {Ti, A}
+    j = k ÷ Ti(2)
+    @inline bitonic_sort_minor_step!(subset, value, perm, lt, merge_other_lane, j)
+
+    j ÷= Ti(2)
+    while j >= Ti(1)
+        @inline bitonic_sort_minor_step!(subset, value, perm, lt, compare_and_swap_other_lane, j)
+        j ÷= Ti(2)
+    end
+end
+
+@inline function merge_other_lane(j, lane::Ti) where {Ti}
+    mask = create_mask(j)
+
+    return (lane - one(Ti)) ⊻ mask + one(Ti)
+end
+
+@inline function create_mask(j::Ti) where {Ti}
+    mask = Ti(0)
+    while j > Ti(0)
+        mask |= j
+        j ÷= Ti(2)
+    end
+
+    return mask
+end
+
+@inline function compare_and_swap_other_lane(j, lane)
+    return lane + j
+end
+
+@inline function bitonic_sort_minor_step!(subset::CuDeviceVectorInstance{Ti, Ti, A}, value, perm, lt, other_lane, j) where {Ti, A}
+    thread = threadIdx().x
+    block, lane = fldmod1(thread, j)
+    i = (block - one(Ti)) * j * Ti(2) + lane
+    l = (block - one(Ti)) * j * Ti(2) + other_lane(j, lane)
+
+    while i <= length(subset)
+
+        if l <= length(subset) && !lt(value[i], value[l])
+            @inbounds perm[i], perm[l] = perm[l], perm[i]
+            @inbounds value[i], value[l] = value[l], value[i]
+        end
+
+        thread += blockDim().x
+        block, lane = fldmod1(thread, j)
+        i = (block - one(Ti)) * j * Ti(2) + lane
+        l = (block - one(Ti)) * j * Ti(2) + other_lane(j, lane)
+    end
+
+    sync_threads()
+end
+
 @inline function copy_perm_to_global!(subset, perm)
     i = threadIdx().x
     while i <= length(subset)
-        subset[i] = perm[i]
+        @inbounds subset[i] = perm[i]
         i += blockDim().x
     end
-
-    # Do I need to synchronize here? Now, we do it for
-    # safety's sake.
-    return sync_threads()
 end
 
 function IntervalMDP.construct_ordering(T, p::CuSparseMatrixCSC)

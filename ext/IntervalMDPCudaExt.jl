@@ -38,6 +38,7 @@ function Adapt.adapt_structure(
     )
 end
 
+include("cuda/utils.jl")
 include("cuda/array.jl")
 include("cuda/ordering.jl")
 include("cuda/probability_assignment.jl")

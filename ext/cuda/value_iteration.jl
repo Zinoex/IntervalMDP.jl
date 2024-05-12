@@ -36,7 +36,7 @@ function IntervalMDP.step_imdp!(
     threads = prevwarp(device(), config.threads)
 
     states_per_block = threads ÷ 32
-    blocks = ceil(Int64, length(V_per_state) / states_per_block)
+    blocks = min(65535, ceil(Int64, length(V_per_state) / states_per_block))
 
     kernel(
         maximize ? max : min,
@@ -89,11 +89,4 @@ function reduce_vov_kernel!(
         thread_id += gridDim().x * blockDim().x
         wid, lane = fldmod1(thread_id, warpsize())
     end
-end
-
-@inline function kernel_nextwarp(threads)
-    assume(warpsize() == 32)
-
-    ws = warpsize()
-    return threads + (ws - threads % ws) % ws
 end

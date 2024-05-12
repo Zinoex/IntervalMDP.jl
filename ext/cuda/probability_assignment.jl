@@ -33,7 +33,7 @@ function add_gap_vector!(
     threads = prevwarp(device(), config.threads)
 
     states_per_block = threads ÷ 32
-    blocks = ceil(Int64, size(p, 2) / states_per_block)
+    blocks = min(65535, ceil(Int64, size(p, 2) / states_per_block))
 
     kernel(p, gap(prob), sum_lower(prob), ordering, indices; blocks = blocks, threads = threads)
 
