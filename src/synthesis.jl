@@ -10,7 +10,7 @@ function control_synthesis(problem::Problem{<:IntervalMarkovDecisionProcess})
     prop = system_property(spec)
 
     policy_cache = create_policy_cache(problem, Val(isfinitetime(prop)))
-    V, k, res = value_iteration!(policy_cache, problem)
+    V, k, res, policy_cache = _value_iteration!(policy_cache, problem)
 
     return policy_indices_to_actions(problem, policy_cache), V, k, res
 end

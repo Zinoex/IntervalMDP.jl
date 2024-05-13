@@ -187,10 +187,12 @@ function value_iteration(
     problem::Problem{M, S},
 ) where {M <: IntervalMarkovDecisionProcess, S <: Specification}
     no_policy_cache = NoPolicyCache()
-    return value_iteration!(no_policy_cache, problem)
+    V, k, res, no_policy_cache = _value_iteration!(no_policy_cache, problem)
+
+    return V, k, res
 end
 
-function value_iteration!(
+function _value_iteration!(
     policy_cache::AbstractPolicyCache,
     problem::Problem{M, S},
 ) where {M <: IntervalMarkovDecisionProcess, S <: Specification}
@@ -242,7 +244,7 @@ function value_iteration!(
 
     # lastdiff! uses prev to store the latest difference
     # and it is already computed from the condition in the loop
-    return value_function.cur, k, value_function.prev
+    return value_function.cur, k, value_function.prev, policy_cache
 end
 
 mutable struct IMDPValueFunction
@@ -279,38 +281,36 @@ function step_imdp!(
 
     value_function.action_values .= Transpose(value_function.prev_transpose * p)
 
-    extract_policy!(value_function, policy_cache, prob, stateptr, maximize)
+    return extract_policy!(value_function, policy_cache, stateptr, maximize)
+end
+
+function extract_policy!(
+    value_function::IMDPValueFunction,
+    policy_cache::NoPolicyCache,
+    stateptr::VT,
+    maximize,
+) where {VT <: AbstractVector}
+    reduction = maximize ? maximum : minimum
+
+    @inbounds for j in 1:(length(stateptr) - 1)
+        @inbounds s1 = stateptr[j]
+        @inbounds s2 = stateptr[j + 1]
+
+        @inbounds value_function.cur[j] = reduction(view(value_function.action_values, s1:(s2 - 1))) + s1 - 1
+    end
 
     return value_function, policy_cache
 end
 
 function extract_policy!(
     value_function::IMDPValueFunction,
-    policy_cache::NoPolicyCache,
-    prob,
-    stateptr,
-    maximize,
-)
-    reduction = maximize ? maximum : minimum
-
-    @inbounds for j in 1:num_target(prob)
-        @inbounds s1 = stateptr[j]
-        @inbounds s2 = stateptr[j + 1]
-
-        @inbounds value_function.cur[j] = reduction(view(value_function.action_values, s1:(s2 - 1))) + s1 - 1
-    end
-end
-
-function extract_policy!(
-    value_function::IMDPValueFunction,
     policy_cache::TimeVaryingPolicyCache,
-    prob,
-    stateptr,
+    stateptr::VT,
     maximize,
-)
+) where {VT <: AbstractVector}
     reduction = maximize ? argmax : argmin
 
-    @inbounds for j in 1:num_target(prob)
+    @inbounds for j in 1:(length(stateptr) - 1)
         @inbounds s1 = stateptr[j]
         @inbounds s2 = stateptr[j + 1]
 
@@ -320,29 +320,32 @@ function extract_policy!(
     end
 
     push!(policy_cache.policy, copy(policy_cache.cur_policy))
+
+    return value_function, policy_cache
 end
 
 function extract_policy!(
     value_function::IMDPValueFunction,
     policy_cache::StationaryPolicyCache,
-    prob,
-    stateptr,
+    stateptr::VT,
     maximize,
-)
+) where {VT <: AbstractVector}
     reduction = maximize ? argmax : argmin
-    isbetterthan = maximize ? (>) : (<)
+    gt = maximize ? (>) : (<)
 
-    @inbounds for j in 1:num_target(prob)
+    @inbounds for j in 1:(length(stateptr) - 1)
         @inbounds s1 = stateptr[j]
         @inbounds s2 = stateptr[j + 1]
 
         opt_index = reduction(view(value_function.action_values, s1:(s2 - 1))) + s1 - 1
 
-        if iszero(policy_cache.policy[j]) || isbetterthan(value_function.action_values[opt_index], value_function.prev[j])
+        if iszero(policy_cache.policy[j]) || gt(value_function.action_values[opt_index], value_function.prev[j])
             @inbounds policy_cache.policy[j] = opt_index
             @inbounds value_function.cur[j] = value_function.action_values[opt_index]
         else
             @inbounds value_function.cur[j] = value_function.prev[j]
         end
     end
+
+    return value_function, policy_cache
 end

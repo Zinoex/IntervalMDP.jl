@@ -26,7 +26,7 @@ end
 function policy_indices_to_actions(problem::Problem{<:IntervalMarkovDecisionProcess}, policy_cache::TimeVaryingPolicyCache)
     mdp = system(problem)
     act = actions(mdp)
-    return [act[indices] for indices in policy_cache.policy]
+    return [act[Vector(indices)] for indices in policy_cache.policy]
 end
 
 struct StationaryPolicyCache{T, VT <: AbstractVector{T}} <: AbstractPolicyCache
@@ -48,5 +48,5 @@ end
 function policy_indices_to_actions(problem::Problem{<:IntervalMarkovDecisionProcess}, policy_cache::StationaryPolicyCache)
     mdp = system(problem)
     act = actions(mdp)
-    return act[policy_cache.policy]
+    return act[Vector(policy_cache.policy)]
 end
