@@ -67,7 +67,11 @@ Adapt.adapt_structure(::Type{Array}, xs::CuVectorOfVector) = Vector(xs)
 
 # Indexing
 Base.@propagate_inbounds Base.getindex(xs::CuVectorOfVector, i::Ti) where {Ti} =
-    CUDA.@allowscalar CuVectorInstance(xs.vecptr[i], xs.vecptr[i + Ti(1)] - xs.vecptr[i], xs.val)
+    CUDA.@allowscalar CuVectorInstance(
+        xs.vecptr[i],
+        xs.vecptr[i + Ti(1)] - xs.vecptr[i],
+        xs.val,
+    )
 
 struct CuVectorInstance{Ti, Tv}
     offset::Ti
@@ -87,7 +91,7 @@ end
 function Base.show(io::IO, x::CuVectorInstance)
     show(
         IOContext(io, :typeinfo => eltype(x)),
-        Vector(x.parent[x.offset:(x.offset + x.length - 1)]),
+        Vector(x.parent[(x.offset):(x.offset + x.length - 1)]),
     )
 end
 
@@ -98,19 +102,22 @@ struct CuDeviceVectorOfVector{Tv, Ti, A} <: AbstractVector{AbstractVector{Tv}}
     maxlength::Ti
 end
 @inline maxlength(xs::CuDeviceVectorOfVector) = xs.maxlength
-@inline Base.length(xs::CuDeviceVectorOfVector{Tv, Ti}) where {Tv, Ti} = length(xs.vecptr) - Ti(1)
+@inline Base.length(xs::CuDeviceVectorOfVector{Tv, Ti}) where {Tv, Ti} =
+    length(xs.vecptr) - Ti(1)
 
 function Adapt.adapt_structure(to::CUDA.KernelAdaptor, x::CuVectorOfVector)
     return CuDeviceVectorOfVector(adapt(to, x.vecptr), adapt(to, x.val), maxlength(x))
 end
 
 # Indexing
-Base.@propagate_inbounds Base.getindex(xs::CuDeviceVectorOfVector{Tv, Ti, A}, i) where {Tv, Ti, A} =
-    CuDeviceVectorInstance{Tv, Ti, A}(
-        xs.vecptr[i],
-        xs.vecptr[i + Ti(1)] - xs.vecptr[i],
-        xs.val,
-    )
+Base.@propagate_inbounds Base.getindex(
+    xs::CuDeviceVectorOfVector{Tv, Ti, A},
+    i,
+) where {Tv, Ti, A} = CuDeviceVectorInstance{Tv, Ti, A}(
+    xs.vecptr[i],
+    xs.vecptr[i + Ti(1)] - xs.vecptr[i],
+    xs.val,
+)
 
 struct CuDeviceVectorInstance{Tv, Ti, A}
     offset::Ti
@@ -126,7 +133,11 @@ end
 
     return @inbounds xs.parent[xs.offset + i - Ti(1)]
 end
-@inline function Base.setindex!(xs::CuDeviceVectorInstance{Tv, Ti, A}, v, i) where {Tv, Ti, A}
+@inline function Base.setindex!(
+    xs::CuDeviceVectorInstance{Tv, Ti, A},
+    v,
+    i,
+) where {Tv, Ti, A}
     @boundscheck if !(1 <= i <= xs.length)
         throw(BoundsError(xs, i))
     end

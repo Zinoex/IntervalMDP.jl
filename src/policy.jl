@@ -23,7 +23,10 @@ function create_policy_cache(
     return TimeVaryingPolicyCache(num_states(system(problem)), I)
 end
 
-function policy_indices_to_actions(problem::Problem{<:IntervalMarkovDecisionProcess}, policy_cache::TimeVaryingPolicyCache)
+function policy_indices_to_actions(
+    problem::Problem{<:IntervalMarkovDecisionProcess},
+    policy_cache::TimeVaryingPolicyCache,
+)
     mdp = system(problem)
     act = actions(mdp)
     return [act[Vector(indices)] for indices in policy_cache.policy]
@@ -45,7 +48,10 @@ function create_policy_cache(
     return StationaryPolicyCache(num_states(system(problem)), I)
 end
 
-function policy_indices_to_actions(problem::Problem{<:IntervalMarkovDecisionProcess}, policy_cache::StationaryPolicyCache)
+function policy_indices_to_actions(
+    problem::Problem{<:IntervalMarkovDecisionProcess},
+    policy_cache::StationaryPolicyCache,
+)
     mdp = system(problem)
     act = actions(mdp)
     return act[Vector(policy_cache.policy)]

@@ -21,7 +21,7 @@ function add_gap_vector!(
     ordering::CuSparseOrdering{Ti},
     indices,
 ) where {Tv, Ti}
-    kernel = @cuda launch=false add_gap_vector_kernel!(
+    kernel = @cuda launch = false add_gap_vector_kernel!(
         p,
         gap(prob),
         sum_lower(prob),
@@ -35,7 +35,15 @@ function add_gap_vector!(
     states_per_block = threads ÷ 32
     blocks = min(65535, ceil(Int64, size(p, 2) / states_per_block))
 
-    kernel(p, gap(prob), sum_lower(prob), ordering, indices; blocks = blocks, threads = threads)
+    kernel(
+        p,
+        gap(prob),
+        sum_lower(prob),
+        ordering,
+        indices;
+        blocks = blocks,
+        threads = threads,
+    )
 
     return p
 end

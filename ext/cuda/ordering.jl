@@ -35,18 +35,13 @@ function sort_subsets!(
     V::CuVector{Tv};
     max = true,
 ) where {Ti, Tv}
-
     ml = maxlength(order.subsets)
 
     shmem = ml * (sizeof(Ti) + sizeof(Tv))
 
-    kernel = @cuda launch=false sort_subsets_kernel!(
-        order,
-        V,
-        max ? (>=) : (<=),
-    )
+    kernel = @cuda launch = false sort_subsets_kernel!(order, V, max ? (>=) : (<=))
 
-    config = launch_configuration(kernel.fun; shmem=shmem)
+    config = launch_configuration(kernel.fun; shmem = shmem)
     max_threads = prevwarp(device(), config.threads)
     wanted_threads = ceil(Ti, ml / 2)
     threads = min(max_threads, wanted_threads)
@@ -121,13 +116,26 @@ end
     end
 end
 
-@inline function bitonic_sort_major_step!(subset::CuDeviceVectorInstance{Ti, Ti, A}, value, perm, lt, k) where {Ti, A}
+@inline function bitonic_sort_major_step!(
+    subset::CuDeviceVectorInstance{Ti, Ti, A},
+    value,
+    perm,
+    lt,
+    k,
+) where {Ti, A}
     j = k ÷ Ti(2)
     @inline bitonic_sort_minor_step!(subset, value, perm, lt, merge_other_lane, j)
 
     j ÷= Ti(2)
     while j >= Ti(1)
-        @inline bitonic_sort_minor_step!(subset, value, perm, lt, compare_and_swap_other_lane, j)
+        @inline bitonic_sort_minor_step!(
+            subset,
+            value,
+            perm,
+            lt,
+            compare_and_swap_other_lane,
+            j,
+        )
         j ÷= Ti(2)
     end
 end
@@ -152,14 +160,20 @@ end
     return lane + j
 end
 
-@inline function bitonic_sort_minor_step!(subset::CuDeviceVectorInstance{Ti, Ti, A}, value, perm, lt, other_lane, j) where {Ti, A}
+@inline function bitonic_sort_minor_step!(
+    subset::CuDeviceVectorInstance{Ti, Ti, A},
+    value,
+    perm,
+    lt,
+    other_lane,
+    j,
+) where {Ti, A}
     thread = threadIdx().x
     block, lane = fldmod1(thread, j)
     i = (block - one(Ti)) * j * Ti(2) + lane
     l = (block - one(Ti)) * j * Ti(2) + other_lane(j, lane)
 
     while i <= length(subset)
-
         if l <= length(subset) && !lt(value[i], value[l])
             @inbounds perm[i], perm[l] = perm[l], perm[i]
             @inbounds value[i], value[l] = value[l], value[i]

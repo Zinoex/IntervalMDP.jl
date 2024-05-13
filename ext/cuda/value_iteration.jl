@@ -14,9 +14,10 @@ function IntervalMDP.extract_policy!(
     maximize,
 ) where {VT <: CuVector}
     R = eltype(value_function.cur)
-    V_per_state = CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
+    V_per_state =
+        CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
 
-    kernel = @cuda launch=false reduce_vov_kernel!(
+    kernel = @cuda launch = false reduce_vov_kernel!(
         maximize ? max : min,
         maximize ? typemin(R) : typemax(R),
         value_function.cur,
@@ -35,8 +36,8 @@ function IntervalMDP.extract_policy!(
         maximize ? typemin(R) : typemax(R),
         value_function.cur,
         V_per_state;
-        threads=threads,
-        blocks=blocks
+        threads = threads,
+        blocks = blocks,
     )
 
     return value_function, policy_cache
@@ -90,14 +91,15 @@ function IntervalMDP.extract_policy!(
     maximize,
 ) where {T, VT <: CuVector{T}}
     R = eltype(value_function.cur)
-    V_per_state = CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
+    V_per_state =
+        CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
 
     # Transfer to GPU if not already
     policy_cache = IntervalMDP.cu(policy_cache)
-    
+
     argop = strict_argop(maximize)
 
-    kernel = @cuda launch=false argreduce_vov_kernel!(
+    kernel = @cuda launch = false argreduce_vov_kernel!(
         argop,
         maximize ? typemin(R) : typemax(R),
         zero(T),
@@ -120,8 +122,8 @@ function IntervalMDP.extract_policy!(
         value_function.cur,
         policy_cache.cur_policy,
         V_per_state;
-        threads=threads,
-        blocks=blocks
+        threads = threads,
+        blocks = blocks,
     )
 
     push!(policy_cache.policy, copy(policy_cache.cur_policy))
@@ -135,14 +137,15 @@ function IntervalMDP.extract_policy!(
     stateptr::VT,
     maximize,
 ) where {T, VT <: CuVector{T}}
-    V_per_state = CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
+    V_per_state =
+        CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
 
     # Transfer to GPU if not already
     policy_cache = IntervalMDP.cu(policy_cache)
-    
+
     argop = strict_argop(maximize)
 
-    kernel = @cuda launch=false argreduce_vov_kernel!(
+    kernel = @cuda launch = false argreduce_vov_kernel!(
         argop,
         value_function.prev,
         policy_cache.cur_policy,
@@ -164,8 +167,8 @@ function IntervalMDP.extract_policy!(
         policy_cache.cur_policy,
         value_function.cur,
         V_per_state;
-        threads=threads,
-        blocks=blocks
+        threads = threads,
+        blocks = blocks,
     )
 
     push!(policy_cache.policy, copy(policy_cache.cur_policy))
@@ -233,14 +236,23 @@ function argreduce_vov_kernel!(
     end
 end
 
-@inline get_neutral(neutral_val::Tv, neural_idx::Ti, wid) where {Tv <: Number, Ti <: Integer} = neutral_val, neural_idx
-@inline get_neutral(neutral_val::VTv, neural_idx::VTi, wid) where {VTv <: AbstractArray, VTi <: AbstractArray} = neutral_val[wid], neural_idx[wid]
+@inline get_neutral(
+    neutral_val::Tv,
+    neural_idx::Ti,
+    wid,
+) where {Tv <: Number, Ti <: Integer} = neutral_val, neural_idx
+@inline get_neutral(
+    neutral_val::VTv,
+    neural_idx::VTi,
+    wid,
+) where {VTv <: AbstractArray, VTi <: AbstractArray} = neutral_val[wid], neural_idx[wid]
 
 @inline function argreduce_warp(argop, val, idx)
     assume(warpsize() == 32)
     offset = 0x00000001
     while offset < warpsize()
-        new_val, new_idx = shfl_down_sync(0xffffffff, val, offset), shfl_down_sync(0xffffffff, idx, offset)
+        new_val, new_idx =
+            shfl_down_sync(0xffffffff, val, offset), shfl_down_sync(0xffffffff, idx, offset)
         val, idx = argop(val, idx, new_val, new_idx)
         offset <<= 1
     end

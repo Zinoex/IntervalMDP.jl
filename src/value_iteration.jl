@@ -296,7 +296,8 @@ function extract_policy!(
         @inbounds s1 = stateptr[j]
         @inbounds s2 = stateptr[j + 1]
 
-        @inbounds value_function.cur[j] = reduction(view(value_function.action_values, s1:(s2 - 1))) + s1 - 1
+        @inbounds value_function.cur[j] =
+            reduction(view(value_function.action_values, s1:(s2 - 1))) + s1 - 1
     end
 
     return value_function, policy_cache
@@ -339,7 +340,8 @@ function extract_policy!(
 
         opt_index = reduction(view(value_function.action_values, s1:(s2 - 1))) + s1 - 1
 
-        if iszero(policy_cache.policy[j]) || gt(value_function.action_values[opt_index], value_function.prev[j])
+        if iszero(policy_cache.policy[j]) ||
+           gt(value_function.action_values[opt_index], value_function.prev[j])
             @inbounds policy_cache.policy[j] = opt_index
             @inbounds value_function.cur[j] = value_function.action_values[opt_index]
         else

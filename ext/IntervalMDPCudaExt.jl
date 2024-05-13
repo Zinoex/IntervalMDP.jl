@@ -38,7 +38,6 @@ function Adapt.adapt_structure(
     )
 end
 
-
 function Adapt.adapt_structure(
     T::Type{<:IntervalMDP.CuModelAdaptor},
     policy_cache::IntervalMDP.TimeVaryingPolicyCache,
@@ -46,19 +45,16 @@ function Adapt.adapt_structure(
     Itype = IntervalMDP.indtype(T)
     return IntervalMDP.TimeVaryingPolicyCache(
         adapt(CuArray{Itype}, policy_cache.cur_policy),
-        adapt.(CuArray{Itype}, policy_cache.policy)
+        adapt.(CuArray{Itype}, policy_cache.policy),
     )
 end
-
 
 function Adapt.adapt_structure(
     T::Type{<:IntervalMDP.CuModelAdaptor},
     policy_cache::IntervalMDP.StationaryPolicyCache,
 )
     Itype = IntervalMDP.indtype(T)
-    return IntervalMDP.StationaryPolicyCache(
-        adapt(CuArray{Itype}, policy_cache.cur_policy)
-    )
+    return IntervalMDP.StationaryPolicyCache(adapt(CuArray{Itype}, policy_cache.cur_policy))
 end
 
 include("cuda/utils.jl")
