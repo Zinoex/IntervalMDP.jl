@@ -95,7 +95,7 @@ function IntervalMDP.extract_policy!(
     # Transfer to GPU if not already
     policy_cache = IntervalMDP.cu(policy_cache)
     
-    argop = time_varying_argop(maximize)
+    argop = strict_argop(maximize)
 
     kernel = @cuda launch=false argreduce_vov_kernel!(
         argop,
@@ -127,20 +127,6 @@ function IntervalMDP.extract_policy!(
     push!(policy_cache.policy, copy(policy_cache.cur_policy))
 
     return value_function, policy_cache
-end
-
-function time_varying_argop(maximize)
-    gt = maximize ? (>) : (<)
-
-    @inline function argop(val::Tv, idx::Ti, other_val::Tv, other_idx::Ti) where {Ti, Tv}
-        if !iszero(other_idx) && gt(other_val, val)
-            return other_val, other_idx
-        else
-            return val, idx
-        end
-    end
-
-    return argop
 end
 
 function IntervalMDP.extract_policy!(
@@ -154,7 +140,7 @@ function IntervalMDP.extract_policy!(
     # Transfer to GPU if not already
     policy_cache = IntervalMDP.cu(policy_cache)
     
-    argop = time_varying_argop(maximize)
+    argop = strict_argop(maximize)
 
     kernel = @cuda launch=false argreduce_vov_kernel!(
         argop,
@@ -185,6 +171,20 @@ function IntervalMDP.extract_policy!(
     push!(policy_cache.policy, copy(policy_cache.cur_policy))
 
     return value_function, policy_cache
+end
+
+function strict_argop(maximize)
+    gt = maximize ? (>) : (<)
+
+    @inline function argop(val::Tv, idx::Ti, other_val::Tv, other_idx::Ti) where {Ti, Tv}
+        if !iszero(other_idx) && gt(other_val, val)
+            return other_val, other_idx
+        else
+            return val, idx
+        end
+    end
+
+    return argop
 end
 
 function argreduce_vov_kernel!(
