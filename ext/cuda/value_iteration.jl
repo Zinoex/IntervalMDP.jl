@@ -180,7 +180,7 @@ function strict_argop(maximize)
     gt = maximize ? (>) : (<)
 
     @inline function argop(val::Tv, idx::Ti, other_val::Tv, other_idx::Ti) where {Ti, Tv}
-        if !iszero(other_idx) && gt(other_val, val)
+        if iszero(idx) || (!iszero(other_idx) && gt(other_val, val))
             return other_val, other_idx
         else
             return val, idx
