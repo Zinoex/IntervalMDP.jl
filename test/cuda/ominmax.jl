@@ -134,6 +134,7 @@ for j in 1:m
     # It needs to be done this way because the matrices are too large
     # to assess if printed to the log
     if !(p_cpu[:, j] ≈ p_gpu[:, j])
+        println("Column $j")
         @test p_cpu[:, j] ≈ p_gpu[:, j]
         break
     end

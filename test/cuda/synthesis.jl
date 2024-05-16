@@ -45,6 +45,8 @@ mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
 prop = FiniteTimeReachability([3], 10)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(mdp, spec)
+problem = IntervalMDP.cu(problem)
+
 policy, V, k, res = control_synthesis(problem)
 
 @test length(policy) == 10
@@ -55,6 +57,8 @@ end
 prop = FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(mdp, spec)
+problem = IntervalMDP.cu(problem)
+
 policy, V, k, res = control_synthesis(problem)
 @test length(policy) == 10
 

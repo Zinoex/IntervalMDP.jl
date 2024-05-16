@@ -7,72 +7,255 @@ function IntervalMDP.construct_value_function(
     return V
 end
 
-function IntervalMDP.step_imdp!(
-    ordering,
-    p,
-    prob::IntervalProbabilities{R, VR, MR},
-    stateptr,
-    value_function::IntervalMDP.IMDPValueFunction;
+function IntervalMDP.extract_policy!(
+    value_function::IntervalMDP.IMDPValueFunction,
+    policy_cache::IntervalMDP.NoPolicyCache,
+    stateptr::VT,
     maximize,
-    upper_bound,
-) where {R, VR <: AbstractVector{R}, MR <: CuSparseMatrixCSC{R}}
-    ominmax!(ordering, p, prob, value_function.prev; max = upper_bound)
-
-    value_function.action_values .= Transpose(value_function.prev_transpose * p)
-
+) where {VT <: CuVector}
+    R = eltype(value_function.cur)
     V_per_state =
         CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
 
-    blocks = num_target(prob)
-    threads = 32
-    @cuda blocks = blocks threads = threads extremum_vov_kernel!(
+    kernel = @cuda launch = false reduce_vov_kernel!(
+        maximize ? max : min,
+        maximize ? typemin(R) : typemax(R),
         value_function.cur,
         V_per_state,
-        maximize,
     )
 
-    return value_function
+    config = launch_configuration(kernel.fun)
+
+    threads = prevwarp(device(), config.threads)
+
+    states_per_block = threads ÷ 32
+    blocks = min(65535, ceil(Int64, length(V_per_state) / states_per_block))
+
+    kernel(
+        maximize ? max : min,
+        maximize ? typemin(R) : typemax(R),
+        value_function.cur,
+        V_per_state;
+        threads = threads,
+        blocks = blocks,
+    )
+
+    return value_function, policy_cache
 end
 
-function extremum_vov_kernel!(
-    V::CuDeviceVector{Tv, A},
-    V_per_state::CuDeviceVectorOfVector{Tv, Ti, A},
-    maximize,
+function reduce_vov_kernel!(
+    op,
+    neutral,
+    res::CuDeviceVector{Tv, A},
+    vov::CuDeviceVectorOfVector{Tv, Ti, A},
 ) where {Tv, Ti, A}
-    j = blockIdx().x
-    while j <= length(V_per_state)
-        subset = V_per_state[j]
+    assume(warpsize() == 32)
 
-        # Tree reduce to find the maximum/minimum
-        lane = threadIdx().x
+    thread_id = (blockIdx().x - one(Ti)) * blockDim().x + threadIdx().x
+    wid, lane = fldmod1(thread_id, warpsize())
+
+    while wid <= length(vov)
+        # Tree reduce
+        @inbounds subset = vov[wid]
+        bound = kernel_nextwarp(length(subset))
+
+        val = neutral
+
+        # Reduce within each warp
         i = lane
-        while i < nextpow(Ti(32), length(subset))
-            if i <= length(subset)
-                val = subset[i]
+        while i <= bound
+            val = op(val, if i <= length(subset)
+                @inbounds subset[i]
             else
-                val = maximize ? zero(Tv) : one(Tv)
-            end
+                neutral
+            end)
 
-            delta = Ti(16)
-            while delta > zero(Ti)
-                up = shfl_down_sync(0xffffffff, val, delta)
-                val = maximize ? max(val, up) : min(val, up)
-
-                delta ÷= Ti(2)
-            end
-
-            # A bit of shared memory could reduce the number of global memory accesses
-            if lane == 1
-                if i == 1
-                    V[j] = val
-                else
-                    V[j] = maximize ? max(V[j], val) : min(V[j], val)
-                end
-            end
+            val = CUDA.reduce_warp(op, val)
 
             i += blockDim().x
         end
 
-        j += gridDim().x
+        if lane == 1
+            @inbounds res[wid] = val
+        end
+
+        thread_id += gridDim().x * blockDim().x
+        wid, lane = fldmod1(thread_id, warpsize())
     end
+end
+
+function IntervalMDP.extract_policy!(
+    value_function::IntervalMDP.IMDPValueFunction,
+    policy_cache::IntervalMDP.TimeVaryingPolicyCache,
+    stateptr::VT,
+    maximize,
+) where {T, VT <: CuVector{T}}
+    R = eltype(value_function.cur)
+    V_per_state =
+        CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
+
+    # Transfer to GPU if not already
+    policy_cache = IntervalMDP.cu(policy_cache)
+
+    argop = strict_argop(maximize)
+
+    kernel = @cuda launch = false argreduce_vov_kernel!(
+        argop,
+        maximize ? typemin(R) : typemax(R),
+        zero(T),
+        value_function.cur,
+        policy_cache.cur_policy,
+        V_per_state,
+    )
+
+    config = launch_configuration(kernel.fun)
+
+    threads = prevwarp(device(), config.threads)
+
+    states_per_block = threads ÷ 32
+    blocks = min(65535, ceil(Int64, length(V_per_state) / states_per_block))
+
+    kernel(
+        argop,
+        maximize ? typemin(R) : typemax(R),
+        zero(T),
+        value_function.cur,
+        policy_cache.cur_policy,
+        V_per_state;
+        threads = threads,
+        blocks = blocks,
+    )
+
+    push!(policy_cache.policy, copy(policy_cache.cur_policy))
+
+    return value_function, policy_cache
+end
+
+function IntervalMDP.extract_policy!(
+    value_function::IntervalMDP.IMDPValueFunction,
+    policy_cache::IntervalMDP.StationaryPolicyCache,
+    stateptr::VT,
+    maximize,
+) where {T, VT <: CuVector{T}}
+    V_per_state =
+        CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
+
+    # Transfer to GPU if not already
+    policy_cache = IntervalMDP.cu(policy_cache)
+
+    argop = strict_argop(maximize)
+
+    kernel = @cuda launch = false argreduce_vov_kernel!(
+        argop,
+        value_function.prev,
+        policy_cache.cur_policy,
+        value_function.cur,
+        policy_cache.cur_policy,
+        V_per_state,
+    )
+
+    config = launch_configuration(kernel.fun)
+
+    threads = prevwarp(device(), config.threads)
+
+    states_per_block = threads ÷ 32
+    blocks = min(65535, ceil(Int64, length(V_per_state) / states_per_block))
+
+    kernel(
+        argop,
+        value_function.prev,
+        policy_cache.cur_policy,
+        value_function.cur,
+        V_per_state;
+        threads = threads,
+        blocks = blocks,
+    )
+
+    push!(policy_cache.policy, copy(policy_cache.cur_policy))
+
+    return value_function, policy_cache
+end
+
+function strict_argop(maximize)
+    gt = maximize ? (>) : (<)
+
+    @inline function argop(val::Tv, idx::Ti, other_val::Tv, other_idx::Ti) where {Ti, Tv}
+        if iszero(idx) || (!iszero(other_idx) && gt(other_val, val))
+            return other_val, other_idx
+        else
+            return val, idx
+        end
+    end
+
+    return argop
+end
+
+function argreduce_vov_kernel!(
+    argop,
+    neutral_val,
+    neural_idx,
+    res_val::CuDeviceVector{Tv, A},
+    res_idx::CuDeviceVector{Ti, A},
+    vov::CuDeviceVectorOfVector{Tv, Ti, A},
+) where {Tv, Ti, A}
+    assume(warpsize() == 32)
+
+    thread_id = (blockIdx().x - one(Ti)) * blockDim().x + threadIdx().x
+    wid, lane = fldmod1(thread_id, warpsize())
+
+    while wid <= length(vov)
+        # Tree reduce
+        @inbounds subset = vov[wid]
+        bound = kernel_nextwarp(length(subset))
+
+        neutral = get_neutral(neutral_val, neural_idx, wid)
+        val, idx = neutral
+
+        # Reduce within each warp
+        i = lane
+        while i <= bound
+            new_val, new_idx = if i <= length(subset)
+                @inbounds subset[i], Ti(i)
+            else
+                neutral
+            end
+            val, idx = argop(val, idx, new_val, new_idx)
+
+            val, idx = argreduce_warp(argop, val, idx)
+
+            i += blockDim().x
+        end
+
+        if lane == 1
+            @inbounds res_val[wid] = val
+            @inbounds res_idx[wid] = idx + subset.offset - 1
+        end
+
+        thread_id += gridDim().x * blockDim().x
+        wid, lane = fldmod1(thread_id, warpsize())
+    end
+end
+
+@inline get_neutral(
+    neutral_val::Tv,
+    neural_idx::Ti,
+    wid,
+) where {Tv <: Number, Ti <: Integer} = neutral_val, neural_idx
+@inline get_neutral(
+    neutral_val::VTv,
+    neural_idx::VTi,
+    wid,
+) where {VTv <: AbstractArray, VTi <: AbstractArray} = neutral_val[wid], neural_idx[wid]
+
+@inline function argreduce_warp(argop, val, idx)
+    assume(warpsize() == 32)
+    offset = 0x00000001
+    while offset < warpsize()
+        new_val, new_idx =
+            shfl_down_sync(0xffffffff, val, offset), shfl_down_sync(0xffffffff, idx, offset)
+        val, idx = argop(val, idx, new_val, new_idx)
+        offset <<= 1
+    end
+
+    return val, idx
 end

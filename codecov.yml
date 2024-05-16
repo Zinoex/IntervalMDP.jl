@@ -1,0 +1,4 @@
+comment: false
+ignore:
+  - "ext/cuda"
+  - "ext/IntervalMDPCudaExt.jl"
