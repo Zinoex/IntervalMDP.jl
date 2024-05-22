@@ -78,7 +78,7 @@ function populate_subsets!(order::SparseOrdering{T, VT}) where {T, VT}
     reset_subsets!(order.subsets)
 
     @inbounds for i in order.perm
-        @inbounds for (j, sparse_ind) in order.state_to_subsets[i]
+        for (j, sparse_ind) in order.state_to_subsets[i]
             push!(order.subsets[j], sparse_ind)
         end
     end
@@ -101,7 +101,7 @@ function construct_ordering(T, p::AbstractSparseMatrix)
 
     subsets = Vector{PermutationSubset{T, Vector{T}}}(undef, m)
     for j in eachindex(subsets)
-        pⱼ = view(p, :, j)
+        pⱼ = @view p[:, j]
         subsets[j] = PermutationSubset(T(1), Vector{T}(undef, nnz(pⱼ)))
 
         ids = SparseArrays.nonzeroinds(pⱼ)  # This is not exported, but we need the non-zero indices
