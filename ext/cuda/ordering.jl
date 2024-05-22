@@ -24,7 +24,6 @@ function IntervalMDP.sort_states!(order::CuDenseOrdering, V; max = true)
     return order
 end
 
-
 ###################
 # Sparse ordering #
 ###################
