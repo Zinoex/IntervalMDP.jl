@@ -16,10 +16,9 @@ prob = IntervalMDP.cu(
 
 V = IntervalMDP.cu(collect(1.0:15.0))
 
-p = ominmax(prob, V; max = true)
-p = SparseMatrixCSC(p)
-@test p[:, 1] ≈ SparseVector(15, [4, 10], [0.3, 0.7])
-@test p[:, 2] ≈ SparseVector(15, [5, 6, 7], [0.5, 0.3, 0.2])
+Vres = bellman(V, prob; max = true)
+Vres = Vector(Vres)
+@test Vres ≈ [0.3 * 4 + 0.7 * 10, 0.5 * 5 + 0.3 * 6 + 0.2 * 7]
 
 # Matrix - to gpu first
 prob = IntervalProbabilities(;
@@ -39,10 +38,9 @@ prob = IntervalProbabilities(;
 
 V = IntervalMDP.cu(collect(1.0:15.0))
 
-p = ominmax(prob, V; max = true)
-p = SparseMatrixCSC(p)
-@test p[:, 1] ≈ SparseVector(15, [4, 10], [0.3, 0.7])
-@test p[:, 2] ≈ SparseVector(15, [5, 6, 7], [0.5, 0.3, 0.2])
+Vres = bellman(V, prob; max = true)
+Vres = Vector(Vres)
+@test Vres ≈ [0.3 * 4 + 0.7 * 10, 0.5 * 5 + 0.3 * 6 + 0.2 * 7]
 
 #### Minimization
 
@@ -62,10 +60,9 @@ prob = IntervalMDP.cu(
 
 V = IntervalMDP.cu(collect(1.0:15.0))
 
-p = ominmax(prob, V; max = false)
-p = SparseMatrixCSC(p)
-@test p[:, 1] ≈ SparseVector(15, [1, 4, 10], [0.5, 0.3, 0.2])
-@test p[:, 2] ≈ SparseVector(15, [5, 6, 7], [0.6, 0.3, 0.1])
+Vres = bellman(V, prob; max = false)
+Vres = Vector(Vres)
+@test Vres ≈ [0.5 * 1 + 0.3 * 4 + 0.2 * 10, 0.6 * 5 + 0.3 * 6 + 0.1 * 7]
 
 #### Large matrices
 
@@ -106,18 +103,10 @@ m = 100000  # It has to be greater than 2^16 to exceed maximum grid size
 nnz_per_column = 10
 prob, V, cuda_prob, cuda_V = sample_sparse_interval_probabilities(n, m, nnz_per_column)
 
-p_cpu = ominmax(prob, V; max = false)
-p_gpu = SparseMatrixCSC(ominmax(cuda_prob, cuda_V; max = false))
+V_cpu = bellman(V, prob; max = false)
+V_gpu = Vector(bellman(cuda_V, cuda_prob; max = false))
 
-for j in 1:m
-    # It needs to be done this way because the matrices are too large
-    # to assess if printed to the log
-    if !(p_cpu[:, j] ≈ p_gpu[:, j])
-        println("Column $j")
-        @test p_cpu[:, j] ≈ p_gpu[:, j]
-        break
-    end
-end
+@test V_cpu ≈ V_gpu
 
 # Many non-zeros
 rng = MersenneTwister(55392)
@@ -127,15 +116,7 @@ m = 10
 nnz_per_column = 1500   # It has to be greater than 1024 to exceed maximum block size
 prob, V, cuda_prob, cuda_V = sample_sparse_interval_probabilities(n, m, nnz_per_column)
 
-p_cpu = ominmax(prob, V; max = false)
-p_gpu = SparseMatrixCSC(ominmax(cuda_prob, cuda_V; max = false))
+V_cpu = bellman(V, prob; max = false)
+V_gpu = Vector(bellman(cuda_V, cuda_prob; max = false))
 
-for j in 1:m
-    # It needs to be done this way because the matrices are too large
-    # to assess if printed to the log
-    if !(p_cpu[:, j] ≈ p_gpu[:, j])
-        println("Column $j")
-        @test p_cpu[:, j] ≈ p_gpu[:, j]
-        break
-    end
-end
+@test V_cpu ≈ V_gpu

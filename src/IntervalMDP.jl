@@ -1,10 +1,12 @@
 module IntervalMDP
 
 using LinearAlgebra, SparseArrays
+using Polyester: @batch
 
 include("interval_probabilities.jl")
 export IntervalProbabilities
-export lower, upper, gap, sum_lower, num_source, num_target
+export lower, upper, gap, sum_lower
+export num_source, axes_source, num_target, axes_target
 
 include("models.jl")
 export IntervalMarkovProcess, IntervalMarkovChain, IntervalMarkovDecisionProcess
@@ -31,10 +33,8 @@ include("ordering.jl")
 export construct_ordering, sort_states!, perm
 export AbstractStateOrdering, DenseOrdering, SparseOrdering, PermutationSubset
 
-include("ominmax.jl")
-export ominmax, ominmax!
-export partial_ominmax, partial_ominmax!
-export probability_assignment!, probability_assignment_from!
+include("bellman.jl")
+export bellman, bellman!
 
 include("value_iteration.jl")
 export value_iteration, termination_criteria

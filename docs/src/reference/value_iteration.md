@@ -7,9 +7,7 @@ value_iteration
 ## O-maximization
 
 ```@docs
-ominmax
-ominmax!
-partial_ominmax
-partial_ominmax!
+bellman
+bellman!
 construct_ordering
 ```

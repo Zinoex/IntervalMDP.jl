@@ -31,4 +31,6 @@ gap(s::IntervalProbabilities)
 sum_lower(s::IntervalProbabilities)
 num_source(s::IntervalProbabilities)
 num_target(s::IntervalProbabilities)
+axes_source(s::IntervalProbabilities)
+axes_target(s::IntervalProbabilities)
 ```

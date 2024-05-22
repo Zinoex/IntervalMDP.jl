@@ -61,19 +61,18 @@ function value_iteration(
     prob = transition_prob(mc)
 
     # It is more efficient to use allocate first and reuse across iterations
-    p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
-    ordering = construct_ordering(p)
+    ordering = construct_ordering(gap(prob))
 
     value_function = IMCValueFunction(problem)
     initialize!(value_function, spec)
 
-    step_imc!(value_function, ordering, p, prob; upper_bound = upper_bound)
+    step_imc!(value_function, ordering, prob; upper_bound = upper_bound)
     postprocess!(value_function, spec)
     k = 1
 
     while !term_criteria(value_function.cur, k, lastdiff!(value_function))
         nextiteration!(value_function)
-        step_imc!(value_function, ordering, p, prob; upper_bound = upper_bound)
+        step_imc!(value_function, ordering, prob; upper_bound = upper_bound)
         postprocess!(value_function, spec)
 
         k += 1
@@ -89,10 +88,9 @@ function construct_value_function(::AbstractMatrix{R}, num_states) where {R}
     return V
 end
 
-mutable struct IMCValueFunction
-    prev::Any
-    prev_transpose::Any
-    cur::Any
+mutable struct IMCValueFunction{VR}
+    prev::VR
+    cur::VR
 end
 
 function IMCValueFunction(problem::Problem{M, S}) where {M <: IntervalMarkovChain, S}
@@ -101,7 +99,7 @@ function IMCValueFunction(problem::Problem{M, S}) where {M <: IntervalMarkovChai
     prev = construct_value_function(gap(transition_prob(mc)), num_states(mc))
     cur = copy(prev)
 
-    return IMCValueFunction(prev, Transpose(prev), cur)
+    return IMCValueFunction(prev, cur)
 end
 
 function lastdiff!(V)
@@ -121,12 +119,10 @@ end
 function step_imc!(
     value_function::IMCValueFunction,
     ordering,
-    p,
     prob::IntervalProbabilities;
     upper_bound,
-)
-    ominmax!(ordering, p, prob, value_function.prev; max = upper_bound)
-    value_function.cur .= Transpose(value_function.prev_transpose * p)
+)   
+    bellman!(ordering, value_function.cur, value_function.prev, prob; max = upper_bound)
 
     return value_function
 end
@@ -206,8 +202,7 @@ function _value_iteration!(
     sptr = stateptr(mdp)
 
     # It is more efficient to use allocate first and reuse across iterations
-    p = deepcopy(gap(prob))  # Deep copy as it may be a vector of vectors and we need sparse arrays to store the same indices
-    ordering = construct_ordering(p)
+    ordering = construct_ordering(gap(prob))
 
     value_function = IMDPValueFunction(problem)
     initialize!(value_function, spec)
@@ -216,7 +211,6 @@ function _value_iteration!(
         value_function,
         policy_cache,
         ordering,
-        p,
         prob,
         sptr;
         maximize = maximize,
@@ -231,7 +225,6 @@ function _value_iteration!(
             value_function,
             policy_cache,
             ordering,
-            p,
             prob,
             sptr;
             maximize = maximize,
@@ -247,11 +240,10 @@ function _value_iteration!(
     return value_function.cur, k, value_function.prev, policy_cache
 end
 
-mutable struct IMDPValueFunction
-    prev::Any
-    prev_transpose::Any
-    cur::Any
-    action_values::Any
+mutable struct IMDPValueFunction{VR}
+    prev::VR
+    cur::VR
+    action_values::VR
 end
 
 function IMDPValueFunction(
@@ -264,22 +256,19 @@ function IMDPValueFunction(
 
     action_values = similar(prev, num_choices(mdp))
 
-    return IMDPValueFunction(prev, Transpose(prev), cur, action_values)
+    return IMDPValueFunction(prev, cur, action_values)
 end
 
 function step_imdp!(
     value_function,
     policy_cache,
     ordering,
-    p,
     prob::IntervalProbabilities,
     stateptr;
     maximize,
     upper_bound,
 )
-    ominmax!(ordering, p, prob, value_function.prev; max = upper_bound)
-
-    value_function.action_values .= Transpose(value_function.prev_transpose * p)
+    bellman!(ordering, value_function.action_values, value_function.prev, prob; max = upper_bound)
 
     return extract_policy!(value_function, policy_cache, stateptr, maximize)
 end
@@ -290,14 +279,20 @@ function extract_policy!(
     stateptr::VT,
     maximize,
 ) where {VT <: AbstractVector}
-    reduction = maximize ? maximum : minimum
+    gt = maximize ? (>) : (<)
 
     @inbounds for j in 1:(length(stateptr) - 1)
-        @inbounds s1 = stateptr[j]
-        @inbounds s2 = stateptr[j + 1]
+        s1 = stateptr[j]
+        s2 = stateptr[j + 1]
 
-        @inbounds value_function.cur[j] =
-            reduction(view(value_function.action_values, s1:(s2 - 1))) + s1 - 1
+        opt = value_function.action_values[s1]
+        for i in (s1 + 1):(s2 - 1)
+            if gt(value_function.action_values[i], opt)
+                opt = value_function.action_values[i]
+            end
+        end
+
+        value_function.cur[j] = opt
     end
 
     return value_function, policy_cache
@@ -309,15 +304,24 @@ function extract_policy!(
     stateptr::VT,
     maximize,
 ) where {VT <: AbstractVector}
-    reduction = maximize ? argmax : argmin
+    gt = maximize ? (>) : (<)
 
     @inbounds for j in 1:(length(stateptr) - 1)
-        @inbounds s1 = stateptr[j]
-        @inbounds s2 = stateptr[j + 1]
+        s1 = stateptr[j]
+        s2 = stateptr[j + 1]
 
-        opt_index = reduction(view(value_function.action_values, s1:(s2 - 1))) + s1 - 1
-        @inbounds policy_cache.cur_policy[j] = opt_index
-        @inbounds value_function.cur[j] = value_function.action_values[opt_index]
+        opt_val = value_function.action_values[s1]
+        opt_index = s1
+
+        for i in (s1 + 1):(s2 - 1)
+            if gt(value_function.action_values[i], opt_val)
+                opt_val = value_function.action_values[i]
+                opt_index = i
+            end
+        end
+
+        policy_cache.cur_policy[j] = opt_index
+        value_function.cur[j] = opt_val
     end
 
     push!(policy_cache.policy, copy(policy_cache.cur_policy))
@@ -331,22 +335,29 @@ function extract_policy!(
     stateptr::VT,
     maximize,
 ) where {VT <: AbstractVector}
-    reduction = maximize ? argmax : argmin
     gt = maximize ? (>) : (<)
 
     @inbounds for j in 1:(length(stateptr) - 1)
-        @inbounds s1 = stateptr[j]
-        @inbounds s2 = stateptr[j + 1]
+        s1 = stateptr[j]
+        s2 = stateptr[j + 1]
 
-        opt_index = reduction(view(value_function.action_values, s1:(s2 - 1))) + s1 - 1
-
-        if iszero(policy_cache.policy[j]) ||
-           gt(value_function.action_values[opt_index], value_function.prev[j])
-            @inbounds policy_cache.policy[j] = opt_index
-            @inbounds value_function.cur[j] = value_function.action_values[opt_index]
+        if iszero(policy_cache.policy[j])
+            opt_val = value_function.action_values[s1]
+            opt_index = s1
         else
-            @inbounds value_function.cur[j] = value_function.prev[j]
+            opt_val = value_function.prev[j]
+            opt_index = policy_cache.policy[j]
         end
+
+        for i in s1:(s2 - 1)
+            if gt(value_function.action_values[i], opt_val)
+                opt_val = value_function.action_values[i]
+                opt_index = i
+            end
+        end
+
+        policy_cache.policy[j] = opt_index
+        value_function.cur[j] = opt_val
     end
 
     return value_function, policy_cache
