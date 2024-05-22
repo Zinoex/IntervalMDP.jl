@@ -2,7 +2,7 @@
 function IntervalMDP.construct_value_function(
     ::MR,
     num_states,
-) where {R, MR <: CuSparseMatrixCSC{R}}
+) where {R, MR <: Union{CuSparseMatrixCSC{R}, CuMatrix{R}}}
     V = CUDA.zeros(R, num_states)
     return V
 end
@@ -148,9 +148,9 @@ function IntervalMDP.extract_policy!(
     kernel = @cuda launch = false argreduce_vov_kernel!(
         argop,
         value_function.prev,
-        policy_cache.cur_policy,
+        policy_cache.policy,
         value_function.cur,
-        policy_cache.cur_policy,
+        policy_cache.policy,
         V_per_state,
     )
 
@@ -164,14 +164,13 @@ function IntervalMDP.extract_policy!(
     kernel(
         argop,
         value_function.prev,
-        policy_cache.cur_policy,
+        policy_cache.policy,
         value_function.cur,
+        policy_cache.policy,
         V_per_state;
         threads = threads,
         blocks = blocks,
     )
-
-    push!(policy_cache.policy, copy(policy_cache.cur_policy))
 
     return value_function, policy_cache
 end
@@ -215,7 +214,7 @@ function argreduce_vov_kernel!(
         i = lane
         while i <= bound
             new_val, new_idx = if i <= length(subset)
-                @inbounds subset[i], Ti(i)
+                @inbounds subset[i], subset.offset + Ti(i) - one(Ti)
             else
                 neutral
             end
@@ -228,7 +227,7 @@ function argreduce_vov_kernel!(
 
         if lane == 1
             @inbounds res_val[wid] = val
-            @inbounds res_idx[wid] = idx + subset.offset - 1
+            @inbounds res_idx[wid] = idx
         end
 
         thread_id += gridDim().x * blockDim().x

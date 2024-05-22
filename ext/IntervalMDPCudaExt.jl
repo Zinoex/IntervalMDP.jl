@@ -54,7 +54,7 @@ function Adapt.adapt_structure(
     policy_cache::IntervalMDP.StationaryPolicyCache,
 )
     Itype = IntervalMDP.indtype(T)
-    return IntervalMDP.StationaryPolicyCache(adapt(CuArray{Itype}, policy_cache.cur_policy))
+    return IntervalMDP.StationaryPolicyCache(adapt(CuArray{Itype}, policy_cache.policy))
 end
 
 include("cuda/utils.jl")

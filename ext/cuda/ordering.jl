@@ -1,14 +1,58 @@
 
+##################
+# Dense ordering #
+##################
+struct CuDenseOrdering{T <: Integer, VT <: AbstractVector{T}} <: AbstractStateOrdering{T}
+    perm::VT
+end
+
+function IntervalMDP.construct_ordering(T, p::CuMatrix)
+    # Assume that input/start state is on the columns and output/target state is on the rows
+    n = size(p, 1)
+    perm = CuVector{T}(collect(UnitRange{T}(1, n)))
+    return CuDenseOrdering(perm)
+end
+
+Adapt.@adapt_structure CuDenseOrdering
+
+# Permutations are shared for all states
+IntervalMDP.perm(order::CuDenseOrdering, state) = order.perm
+
+function IntervalMDP.sort_states!(order::CuDenseOrdering, V; max = true)
+    sortperm!(order.perm, V; rev = max)  # rev=true for maximization
+
+    return order
+end
+
+
+###################
+# Sparse ordering #
+###################
 struct CuSparseOrdering{T} <: AbstractStateOrdering{T}
     subsets::CuVectorOfVector{T, T}
     rowvals::CuVector{T}
 end
+
+const CuOrdering{T} = Union{CuDenseOrdering{T}, CuSparseOrdering{T}}
 # TODO: Add adaptor from SparseOrdering to CuSparseOrdering
 
 function CUDA.unsafe_free!(o::CuSparseOrdering)
     unsafe_free!(o.subsets)
     unsafe_free!(o.rowvals)
     return
+end
+
+function IntervalMDP.construct_ordering(T, p::CuSparseMatrixCSC)
+    # Assume that input/start state is on the columns and output/target state is on the rows
+    vecptr = CuVector{T}(p.colPtr)
+    perm = CuVector{T}(SparseArrays.rowvals(p))
+    maxlength = maximum(p.colPtr[2:end] - p.colPtr[1:(end - 1)])
+
+    subsets = CuVectorOfVector{T, T}(vecptr, perm, maxlength)
+    rowvals = CuVector{T}(SparseArrays.rowvals(p))
+
+    order = CuSparseOrdering(subsets, rowvals)
+    return order
 end
 
 function Adapt.adapt_structure(to::CUDA.KernelAdaptor, o::CuSparseOrdering)
@@ -190,17 +234,4 @@ end
         @inbounds subset[i] = perm[i]
         i += blockDim().x
     end
-end
-
-function IntervalMDP.construct_ordering(T, p::CuSparseMatrixCSC)
-    # Assume that input/start state is on the columns and output/target state is on the rows
-    vecptr = CuVector{T}(p.colPtr)
-    perm = CuVector{T}(SparseArrays.rowvals(p))
-    maxlength = maximum(p.colPtr[2:end] - p.colPtr[1:(end - 1)])
-
-    subsets = CuVectorOfVector{T, T}(vecptr, perm, maxlength)
-    rowvals = CuVector{T}(SparseArrays.rowvals(p))
-
-    order = CuSparseOrdering(subsets, rowvals)
-    return order
 end

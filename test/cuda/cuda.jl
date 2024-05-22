@@ -6,7 +6,7 @@
     @test IntervalMDP.indtype(adaptor) == Int32
 end
 
-test_files = ["bellman.jl", "vi.jl", "imdp.jl", "synthesis.jl"]
+test_files = ["sparse/bellman.jl", "sparse/vi.jl", "sparse/imdp.jl", "sparse/synthesis.jl", "dense/bellman.jl", "dense/vi.jl", "dense/imdp.jl", "dense/synthesis.jl"]
 for f in test_files
     @testset "cuda/$f" begin
         include(f)
