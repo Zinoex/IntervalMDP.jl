@@ -1,28 +1,33 @@
 
-function probability_assignment!(
-    p::CuSparseMatrixCSC{Tv, Ti},
+function IntervalMDP.value_assignment!(
+    Vres,
+    V,
     prob::IntervalProbabilities{Tv},
     ordering::CuSparseOrdering{Ti},
     indices,
 ) where {Tv, Ti}
-    copyto!(nonzeros(p), nonzeros(lower(prob)))
+    l = lower(prob)
+
+    Vres .= Transpose(Transpose(V) * l)
 
     # This will only convert/copy the indices if necessary.
     indices = adapt(CuArray{Ti}, indices)
 
-    add_gap_vector!(p, prob, ordering, indices)
+    add_gap_mul_V!(Vres, V, prob, ordering, indices)
 
-    return p
+    return Vres
 end
 
-function add_gap_vector!(
-    p::CuSparseMatrixCSC{Tv, Ti},
+function add_gap_mul_V!(
+    Vres,
+    V,
     prob::IntervalProbabilities{Tv},
     ordering::CuSparseOrdering{Ti},
     indices,
 ) where {Tv, Ti}
-    kernel = @cuda launch = false add_gap_vector_kernel!(
-        p,
+    kernel = @cuda launch = false add_gap_mul_V_kernel!(
+        Vres,
+        V,
         gap(prob),
         sum_lower(prob),
         ordering,
@@ -33,10 +38,11 @@ function add_gap_vector!(
     threads = prevwarp(device(), config.threads)
 
     states_per_block = threads ÷ 32
-    blocks = min(65535, ceil(Int64, size(p, 2) / states_per_block))
+    blocks = min(65535, ceil(Int64, num_source(prob) / states_per_block))
 
     kernel(
-        p,
+        Vres,
+        V,
         gap(prob),
         sum_lower(prob),
         ordering,
@@ -45,11 +51,12 @@ function add_gap_vector!(
         threads = threads,
     )
 
-    return p
+    return Vres
 end
 
-function add_gap_vector_kernel!(
-    p::CuSparseDeviceMatrixCSC{Tv, Ti, A},
+function add_gap_mul_V_kernel!(
+    Vres,
+    V,
     gap::CuSparseDeviceMatrixCSC{Tv, Ti, A},
     sum_lower::CuDeviceVector{Tv, A},
     ordering::CuSparseDeviceOrdering{Ti, A},
@@ -64,12 +71,13 @@ function add_gap_vector_kernel!(
         @inbounds j = Ti(indices[wid])
 
         # p and gap have the same sparsity pattern
-        p_nzs = p.nzVal
         g_nzs = gap.nzVal
+        g_inds = gap.rowVal
 
         @inbounds subset = ordering.subsets[j]
         subset_length = length(subset)
         @inbounds remaining = one(Tv) - sum_lower[j]
+        gap_value = zero(Tv)
 
         s = lane
         while s <= subset_length
@@ -88,15 +96,13 @@ function add_gap_vector_kernel!(
 
             # Update the remaining probability
             remaining -= cum_gap
-            if s <= subset_length
-                remaining += g
-            end
-            remaining = max(zero(Tv), remaining)
+            remaining += g
 
             # Update the probability
             if s <= subset_length
-                sub = min(g, remaining)
-                @inbounds p_nzs[t] += sub
+                @inbounds t = subset.offset + subset[s] - one(Ti)
+                sub = clamp(remaining, zero(Tv), g)
+                @inbounds gap_value += sub * V[g_inds[t]]
                 remaining -= sub
             end
 
@@ -110,6 +116,13 @@ function add_gap_vector_kernel!(
 
             s += warpsize()
         end
+
+        gap_value = CUDA.reduce_warp(+, gap_value)
+
+        if lane == 1
+            Vres[j] += gap_value
+        end
+        sync_warp()
 
         thread_id += gridDim().x * blockDim().x
         wid, lane = fldmod1(thread_id, warpsize())
