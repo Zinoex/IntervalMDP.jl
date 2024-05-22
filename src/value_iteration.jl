@@ -121,7 +121,7 @@ function step_imc!(
     ordering,
     prob::IntervalProbabilities;
     upper_bound,
-)   
+)
     bellman!(ordering, value_function.cur, value_function.prev, prob; max = upper_bound)
 
     return value_function
@@ -268,7 +268,13 @@ function step_imdp!(
     maximize,
     upper_bound,
 )
-    bellman!(ordering, value_function.action_values, value_function.prev, prob; max = upper_bound)
+    bellman!(
+        ordering,
+        value_function.action_values,
+        value_function.prev,
+        prob;
+        max = upper_bound,
+    )
 
     return extract_policy!(value_function, policy_cache, stateptr, maximize)
 end

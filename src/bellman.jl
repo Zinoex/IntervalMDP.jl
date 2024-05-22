@@ -119,7 +119,7 @@ end
 function gap_value(V, gap::VR, sum_lower, perm) where {VR <: AbstractVector}
     remaining = 1.0 - sum_lower
     res = 0.0
-    
+
     @inbounds for i in perm
         p = min(remaining, gap[i])
         res += p * V[i]
@@ -133,7 +133,12 @@ function gap_value(V, gap::VR, sum_lower, perm) where {VR <: AbstractVector}
     return res
 end
 
-function gap_value(V, gap::VR, sum_lower, perm) where {Tv, Ti, VR <: SparseArrays.SparseColumnView{Tv, Ti}}
+function gap_value(
+    V,
+    gap::VR,
+    sum_lower,
+    perm,
+) where {Tv, Ti, VR <: SparseArrays.SparseColumnView{Tv, Ti}}
     remaining = 1.0 - sum_lower
     res = 0.0
 
