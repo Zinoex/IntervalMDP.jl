@@ -118,9 +118,11 @@ V, k, residual = value_iteration(problem)
 sat_prob = satisfaction_prob(problem)
 ```
 
+!!! note
+    To use multi-threading for parallelization, you need to either start julia with `julia --threads <n|auto>` where `n` is a positive integer or to set the environment variable `JULIA_NUM_THREADS` to the number of threads you want to use. For more information, see [Multi-threading](https://docs.julialang.org/en/v1/manual/multi-threading/).
+
 !!! tip
     For less memory usage, it is recommended to use [Sparse matrices](@ref) and `Int32` indices. 
-
 
 ## Sparse matrices
 A disadvantage of IMDPs is that the size of the transition matrices grows ``O(n^2 m)`` where ``n`` is the number of states and ``m`` is the number of actions.
