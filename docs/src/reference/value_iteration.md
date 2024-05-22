@@ -4,7 +4,7 @@
 value_iteration
 ```
 
-## O-maximization
+## Bellman update
 
 ```@docs
 bellman
