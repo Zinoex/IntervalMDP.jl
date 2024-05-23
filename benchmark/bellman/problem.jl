@@ -1,6 +1,6 @@
 using Revise, BenchmarkTools, ProgressMeter
 using Random, StatsBase
-using IMDP, SparseArrays, CUDA, Adapt
+using IntervalMDP, SparseArrays, CUDA, Adapt
 
 rng = MersenneTwister(55392)
 
@@ -26,15 +26,14 @@ end
 lower = SparseMatrixCSC{Float64, Int32}(n, n, col_ptrs, row_vals, rand_val_lower)
 upper = SparseMatrixCSC{Float64, Int32}(n, n, col_ptrs, row_vals, rand_val_upper)
 
-prob = MatrixIntervalProbabilities(; lower = lower, upper = upper)
+prob = IntervalProbabilities(; lower = lower, upper = upper)
 V = rand(Float64, n)
-
-p = deepcopy(gap(prob))
+Vres = copy(V)
 ordering = construct_ordering(gap(prob))
 
 if CUDA.functional()
     cuda_prob = adapt(CuArray{Float64}, prob)
     cuda_V = adapt(CuArray{Float64}, V)
-    cuda_p = adapt(CuArray{Float64}, p)
+    cuda_Vres = copy(cuda_V)
     cuda_ordering = construct_ordering(gap(cuda_prob))
 end

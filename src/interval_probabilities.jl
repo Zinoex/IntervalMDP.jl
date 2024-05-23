@@ -162,11 +162,25 @@ Return the number of source states or source/action pairs.
 num_source(s::IntervalProbabilities) = size(gap(s), 2)
 
 """
+    axes_source(s::IntervalProbabilities)
+
+Return the valid range of indices for the source states or source/action pairs.
+"""
+axes_source(s::IntervalProbabilities) = axes(gap(s), 2)
+
+"""
     num_target(s::IntervalProbabilities)
 
 Return the number of target states.
 """
 num_target(s::IntervalProbabilities) = size(gap(s), 1)
+
+"""
+    axes_target(s::IntervalProbabilities)
+
+Return the valid range of indices for the target states.
+"""
+axes_target(s::IntervalProbabilities) = axes(gap(s), 1)
 
 function interval_prob_hcat(
     T,

@@ -4,11 +4,10 @@ prob = IntervalProbabilities(;
     upper = [0.5 0.7; 0.6 0.5; 0.7 0.3],
 )
 
-V = [1, 2, 3]
+V = [1.0, 2.0, 3.0]
 
-p = ominmax(prob, V; max = true)
-@test p[:, 1] ≈ [0.0, 0.3, 0.7]
-@test p[:, 2] ≈ [0.5, 0.3, 0.2]
+Vres = bellman(V, prob; max = true)
+@test Vres ≈ [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
 
 #### Minimization
 prob = IntervalProbabilities(;
@@ -16,8 +15,7 @@ prob = IntervalProbabilities(;
     upper = [0.5 0.7; 0.6 0.5; 0.7 0.3],
 )
 
-V = [1, 2, 3]
+V = [1.0, 2.0, 3.0]
 
-p = ominmax(prob, V; max = false)
-@test p[:, 1] ≈ [0.5, 0.3, 0.2]
-@test p[:, 2] ≈ [0.6, 0.3, 0.1]
+Vres = bellman(V, prob; max = false)
+@test Vres ≈ [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]

@@ -147,11 +147,7 @@ end
 end
 
 @inline function create_mask(j::Ti) where {Ti}
-    mask = Ti(0)
-    while j > Ti(0)
-        mask |= j
-        j ÷= Ti(2)
-    end
+    mask = Ti(2) * j - one(Ti)
 
     return mask
 end
