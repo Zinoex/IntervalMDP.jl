@@ -22,17 +22,14 @@ struct DenseOrdering{T <: Integer, VT <: AbstractVector{T}} <: AbstractStateOrde
     perm::VT
 end
 
-function DenseOrdering{T}(n) where {T}
-    return DenseOrdering(collect(UnitRange{T}(1, n)))
-end
-
 # Permutations are shared for all states
 perm(order::DenseOrdering, state) = order.perm
 
 function construct_ordering(T, p::AbstractMatrix)
     # Assume that input/start state is on the columns and output/target state is on the rows
     n = size(p, 1)
-    return DenseOrdering{T}(n)
+    perm = collect(UnitRange{T}(1, n))
+    return DenseOrdering(perm)
 end
 
 function sort_states!(order::DenseOrdering, V; max = true)

@@ -3,9 +3,9 @@ function IntervalMDP.value_assignment!(
     Vres,
     V,
     prob::IntervalProbabilities{Tv},
-    ordering::CuSparseOrdering{Ti},
+    ordering::O,
     indices,
-) where {Tv, Ti}
+) where {Tv, Ti, O <: CuOrdering{Ti}}
     l = lower(prob)
 
     Vres .= Transpose(Transpose(V) * l)
@@ -25,7 +25,7 @@ function add_gap_mul_V!(
     ordering::CuSparseOrdering{Ti},
     indices,
 ) where {Tv, Ti}
-    kernel = @cuda launch = false add_gap_mul_V_kernel!(
+    kernel = @cuda launch = false add_gap_mul_V_sparse_kernel!(
         Vres,
         V,
         gap(prob),
@@ -54,7 +54,7 @@ function add_gap_mul_V!(
     return Vres
 end
 
-function add_gap_mul_V_kernel!(
+function add_gap_mul_V_sparse_kernel!(
     Vres,
     V,
     gap::CuSparseDeviceMatrixCSC{Tv, Ti, A},
@@ -70,19 +70,18 @@ function add_gap_mul_V_kernel!(
     while wid <= length(indices)
         @inbounds j = Ti(indices[wid])
 
-        # p and gap have the same sparsity pattern
         g_nzs = gap.nzVal
         g_inds = gap.rowVal
 
         @inbounds subset = ordering.subsets[j]
-        subset_length = length(subset)
+        warp_aligned_length = kernel_nextwarp(length(subset))
         @inbounds remaining = one(Tv) - sum_lower[j]
         gap_value = zero(Tv)
 
         s = lane
-        while s <= subset_length
+        while s <= warp_aligned_length
             # Find index of the permutation, and lookup the corresponding gap
-            g = if s <= subset_length
+            g = if s <= length(subset)
                 @inbounds t = subset.offset + subset[s] - one(Ti)
 
                 @inbounds g_nzs[t]
@@ -99,7 +98,7 @@ function add_gap_mul_V_kernel!(
             remaining += g
 
             # Update the probability
-            if s <= subset_length
+            if s <= length(subset)
                 @inbounds t = subset.offset + subset[s] - one(Ti)
                 sub = clamp(remaining, zero(Tv), g)
                 @inbounds gap_value += sub * V[g_inds[t]]
@@ -131,16 +130,108 @@ function add_gap_mul_V_kernel!(
     return nothing
 end
 
-@inline function cumsum_warp(val, lane)
+function add_gap_mul_V!(
+    Vres,
+    V,
+    prob::IntervalProbabilities{Tv},
+    ordering::CuDenseOrdering{Ti},
+    indices,
+) where {Tv, Ti}
+    kernel = @cuda launch = false add_gap_mul_V_dense_kernel!(
+        Vres,
+        V,
+        gap(prob),
+        sum_lower(prob),
+        ordering,
+        indices,
+    )
+
+    config = launch_configuration(kernel.fun)
+    threads = prevwarp(device(), config.threads)
+
+    states_per_block = threads ÷ 32
+    blocks = min(65535, ceil(Int64, num_source(prob) / states_per_block))
+
+    kernel(
+        Vres,
+        V,
+        gap(prob),
+        sum_lower(prob),
+        ordering,
+        indices;
+        blocks = blocks,
+        threads = threads,
+    )
+
+    return Vres
+end
+
+function add_gap_mul_V_dense_kernel!(
+    Vres,
+    V,
+    gap::CuDeviceMatrix{Tv, A},
+    sum_lower::CuDeviceVector{Tv, A},
+    ordering::CuDenseOrdering{Ti},
+    indices,
+) where {Tv, Ti, A}
     assume(warpsize() == 32)
-    offset = 0x00000001
-    while offset < warpsize()
-        up_val = shfl_up_sync(0xffffffff, val, offset)
-        if lane > offset
-            val += up_val
+
+    thread_id = (blockIdx().x - one(Ti)) * blockDim().x + threadIdx().x
+    wid, lane = fldmod1(thread_id, warpsize())
+
+    while wid <= length(indices)
+        @inbounds j = Ti(indices[wid])
+
+        @inbounds gapⱼ = @view gap[:, j]
+        warp_aligned_length = kernel_nextwarp(length(gapⱼ))
+        @inbounds remaining = one(Tv) - sum_lower[j]
+        gap_value = zero(Tv)
+
+        s = lane
+        while s <= warp_aligned_length
+            # Find index of the permutation, and lookup the corresponding gap
+            g = if s <= length(gapⱼ)
+                @inbounds gapⱼ[ordering.perm[s]]
+            else
+                # 0 gap is a neural element
+                zero(Tv)
+            end
+
+            # Cummulatively sum the gap with a tree reduction
+            cum_gap = cumsum_warp(g, lane)
+
+            # Update the remaining probability
+            remaining -= cum_gap
+            remaining += g
+
+            # Update the probability
+            if s <= length(gapⱼ)
+                sub = clamp(remaining, zero(Tv), g)
+                @inbounds gap_value += sub * V[ordering.perm[s]]
+                remaining -= sub
+            end
+
+            # Update the remaining probability from the last thread in the warp
+            remaining = shfl_sync(0xffffffff, remaining, warpsize())
+
+            # Early exit if the remaining probability is zero
+            if remaining <= zero(Tv)
+                break
+            end
+
+            s += warpsize()
         end
-        offset <<= 1
+
+        gap_value = CUDA.reduce_warp(+, gap_value)
+
+        if lane == 1
+            Vres[j] += gap_value
+        end
+        sync_warp()
+
+        thread_id += gridDim().x * blockDim().x
+        wid, lane = fldmod1(thread_id, warpsize())
     end
 
-    return val
+    return nothing
 end

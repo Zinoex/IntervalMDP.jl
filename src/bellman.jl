@@ -90,8 +90,8 @@ function value_assignment!(
     Vres,
     V,
     prob::IntervalProbabilities{R},
-    ordering::AbstractStateOrdering,
-) where {R}
+    ordering::O,
+) where {R, O <: AbstractStateOrdering}
     return value_assignment!(Vres, V, prob, ordering, axes_source(prob))
 end
 
@@ -99,9 +99,9 @@ function value_assignment!(
     Vres,
     V,
     prob::IntervalProbabilities{R},
-    ordering::AbstractStateOrdering,
+    ordering::O,
     indices,
-) where {R}
+) where {R, O <: AbstractStateOrdering}
     l = lower(prob)
     g = gap(prob)
 

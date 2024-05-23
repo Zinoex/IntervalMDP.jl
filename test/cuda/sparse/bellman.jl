@@ -1,6 +1,5 @@
 #### Maximization
 
-# Matrix
 prob = IntervalMDP.cu(
     IntervalProbabilities(;
         lower = sparse_hcat(
@@ -20,7 +19,7 @@ Vres = bellman(V, prob; max = true)
 Vres = Vector(Vres)
 @test Vres ≈ [0.3 * 4 + 0.7 * 10, 0.5 * 5 + 0.3 * 6 + 0.2 * 7]
 
-# Matrix - to gpu first
+# To GPU first
 prob = IntervalProbabilities(;
     lower = IntervalMDP.cu(
         sparse_hcat(
@@ -44,7 +43,6 @@ Vres = Vector(Vres)
 
 #### Minimization
 
-# Matrix
 prob = IntervalMDP.cu(
     IntervalProbabilities(;
         lower = sparse_hcat(

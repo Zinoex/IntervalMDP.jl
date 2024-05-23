@@ -83,7 +83,7 @@ function value_iteration(
     return value_function.cur, k, value_function.prev
 end
 
-function construct_value_function(::AbstractMatrix{R}, num_states) where {R}
+function construct_value_function(::MR, num_states) where {R, MR <: AbstractMatrix{R}}
     V = zeros(R, num_states)
     return V
 end
