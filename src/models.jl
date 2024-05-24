@@ -20,7 +20,6 @@ Return the number of states.
 """
 num_states(mp::IntervalMarkovProcess) = mp.num_states
 
-
 function all_initial_states(num_states)
     if num_states <= typemax(Int32)
         return Base.OneTo(Int32(num_states))
@@ -37,7 +36,8 @@ end
 
 An abstract type for stationary interval Markov processes including [`IntervalMarkovChain`](@ref) and [`IntervalMarkovDecisionProcess`](@ref).
 """
-abstract type StationaryIntervalMarkovProcess{P <: IntervalProbabilities} <: IntervalMarkovProcess{P} end
+abstract type StationaryIntervalMarkovProcess{P <: IntervalProbabilities} <:
+              IntervalMarkovProcess{P} end
 transition_prob(mp::StationaryIntervalMarkovProcess, t) = transition_prob(mp)
 time_length(mp::StationaryIntervalMarkovProcess) = typemax(Int64)
 
@@ -366,7 +366,11 @@ function tomarkovchain(mdp::IntervalMarkovDecisionProcess)
     num_choices_per_state = diff(sptr)
 
     if any(num_choices_per_state .> 1)
-        throw(ArgumentError("The number of actions per state must be 1 or a strategy must be provided."))
+        throw(
+            ArgumentError(
+                "The number of actions per state must be 1 or a strategy must be provided.",
+            ),
+        )
     end
 
     probs = transition_prob(mdp)
@@ -387,9 +391,13 @@ function tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVec
 
     strategy_idxes = eltype(sptr)[]
     for i in 1:num_states(mdp)
-        state_actions = actions(mdp)[sptr[i]:sptr[i + 1] - 1]
+        state_actions = actions(mdp)[sptr[i]:(sptr[i + 1] - 1)]
         if !(strategy[i] in state_actions)
-            throw(ArgumentError("The strategy must be a valid action for each state. Was $(strategy[i]) for state $i, available actions are $state_actions."))
+            throw(
+                ArgumentError(
+                    "The strategy must be a valid action for each state. Was $(strategy[i]) for state $i, available actions are $state_actions.",
+                ),
+            )
         end
 
         for j in sptr[i]:(sptr[i + 1] - 1)
@@ -412,7 +420,10 @@ end
 
 Extract an Interval Markov Chain from an Interval Markov Decision Process under a time-varying strategy. The extracted IMC is time-varying.
 """
-function tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector{<:AbstractVector})
+function tomarkovchain(
+    mdp::IntervalMarkovDecisionProcess,
+    strategy::AbstractVector{<:AbstractVector},
+)
     sptr = stateptr(mdp)
 
     probs = transition_prob(mdp)
@@ -421,9 +432,13 @@ function tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVec
     for (t, strategy_step) in enumerate(strategy)
         strategy_idxes = eltype(sptr)[]
         for i in 1:num_states(mdp)
-            state_actions = actions(mdp)[sptr[i]:sptr[i + 1] - 1]
+            state_actions = actions(mdp)[sptr[i]:(sptr[i + 1] - 1)]
             if !(strategy_step[i] in state_actions)
-                throw(ArgumentError("The strategy must be a valid action for each state. Was $(strategy_step[i]) for state $i at time $t, available actions are $state_actions."))
+                throw(
+                    ArgumentError(
+                        "The strategy must be a valid action for each state. Was $(strategy_step[i]) for state $i at time $t, available actions are $state_actions.",
+                    ),
+                )
             end
 
             for j in sptr[i]:(sptr[i + 1] - 1)
@@ -442,7 +457,6 @@ function tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVec
     return TimeVaryingIntervalMarkovChain(new_probs, istates)
 end
 
-
 ################
 # Time-varying #
 # ##############
@@ -451,7 +465,8 @@ end
 
 An abstract type for time-varying interval Markov processes including [`TimeVaryingIntervalMarkovChain`](@ref).
 """
-abstract type TimeVaryingIntervalMarkovProcess{P <: IntervalProbabilities} <: IntervalMarkovProcess{P} end
+abstract type TimeVaryingIntervalMarkovProcess{P <: IntervalProbabilities} <:
+              IntervalMarkovProcess{P} end
 transition_probs(s::TimeVaryingIntervalMarkovProcess) = s.transition_probs
 
 """
@@ -559,7 +574,9 @@ function TimeVaryingIntervalMarkovChain(
     return TimeVaryingIntervalMarkovChain(transition_probs, initial_states, num_states)
 end
 
-function TimeVaryingIntervalMarkovChain(transition_probs::Vector{P}) where {P <: IntervalProbabilities}
+function TimeVaryingIntervalMarkovChain(
+    transition_probs::Vector{P},
+) where {P <: IntervalProbabilities}
     return TimeVaryingIntervalMarkovChain(
         transition_probs,
         all_initial_states(num_source(first(transition_probs))),

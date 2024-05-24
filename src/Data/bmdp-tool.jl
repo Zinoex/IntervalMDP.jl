@@ -126,8 +126,11 @@ write_bmdp_tool_file(path, mdp::StationaryIntervalMarkovProcess, spec::Specifica
 """
     write_bmdp_tool_file(path, mdp::StationaryIntervalMarkovProcess, prop::AbstractReachability)
 """
-write_bmdp_tool_file(path, mdp::StationaryIntervalMarkovProcess, prop::AbstractReachability) =
-    write_bmdp_tool_file(path, mdp, reach(prop))
+write_bmdp_tool_file(
+    path,
+    mdp::StationaryIntervalMarkovProcess,
+    prop::AbstractReachability,
+) = write_bmdp_tool_file(path, mdp, reach(prop))
 
 """
     write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{T})

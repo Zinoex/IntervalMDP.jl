@@ -133,46 +133,36 @@ V_fixed_it2, k, _ = value_iteration(problem)
 # V_conv, _, u = value_iteration(problem; maximize = true, upper_bound = false)
 # @test maximum(u) <= 1e-6
 
-
 # Test extraction of IMC from IMDP if the IMDP only has a single action per state
-prob1 = IntervalProbabilities(;
-    lower = [
-        0.0
-        0.1
-        0.2
-    ][:, :],
-    upper = [
-        0.5
-        0.6
-        0.7
-    ][:, :],
-)
+prob1 = IntervalProbabilities(; lower = [
+    0.0
+    0.1
+    0.2
+][:, :], upper = [
+    0.5
+    0.6
+    0.7
+][:, :])
 
-prob2 = IntervalProbabilities(;
-    lower = [
-        0.1
-        0.2
-        0.3
-    ][:, :],
-    upper = [
-        0.6
-        0.5
-        0.4
-    ][:, :],
-)
+prob2 = IntervalProbabilities(; lower = [
+    0.1
+    0.2
+    0.3
+][:, :], upper = [
+    0.6
+    0.5
+    0.4
+][:, :])
 
-prob3 = IntervalProbabilities(; 
-    lower = [
-        0.0
-        0.0
-        1.0
-    ][:, :], 
-    upper = [
-        0.0
-        0.0
-        1.0
-    ][:, :]
-)
+prob3 = IntervalProbabilities(; lower = [
+    0.0
+    0.0
+    1.0
+][:, :], upper = [
+    0.0
+    0.0
+    1.0
+][:, :])
 
 transition_probs = [["a1"] => prob1, ["a2"] => prob2, ["sinking"] => prob3]
 istates = [Int32(1)]

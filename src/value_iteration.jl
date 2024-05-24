@@ -52,7 +52,10 @@ V, k, residual = value_iteration(problem)
 """
 function value_iteration(
     problem::Problem{M, S},
-) where {M <: Union{IntervalMarkovChain, TimeVaryingIntervalMarkovChain}, S <: Specification}
+) where {
+    M <: Union{IntervalMarkovChain, TimeVaryingIntervalMarkovChain},
+    S <: Specification,
+}
     mc = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(spec)

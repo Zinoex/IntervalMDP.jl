@@ -171,7 +171,10 @@ struct InfiniteTimeReachability{R <: Real, T <: Integer, VT <: AbstractVector{T}
     convergence_eps::R
 end
 
-function checkproperty!(prop::InfiniteTimeReachability, system::StationaryIntervalMarkovProcess)
+function checkproperty!(
+    prop::InfiniteTimeReachability,
+    system::StationaryIntervalMarkovProcess,
+)
     checkterminal!(terminal_states(prop), system)
     checkconvergence!(prop)
 end
@@ -292,7 +295,10 @@ struct InfiniteTimeReachAvoid{R <: Real, T <: Integer, VT <: AbstractVector{T}} 
     convergence_eps::R
 end
 
-function checkproperty!(prop::InfiniteTimeReachAvoid, system::StationaryIntervalMarkovProcess)
+function checkproperty!(
+    prop::InfiniteTimeReachAvoid,
+    system::StationaryIntervalMarkovProcess,
+)
     checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
     checkconvergence!(prop)
