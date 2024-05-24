@@ -2,24 +2,27 @@
 
 ```@docs
 IntervalMarkovProcess
+num_states(mp::IntervalMarkovProcess)
+initial_states(mp::IntervalMarkovProcess)
+StationaryIntervalMarkovProcess
+transition_prob(mp::StationaryIntervalMarkovProcess)
+TimeVaryingIntervalMarkovProcess
+transition_prob(mp::TimeVaryingIntervalMarkovProcess, t)
+time_length(mp::TimeVaryingIntervalMarkovProcess)
 ```
 
 ## Markov chain
 ```@docs
 IntervalMarkovChain
-transition_prob(mc::IntervalMarkovChain)
-num_states(mc::IntervalMarkovChain)
-initial_states(mc::IntervalMarkovChain)
+TimeVaryingIntervalMarkovProcess
 ```
 
 ## Markov decision process
 ```@docs
 IntervalMarkovDecisionProcess
-transition_prob(mdp::IntervalMarkovDecisionProcess)
-num_states(mdp::IntervalMarkovDecisionProcess)
-initial_states(mdp::IntervalMarkovDecisionProcess)
 actions(mdp::IntervalMarkovDecisionProcess)
 num_choices(mdp::IntervalMarkovDecisionProcess)
+tomarkovchain
 ```
 
 ## Probability representation
