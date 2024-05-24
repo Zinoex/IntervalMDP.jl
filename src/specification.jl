@@ -353,7 +353,7 @@ function postprocess!(value_function, prop::AbstractReward)
 end
 
 function checkreward!(prop::AbstractReward, system::IntervalMarkovProcess)
-    checkdevice!(reward(prop), transition_probs(system))
+    checkdevice!(reward(prop), transition_prob(system))
     @assert length(reward(prop)) == num_states(system)
     @assert 0 < discount(prop)  # Discount must be non-negative.
 end
