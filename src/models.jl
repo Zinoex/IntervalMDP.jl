@@ -1,10 +1,10 @@
 
 """
-    IntervalMarkovProcess
+    IntervalMarkovProcess{P <: IntervalProbabilities}
 
 An abstract type for interval Markov processes including [`IntervalMarkovChain`](@ref) and [`IntervalMarkovDecisionProcess`](@ref).
 """
-abstract type IntervalMarkovProcess end
+abstract type IntervalMarkovProcess{P <: IntervalProbabilities} end
 
 function all_initial_states(num_states)
     if num_states <= typemax(Int32)
@@ -58,7 +58,7 @@ struct IntervalMarkovChain{
     P <: IntervalProbabilities,
     T <: Integer,
     VT <: AbstractVector{T},
-} <: IntervalMarkovProcess
+} <: IntervalMarkovProcess{P}
     transition_prob::P
     initial_states::VT
     num_states::T
@@ -213,7 +213,7 @@ struct IntervalMarkovDecisionProcess{
     VT <: AbstractVector{T},
     VI <: AbstractVector{T},
     VA <: AbstractVector,
-} <: IntervalMarkovProcess
+} <: IntervalMarkovProcess{P}
     transition_prob::P
     stateptr::VT
     action_vals::VA
