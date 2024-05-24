@@ -185,7 +185,7 @@ Write an `IntervalMarkovDecisionProcess` or `IntervalMarkovChain` to an Interval
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-function write_intervalmdp_jl_model(model_path, mdp_or_mc::IntervalMarkovProcess)
+function write_intervalmdp_jl_model(model_path, mdp_or_mc::StationaryIntervalMarkovProcess)
     Dataset(model_path, "c") do dataset
         dataset.attrib["format"] = "sparse_csc"
         dataset.attrib["num_states"] = num_states(mdp_or_mc)

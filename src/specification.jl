@@ -7,8 +7,14 @@ Super type for all system Property
 """
 abstract type Property end
 
-function checktimehorizon!(prop)
+function checktimehorizon!(prop, ::StationaryIntervalMarkovProcess)
     @assert time_horizon(prop) > 0
+end
+
+function checktimehorizon!(prop, system::TimeVaryingIntervalMarkovProcess)
+    @assert time_horizon(prop) > 0
+    # It is not meaningful to check a property with a different time horizon.
+    @assert time_horizon(prop) == time_length(system) "The time horizon of the property does not match the time length of the system"
 end
 
 function checkconvergence!(prop)
@@ -119,7 +125,7 @@ end
 
 function checkproperty!(prop::FiniteTimeReachability, system::IntervalMarkovProcess)
     checkterminal!(terminal_states(prop), system)
-    checktimehorizon!(prop)
+    checktimehorizon!(prop, system)
 end
 
 """
@@ -165,9 +171,13 @@ struct InfiniteTimeReachability{R <: Real, T <: Integer, VT <: AbstractVector{T}
     convergence_eps::R
 end
 
-function checkproperty!(prop::InfiniteTimeReachability, system::IntervalMarkovProcess)
+function checkproperty!(prop::InfiniteTimeReachability, system::StationaryIntervalMarkovProcess)
     checkterminal!(terminal_states(prop), system)
     checkconvergence!(prop)
+end
+
+function checkproperty!(::InfiniteTimeReachability, ::TimeVaryingIntervalMarkovProcess)
+    @assert false "Time-varying interval Markov processes are not supported for infinite time properties."
 end
 
 """
@@ -231,7 +241,7 @@ end
 function checkproperty!(prop::FiniteTimeReachAvoid, system::IntervalMarkovProcess)
     checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
-    checktimehorizon!(prop)
+    checktimehorizon!(prop, system)
 end
 
 """
@@ -282,10 +292,14 @@ struct InfiniteTimeReachAvoid{R <: Real, T <: Integer, VT <: AbstractVector{T}} 
     convergence_eps::R
 end
 
-function checkproperty!(prop::InfiniteTimeReachAvoid, system::IntervalMarkovProcess)
+function checkproperty!(prop::InfiniteTimeReachAvoid, system::StationaryIntervalMarkovProcess)
     checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
     checkconvergence!(prop)
+end
+
+function checkproperty!(::InfiniteTimeReachAvoid, ::TimeVaryingIntervalMarkovProcess)
+    @assert false "Time-varying interval Markov processes are not supported for infinite time properties."
 end
 
 """
@@ -373,7 +387,7 @@ end
 
 function checkproperty!(prop::FiniteTimeReward, system::IntervalMarkovProcess)
     checkreward!(prop, system)
-    checktimehorizon!(prop)
+    checktimehorizon!(prop, system)
 end
 
 """
@@ -417,10 +431,14 @@ struct InfiniteTimeReward{R <: Real, VR <: AbstractVector{R}} <: AbstractReward{
     convergence_eps::R
 end
 
-function checkproperty!(prop::InfiniteTimeReward, system::IntervalMarkovProcess)
+function checkproperty!(prop::InfiniteTimeReward, system::StationaryIntervalMarkovProcess)
     checkreward!(prop, system)
     @assert discount(prop) < 1
     checkconvergence!(prop)
+end
+
+function checkproperty!(::InfiniteTimeReward, ::TimeVaryingIntervalMarkovProcess)
+    @assert false "Time-varying interval Markov processes are not supported for infinite time properties."
 end
 
 """
