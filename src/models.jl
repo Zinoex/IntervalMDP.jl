@@ -1,24 +1,24 @@
 
 """
-    IntervalMarkovProcess
+    IntervalMarkovProcess{P <: IntervalProbabilities}
 
 An abstract type for interval Markov processes including [`IntervalMarkovChain`](@ref) and [`IntervalMarkovDecisionProcess`](@ref).
 """
 abstract type IntervalMarkovProcess{P <: IntervalProbabilities} end
 
 """
-    initial_states(s::IntervalMarkovProcess)
+    initial_states(mp::IntervalMarkovProcess)
 
 Return the initial states.
 """
-initial_states(s::IntervalMarkovProcess) = s.initial_states
+initial_states(mp::IntervalMarkovProcess) = mp.initial_states
 
 """
-    num_states(s::IntervalMarkovProcess)
+    num_states(mp::IntervalMarkovProcess)
 
 Return the number of states.
 """
-num_states(s::IntervalMarkovProcess) = s.num_states
+num_states(mp::IntervalMarkovProcess) = mp.num_states
 
 
 function all_initial_states(num_states)
@@ -32,16 +32,21 @@ end
 ##############
 # Stationary #
 # ############
+"""
+    StationaryIntervalMarkovProcess{P <: IntervalProbabilities}
+
+An abstract type for stationary interval Markov processes including [`IntervalMarkovChain`](@ref) and [`IntervalMarkovDecisionProcess`](@ref).
+"""
 abstract type StationaryIntervalMarkovProcess{P <: IntervalProbabilities} <: IntervalMarkovProcess{P} end
-transition_prob(s::StationaryIntervalMarkovProcess, t) = transition_prob(s)
-time_length(s::StationaryIntervalMarkovProcess) = typemax(Int64)
+transition_prob(mp::StationaryIntervalMarkovProcess, t) = transition_prob(mp)
+time_length(mp::StationaryIntervalMarkovProcess) = typemax(Int64)
 
 """
-    transition_prob(s::IntervalMarkovChain)
+    transition_prob(mp::StationaryIntervalMarkovProcess)
 
 Return the interval on transition probabilities.
 """
-transition_prob(s::StationaryIntervalMarkovProcess) = s.transition_prob
+transition_prob(mp::StationaryIntervalMarkovProcess) = mp.transition_prob
 
 # Interval Markov Chain
 """
@@ -335,20 +340,20 @@ function checksize_imdp!(p::IntervalProbabilities, stateptr)
 end
 
 """
-    actions(s::IntervalMarkovDecisionProcess)
+    actions(mdp::IntervalMarkovDecisionProcess)
 
 Return a vector of actions (choices in PRISM terminology).
 """
-actions(s::IntervalMarkovDecisionProcess) = s.action_vals
+actions(mdp::IntervalMarkovDecisionProcess) = mdp.action_vals
 
 """
-    num_choices(s::IntervalMarkovDecisionProcess)
+    num_choices(mdp::IntervalMarkovDecisionProcess)
 
 Return the sum of the number of actions available in each state ``\\sum_{j} \\mathrm{num\\_actions}(s_j)``.
 """
-num_choices(s::IntervalMarkovDecisionProcess) = length(actions(s))
+num_choices(mdp::IntervalMarkovDecisionProcess) = length(actions(mdp))
 
-stateptr(s::IntervalMarkovDecisionProcess) = s.stateptr
+stateptr(mdp::IntervalMarkovDecisionProcess) = mdp.stateptr
 
 """
     tomarkovchain(mdp::IntervalMarkovDecisionProcess)
@@ -441,28 +446,33 @@ end
 ################
 # Time-varying #
 # ##############
+"""
+    TimeVaryingIntervalMarkovProcess{P <: IntervalProbabilities}
+
+An abstract type for time-varying interval Markov processes including [`TimeVaryingIntervalMarkovChain`](@ref).
+"""
 abstract type TimeVaryingIntervalMarkovProcess{P <: IntervalProbabilities} <: IntervalMarkovProcess{P} end
 transition_probs(s::TimeVaryingIntervalMarkovProcess) = s.transition_probs
 
 """
-    time_length(s::TimeVaryingIntervalMarkovProcess)
+    time_length(mp::TimeVaryingIntervalMarkovProcess)
 
 Return the time length of the time-varying interval Markov process. Model checking for this type of process
 must be done over for a finite time property of equal length.
 """
-time_length(s::TimeVaryingIntervalMarkovProcess) = length(transition_probs(s))
+time_length(mp::TimeVaryingIntervalMarkovProcess) = length(transition_probs(mp))
 
 """
     transition_prob(s::TimeVaryingIntervalMarkovProcess, t)
 
 Return the interval on transition probabilities at time step ``t``.
 """
-function transition_prob(s::TimeVaryingIntervalMarkovProcess, t)
-    if t < 1 || t > time_length(s)
-        throw(DomainError("Time step must be between 1 and $(time_length(s))"))
+function transition_prob(mp::TimeVaryingIntervalMarkovProcess, t)
+    if t < 1 || t > time_length(mp)
+        throw(DomainError("Time step must be between 1 and $(time_length(mp))"))
     end
 
-    return transition_probs(s)[t]
+    return transition_probs(mp)[t]
 end
 
 # Time-varying Interval Markov Chain

@@ -16,12 +16,10 @@ StrategyMode
 ## Temporal logic
 
 ```@docs
-IntervalMDP.AbstractTemporalLogic
-
 LTLFormula
-IntervalMDP.isfinitetime(spec::LTLFormula)
+isfinitetime(spec::LTLFormula)
 LTLfFormula
-IntervalMDP.isfinitetime(spec::LTLfFormula)
+isfinitetime(spec::LTLfFormula)
 time_horizon(spec::LTLfFormula)
 PCTLFormula
 ```
@@ -32,13 +30,13 @@ PCTLFormula
 AbstractReachability
 
 FiniteTimeReachability
-IntervalMDP.isfinitetime(spec::FiniteTimeReachability)
+isfinitetime(spec::FiniteTimeReachability)
 terminal_states(spec::FiniteTimeReachability)
 reach(spec::FiniteTimeReachability)
 time_horizon(spec::FiniteTimeReachability)
 
 InfiniteTimeReachability
-IntervalMDP.isfinitetime(spec::InfiniteTimeReachability)
+isfinitetime(spec::InfiniteTimeReachability)
 terminal_states(spec::InfiniteTimeReachability)
 reach(spec::InfiniteTimeReachability)
 convergence_eps(spec::InfiniteTimeReachability)
@@ -50,14 +48,14 @@ convergence_eps(spec::InfiniteTimeReachability)
 AbstractReachAvoid
 
 FiniteTimeReachAvoid
-IntervalMDP.isfinitetime(spec::FiniteTimeReachAvoid)
+isfinitetime(spec::FiniteTimeReachAvoid)
 terminal_states(spec::FiniteTimeReachAvoid)
 reach(spec::FiniteTimeReachAvoid)
 avoid(spec::FiniteTimeReachAvoid)
 time_horizon(spec::FiniteTimeReachAvoid)
 
 InfiniteTimeReachAvoid
-IntervalMDP.isfinitetime(spec::InfiniteTimeReachAvoid)
+isfinitetime(spec::InfiniteTimeReachAvoid)
 terminal_states(spec::InfiniteTimeReachAvoid)
 reach(spec::InfiniteTimeReachAvoid)
 avoid(spec::InfiniteTimeReachAvoid)
@@ -70,13 +68,13 @@ convergence_eps(spec::InfiniteTimeReachAvoid)
 AbstractReward
 
 FiniteTimeReward
-IntervalMDP.isfinitetime(spec::FiniteTimeReward)
+isfinitetime(spec::FiniteTimeReward)
 reward(spec::FiniteTimeReward)
 discount(spec::FiniteTimeReward)
 time_horizon(spec::FiniteTimeReward)
 
 InfiniteTimeReward
-IntervalMDP.isfinitetime(spec::InfiniteTimeReward)
+isfinitetime(spec::InfiniteTimeReward)
 reward(spec::InfiniteTimeReward)
 discount(spec::InfiniteTimeReward)
 convergence_eps(spec::InfiniteTimeReward)

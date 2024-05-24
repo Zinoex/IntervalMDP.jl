@@ -2,8 +2,8 @@
 
 ```@docs
 IntervalMarkovProcess
-num_states(mp::IntervalMarkovProcess)
-initial_states(mp::IntervalMarkovProcess)
+num_states(s::IntervalMarkovProcess)
+initial_states(s::IntervalMarkovProcess)
 StationaryIntervalMarkovProcess
 transition_prob(mp::StationaryIntervalMarkovProcess)
 TimeVaryingIntervalMarkovProcess
@@ -14,7 +14,7 @@ time_length(mp::TimeVaryingIntervalMarkovProcess)
 ## Markov chain
 ```@docs
 IntervalMarkovChain
-TimeVaryingIntervalMarkovProcess
+TimeVaryingIntervalMarkovChain
 ```
 
 ## Markov decision process
