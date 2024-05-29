@@ -183,7 +183,6 @@ Return the valid range of indices for the target states.
 axes_target(p::IntervalProbabilities) = axes(gap(p), 1)
 
 function interval_prob_hcat(
-    T,
     ps::Vector{<:IntervalProbabilities{R, VR, MR}},
 ) where {R, VR, MR <: AbstractMatrix{R}}
     l = mapreduce(lower, hcat, ps)
@@ -192,7 +191,7 @@ function interval_prob_hcat(
     sl = mapreduce(sum_lower, vcat, ps)
 
     lengths = map(num_source, ps)
-    stateptr = T[1; cumsum(lengths) .+ 1]
+    stateptr = Int32[1; cumsum(lengths) .+ 1]
 
     return IntervalProbabilities(l, g, sl), stateptr
 end

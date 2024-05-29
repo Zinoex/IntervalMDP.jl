@@ -1,9 +1,8 @@
 """
     IntervalMarkovDecisionProcess{
         P <: IntervalProbabilities,
-        T <: Integer,
-        VT <: AbstractVector{T},
-        VI <: AbstractVector{T},
+        VT <: AbstractVector{Int32},
+        VI <: Union{AllStates, AbstractVector},
         VA <: AbstractVector,
     }
 
@@ -23,7 +22,7 @@ If no initial states are specified, then the initial states are assumed to be al
     probability matrix for source state `j`) in the style of colptr for sparse matrices in CSC format.
 - `action_vals::VA`: actions available in each state. Can be any eltype.
 - `initial_states::VI`: initial states.
-- `num_states::T`: number of states.
+- `num_states::Int32`: number of states.
 
 ### Examples
 
@@ -92,31 +91,24 @@ mdp = IntervalMarkovDecisionProcess(transition_probs, initial_states)
 """
 struct IntervalMarkovDecisionProcess{
     P <: IntervalProbabilities,
-    T <: Integer,
-    VT <: AbstractVector{T},
-    VI <: AbstractVector{T},
+    VT <: AbstractVector{Int32},
+    VI <: InitialStates,
     VA <: AbstractVector,
 } <: StationaryIntervalMarkovProcess{P}
     transition_prob::P
     stateptr::VT
     action_vals::VA
     initial_states::VI
-    num_states::T
+    num_states::Int32
 end
 
 function IntervalMarkovDecisionProcess(
-    transition_prob::P,
-    stateptr::VT,
-    action_vals::VA,
-    initial_states,
-) where {
-    P <: IntervalProbabilities,
-    T <: Integer,
-    VT <: AbstractVector{T},
-    VA <: AbstractVector,
-}
+    transition_prob::IntervalProbabilities,
+    stateptr::AbstractVector{<:Integer},
+    action_vals::AbstractVector,
+    initial_states::InitialStates,
+)
     num_states = checksize_imdp!(transition_prob, stateptr)
-    num_states = T(num_states)
 
     return IntervalMarkovDecisionProcess(
         transition_prob,
@@ -128,53 +120,45 @@ function IntervalMarkovDecisionProcess(
 end
 
 function IntervalMarkovDecisionProcess(
-    transition_prob::P,
-    stateptr::VT,
-    action_vals::VA,
-) where {P <: IntervalProbabilities, VT <: AbstractVector{<:Integer}, VA <: AbstractVector}
+    transition_prob::IntervalProbabilities,
+    stateptr::AbstractVector{<:Integer},
+    action_vals::AbstractVector,
+)
     return IntervalMarkovDecisionProcess(
         transition_prob,
         stateptr,
         action_vals,
-        all_initial_states(length(stateptr) - 1),
+        AllStates(),
     )
 end
 
 function IntervalMarkovDecisionProcess(
-    transition_probs::Vector{P},
-    actions::VA,
-    initial_states::VI,
-) where {
-    P <: IntervalProbabilities,
-    VA <: AbstractVector,
-    T <: Integer,
-    VI <: AbstractVector{T},
-}
-    transition_prob, stateptr = interval_prob_hcat(T, transition_probs)
+    transition_probs::Vector{<:IntervalProbabilities},
+    actions::AbstractVector,
+    initial_states::InitialStates,
+)
+    transition_prob, stateptr = interval_prob_hcat(transition_probs)
 
     return IntervalMarkovDecisionProcess(transition_prob, stateptr, actions, initial_states)
 end
 
 function IntervalMarkovDecisionProcess(
-    transition_probs::Vector{P},
-    actions::VA,
-) where {P <: IntervalProbabilities, VA <: AbstractVector}
+    transition_probs::Vector{<:IntervalProbabilities},
+    actions::AbstractVector,
+)
     return IntervalMarkovDecisionProcess(
         transition_probs,
         actions,
-        all_initial_states(length(transition_probs)),
+        AllStates(),
     )
 end
 
+const SourceActionsTransitionProb = Pair{<:AbstractVector, <:IntervalProbabilities}
+
 function IntervalMarkovDecisionProcess(
-    transition_probs::Vector{Pair{VA, P}},
-    initial_states::VI,
-) where {
-    P <: IntervalProbabilities,
-    VA <: AbstractVector,
-    T <: Integer,
-    VI <: AbstractVector{T},
-}
+    transition_probs::Vector{<:SourceActionsTransitionProb},
+    initial_states::InitialStates,
+)
     action_vals = mapreduce(first, vcat, transition_probs)
     transition_probs = map(x -> x[2], transition_probs)
 
@@ -182,15 +166,15 @@ function IntervalMarkovDecisionProcess(
 end
 
 function IntervalMarkovDecisionProcess(
-    transition_probs::Vector{Pair{VA, P}},
-) where {P <: IntervalProbabilities, VA <: AbstractVector}
+    transition_probs::Vector{<:SourceActionsTransitionProb},
+)
     return IntervalMarkovDecisionProcess(
         transition_probs,
-        all_initial_states(length(transition_probs)),
+        AllStates(),
     )
 end
 
-function checksize_imdp!(p::IntervalProbabilities, stateptr)
+function checksize_imdp!(p::IntervalProbabilities, stateptr::AbstractVector{Int32})
     num_states = length(stateptr) - 1
 
     num_actions_per_state = diff(stateptr)
@@ -204,7 +188,7 @@ function checksize_imdp!(p::IntervalProbabilities, stateptr)
         )
     end
 
-    return num_states
+    return Int32(num_states)
 end
 
 """

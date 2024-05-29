@@ -1,5 +1,5 @@
 """
-    TimeVaryingIntervalMarkovChain{P <: IntervalProbabilities, T <: Integer, VT <: AbstractVector{T}}
+    TimeVaryingIntervalMarkovChain{P <: IntervalProbabilities, VI <: Union{AllStates, AbstractVector}}
 
 A type representing Time-varying Interval Markov Chains (IMC), which are Markov Chains with uncertainty in the form of intervals on
 the transition probabilities. The time variablity must be finite.
@@ -15,7 +15,7 @@ Note that for time-varying models, model checking is only enabled for finite tim
 ### Fields
 - `transition_probs::Vector{P}`: interval on transition probabilities.
 - `initial_states::VT`: initial states.
-- `num_states::T`: number of states.
+- `num_states::Int32`: number of states.
 
 ### Examples
 
@@ -55,18 +55,17 @@ mc = TimeVaryingIntervalMarkovChain([prob1, prob2], initial_states)
 """
 struct TimeVaryingIntervalMarkovChain{
     P <: IntervalProbabilities,
-    T <: Integer,
-    VT <: AbstractVector{T},
+    VI <: InitialStates,
 } <: TimeVaryingIntervalMarkovProcess{P}
     transition_probs::Vector{P}
-    initial_states::VT
-    num_states::T
+    initial_states::VI
+    num_states::Int32
 end
 
 function TimeVaryingIntervalMarkovChain(
     transition_probs::Vector{P},
-    initial_states::VT,
-) where {P <: IntervalProbabilities, T <: Integer, VT <: AbstractVector{T}}
+    initial_states,
+) where {P <: IntervalProbabilities}
     @assert !isempty(transition_probs) "The vector of transition probabilities must not be empty"
 
     num_states = checksize_imc!(first(transition_probs))
@@ -76,8 +75,6 @@ function TimeVaryingIntervalMarkovChain(
         @assert num_states_t == num_states "The number of states must be the same for all time steps"
     end
 
-    num_states = T(num_states)
-
     return TimeVaryingIntervalMarkovChain(transition_probs, initial_states, num_states)
 end
 
@@ -86,6 +83,6 @@ function TimeVaryingIntervalMarkovChain(
 ) where {P <: IntervalProbabilities}
     return TimeVaryingIntervalMarkovChain(
         transition_probs,
-        all_initial_states(num_source(first(transition_probs))),
+        AllStates(),
     )
 end

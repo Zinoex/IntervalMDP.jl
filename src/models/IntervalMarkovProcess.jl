@@ -8,9 +8,17 @@ abstract type IntervalMarkovProcess{P <: IntervalProbabilities} end
 """
     initial_states(mp::IntervalMarkovProcess)
 
-Return the initial states.
+Return the initial states. If the initial states are not specified, return `nothing`.
 """
 initial_states(mp::IntervalMarkovProcess) = mp.initial_states
+
+"""
+    AllStates
+
+A type to represent all states in a Markov process. This type is used to specify all states as the initial states.
+"""
+struct AllStates end
+const InitialStates = Union{AllStates, AbstractVector}
 
 """
     num_states(mp::IntervalMarkovProcess)
@@ -18,14 +26,6 @@ initial_states(mp::IntervalMarkovProcess) = mp.initial_states
 Return the number of states.
 """
 num_states(mp::IntervalMarkovProcess) = mp.num_states
-
-function all_initial_states(num_states)
-    if num_states <= typemax(Int32)
-        return Base.OneTo(Int32(num_states))
-    else
-        return Base.OneTo(Int64(num_states))
-    end
-end
 
 ##############
 # Stationary #

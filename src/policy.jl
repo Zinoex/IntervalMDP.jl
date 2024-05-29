@@ -2,7 +2,7 @@ abstract type AbstractPolicyCache end
 
 struct NoPolicyCache <: AbstractPolicyCache end
 
-struct TimeVaryingPolicyCache{T, VT <: AbstractVector{T}} <: AbstractPolicyCache
+struct TimeVaryingPolicyCache{VT <: AbstractVector{Int32}} <: AbstractPolicyCache
     cur_policy::VT
     policy::Vector{VT}
 end
@@ -11,16 +11,16 @@ function TimeVaryingPolicyCache(cur_policy::VT) where {VT}
     return TimeVaryingPolicyCache(cur_policy, Vector{VT}())
 end
 
-function TimeVaryingPolicyCache(num_states, T::Type{<:Integer})
-    cur_policy = zeros(T, num_states)
+function TimeVaryingPolicyCache(num_states::Integer)
+    cur_policy = zeros(Int32, num_states)
     return TimeVaryingPolicyCache(cur_policy)
 end
 
 function create_policy_cache(
-    problem::Problem{M},
+    problem::Problem{<:IntervalMarkovDecisionProcess},
     time_varying::Val{true},
-) where {I, M <: IntervalMarkovDecisionProcess{<:IntervalProbabilities, I}}
-    return TimeVaryingPolicyCache(num_states(system(problem)), I)
+)
+    return TimeVaryingPolicyCache(num_states(system(problem)))
 end
 
 function policy_indices_to_actions(
@@ -32,20 +32,20 @@ function policy_indices_to_actions(
     return [act[Vector(indices)] for indices in policy_cache.policy]
 end
 
-struct StationaryPolicyCache{T, VT <: AbstractVector{T}} <: AbstractPolicyCache
+struct StationaryPolicyCache{VT <: AbstractVector{Int32}} <: AbstractPolicyCache
     policy::VT
 end
 
-function StationaryPolicyCache(num_states, T::Type{<:Integer})
-    cur_policy = zeros(T, num_states)
+function StationaryPolicyCache(num_states::Integer)
+    cur_policy = zeros(Int32, num_states)
     return StationaryPolicyCache(cur_policy)
 end
 
 function create_policy_cache(
-    problem::Problem{M},
+    problem::Problem{<:IntervalMarkovDecisionProcess},
     time_varying::Val{false},
-) where {I, M <: IntervalMarkovDecisionProcess{<:IntervalProbabilities, I}}
-    return StationaryPolicyCache(num_states(system(problem)), I)
+)
+    return StationaryPolicyCache(num_states(system(problem)))
 end
 
 function policy_indices_to_actions(

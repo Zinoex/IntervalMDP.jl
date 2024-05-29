@@ -1,6 +1,6 @@
 
 """
-    IntervalMarkovChain{P <: IntervalProbabilities, T <: Integer, VT <: AbstractVector{T}}
+    IntervalMarkovChain{P <: IntervalProbabilities, VI <: Union{AllStates, AbstractVector}}
 
 A type representing (stationary) Interval Markov Chains (IMC), which are Markov Chains with uncertainty in the form of intervals on
 the transition probabilities. The stationarity assumption is that the transition probabilities are time-invariant.
@@ -13,8 +13,8 @@ If no initial states are specified, then the initial states are assumed to be al
 
 ### Fields
 - `transition_prob::P`: interval on transition probabilities.
-- `initial_states::VT`: initial states.
-- `num_states::T`: number of states.
+- `initial_states::VI`: initial states.
+- `num_states::Int32`: number of states.
 
 ### Examples
 
@@ -41,20 +41,18 @@ mc = IntervalMarkovChain(prob, initial_states)
 """
 struct IntervalMarkovChain{
     P <: IntervalProbabilities,
-    T <: Integer,
-    VT <: AbstractVector{T},
+    VI <: InitialStates,
 } <: StationaryIntervalMarkovProcess{P}
     transition_prob::P
-    initial_states::VT
-    num_states::T
+    initial_states::VI
+    num_states::Int32
 end
 
 function IntervalMarkovChain(
     transition_prob::P,
-    initial_states::VT,
-) where {P <: IntervalProbabilities, T <: Integer, VT <: AbstractVector{T}}
+    initial_states::VI,
+) where {P <: IntervalProbabilities, VI <: InitialStates}
     num_states = checksize_imc!(transition_prob)
-    num_states = T(num_states)
 
     return IntervalMarkovChain(transition_prob, initial_states, num_states)
 end
@@ -62,7 +60,7 @@ end
 function IntervalMarkovChain(transition_prob::P) where {P <: IntervalProbabilities}
     return IntervalMarkovChain(
         transition_prob,
-        all_initial_states(num_source(transition_prob)),
+        AllStates(),
     )
 end
 
@@ -76,5 +74,6 @@ function checksize_imc!(p::IntervalProbabilities)
         )
     end
 
-    return num_states
+    # Store in Int32 since we don't expect to have more than 2^31 states
+    return Int32(num_states)
 end
