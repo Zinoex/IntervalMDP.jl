@@ -1,6 +1,6 @@
 module IntervalMDP
 
-using LinearAlgebra, SparseArrays, StaticArrays
+using LinearAlgebra, SparseArrays
 using Polyester: @batch
 
 include("interval_probabilities.jl")
@@ -13,10 +13,12 @@ include("models/IntervalMarkovProcess.jl")
 include("models/IntervalMarkovChain.jl")
 include("models/IntervalMarkovDecisionProcess.jl")
 include("models/TimeVaryingIntervalMarkovChain.jl")
+include("models/ParallelProduct.jl")
 export IntervalMarkovProcess, StationaryIntervalMarkovProcess, TimeVaryingIntervalMarkovProcess
 export AllStates
 export IntervalMarkovChain, IntervalMarkovDecisionProcess
 export TimeVaryingIntervalMarkovChain
+export ParallelProduct
 export transition_prob, num_states, initial_states, actions, num_choices, tomarkovchain, time_length
 
 include("specification.jl")
