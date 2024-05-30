@@ -96,7 +96,7 @@ struct IntervalMarkovDecisionProcess{
     VT <: AbstractVector{T},
     VI <: AbstractVector{T},
     VA <: AbstractVector,
-} <: IntervalMarkovProcess
+} <: IntervalMarkovProcess{P}
     transition_prob::P
     stateptr::VT
     action_vals::VA

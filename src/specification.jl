@@ -353,8 +353,19 @@ function postprocess!(value_function, prop::AbstractReward)
 end
 
 function checkreward!(prop::AbstractReward, system::IntervalMarkovProcess)
+    checkdevice!(reward(prop), transition_prob(system))
     @assert length(reward(prop)) == num_states(system)
     @assert 0 < discount(prop)  # Discount must be non-negative.
+end
+
+function checkdevice!(v::AbstractVector, p::IntervalProbabilities)
+    # Lower and gap are required to be the same type.
+    checkdevice!(v, lower(p))
+end
+
+function checkdevice!(::AbstractVector, ::AbstractMatrix)
+    # Both arguments are on the CPU (technically in RAM).
+    return nothing
 end
 
 """
