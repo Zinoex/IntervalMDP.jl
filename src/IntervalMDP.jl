@@ -8,7 +8,9 @@ export IntervalProbabilities
 export lower, upper, gap, sum_lower
 export num_source, axes_source, num_target, axes_target
 
-include("models.jl")
+include("models/IntervalMarkovProcess.jl")
+include("models/IntervalMarkovChain.jl")
+include("models/IntervalMarkovDecisionProcess.jl")
 export IntervalMarkovProcess, IntervalMarkovChain, IntervalMarkovDecisionProcess
 export transition_prob, num_states, initial_states, actions, num_choices
 
