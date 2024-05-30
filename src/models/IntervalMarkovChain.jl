@@ -42,7 +42,7 @@ struct IntervalMarkovChain{
     P <: IntervalProbabilities,
     T <: Integer,
     VT <: AbstractVector{T},
-} <: IntervalMarkovProcess
+} <: IntervalMarkovProcess{P}
     transition_prob::P
     initial_states::VT
     num_states::T

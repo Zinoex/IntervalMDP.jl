@@ -1,9 +1,9 @@
 """
-    IntervalMarkovProcess
+    IntervalMarkovProcess{P <: IntervalProbabilities}
 
 An abstract type for interval Markov processes including [`IntervalMarkovChain`](@ref) and [`IntervalMarkovDecisionProcess`](@ref).
 """
-abstract type IntervalMarkovProcess end
+abstract type IntervalMarkovProcess{P <: IntervalProbabilities} end
 
 function all_initial_states(num_states)
     if num_states <= typemax(Int32)
