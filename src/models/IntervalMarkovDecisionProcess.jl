@@ -7,7 +7,7 @@
         VA <: AbstractVector,
     }
 
-A type representing Interval Markov Decision Processes (IMDP), which are Markov Decision Processes with uncertainty in the form of intervals on
+A type representing (stationary) Interval Markov Decision Processes (IMDP), which are Markov Decision Processes with uncertainty in the form of intervals on
 the transition probabilities.
 
 Formally, let ``(S, S_0, A, \\bar{P}, \\underbar{P})`` be an interval Markov decision processes, where ``S`` is the set of states, ``S_0 \\subset S`` is the set of initial states,
@@ -96,7 +96,7 @@ struct IntervalMarkovDecisionProcess{
     VT <: AbstractVector{T},
     VI <: AbstractVector{T},
     VA <: AbstractVector,
-} <: IntervalMarkovProcess{P}
+} <: StationaryIntervalMarkovProcess{P}
     transition_prob::P
     stateptr::VT
     action_vals::VA
@@ -208,38 +208,119 @@ function checksize_imdp!(p::IntervalProbabilities, stateptr)
 end
 
 """
-    transition_prob(s::IntervalMarkovDecisionProcess)
-
-Return the interval on transition probabilities.
-"""
-transition_prob(s::IntervalMarkovDecisionProcess) = s.transition_prob
-
-"""
-    actions(s::IntervalMarkovDecisionProcess)
+    actions(mdp::IntervalMarkovDecisionProcess)
 
 Return a vector of actions (choices in PRISM terminology).
 """
-actions(s::IntervalMarkovDecisionProcess) = s.action_vals
+actions(mdp::IntervalMarkovDecisionProcess) = mdp.action_vals
 
 """
-    num_choices(s::IntervalMarkovDecisionProcess)
+    num_choices(mdp::IntervalMarkovDecisionProcess)
 
 Return the sum of the number of actions available in each state ``\\sum_{j} \\mathrm{num\\_actions}(s_j)``.
 """
-num_choices(s::IntervalMarkovDecisionProcess) = length(actions(s))
+num_choices(mdp::IntervalMarkovDecisionProcess) = length(actions(mdp))
+
+stateptr(mdp::IntervalMarkovDecisionProcess) = mdp.stateptr
 
 """
-    initial_states(s::IntervalMarkovDecisionProcess)
+    tomarkovchain(mdp::IntervalMarkovDecisionProcess)
 
-Return the initial states.
+Convert an Interval Markov Decision Process to an Interval Markov Chain, provided that
+each state of the IMDP only has one action. The IMC is stationary.
 """
-initial_states(s::IntervalMarkovDecisionProcess) = s.initial_states
+function tomarkovchain(mdp::IntervalMarkovDecisionProcess)
+    sptr = stateptr(mdp)
+    num_choices_per_state = diff(sptr)
+
+    if any(num_choices_per_state .> 1)
+        throw(
+            ArgumentError(
+                "The number of actions per state must be 1 or a strategy must be provided.",
+            ),
+        )
+    end
+
+    probs = transition_prob(mdp)
+    istates = initial_states(mdp)
+
+    return IntervalMarkovChain(probs, istates)
+end
 
 """
-    num_states(s::IntervalMarkovDecisionProcess)
+    tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector)
 
-Return the number of states.
+Extract an Interval Markov Chain from an Interval Markov Decision Process under a stationary strategy. The extracted IMC is stationary.
 """
-num_states(s::IntervalMarkovDecisionProcess) = s.num_states
+function tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector)
+    sptr = stateptr(mdp)
 
-stateptr(s::IntervalMarkovDecisionProcess) = s.stateptr
+    probs = transition_prob(mdp)
+
+    strategy_idxes = eltype(sptr)[]
+    for i in 1:num_states(mdp)
+        state_actions = actions(mdp)[sptr[i]:(sptr[i + 1] - 1)]
+        if !(strategy[i] in state_actions)
+            throw(
+                ArgumentError(
+                    "The strategy must be a valid action for each state. Was $(strategy[i]) for state $i, available actions are $state_actions.",
+                ),
+            )
+        end
+
+        for j in sptr[i]:(sptr[i + 1] - 1)
+            if actions(mdp)[j] == strategy[i]
+                push!(strategy_idxes, j)
+                break
+            end
+        end
+    end
+
+    new_probs = probs[strategy_idxes]
+
+    istates = initial_states(mdp)
+
+    return IntervalMarkovChain(new_probs, istates)
+end
+
+"""
+    tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector{<:AbstractVector})
+
+Extract an Interval Markov Chain from an Interval Markov Decision Process under a time-varying strategy. The extracted IMC is time-varying.
+"""
+function tomarkovchain(
+    mdp::IntervalMarkovDecisionProcess,
+    strategy::AbstractVector{<:AbstractVector},
+)
+    sptr = stateptr(mdp)
+
+    probs = transition_prob(mdp)
+    new_probs = Vector{typeof(probs)}(undef, length(strategy))
+
+    for (t, strategy_step) in enumerate(strategy)
+        strategy_idxes = eltype(sptr)[]
+        for i in 1:num_states(mdp)
+            state_actions = actions(mdp)[sptr[i]:(sptr[i + 1] - 1)]
+            if !(strategy_step[i] in state_actions)
+                throw(
+                    ArgumentError(
+                        "The strategy must be a valid action for each state. Was $(strategy_step[i]) for state $i at time $t, available actions are $state_actions.",
+                    ),
+                )
+            end
+
+            for j in sptr[i]:(sptr[i + 1] - 1)
+                if actions(mdp)[j] == strategy_step[i]
+                    push!(strategy_idxes, j)
+                    break
+                end
+            end
+        end
+
+        new_probs[t] = probs[strategy_idxes]
+    end
+
+    istates = initial_states(mdp)
+
+    return TimeVaryingIntervalMarkovChain(new_probs, istates)
+end

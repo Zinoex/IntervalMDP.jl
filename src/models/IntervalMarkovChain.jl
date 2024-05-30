@@ -1,10 +1,11 @@
+
 """
     IntervalMarkovChain{P <: IntervalProbabilities, T <: Integer, VT <: AbstractVector{T}}
 
-A type representing Interval Markov Chains (IMC), which are Markov Chains with uncertainty in the form of intervals on
-the transition probabilities.
+A type representing (stationary) Interval Markov Chains (IMC), which are Markov Chains with uncertainty in the form of intervals on
+the transition probabilities. The stationarity assumption is that the transition probabilities are time-invariant.
 
-Formally, let ``(S, S_0, \\bar{P}, \\underbar{P})`` be an interval Markov chain, where ``S`` is the set of states, ``S_0 \\subset S`` is a set of initial states,
+Formally, let ``(S, S_0, \\bar{P}, \\underbar{P})`` be an stationary interval Markov chain, where ``S`` is the set of states, ``S_0 \\subset S`` is a set of initial states,
 and ``\\bar{P} : \\mathbb{R}^{|S| \\times |S|}`` and ``\\underbar{P} : \\mathbb{R}^{|S| \\times |S|}`` are the upper and lower bound transition probability matrices prespectively.
 Then the `IntervalMarkovChain` type is defined as follows: indices `1:num_states` are the states in ``S``,
 `transition_prob` represents ``\\bar{P}`` and ``\\underbar{P}``, and `initial_states` is the set of initial state ``S_0``.
@@ -42,7 +43,7 @@ struct IntervalMarkovChain{
     P <: IntervalProbabilities,
     T <: Integer,
     VT <: AbstractVector{T},
-} <: IntervalMarkovProcess{P}
+} <: StationaryIntervalMarkovProcess{P}
     transition_prob::P
     initial_states::VT
     num_states::T
@@ -77,24 +78,3 @@ function checksize_imc!(p::IntervalProbabilities)
 
     return num_states
 end
-
-"""
-    transition_prob(s::IntervalMarkovChain)
-
-Return the interval on transition probabilities.
-"""
-transition_prob(s::IntervalMarkovChain) = s.transition_prob
-
-"""
-    initial_states(s::IntervalMarkovChain)
-
-Return the initial states.
-"""
-initial_states(s::IntervalMarkovChain) = s.initial_states
-
-"""
-    num_states(s::IntervalMarkovChain)
-
-Return the number of states.
-"""
-num_states(s::IntervalMarkovChain) = s.num_states

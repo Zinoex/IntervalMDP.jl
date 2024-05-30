@@ -11,8 +11,13 @@ export num_source, axes_source, num_target, axes_target
 include("models/IntervalMarkovProcess.jl")
 include("models/IntervalMarkovChain.jl")
 include("models/IntervalMarkovDecisionProcess.jl")
-export IntervalMarkovProcess, IntervalMarkovChain, IntervalMarkovDecisionProcess
-export transition_prob, num_states, initial_states, actions, num_choices
+include("models/TimeVaryingIntervalMarkovChain.jl")
+export IntervalMarkovProcess,
+    StationaryIntervalMarkovProcess, TimeVaryingIntervalMarkovProcess
+export IntervalMarkovChain, IntervalMarkovDecisionProcess
+export TimeVaryingIntervalMarkovChain
+export transition_prob,
+    num_states, initial_states, actions, num_choices, tomarkovchain, time_length
 
 include("specification.jl")
 export Property, LTLFormula, LTLfFormula, PCTLFormula

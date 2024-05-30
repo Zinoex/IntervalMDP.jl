@@ -52,13 +52,16 @@ V, k, residual = value_iteration(problem)
 """
 function value_iteration(
     problem::Problem{M, S},
-) where {M <: IntervalMarkovChain, S <: Specification}
+) where {
+    M <: Union{IntervalMarkovChain, TimeVaryingIntervalMarkovChain},
+    S <: Specification,
+}
     mc = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(spec)
     upper_bound = satisfaction_mode(spec) == Optimistic
 
-    prob = transition_prob(mc)
+    prob = transition_prob(mc, time_length(mc))
 
     # It is more efficient to use allocate first and reuse across iterations
     ordering = construct_ordering(gap(prob))
@@ -72,6 +75,8 @@ function value_iteration(
 
     while !term_criteria(value_function.cur, k, lastdiff!(value_function))
         nextiteration!(value_function)
+
+        prob = transition_prob(mc, time_length(mc) - k)
         step_imc!(value_function, ordering, prob; upper_bound = upper_bound)
         postprocess!(value_function, spec)
 
@@ -96,7 +101,9 @@ end
 function IMCValueFunction(problem::Problem{M, S}) where {M <: IntervalMarkovChain, S}
     mc = system(problem)
 
-    prev = construct_value_function(gap(transition_prob(mc)), num_states(mc))
+    # Transition probabilities are always defined for time-step 1
+    prob = transition_prob(mc, 1)
+    prev = construct_value_function(gap(prob), num_states(mc))
     cur = copy(prev)
 
     return IMCValueFunction(prev, cur)

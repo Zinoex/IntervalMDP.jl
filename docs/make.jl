@@ -30,6 +30,7 @@ makedocs(;
         "Index" => "api.md",
     ],
     doctest = false,
+    checkdocs = :exports,
 )
 
 deploydocs(; repo = "github.com/Zinoex/IntervalMDP.jl", devbranch = "main")

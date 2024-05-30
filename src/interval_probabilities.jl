@@ -118,81 +118,90 @@ end
 
 # Accessors for properties of interval probabilities
 
-Base.size(s::IntervalProbabilities) = size(s.lower)
-Base.size(s::IntervalProbabilities, dim::Integer) = size(s.lower, dim)
+Base.size(p::IntervalProbabilities) = size(p.lower)
+Base.size(p::IntervalProbabilities, dim::Integer) = size(p.lower, dim)
 
 """
-    lower(s::IntervalProbabilities)
+    lower(p::IntervalProbabilities)
 
 Return the lower bound transition probabilities from a source state or source/action pair to a target state.
 """
-lower(s::IntervalProbabilities) = s.lower
+lower(p::IntervalProbabilities) = p.lower
 
 """
-    upper(s::IntervalProbabilities)
+    upper(p::IntervalProbabilities)
 
 Return the upper bound transition probabilities from a source state or source/action pair to a target state.
 
 !!! note
     It is not recommended to use this function for the hot loop of O-maximization, because it is not just an accessor and requires allocation and computation.
 """
-upper(s::IntervalProbabilities) = s.lower + s.gap
+upper(p::IntervalProbabilities) = p.lower + p.gap
 
 """
-    gap(s::IntervalProbabilities)
+    gap(p::IntervalProbabilities)
 
 Return the gap between upper and lower bound transition probabilities from a source state or source/action pair to a target state.
 """
-gap(s::IntervalProbabilities) = s.gap
+gap(p::IntervalProbabilities) = p.gap
 
 """
-    sum_lower(s::IntervalProbabilities) 
+    sum_lower(p::IntervalProbabilities) 
 
 Return the sum of lower bound transition probabilities from a source state or source/action pair to all target states.
 This is useful in efficiently implementing O-maximization, where we start with a lower bound probability assignment
 and iteratively, according to the ordering, adding the gap until the sum of probabilities is 1.
 """
-sum_lower(s::IntervalProbabilities) = s.sum_lower
+sum_lower(p::IntervalProbabilities) = p.sum_lower
 
 """
-    num_source(s::IntervalProbabilities)
+    num_source(p::IntervalProbabilities)
 
 Return the number of source states or source/action pairs.
 """
-num_source(s::IntervalProbabilities) = size(gap(s), 2)
+num_source(p::IntervalProbabilities) = size(gap(p), 2)
 
 """
-    axes_source(s::IntervalProbabilities)
+    axes_source(p::IntervalProbabilities)
 
 Return the valid range of indices for the source states or source/action pairs.
 """
-axes_source(s::IntervalProbabilities) = axes(gap(s), 2)
+axes_source(p::IntervalProbabilities) = axes(gap(p), 2)
 
 """
-    num_target(s::IntervalProbabilities)
+    num_target(p::IntervalProbabilities)
 
 Return the number of target states.
 """
-num_target(s::IntervalProbabilities) = size(gap(s), 1)
+num_target(p::IntervalProbabilities) = size(gap(p), 1)
 
 """
-    axes_target(s::IntervalProbabilities)
+    axes_target(p::IntervalProbabilities)
 
 Return the valid range of indices for the target states.
 """
-axes_target(s::IntervalProbabilities) = axes(gap(s), 1)
+axes_target(p::IntervalProbabilities) = axes(gap(p), 1)
 
 function interval_prob_hcat(
     T,
-    transition_probs::Vector{<:IntervalProbabilities{R, VR, MR}},
+    ps::Vector{<:IntervalProbabilities{R, VR, MR}},
 ) where {R, VR, MR <: AbstractMatrix{R}}
-    l = mapreduce(lower, hcat, transition_probs)
-    g = mapreduce(gap, hcat, transition_probs)
+    l = mapreduce(lower, hcat, ps)
+    g = mapreduce(gap, hcat, ps)
 
-    sl = mapreduce(sum_lower, vcat, transition_probs)
+    sl = mapreduce(sum_lower, vcat, ps)
 
-    lengths = map(num_source, transition_probs)
+    lengths = map(num_source, ps)
     stateptr = T[1; cumsum(lengths) .+ 1]
 
     return IntervalProbabilities(l, g, sl), stateptr
+end
+
+function Base.getindex(p::IntervalProbabilities, j)
+    # Select by columns only! 
+    l = lower(p)[:, j]
+    g = gap(p)[:, j]
+    sum = sum_lower(p)[j]
+
+    return IntervalProbabilities(l, g, sum)
 end
