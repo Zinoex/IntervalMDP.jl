@@ -22,9 +22,10 @@ IntervalMDPCudaExt = ["Adapt", "CUDA", "GPUArrays", "LLVM"]
 [compat]
 CUDA = "5.1.0"
 JSON = "0.21.4"
+LLVM = "7"
 NCDatasets = "0.13, 0.14"
-julia = "1.9"
 Polyester = "0.7"
+julia = "1.9"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
