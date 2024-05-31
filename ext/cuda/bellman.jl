@@ -137,34 +137,22 @@ end
 function gap_assignment!(workspace::CuSparseWorkspace, Vres, V, prob::IntervalProbabilities{Tv}; max = true) where {Tv}
     shmem = workspace.max_nonzeros * 2 * sizeof(Tv)
 
-    kernel = @cuda launch = false sparse_gap_assignment_kernel!(workspace, 1, Vres, V, gap(prob), sum_lower(prob), max ? (>=) : (<=))
+    kernel = @cuda launch = false sparse_gap_assignment_kernel!(workspace, Vres, V, gap(prob), sum_lower(prob), max ? (>=) : (<=))
 
     config = launch_configuration(kernel.fun; shmem = shmem)
     max_threads = prevwarp(device(), config.threads)
-    states_per_block = 1
-
-    for i in 2:min(length(Vres), 32) # Find the maximum number of states per block
-        config = launch_configuration(kernel.fun; shmem = i * shmem)
-        candidate_max_threads = prevwarp(device(), config.threads)
-        if candidate_max_threads < max_threads || candidate_max_threads < 32
-            break
-        end
-
-        max_threads = candidate_max_threads
-        states_per_block = i
-    end
 
     # Execution plan:
     # - value assignment: 1 warp per state
     # - squeeze as many states as possible in a block
     # - use shared memory to store the values and permutation
     # - use bitonic sort to sort the values for all states in a block
-    wanted_threads = min(1024, 32 * states_per_block)
+    wanted_threads = min(1024, nextwarp(device(), ceil(Int32, workspace.max_nonzeros / 2)))
     
     threads = min(max_threads, wanted_threads)
-    states_per_block = div(threads, 32)
+    blocks = min(2^16 - 1, ceil(Int32, length(Vres)))
 
-    if states_per_block == 0
+    if threads < 32
         throw("The shared memory available is too little. For now until I have a special case implementation, either try the CPU implementation or use a larger GPU.")
 
         # TODO: A solution could be to use global memory as intermediate storage.
@@ -172,16 +160,13 @@ function gap_assignment!(workspace::CuSparseWorkspace, Vres, V, prob::IntervalPr
         # I think that it will require that we allocate a smaller amount of global memory 
         # and launch kernels in a loop to process all the states.
         # Alternatively, we will store the permutation only in shared memory.
-    else
-        blocks = min(2^16 - 1, ceil(Int32, length(Vres) / states_per_block))
-
-        kernel(workspace, states_per_block, Vres, V, gap(prob), sum_lower(prob), max ? (>=) : (<=); blocks = blocks, threads = threads, shmem = states_per_block * shmem)
     end
+
+    kernel(workspace, Vres, V, gap(prob), sum_lower(prob), max ? (>=) : (<=); blocks = blocks, threads = threads, shmem = shmem)
 end
 
 function sparse_gap_assignment_kernel!(
     workspace,
-    states_per_block,
     Vres,
     V,
     gap::CuSparseDeviceMatrixCSC{Tv},
@@ -190,18 +175,13 @@ function sparse_gap_assignment_kernel!(
 ) where {Tv}
     assume(warpsize() == 32)
 
-    value = CuDynamicSharedArray(Tv, (workspace.max_nonzeros, states_per_block))
-    prob = CuDynamicSharedArray(Tv, (workspace.max_nonzeros, states_per_block), workspace.max_nonzeros * states_per_block * sizeof(Tv))
-
-    # Select shared memory corresponding to the warp
-    wid = fld1(threadIdx().x, warpsize())
-    value = @view value[:, wid]
-    prob = @view prob[:, wid]
+    value = CuDynamicSharedArray(Tv, workspace.max_nonzeros)
+    prob = CuDynamicSharedArray(Tv, workspace.max_nonzeros, workspace.max_nonzeros * sizeof(Tv))
 
     # Grid-stride loop
-    j = wid + (blockIdx().x - one(Int32)) * states_per_block
+    j = blockIdx().x
 
-    @inbounds while j <= length(Vres)  # Grid-stride loop
+    @inbounds while j <= length(Vres)
         r = gap.colPtr[j]:(gap.colPtr[j + one(Int32)] - one(Int32))
         gindsⱼ = @view gap.rowVal[r]
         gvalsⱼ = @view gap.nzVal[r]
@@ -209,10 +189,12 @@ function sparse_gap_assignment_kernel!(
 
         valueⱼ = @view value[1:length(gindsⱼ)]
         probⱼ = @view prob[1:length(gindsⱼ)]
-        warp_bitonic_sort!(valueⱼ, probⱼ, lt)
-        add_gap_mul_V_sparse!(j, Vres, valueⱼ, probⱼ, sum_lower)
+        block_bitonic_sort!(valueⱼ, probⱼ, lt)
+        if threadIdx().x <= warpsize()  # Only the first warp is used to reduce and update the value
+            add_gap_mul_V_sparse!(j, Vres, valueⱼ, probⱼ, sum_lower)
+        end
 
-        j += gridDim().x * states_per_block
+        j += gridDim().x
     end
 end
 
@@ -224,15 +206,12 @@ end
     value,
     prob,
 )
-    assume(warpsize() == 32)
-
     # Copy into shared memory
-    lane = mod1(threadIdx().x, warpsize())
-    i = lane
+    i = threadIdx().x
     @inbounds while i <= length(gapinds)
         value[i] = V[gapinds[i]]
         prob[i] = gapvals[i]
-        i += warpsize()
+        i += blockDim().x
     end
 
     # Need to synchronize to make sure all agree on the shared memory
