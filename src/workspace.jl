@@ -39,7 +39,7 @@ struct SparseWorkspace{Tv}
 end
 
 function SparseWorkspace(p::AbstractSparseMatrix{Tv}) where {Tv}
-    max_nonzeros = maximum(map(length, eachcol(p)))
+    max_nonzeros = maximum(map(nnz, eachcol(p)))
     values_gaps = Vector{Tuple{Tv, Tv}}(undef, max_nonzeros)
     return SparseWorkspace(values_gaps)
 end
