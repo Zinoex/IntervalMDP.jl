@@ -10,7 +10,7 @@ IntervalMDP.construct_workspace(::AbstractGPUMatrix) = CuDenseWorkspace()
 ####################
 # Sparse workspace #
 ####################
-struct CuSparseWorkspace <: AbstractCuWorkspace 
+struct CuSparseWorkspace <: AbstractCuWorkspace
     max_nonzeros::Int32
 end
 

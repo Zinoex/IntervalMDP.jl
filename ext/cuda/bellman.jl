@@ -1,5 +1,11 @@
 
-function IntervalMDP.bellman!(workspace::AbstractCuWorkspace, Vres, V, prob::IntervalProbabilities; max = true)
+function IntervalMDP.bellman!(
+    workspace::AbstractCuWorkspace,
+    Vres,
+    V,
+    prob::IntervalProbabilities;
+    max = true,
+)
     # Test if custom kernel is beneficial
     Vres .= Transpose(Transpose(V) * lower(prob))
 
@@ -8,10 +14,22 @@ function IntervalMDP.bellman!(workspace::AbstractCuWorkspace, Vres, V, prob::Int
     return Vres
 end
 
-function gap_assignment!(::CuDenseWorkspace, Vres, V, prob::IntervalProbabilities{Tv}; max = true) where {Tv}
+function gap_assignment!(
+    ::CuDenseWorkspace,
+    Vres,
+    V,
+    prob::IntervalProbabilities{Tv};
+    max = true,
+) where {Tv}
     shmem = length(V) * (sizeof(Int32) + sizeof(Tv))
 
-    kernel = @cuda launch = false dense_gap_assignment_kernel!(Vres, V, gap(prob), sum_lower(prob), max ? (>=) : (<=))
+    kernel = @cuda launch = false dense_gap_assignment_kernel!(
+        Vres,
+        V,
+        gap(prob),
+        sum_lower(prob),
+        max ? (>=) : (<=),
+    )
 
     config = launch_configuration(kernel.fun; shmem = shmem)
     max_threads = prevwarp(device(), config.threads)
@@ -22,12 +40,21 @@ function gap_assignment!(::CuDenseWorkspace, Vres, V, prob::IntervalProbabilitie
     # - use shared memory to store the values and permutation
     # - use bitonic sort to sort the values for all states in a block
     wanted_threads = min(1024, 32 * length(Vres))
-    
+
     threads = min(max_threads, wanted_threads)
     warps = div(threads, 32)
     blocks = min(2^16 - 1, cld(length(Vres), warps))
 
-    kernel(Vres, V, gap(prob), sum_lower(prob), max ? (>=) : (<=); blocks = blocks, threads = threads, shmem = shmem)
+    kernel(
+        Vres,
+        V,
+        gap(prob),
+        sum_lower(prob),
+        max ? (>=) : (<=);
+        blocks = blocks,
+        threads = threads,
+        shmem = shmem,
+    )
 end
 
 function dense_gap_assignment_kernel!(
@@ -45,12 +72,7 @@ function dense_gap_assignment_kernel!(
     add_gap_mul_V_dense!(Vres, value, perm, gap, sum_lower)
 end
 
-
-@inline function dense_initialize_sorting_shared_memory!(
-    V,
-    value,
-    perm,
-)
+@inline function dense_initialize_sorting_shared_memory!(V, value, perm)
     # Copy into shared memory
     i = threadIdx().x
     @inbounds while i <= length(V)
@@ -130,7 +152,13 @@ end
     return nothing
 end
 
-function gap_assignment!(workspace::CuSparseWorkspace, Vres, V, prob::IntervalProbabilities{Tv}; max = true) where {Tv}
+function gap_assignment!(
+    workspace::CuSparseWorkspace,
+    Vres,
+    V,
+    prob::IntervalProbabilities{Tv};
+    max = true,
+) where {Tv}
     # Try to find the best kernel for the problem.
 
     # Small amounts of shared memory per state, then use multiple states per block
@@ -156,7 +184,13 @@ function gap_assignment!(workspace::CuSparseWorkspace, Vres, V, prob::IntervalPr
     throw(IntervalMDP.OutOfSharedMemory(workspace.max_nonzeros * 2 * sizeof(Int32)))
 end
 
-function try_small_sparse_gap_assignment!(workspace::CuSparseWorkspace, Vres, V, prob::IntervalProbabilities{Tv}; max = true) where {Tv}
+function try_small_sparse_gap_assignment!(
+    workspace::CuSparseWorkspace,
+    Vres,
+    V,
+    prob::IntervalProbabilities{Tv};
+    max = true,
+) where {Tv}
     # Execution plan:
     # - at least 8 states per block
     # - one warp per state
@@ -166,7 +200,14 @@ function try_small_sparse_gap_assignment!(workspace::CuSparseWorkspace, Vres, V,
     desired_warps = 8
     shmem = workspace.max_nonzeros * 2 * sizeof(Tv) * desired_warps
 
-    kernel = @cuda launch = false small_sparse_gap_assignment_kernel!(workspace, Vres, V, gap(prob), sum_lower(prob), max ? (>=) : (<=))
+    kernel = @cuda launch = false small_sparse_gap_assignment_kernel!(
+        workspace,
+        Vres,
+        V,
+        gap(prob),
+        sum_lower(prob),
+        max ? (>=) : (<=),
+    )
 
     config = launch_configuration(kernel.fun; shmem = shmem)
     max_threads = prevwarp(device(), config.threads)
@@ -180,7 +221,17 @@ function try_small_sparse_gap_assignment!(workspace::CuSparseWorkspace, Vres, V,
     threads = desired_warps * 32
     blocks = min(2^16 - 1, cld(length(Vres), desired_warps))
 
-    kernel(workspace, Vres, V, gap(prob), sum_lower(prob), max ? (>=) : (<=); blocks = blocks, threads = threads, shmem = shmem)
+    kernel(
+        workspace,
+        Vres,
+        V,
+        gap(prob),
+        sum_lower(prob),
+        max ? (>=) : (<=);
+        blocks = blocks,
+        threads = threads,
+        shmem = shmem,
+    )
 
     return true
 end
@@ -197,7 +248,11 @@ function small_sparse_gap_assignment_kernel!(
     warps = div(blockDim().x, warpsize())
 
     value = CuDynamicSharedArray(Tv, (workspace.max_nonzeros, warps))
-    prob = CuDynamicSharedArray(Tv, (workspace.max_nonzeros, warps), workspace.max_nonzeros * warps * sizeof(Tv))
+    prob = CuDynamicSharedArray(
+        Tv,
+        (workspace.max_nonzeros, warps),
+        workspace.max_nonzeros * warps * sizeof(Tv),
+    )
 
     wid = fld1(threadIdx().x, warpsize())
 
@@ -220,7 +275,6 @@ function small_sparse_gap_assignment_kernel!(
         j += gridDim().x * warps
     end
 end
-
 
 @inline function small_sparse_initialize_sorting_shared_memory!(
     V,
@@ -303,7 +357,13 @@ end
     return nothing
 end
 
-function try_large_ff_sparse_gap_assignment!(workspace::CuSparseWorkspace, Vres, V, prob::IntervalProbabilities{Tv}; max = true) where {Tv}
+function try_large_ff_sparse_gap_assignment!(
+    workspace::CuSparseWorkspace,
+    Vres,
+    V,
+    prob::IntervalProbabilities{Tv};
+    max = true,
+) where {Tv}
     # Execution plan:
     # - one state per block
     # - use shared memory to store the values and gap probability
@@ -311,7 +371,14 @@ function try_large_ff_sparse_gap_assignment!(workspace::CuSparseWorkspace, Vres,
 
     shmem = workspace.max_nonzeros * 2 * sizeof(Tv)
 
-    kernel = @cuda launch = false ff_sparse_gap_assignment_kernel!(workspace, Vres, V, gap(prob), sum_lower(prob), max ? (>=) : (<=))
+    kernel = @cuda launch = false ff_sparse_gap_assignment_kernel!(
+        workspace,
+        Vres,
+        V,
+        gap(prob),
+        sum_lower(prob),
+        max ? (>=) : (<=),
+    )
 
     config = launch_configuration(kernel.fun; shmem = shmem)
     max_threads = prevwarp(device(), config.threads)
@@ -321,11 +388,21 @@ function try_large_ff_sparse_gap_assignment!(workspace::CuSparseWorkspace, Vres,
     end
 
     wanted_threads = min(1024, nextwarp(device(), cld(workspace.max_nonzeros, 2)))
-    
+
     threads = min(max_threads, wanted_threads)
     blocks = min(2^16 - 1, length(Vres))
 
-    kernel(workspace, Vres, V, gap(prob), sum_lower(prob), max ? (>=) : (<=); blocks = blocks, threads = threads, shmem = shmem)
+    kernel(
+        workspace,
+        Vres,
+        V,
+        gap(prob),
+        sum_lower(prob),
+        max ? (>=) : (<=);
+        blocks = blocks,
+        threads = threads,
+        shmem = shmem,
+    )
 
     return true
 end
@@ -340,7 +417,11 @@ function ff_sparse_gap_assignment_kernel!(
 ) where {Tv}
     reduction_ws = CuStaticSharedArray(Tv, 32)
     value = CuDynamicSharedArray(Tv, workspace.max_nonzeros)
-    prob = CuDynamicSharedArray(Tv, workspace.max_nonzeros, workspace.max_nonzeros * sizeof(Tv))
+    prob = CuDynamicSharedArray(
+        Tv,
+        workspace.max_nonzeros,
+        workspace.max_nonzeros * sizeof(Tv),
+    )
 
     # Grid-stride loop
     j = blockIdx().x
@@ -360,7 +441,6 @@ function ff_sparse_gap_assignment_kernel!(
 
     return nothing
 end
-
 
 @inline function ff_sparse_initialize_sorting_shared_memory!(
     V,
@@ -467,7 +547,13 @@ end
     return nothing
 end
 
-function try_large_fi_sparse_gap_assignment!(workspace::CuSparseWorkspace, Vres, V, prob::IntervalProbabilities{Tv}; max = true) where {Tv}
+function try_large_fi_sparse_gap_assignment!(
+    workspace::CuSparseWorkspace,
+    Vres,
+    V,
+    prob::IntervalProbabilities{Tv};
+    max = true,
+) where {Tv}
     # Execution plan:
     # - one state per block
     # - use shared memory to store the values and permutation indices
@@ -475,7 +561,14 @@ function try_large_fi_sparse_gap_assignment!(workspace::CuSparseWorkspace, Vres,
 
     shmem = workspace.max_nonzeros * (sizeof(Tv) + sizeof(Int32))
 
-    kernel = @cuda launch = false fi_sparse_gap_assignment_kernel!(workspace, Vres, V, gap(prob), sum_lower(prob), max ? (>=) : (<=))
+    kernel = @cuda launch = false fi_sparse_gap_assignment_kernel!(
+        workspace,
+        Vres,
+        V,
+        gap(prob),
+        sum_lower(prob),
+        max ? (>=) : (<=),
+    )
 
     config = launch_configuration(kernel.fun; shmem = shmem)
     max_threads = prevwarp(device(), config.threads)
@@ -485,11 +578,21 @@ function try_large_fi_sparse_gap_assignment!(workspace::CuSparseWorkspace, Vres,
     end
 
     wanted_threads = min(1024, nextwarp(device(), cld(workspace.max_nonzeros, 2)))
-    
+
     threads = min(max_threads, wanted_threads)
     blocks = min(2^16 - 1, length(Vres))
 
-    kernel(workspace, Vres, V, gap(prob), sum_lower(prob), max ? (>=) : (<=); blocks = blocks, threads = threads, shmem = shmem)
+    kernel(
+        workspace,
+        Vres,
+        V,
+        gap(prob),
+        sum_lower(prob),
+        max ? (>=) : (<=);
+        blocks = blocks,
+        threads = threads,
+        shmem = shmem,
+    )
 
     return true
 end
@@ -504,7 +607,11 @@ function fi_sparse_gap_assignment_kernel!(
 ) where {Tv}
     reduction_ws = CuStaticSharedArray(Tv, 32)
     value = CuDynamicSharedArray(Tv, workspace.max_nonzeros)
-    perm = CuDynamicSharedArray(Int32, workspace.max_nonzeros, workspace.max_nonzeros * sizeof(Tv))
+    perm = CuDynamicSharedArray(
+        Int32,
+        workspace.max_nonzeros,
+        workspace.max_nonzeros * sizeof(Tv),
+    )
 
     # Grid-stride loop
     j = blockIdx().x
@@ -524,13 +631,7 @@ function fi_sparse_gap_assignment_kernel!(
     end
 end
 
-
-@inline function fi_sparse_initialize_sorting_shared_memory!(
-    V,
-    gapinds,
-    value,
-    perm,
-)
+@inline function fi_sparse_initialize_sorting_shared_memory!(V, gapinds, value, perm)
     # Copy into shared memory
     i = threadIdx().x
     @inbounds while i <= length(gapinds)
@@ -631,7 +732,13 @@ end
     return nothing
 end
 
-function try_large_ii_sparse_gap_assignment!(workspace::CuSparseWorkspace, Vres, V, prob::IntervalProbabilities{Tv}; max = true) where {Tv}
+function try_large_ii_sparse_gap_assignment!(
+    workspace::CuSparseWorkspace,
+    Vres,
+    V,
+    prob::IntervalProbabilities{Tv};
+    max = true,
+) where {Tv}
     # Execution plan:
     # - one state per block
     # - use shared memory to store only permutation indices
@@ -639,7 +746,14 @@ function try_large_ii_sparse_gap_assignment!(workspace::CuSparseWorkspace, Vres,
 
     shmem = workspace.max_nonzeros * 2 * sizeof(Int32)
 
-    kernel = @cuda launch = false ii_sparse_gap_assignment_kernel!(workspace, Vres, V, gap(prob), sum_lower(prob), max ? (>=) : (<=))
+    kernel = @cuda launch = false ii_sparse_gap_assignment_kernel!(
+        workspace,
+        Vres,
+        V,
+        gap(prob),
+        sum_lower(prob),
+        max ? (>=) : (<=),
+    )
 
     config = launch_configuration(kernel.fun; shmem = shmem)
     max_threads = prevwarp(device(), config.threads)
@@ -649,11 +763,21 @@ function try_large_ii_sparse_gap_assignment!(workspace::CuSparseWorkspace, Vres,
     end
 
     wanted_threads = min(1024, nextwarp(device(), cld(workspace.max_nonzeros, 2)))
-    
+
     threads = min(max_threads, wanted_threads)
     blocks = min(2^16 - 1, length(Vres))
 
-    kernel(workspace, Vres, V, gap(prob), sum_lower(prob), max ? (>=) : (<=); blocks = blocks, threads = threads, shmem = shmem)
+    kernel(
+        workspace,
+        Vres,
+        V,
+        gap(prob),
+        sum_lower(prob),
+        max ? (>=) : (<=);
+        blocks = blocks,
+        threads = threads,
+        shmem = shmem,
+    )
 
     return true
 end
@@ -668,7 +792,11 @@ function ii_sparse_gap_assignment_kernel!(
 ) where {Tv}
     reduction_ws = CuStaticSharedArray(Tv, 32)
     Vperm = CuDynamicSharedArray(Int32, workspace.max_nonzeros)
-    Pperm = CuDynamicSharedArray(Int32, workspace.max_nonzeros, workspace.max_nonzeros * sizeof(Int32))
+    Pperm = CuDynamicSharedArray(
+        Int32,
+        workspace.max_nonzeros,
+        workspace.max_nonzeros * sizeof(Int32),
+    )
 
     # Grid-stride loop
     j = blockIdx().x
@@ -682,19 +810,23 @@ function ii_sparse_gap_assignment_kernel!(
         Ppermⱼ = @view Pperm[1:length(gindsⱼ)]
 
         block_bitonic_sortperm!(V, Vpermⱼ, Ppermⱼ, lt)
-        ii_add_gap_mul_V_sparse!(reduction_ws, j, Vres, V, Vpermⱼ, Ppermⱼ, gvalsⱼ, sum_lower)
+        ii_add_gap_mul_V_sparse!(
+            reduction_ws,
+            j,
+            Vres,
+            V,
+            Vpermⱼ,
+            Ppermⱼ,
+            gvalsⱼ,
+            sum_lower,
+        )
 
         sync_threads()
         j += gridDim().x
     end
 end
 
-
-@inline function ii_sparse_initialize_sorting_shared_memory!(
-    gapinds,
-    Vperm,
-    Pperm
-)
+@inline function ii_sparse_initialize_sorting_shared_memory!(gapinds, Vperm, Pperm)
     # Copy into shared memory
     i = threadIdx().x
     @inbounds while i <= length(gapinds)

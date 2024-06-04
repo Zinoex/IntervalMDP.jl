@@ -1,9 +1,5 @@
 
-@inline function block_bitonic_sort!(
-    value,
-    aux,
-    lt,
-)
+@inline function block_bitonic_sort!(value, aux, lt)
     #### Sort the shared memory with bitonic sort
     nextpow2_length = nextpow(Int32(2), length(value))
 
@@ -15,35 +11,18 @@
     end
 end
 
-@inline function block_bitonic_sort_major_step!(
-    value,
-    aux,
-    lt,
-    k,
-)
+@inline function block_bitonic_sort_major_step!(value, aux, lt, k)
     j = k ÷ Int32(2)
     block_bitonic_sort_minor_step!(value, aux, lt, merge_other_lane, j)
 
     j ÷= Int32(2)
     while j >= Int32(1)
-        block_bitonic_sort_minor_step!(
-            value,
-            aux,
-            lt,
-            compare_and_swap_other_lane,
-            j,
-        )
+        block_bitonic_sort_minor_step!(value, aux, lt, compare_and_swap_other_lane, j)
         j ÷= Int32(2)
     end
 end
 
-@inline function block_bitonic_sort_minor_step!(
-    value,
-    aux,
-    lt,
-    other_lane,
-    j,
-)
+@inline function block_bitonic_sort_minor_step!(value, aux, lt, other_lane, j)
     thread = threadIdx().x
     block, lane = fldmod1(thread, j)
     i = (block - one(Int32)) * j * Int32(2) + lane
@@ -64,13 +43,7 @@ end
     sync_threads()
 end
 
-
-@inline function block_bitonic_sortperm!(
-    value,
-    perm,
-    aux,
-    lt,
-)
+@inline function block_bitonic_sortperm!(value, perm, aux, lt)
     #### Sort the shared memory with bitonic sort
     nextpow2_length = nextpow(Int32(2), length(value))
 
@@ -82,13 +55,7 @@ end
     end
 end
 
-@inline function block_bitonic_sortperm_major_step!(
-    value,
-    perm,
-    aux,
-    lt,
-    k,
-)
+@inline function block_bitonic_sortperm_major_step!(value, perm, aux, lt, k)
     j = k ÷ Int32(2)
     block_bitonic_sortperm_minor_step!(value, perm, aux, lt, merge_other_lane, j)
 
@@ -106,14 +73,7 @@ end
     end
 end
 
-@inline function block_bitonic_sortperm_minor_step!(
-    value,
-    perm,
-    aux,
-    lt,
-    other_lane,
-    j,
-)
+@inline function block_bitonic_sortperm_minor_step!(value, perm, aux, lt, other_lane, j)
     thread = threadIdx().x
     block, lane = fldmod1(thread, j)
     i = (block - one(Int32)) * j * Int32(2) + lane
@@ -134,11 +94,7 @@ end
     sync_threads()
 end
 
-@inline function warp_bitonic_sort!(
-    value,
-    aux,
-    lt,
-)
+@inline function warp_bitonic_sort!(value, aux, lt)
     #### Sort the shared memory with bitonic sort
     nextpow2_length = nextpow(Int32(2), length(value))
 
@@ -150,35 +106,18 @@ end
     end
 end
 
-@inline function warp_bitonic_sort_major_step!(
-    value,
-    aux,
-    lt,
-    k,
-)
+@inline function warp_bitonic_sort_major_step!(value, aux, lt, k)
     j = k ÷ Int32(2)
     warp_bitonic_sort_minor_step!(value, aux, lt, merge_other_lane, j)
 
     j ÷= Int32(2)
     while j >= Int32(1)
-        warp_bitonic_sort_minor_step!(
-            value,
-            aux,
-            lt,
-            compare_and_swap_other_lane,
-            j,
-        )
+        warp_bitonic_sort_minor_step!(value, aux, lt, compare_and_swap_other_lane, j)
         j ÷= Int32(2)
     end
 end
 
-@inline function warp_bitonic_sort_minor_step!(
-    value,
-    aux,
-    lt,
-    other_lane,
-    j,
-)
+@inline function warp_bitonic_sort_minor_step!(value, aux, lt, other_lane, j)
     assume(warpsize() == Int32(32))
 
     thread = mod1(threadIdx().x, warpsize())

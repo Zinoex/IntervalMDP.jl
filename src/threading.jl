@@ -4,43 +4,43 @@ function _threadsfortid(extid, iter, lbody, schedule)
     quote
         local threadsfor_fun
         let range = $(esc(range))
-        function threadsfor_fun(tid = 1; onethread = false)
-            r = range # Load into local variable
-            lenr = length(r)
-            # divide loop iterations among threads
-            if onethread
-                tid = 1
-                len, rem = lenr, 0
-            else
-                len, rem = divrem(lenr, Threads.threadpoolsize())
-            end
-            # not enough iterations for all the threads?
-            if len == 0
-                if tid > rem
-                    return
-                end
-                len, rem = 1, 0
-            end
-            # compute this thread's iterations
-            f = firstindex(r) + ((tid-1) * len)
-            l = f + len - 1
-            # distribute remaining iterations evenly
-            if rem > 0
-                if tid <= rem
-                    f = f + (tid-1)
-                    l = l + tid
+            function threadsfor_fun(tid = 1; onethread = false)
+                r = range # Load into local variable
+                lenr = length(r)
+                # divide loop iterations among threads
+                if onethread
+                    tid = 1
+                    len, rem = lenr, 0
                 else
-                    f = f + rem
-                    l = l + rem
+                    len, rem = divrem(lenr, Threads.threadpoolsize())
+                end
+                # not enough iterations for all the threads?
+                if len == 0
+                    if tid > rem
+                        return
+                    end
+                    len, rem = 1, 0
+                end
+                # compute this thread's iterations
+                f = firstindex(r) + ((tid - 1) * len)
+                l = f + len - 1
+                # distribute remaining iterations evenly
+                if rem > 0
+                    if tid <= rem
+                        f = f + (tid - 1)
+                        l = l + tid
+                    else
+                        f = f + rem
+                        l = l + rem
+                    end
+                end
+                # run this thread's iterations
+                for i in f:l
+                    local $(esc(lidx)) = @inbounds r[i]
+                    local $(esc(extid)) = tid
+                    $(esc(lbody))
                 end
             end
-            # run this thread's iterations
-            for i = f:l
-                local $(esc(lidx)) = @inbounds r[i]
-                local $(esc(extid)) = tid
-                $(esc(lbody))
-            end
-        end
         end
         if $(schedule === :dynamic || schedule === :default)
             Threads.threading_run(threadsfor_fun, false)

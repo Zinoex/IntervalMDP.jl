@@ -81,7 +81,13 @@ Vres = bellman!(workspace, Vres, V, prob; max = true)
 [1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
 
 """
-function bellman!(workspace::AbstractDenseWorkspace, Vres, V, prob::IntervalProbabilities; max = true)
+function bellman!(
+    workspace::AbstractDenseWorkspace,
+    Vres,
+    V,
+    prob::IntervalProbabilities;
+    max = true,
+)
     # rev=true for maximization
     sortperm!(workspace.permutation, V; rev = max)
     value_assignment!(Vres, V, prob, workspace, axes_source(prob))
@@ -164,12 +170,13 @@ function bellman!(workspace::ThreadedSparseWorkspace, Vres, V, prob; max = true)
         remaining = sum_lower(prob)[j]
 
         Vp_workspace = @view ws.values_gaps[1:nnz(gapⱼ)]
-        for (i, (V, p)) in enumerate(zip(@view(V[SparseArrays.nonzeroinds(gapⱼ)]), nonzeros(gapⱼ)))
+        for (i, (V, p)) in
+            enumerate(zip(@view(V[SparseArrays.nonzeroinds(gapⱼ)]), nonzeros(gapⱼ)))
             Vp_workspace[i] = (V, p)
         end
 
         # rev=true for maximization
-        sort!(Vp_workspace; rev = max, by=first)
+        sort!(Vp_workspace; rev = max, by = first)
 
         Vres[j] = dot(V, lowerⱼ) + gap_value(Vp_workspace, remaining)
     end
@@ -187,12 +194,13 @@ function bellman!(workspace::SparseWorkspace, Vres, V, prob; max = true)
         remaining = sum_lower(prob)[j]
 
         Vp_workspace = @view workspace.values_gaps[1:nnz(gapⱼ)]
-        for (i, (V, p)) in enumerate(zip(@view(V[SparseArrays.nonzeroinds(gapⱼ)]), nonzeros(gapⱼ)))
+        for (i, (V, p)) in
+            enumerate(zip(@view(V[SparseArrays.nonzeroinds(gapⱼ)]), nonzeros(gapⱼ)))
             Vp_workspace[i] = (V, p)
         end
 
         # rev=true for maximization
-        sort!(Vp_workspace; rev = max, by=first)
+        sort!(Vp_workspace; rev = max, by = first)
 
         Vres[j] = dot(V, lowerⱼ) + gap_value(Vp_workspace, remaining)
     end
@@ -200,10 +208,7 @@ function bellman!(workspace::SparseWorkspace, Vres, V, prob; max = true)
     return Vres
 end
 
-function gap_value(
-    Vp,
-    sum_lower,
-)
+function gap_value(Vp, sum_lower)
     remaining = 1.0 - sum_lower
     res = 0.0
 

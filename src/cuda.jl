@@ -13,6 +13,14 @@ struct OutOfSharedMemory <: Exception
 end
 
 function Base.showerror(io::IO, e::OutOfSharedMemory)
-    println(io, "Out of shared memory: minimum required size is ", e.min_shared_memory, " bytes.")
-    println(io, "Please try either the CPU implementation, the (dense) decomposed representation (preferred), or use a larger GPU..")
+    println(
+        io,
+        "Out of shared memory: minimum required size is ",
+        e.min_shared_memory,
+        " bytes.",
+    )
+    println(
+        io,
+        "Please try either the CPU implementation, the (dense) decomposed representation (preferred), or use a larger GPU..",
+    )
 end
