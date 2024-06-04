@@ -1,3 +1,13 @@
+"""
+    construct_ordering(prob::IntervalProbabilities)
+
+Construct a workspace for computing the Bellman update, given a value function.
+If O-maximization is used in a hot-loop, it is more efficient to use this function
+to preallocate the workspace and reuse across iterations.
+
+The workspace type is determined by the type and size of the probabilities matrix,
+as well as the number of threads available.
+"""
 construct_workspace(prob::IntervalProbabilities) = construct_workspace(gap(prob))
 
 ###################
