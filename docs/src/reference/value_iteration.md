@@ -9,5 +9,5 @@ value_iteration
 ```@docs
 bellman
 bellman!
-construct_ordering
+construct_workspace
 ```

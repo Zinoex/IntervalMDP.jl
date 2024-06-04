@@ -51,7 +51,7 @@ for row in policy
     @test row == ["a1", "a2", "sinking"]
 end
 
-prop = IntervalMDP.cu(FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10))
+prop = FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(mdp, spec)
 problem = IntervalMDP.cu(problem)

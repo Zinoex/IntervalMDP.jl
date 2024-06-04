@@ -34,6 +34,10 @@ the probability of reachability.
 See [Data storage formats](@ref) for more information on the file format.
 """
 function read_bmdp_tool_file(path)
+    if splitext(path)[2] != ".txt"
+        throw(ArgumentError("A bmdp-tool file must have a .txt extension"))
+    end
+
     open(path, "r") do io
         number_states = read_intline(readline(io))
         number_actions = read_intline(readline(io))

@@ -64,12 +64,12 @@ function value_iteration(
     prob = transition_prob(mc, time_length(mc))
 
     # It is more efficient to use allocate first and reuse across iterations
-    ordering = construct_ordering(gap(prob))
+    workspace = construct_workspace(prob)
 
     value_function = IMCValueFunction(problem)
     initialize!(value_function, spec)
 
-    step_imc!(value_function, ordering, prob; upper_bound = upper_bound)
+    step_imc!(value_function, workspace, prob; upper_bound = upper_bound)
     postprocess!(value_function, spec)
     k = 1
 
@@ -77,7 +77,7 @@ function value_iteration(
         nextiteration!(value_function)
 
         prob = transition_prob(mc, time_length(mc) - k)
-        step_imc!(value_function, ordering, prob; upper_bound = upper_bound)
+        step_imc!(value_function, workspace, prob; upper_bound = upper_bound)
         postprocess!(value_function, spec)
 
         k += 1
@@ -125,11 +125,11 @@ end
 
 function step_imc!(
     value_function::IMCValueFunction,
-    ordering,
+    workspace,
     prob::IntervalProbabilities;
     upper_bound,
 )
-    bellman!(ordering, value_function.cur, value_function.prev, prob; max = upper_bound)
+    bellman!(workspace, value_function.cur, value_function.prev, prob; max = upper_bound)
 
     return value_function
 end
@@ -209,7 +209,7 @@ function _value_iteration!(
     sptr = stateptr(mdp)
 
     # It is more efficient to use allocate first and reuse across iterations
-    ordering = construct_ordering(gap(prob))
+    workspace = construct_workspace(prob)
 
     value_function = IMDPValueFunction(problem)
     initialize!(value_function, spec)
@@ -217,7 +217,7 @@ function _value_iteration!(
     value_function, policy_cache = step_imdp!(
         value_function,
         policy_cache,
-        ordering,
+        workspace,
         prob,
         sptr;
         maximize = maximize,
@@ -231,7 +231,7 @@ function _value_iteration!(
         value_function, policy_cache = step_imdp!(
             value_function,
             policy_cache,
-            ordering,
+            workspace,
             prob,
             sptr;
             maximize = maximize,
@@ -269,14 +269,14 @@ end
 function step_imdp!(
     value_function,
     policy_cache,
-    ordering,
+    workspace,
     prob::IntervalProbabilities,
     stateptr;
     maximize,
     upper_bound,
 )
     bellman!(
-        ordering,
+        workspace,
         value_function.action_values,
         value_function.prev,
         prob;

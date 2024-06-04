@@ -4,6 +4,7 @@ import LLVM
 using LLVM.Interop: assume
 
 using CUDA, CUDA.CUSPARSE, Adapt, SparseArrays
+using GPUArrays: AbstractGPUArray, AbstractGPUVector, AbstractGPUMatrix
 
 using IntervalMDP, LinearAlgebra
 
@@ -55,8 +56,9 @@ end
 
 include("cuda/utils.jl")
 include("cuda/array.jl")
-include("cuda/ordering.jl")
-include("cuda/value_assignment.jl")
+include("cuda/sorting.jl")
+include("cuda/workspace.jl")
+include("cuda/bellman.jl")
 include("cuda/value_iteration.jl")
 include("cuda/interval_probabilities.jl")
 include("cuda/specification.jl")
