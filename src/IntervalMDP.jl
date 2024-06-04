@@ -1,7 +1,8 @@
 module IntervalMDP
 
 using LinearAlgebra, SparseArrays
-using Polyester: @batch
+
+include("threading.jl")
 
 include("interval_probabilities.jl")
 export IntervalProbabilities
@@ -36,9 +37,8 @@ export system, specification, system_property, satisfaction_mode, strategy_mode
 
 include("policy.jl")
 
-include("ordering.jl")
-export construct_ordering, sort_states!, perm
-export AbstractStateOrdering, DenseOrdering, SparseOrdering, PermutationSubset
+include("workspace.jl")
+export construct_workspace
 
 include("bellman.jl")
 export bellman, bellman!
