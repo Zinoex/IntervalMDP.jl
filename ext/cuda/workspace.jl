@@ -5,7 +5,7 @@ abstract type AbstractCuWorkspace end
 ###################
 struct CuDenseWorkspace <: AbstractCuWorkspace end
 
-IntervalMDP.construct_workspace(p::AbstractGPUMatrix) = CuDenseWorkspace()
+IntervalMDP.construct_workspace(::AbstractGPUMatrix) = CuDenseWorkspace()
 
 ####################
 # Sparse workspace #
