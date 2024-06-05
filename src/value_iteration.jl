@@ -89,40 +89,19 @@ function _value_iteration!(
     upper_bound = satisfaction_mode(spec) == Optimistic
     maximize = strategy_mode(spec) == Maximize
 
-    prob = transition_prob(mp, time_length(mp))
-
     # It is more efficient to use allocate first and reuse across iterations
     workspace = construct_workspace(mp, policy_cache)
 
     value_function = ValueFunction(problem)
     initialize!(value_function, spec)
 
-    bellman!(
-        workspace,
-        value_function.current,
-        value_function.previous,
-        prob;
-        upper_bound = upper_bound,
-        maximize = maximize,
-    )
-    postprocess_value_function!(value_function, spec)
-    postprocess_policy_cache!(policy_cache)
+    step!(workspace, value_function, 0, mp, spec; upper_bound = upper_bound, maximize = maximize)
     k = 1
 
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
 
-        prob = transition_prob(mp, time_length(mp) - k)
-        bellman!(
-            workspace,
-            value_function.current,
-            value_function.previous,
-            prob;
-            upper_bound = upper_bound,
-            maximize = maximize,
-        )
-        postprocess_value_function!(value_function, spec)
-        postprocess_policy_cache!(workspace.policy_cache)
+        step!(workspace, value_function, k, mp, spec; upper_bound = upper_bound, maximize = maximize)
         k += 1
     end
 
@@ -147,6 +126,11 @@ function ValueFunction(
     return ValueFunction(previous, current)
 end
 
+function construct_value_function(::MR, num_states) where {R, MR <: AbstractMatrix{R}}
+    V = zeros(R, num_states)
+    return V
+end
+
 function lastdiff!(V)
     # Reuse prev to store the latest difference
     V.previous .-= V.current
@@ -161,7 +145,30 @@ function nextiteration!(V)
     return V
 end
 
-function construct_value_function(::MR, num_states) where {R, MR <: AbstractMatrix{R}}
-    V = zeros(R, num_states)
-    return V
+function step!(workspace, value_function, k, mp::StationaryIntervalMarkovProcess, spec; upper_bound, maximize)
+    prob = transition_prob(mp)
+    bellman!(
+        workspace,
+        value_function.current,
+        value_function.previous,
+        prob;
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
+    postprocess_value_function!(value_function, spec)
+    postprocess_policy_cache!(workspace.policy_cache)
+end
+
+function step!(workspace, value_function, k, mp::TimeVaryingIntervalMarkovProcess, spec; upper_bound, maximize)
+    prob = transition_prob(mp, time_length(mp) - k)
+    bellman!(
+        workspace,
+        value_function.current,
+        value_function.previous,
+        prob;
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
+    postprocess_value_function!(value_function, spec)
+    postprocess_policy_cache!(workspace.policy_cache)
 end
