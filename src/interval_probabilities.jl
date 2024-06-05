@@ -182,6 +182,8 @@ Return the valid range of indices for the target states.
 """
 axes_target(p::IntervalProbabilities) = axes(gap(p), 1)
 
+stateptr(prob::IntervalProbabilities) = UnitRange{Int32}(1, num_source(prob) + 1)
+
 function interval_prob_hcat(
     ps::Vector{<:IntervalProbabilities{R, VR, MR}},
 ) where {R, VR, MR <: AbstractMatrix{R}}

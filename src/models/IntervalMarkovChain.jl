@@ -77,3 +77,7 @@ function checksize_imc!(p::IntervalProbabilities)
     # Store in Int32 since we don't expect to have more than 2^31 states
     return Int32(num_states)
 end
+
+function stateptr(mdp::IntervalMarkovChain)
+    return UnitRange{Int32}(1, mdp.num_states + 1)
+end

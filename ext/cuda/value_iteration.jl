@@ -8,7 +8,7 @@ function IntervalMDP.construct_value_function(
 end
 
 function IntervalMDP.extract_policy!(
-    value_function::IntervalMDP.IMDPValueFunction,
+    value_function::IntervalMDP.ValueFunction,
     policy_cache::IntervalMDP.NoPolicyCache,
     stateptr::VT,
     maximize,
@@ -85,7 +85,7 @@ function reduce_vov_kernel!(
 end
 
 function IntervalMDP.extract_policy!(
-    value_function::IntervalMDP.IMDPValueFunction,
+    value_function::IntervalMDP.ValueFunction,
     policy_cache::IntervalMDP.TimeVaryingPolicyCache,
     stateptr::VT,
     maximize,
@@ -93,9 +93,6 @@ function IntervalMDP.extract_policy!(
     R = eltype(value_function.cur)
     V_per_state =
         CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
-
-    # Transfer to GPU if not already
-    policy_cache = IntervalMDP.cu(policy_cache)
 
     argop = strict_argop(maximize)
 
@@ -132,16 +129,13 @@ function IntervalMDP.extract_policy!(
 end
 
 function IntervalMDP.extract_policy!(
-    value_function::IntervalMDP.IMDPValueFunction,
+    value_function::IntervalMDP.ValueFunction,
     policy_cache::IntervalMDP.StationaryPolicyCache,
     stateptr::VT,
     maximize,
 ) where {T, VT <: CuVector{T}}
     V_per_state =
         CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
-
-    # Transfer to GPU if not already
-    policy_cache = IntervalMDP.cu(policy_cache)
 
     argop = strict_argop(maximize)
 

@@ -86,3 +86,7 @@ function TimeVaryingIntervalMarkovChain(
         AllStates(),
     )
 end
+
+function stateptr(mdp::TimeVaryingIntervalMarkovChain)
+    return UnitRange{Int32}(1, mdp.num_states + 1)
+end

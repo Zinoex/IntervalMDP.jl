@@ -104,11 +104,11 @@ Super type for all reachability-like property.
 abstract type AbstractReachability <: Property end
 
 function initialize!(value_function, prop::AbstractReachability)
-    @inbounds value_function.prev[reach(prop)] .= 1
+    @inbounds value_function.previous[reach(prop)] .= 1
 end
 
-function postprocess!(value_function, prop::AbstractReachability)
-    @inbounds value_function.cur[reach(prop)] .= 1
+function postprocess_value_function!(value_function, prop::AbstractReachability)
+    @inbounds value_function.current[reach(prop)] .= 1
 end
 
 """
@@ -223,9 +223,9 @@ A property of reachability that includes a set of states to avoid.
 """
 abstract type AbstractReachAvoid <: AbstractReachability end
 
-function postprocess!(value_function, prop::AbstractReachAvoid)
-    @inbounds value_function.cur[reach(prop)] .= 1
-    @inbounds value_function.cur[avoid(prop)] .= 0
+function postprocess_value_function!(value_function, prop::AbstractReachAvoid)
+    @inbounds value_function.current[reach(prop)] .= 1
+    @inbounds value_function.current[avoid(prop)] .= 0
 end
 
 """
@@ -364,12 +364,12 @@ Super type for all reward specifications.
 abstract type AbstractReward{R <: Real} <: Property end
 
 function initialize!(value_function, prop::AbstractReward)
-    value_function.prev .= reward(prop)
+    value_function.previous .= reward(prop)
 end
 
-function postprocess!(value_function, prop::AbstractReward)
-    rmul!(value_function.cur, discount(prop))
-    value_function.cur += reward(prop)
+function postprocess_value_function!(value_function, prop::AbstractReward)
+    rmul!(value_function.current, discount(prop))
+    value_function.current += reward(prop)
 end
 
 function checkreward!(prop::AbstractReward, system::IntervalMarkovProcess)
@@ -530,8 +530,8 @@ Specification(prop::Property, satisfaction::SatisfactionMode) =
 
 initialize!(value_function, spec::Specification) =
     initialize!(value_function, system_property(spec))
-postprocess!(value_function, spec::Specification) =
-    postprocess!(value_function, system_property(spec))
+postprocess_value_function!(value_function, spec::Specification) =
+    postprocess_value_function!(value_function, system_property(spec))
 
 function checkspecification!(spec::Specification, system)
     return checkproperty!(system_property(spec), system)
