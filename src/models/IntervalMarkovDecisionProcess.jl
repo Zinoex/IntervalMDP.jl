@@ -106,7 +106,7 @@ function IntervalMarkovDecisionProcess(
     transition_prob::IntervalProbabilities,
     stateptr::AbstractVector{<:Integer},
     action_vals::AbstractVector,
-    initial_states::InitialStates,
+    initial_states::InitialStates = AllStates(),
 )
     num_states = checksize_imdp!(transition_prob, stateptr)
 
@@ -120,58 +120,25 @@ function IntervalMarkovDecisionProcess(
 end
 
 function IntervalMarkovDecisionProcess(
-    transition_prob::IntervalProbabilities,
-    stateptr::AbstractVector{<:Integer},
-    action_vals::AbstractVector,
-)
-    return IntervalMarkovDecisionProcess(
-        transition_prob,
-        stateptr,
-        action_vals,
-        AllStates(),
-    )
-end
-
-function IntervalMarkovDecisionProcess(
     transition_probs::Vector{<:IntervalProbabilities},
     actions::AbstractVector,
-    initial_states::InitialStates,
+    initial_states::InitialStates = AllStates(),
 )
     transition_prob, stateptr = interval_prob_hcat(transition_probs)
 
     return IntervalMarkovDecisionProcess(transition_prob, stateptr, actions, initial_states)
 end
 
-function IntervalMarkovDecisionProcess(
-    transition_probs::Vector{<:IntervalProbabilities},
-    actions::AbstractVector,
-)
-    return IntervalMarkovDecisionProcess(
-        transition_probs,
-        actions,
-        AllStates(),
-    )
-end
-
 const SourceActionsTransitionProb = Pair{<:AbstractVector, <:IntervalProbabilities}
 
 function IntervalMarkovDecisionProcess(
     transition_probs::Vector{<:SourceActionsTransitionProb},
-    initial_states::InitialStates,
+    initial_states::InitialStates = AllStates(),
 )
     action_vals = mapreduce(first, vcat, transition_probs)
     transition_probs = map(x -> x[2], transition_probs)
 
     return IntervalMarkovDecisionProcess(transition_probs, action_vals, initial_states)
-end
-
-function IntervalMarkovDecisionProcess(
-    transition_probs::Vector{<:SourceActionsTransitionProb},
-)
-    return IntervalMarkovDecisionProcess(
-        transition_probs,
-        AllStates(),
-    )
 end
 
 function checksize_imdp!(p::IntervalProbabilities, stateptr::AbstractVector{Int32})

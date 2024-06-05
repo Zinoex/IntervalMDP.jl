@@ -64,7 +64,7 @@ end
 
 function TimeVaryingIntervalMarkovChain(
     transition_probs::Vector{P},
-    initial_states,
+    initial_states::InitialStates = AllStates(),
 ) where {P <: IntervalProbabilities}
     @assert !isempty(transition_probs) "The vector of transition probabilities must not be empty"
 
@@ -76,15 +76,6 @@ function TimeVaryingIntervalMarkovChain(
     end
 
     return TimeVaryingIntervalMarkovChain(transition_probs, initial_states, num_states)
-end
-
-function TimeVaryingIntervalMarkovChain(
-    transition_probs::Vector{P},
-) where {P <: IntervalProbabilities}
-    return TimeVaryingIntervalMarkovChain(
-        transition_probs,
-        AllStates(),
-    )
 end
 
 function stateptr(mdp::TimeVaryingIntervalMarkovChain)

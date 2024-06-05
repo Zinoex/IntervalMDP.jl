@@ -66,19 +66,12 @@ struct ParallelProduct{
     num_states::Int32
 end
 
-function ParallelProduct(orthogonal_processes::Vector{StationaryIntervalMarkovProcess{P}}, initial_states) where {P <: IntervalProbabilities}
-    nstates = prod(num_states(orthogonal_process) for orthogonal_process in orthogonal_processes)
+function ParallelProduct(orthogonal_processes::Vector{StationaryIntervalMarkovProcess{P}}, initial_states::InitialStates = AllStates()) where {P <: IntervalProbabilities}
+    nstates = prod(num_states, orthogonal_processes)
     
     return ParallelProduct(
         orthogonal_processes,
         initial_states,
         nstates
-    )
-end
-
-function ParallelProduct(orthogonal_processes::Vector{StationaryIntervalMarkovProcess{P}}) where {P <: IntervalProbabilities}
-    return ParallelProduct(
-        SVector(orthogonal_processes),
-        AllStates(),
     )
 end

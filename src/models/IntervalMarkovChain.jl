@@ -49,19 +49,12 @@ struct IntervalMarkovChain{
 end
 
 function IntervalMarkovChain(
-    transition_prob::P,
-    initial_states::VI,
-) where {P <: IntervalProbabilities, VI <: InitialStates}
+    transition_prob::IntervalProbabilities,
+    initial_states::InitialStates = AllStates(),
+)
     num_states = checksize_imc!(transition_prob)
 
     return IntervalMarkovChain(transition_prob, initial_states, num_states)
-end
-
-function IntervalMarkovChain(transition_prob::P) where {P <: IntervalProbabilities}
-    return IntervalMarkovChain(
-        transition_prob,
-        AllStates(),
-    )
 end
 
 function checksize_imc!(p::IntervalProbabilities)
