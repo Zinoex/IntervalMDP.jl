@@ -2,8 +2,7 @@
     IntervalMarkovDecisionProcess{
         P <: IntervalProbabilities,
         VT <: AbstractVector{Int32},
-        VI <: Union{AllStates, AbstractVector},
-        VA <: AbstractVector,
+        VI <: Union{AllStates, AbstractVector}
     }
 
 A type representing (stationary) Interval Markov Decision Processes (IMDP), which are Markov Decision Processes with uncertainty in the form of intervals on
@@ -12,15 +11,14 @@ the transition probabilities.
 Formally, let ``(S, S_0, A, \\bar{P}, \\underbar{P})`` be an interval Markov decision processes, where ``S`` is the set of states, ``S_0 \\subset S`` is the set of initial states,
 ``A`` is the set of actions, and ``\\bar{P} : A \\to \\mathbb{R}^{|S| \\times |S|}`` and ``\\underbar{P} : A \\to \\mathbb{R}^{|S| \\times |S|}`` are functions
 representing the upper and lower bound transition probability matrices prespectively for each action. Then the ```IntervalMarkovDecisionProcess``` type is
-defined as follows: indices `1:num_states` are the states in ``S``, `transition_prob` represents ``\\bar{P}`` and ``\\underbar{P}``,
-`action_vals` contains the actions available in each state, and `initial_states` is the set of initial states ``S_0``.
-If no initial states are specified, then the initial states are assumed to be all states in ``S``.
+defined as follows: indices `1:num_states` are the states in ``S``, `transition_prob` represents ``\\bar{P}`` and ``\\underbar{P}``, actions are 
+implicitly defined by `stateptr` (e.g. if `stateptr[3] == 4` and `stateptr[4] == 7` then the actions available to state 3 are `[4, 5, 6]`), 
+and `initial_states` is the set of initial states ``S_0``. If no initial states are specified, then the initial states are assumed to be all states in ``S``.
 
 ### Fields
 - `transition_prob::P`: interval on transition probabilities where columns represent source/action pairs and rows represent target states.
 - `stateptr::VT`: pointer to the start of each source state in `transition_prob` (i.e. `transition_prob[:, stateptr[j]:stateptr[j + 1] - 1]` is the transition
     probability matrix for source state `j`) in the style of colptr for sparse matrices in CSC format.
-- `action_vals::VA`: actions available in each state. Can be any eltype.
 - `initial_states::VI`: initial states.
 - `num_states::Int32`: number of states.
 
@@ -41,14 +39,13 @@ transition_probs = IntervalProbabilities(;
 )
 
 stateptr = [1, 3, 5, 6]
-actions = ["a1", "a2", "a1", "a2", "sinking"]
 initial_states = [1]
 
-mdp = IntervalMarkovDecisionProcess(transition_probs, stateptr, actions, initial_states)
+mdp = IntervalMarkovDecisionProcess(transition_probs, stateptr, initial_states)
 ```
 
 There is also a constructor for `IntervalMarkovDecisionProcess` where the transition probabilities are given as a list of 
-mappings from actions to transition probabilities for each source state.
+transition probabilities for each source state.
 
 ```jldoctest
 prob1 = IntervalProbabilities(;
@@ -82,7 +79,7 @@ prob3 = IntervalProbabilities(;
     upper = [0.0; 0.0; 1.0]
 )
 
-transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
+transition_probs = [prob1, prob2, prob3]
 initial_states = [1]
 
 mdp = IntervalMarkovDecisionProcess(transition_probs, initial_states)
@@ -93,11 +90,9 @@ struct IntervalMarkovDecisionProcess{
     P <: IntervalProbabilities,
     VT <: AbstractVector{Int32},
     VI <: InitialStates,
-    VA <: AbstractVector,
 } <: StationaryIntervalMarkovProcess{P}
     transition_prob::P
     stateptr::VT
-    action_vals::VA
     initial_states::VI
     num_states::Int32
 end
@@ -105,7 +100,6 @@ end
 function IntervalMarkovDecisionProcess(
     transition_prob::IntervalProbabilities,
     stateptr::AbstractVector{<:Integer},
-    action_vals::AbstractVector,
     initial_states::InitialStates = AllStates(),
 )
     num_states = checksize_imdp!(transition_prob, stateptr)
@@ -113,7 +107,6 @@ function IntervalMarkovDecisionProcess(
     return IntervalMarkovDecisionProcess(
         transition_prob,
         stateptr,
-        action_vals,
         initial_states,
         num_states,
     )
@@ -121,24 +114,11 @@ end
 
 function IntervalMarkovDecisionProcess(
     transition_probs::Vector{<:IntervalProbabilities},
-    actions::AbstractVector,
     initial_states::InitialStates = AllStates(),
 )
     transition_prob, stateptr = interval_prob_hcat(transition_probs)
 
-    return IntervalMarkovDecisionProcess(transition_prob, stateptr, actions, initial_states)
-end
-
-const SourceActionsTransitionProb = Pair{<:AbstractVector, <:IntervalProbabilities}
-
-function IntervalMarkovDecisionProcess(
-    transition_probs::Vector{<:SourceActionsTransitionProb},
-    initial_states::InitialStates = AllStates(),
-)
-    action_vals = mapreduce(first, vcat, transition_probs)
-    transition_probs = map(x -> x[2], transition_probs)
-
-    return IntervalMarkovDecisionProcess(transition_probs, action_vals, initial_states)
+    return IntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
 end
 
 function checksize_imdp!(p::IntervalProbabilities, stateptr::AbstractVector{Int32})
@@ -159,19 +139,12 @@ function checksize_imdp!(p::IntervalProbabilities, stateptr::AbstractVector{Int3
 end
 
 """
-    actions(mdp::IntervalMarkovDecisionProcess)
+    stateptr(mdp::IntervalMarkovDecisionProcess)
 
-Return a vector of actions (choices in PRISM terminology).
+Return the state pointer of the Interval Markov Decision Process. The state pointer is a vector of integers where the `i`-th element
+is the index of the first element of the `i`-th state in the transition probability matrix. 
+I.e. `transition_prob[:, stateptr[j]:stateptr[j + 1] - 1]` is the transition probability matrix for source state `j`.
 """
-actions(mdp::IntervalMarkovDecisionProcess) = mdp.action_vals
-
-"""
-    num_choices(mdp::IntervalMarkovDecisionProcess)
-
-Return the sum of the number of actions available in each state ``\\sum_{j} \\mathrm{num\\_actions}(s_j)``.
-"""
-num_choices(mdp::IntervalMarkovDecisionProcess) = length(actions(mdp))
-
 stateptr(mdp::IntervalMarkovDecisionProcess) = mdp.stateptr
 
 """
@@ -204,30 +177,8 @@ end
 Extract an Interval Markov Chain from an Interval Markov Decision Process under a stationary strategy. The extracted IMC is stationary.
 """
 function tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector)
-    sptr = stateptr(mdp)
-
     probs = transition_prob(mdp)
-
-    strategy_idxes = eltype(sptr)[]
-    for i in 1:num_states(mdp)
-        state_actions = actions(mdp)[sptr[i]:(sptr[i + 1] - 1)]
-        if !(strategy[i] in state_actions)
-            throw(
-                ArgumentError(
-                    "The strategy must be a valid action for each state. Was $(strategy[i]) for state $i, available actions are $state_actions.",
-                ),
-            )
-        end
-
-        for j in sptr[i]:(sptr[i + 1] - 1)
-            if actions(mdp)[j] == strategy[i]
-                push!(strategy_idxes, j)
-                break
-            end
-        end
-    end
-
-    new_probs = probs[strategy_idxes]
+    new_probs = probs[strategy]
 
     istates = initial_states(mdp)
 
@@ -243,32 +194,11 @@ function tomarkovchain(
     mdp::IntervalMarkovDecisionProcess,
     strategy::AbstractVector{<:AbstractVector},
 )
-    sptr = stateptr(mdp)
-
     probs = transition_prob(mdp)
     new_probs = Vector{typeof(probs)}(undef, length(strategy))
 
     for (t, strategy_step) in enumerate(strategy)
-        strategy_idxes = eltype(sptr)[]
-        for i in 1:num_states(mdp)
-            state_actions = actions(mdp)[sptr[i]:(sptr[i + 1] - 1)]
-            if !(strategy_step[i] in state_actions)
-                throw(
-                    ArgumentError(
-                        "The strategy must be a valid action for each state. Was $(strategy_step[i]) for state $i at time $t, available actions are $state_actions.",
-                    ),
-                )
-            end
-
-            for j in sptr[i]:(sptr[i + 1] - 1)
-                if actions(mdp)[j] == strategy_step[i]
-                    push!(strategy_idxes, j)
-                    break
-                end
-            end
-        end
-
-        new_probs[t] = probs[strategy_idxes]
+        new_probs[t] = probs[strategy_step]
     end
 
     istates = initial_states(mdp)

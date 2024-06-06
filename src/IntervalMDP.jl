@@ -19,7 +19,7 @@ export AllStates
 export IntervalMarkovChain, IntervalMarkovDecisionProcess
 export TimeVaryingIntervalMarkovChain
 export ParallelProduct
-export transition_prob, num_states, initial_states, actions, num_choices, tomarkovchain, time_length
+export transition_prob, num_states, initial_states, stateptr, tomarkovchain, time_length
 
 include("specification.jl")
 export Property, LTLFormula, LTLfFormula, PCTLFormula

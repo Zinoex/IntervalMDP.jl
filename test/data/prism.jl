@@ -31,8 +31,6 @@ rm(new_path * ".pctl")
 mdp, new_mdp = system(problem), system(new_problem)
 
 @test num_states(mdp) == num_states(new_mdp)
-@test num_choices(mdp) == num_choices(new_mdp)
-@test actions(mdp) == actions(new_mdp)
 
 transition_probabilities = transition_prob(mdp)
 new_transition_probabilities = transition_prob(new_mdp)
@@ -86,8 +84,6 @@ rm(new_path * "d.pctl")
 mdp, new_mdp = system(problem), system(new_problem)
 
 @test num_states(mdp) == num_states(new_mdp)
-@test num_choices(mdp) == num_choices(new_mdp)
-@test actions(mdp) == actions(new_mdp)
 
 transition_probabilities = transition_prob(mdp)
 new_transition_probabilities = transition_prob(new_mdp)
@@ -143,8 +139,6 @@ rm(new_path * ".pctl")
 new_mdp = system(new_problem)
 
 @test num_states(mc) == num_states(new_mdp)
-@test num_states(mc) == num_choices(new_mdp)
-@test actions(new_mdp) == ["mc", "mc", "mc"]
 
 transition_probabilities = transition_prob(mc)
 new_transition_probabilities = transition_prob(new_mdp)
@@ -195,7 +189,6 @@ rm(new_path * "e.pctl")
 new_mdp = system(new_problem)
 
 @test num_states(mc) == num_states(new_mdp)
-@test num_states(mc) == num_choices(new_mdp)
 
 transition_probabilities = transition_prob(mc)
 new_transition_probabilities = transition_prob(new_mdp)

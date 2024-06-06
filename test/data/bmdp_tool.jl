@@ -13,8 +13,6 @@ new_mdp, new_tstates = read_bmdp_tool_file(new_path)
 rm(new_path)
 
 @test num_states(mdp) == num_states(new_mdp)
-@test num_choices(mdp) == num_choices(new_mdp)
-@test actions(mdp) == actions(new_mdp)
 
 transition_probabilities = transition_prob(mdp)
 new_transition_probabilities = transition_prob(new_mdp)
@@ -53,8 +51,6 @@ new_mdp, new_tstates = read_bmdp_tool_file(new_path)
 rm(new_path)
 
 @test num_states(mc) == num_states(new_mdp)
-@test num_states(mc) == num_choices(new_mdp)
-@test actions(new_mdp) == [0, 0, 0]
 
 transition_probabilities = transition_prob(mc)
 new_transition_probabilities = transition_prob(new_mdp)
@@ -81,8 +77,6 @@ write_bmdp_tool_file(new_path, problem)
 new_mdp, new_tstates = read_bmdp_tool_file(new_path)
 
 @test num_states(mdp) == num_states(new_mdp)
-@test num_choices(mdp) == num_choices(new_mdp)
-@test actions(mdp) == actions(new_mdp)
 
 transition_probabilities = transition_prob(mdp)
 new_transition_probabilities = transition_prob(new_mdp)

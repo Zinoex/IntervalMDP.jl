@@ -10,8 +10,6 @@ new_mdp = read_intervalmdp_jl_model(new_path)
 rm(new_path)
 
 @test num_states(mdp) == num_states(new_mdp)
-@test num_choices(mdp) == num_choices(new_mdp)
-@test actions(mdp) == actions(new_mdp)
 
 transition_probabilities = transition_prob(mdp)
 new_transition_probabilities = transition_prob(new_mdp)
