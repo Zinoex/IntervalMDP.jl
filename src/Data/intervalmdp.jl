@@ -31,6 +31,9 @@ function read_intervalmdp_jl_model(model_path)
         @assert dataset.attrib["format"] == "sparse_csc"
 
         initial_states = convert.(Int32, dataset["initial_states"][:])
+        if isempty(initial_states)
+            initial_states = AllStates()
+        end
 
         lower_colptr = convert.(Int32, dataset["lower_colptr"][:])
         lower_rowval = convert.(Int32, dataset["lower_rowval"][:])
@@ -71,9 +74,8 @@ function read_intervalmdp_jl_mdp(dataset, prob, initial_states)
     @assert dataset.attrib["cols"] == "from/action"
 
     stateptr = convert.(Int32, dataset["stateptr"][:])
-    action_vals = dataset["action_vals"][:]
 
-    mdp = IntervalMarkovDecisionProcess(prob, stateptr, action_vals, initial_states)
+    mdp = IntervalMarkovDecisionProcess(prob, stateptr, initial_states)
     return mdp
 end
 
@@ -192,6 +194,9 @@ function write_intervalmdp_jl_model(model_path, mdp_or_mc::StationaryIntervalMar
         dataset.attrib["rows"] = "to"
 
         istates = initial_states(mdp_or_mc)
+        if istates isa AllStates
+            istates = Int32[]
+        end
         defDim(dataset, "initial_states", length(istates))
         v = defVar(dataset, "initial_states", Int32, ("initial_states",); deflatelevel = 5)
         v[:] = istates
@@ -251,9 +256,7 @@ function write_intervalmdp_jl_model_specific(dataset, mdp::IntervalMarkovDecisio
     v = defVar(dataset, "stateptr", Int32, ("stateptr",))
     v[:] = IntervalMDP.stateptr(mdp)
 
-    defDim(dataset, "action_vals", length(actions(mdp)))
-    v = defVar(dataset, "action_vals", eltype(actions(mdp)), ("action_vals",))
-    return v[:] = actions(mdp)
+    return nothing
 end
 
 function write_intervalmdp_jl_model_specific(dataset, mc::IntervalMarkovChain)

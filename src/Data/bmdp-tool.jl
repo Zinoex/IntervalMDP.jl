@@ -148,10 +148,9 @@ function write_bmdp_tool_file(
     l, g = lower(prob), gap(prob)
     num_columns = num_source(prob)
     sptr = IntervalMDP.stateptr(mdp)
-    act = actions(mdp)
 
     number_states = num_states(mdp)
-    number_actions = length(unique(act))
+    number_actions = IntervalMDP.max_actions(mdp)
     number_terminal = length(terminal_states)
 
     open(path, "w") do io
@@ -164,15 +163,15 @@ function write_bmdp_tool_file(
         end
 
         s = 1
+        action = 0
         for j in 1:num_columns
-            action = act[j]
-
             if sptr[s + 1] == j
                 s += 1
+                action = 0
             end
             src = s - 1
 
-            column_lower = view(l, :, j)
+            column_lower = @view l[:, j]
             I, V = SparseArrays.findnz(column_lower)
 
             for (i, v) in zip(I, V)
@@ -183,6 +182,8 @@ function write_bmdp_tool_file(
                 transition = "$src $action $dest $pl $pu"
                 println(io, transition)
             end
+
+            action += 1
         end
     end
 end
