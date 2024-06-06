@@ -147,6 +147,8 @@ I.e. `transition_prob[:, stateptr[j]:stateptr[j + 1] - 1]` is the transition pro
 """
 stateptr(mdp::IntervalMarkovDecisionProcess) = mdp.stateptr
 
+max_actions(mdp::IntervalMarkovDecisionProcess) = stateptr(mdp) |> diff |> maximum
+
 """
     tomarkovchain(mdp::IntervalMarkovDecisionProcess)
 

@@ -112,18 +112,18 @@ function postprocess_value_function!(value_function, prop::AbstractReachability)
 end
 
 """
-    FiniteTimeReachability{T <: Integer, VT <: AbstractVector{T}}
+    FiniteTimeReachability{T, VT <: AbstractVector{T}}
 
 Finite time reachability specified by a set of target/terminal states and a time horizon. 
 That is, if ``T`` is the set of target states and ``H`` is the time horizon, compute
 ``ℙ(∃k = 0…H, s_k ∈ T)``.
 """
-struct FiniteTimeReachability{T <: Integer, VT <: AbstractVector{T}} <: AbstractReachability
+struct FiniteTimeReachability{T, VT <: AbstractVector{T}} <: AbstractReachability
     terminal_states::VT
     time_horizon::Any
 end
 
-function checkproperty!(prop::FiniteTimeReachability, system::IntervalMarkovProcess)
+function checkproperty!(prop::FiniteTimeReachability, system::SimpleIntervalMarkovProcess)
     checkterminal!(terminal_states(prop), system)
     checktimehorizon!(prop, system)
 end
@@ -241,7 +241,7 @@ struct FiniteTimeReachAvoid{T <: Integer, VT <: AbstractVector{T}} <: AbstractRe
     time_horizon::Any
 end
 
-function checkproperty!(prop::FiniteTimeReachAvoid, system::IntervalMarkovProcess)
+function checkproperty!(prop::FiniteTimeReachAvoid, system::SimpleIntervalMarkovProcess)
     checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
     checktimehorizon!(prop, system)
@@ -372,8 +372,8 @@ function postprocess_value_function!(value_function, prop::AbstractReward)
     value_function.current += reward(prop)
 end
 
-function checkreward!(prop::AbstractReward, system::IntervalMarkovProcess)
-    checkdevice!(reward(prop), transition_prob(system))
+function checkreward!(prop::AbstractReward, system::SimpleIntervalMarkovProcess)
+    checkdevice!(reward(prop), transition_prob(system, 1))
     @assert length(reward(prop)) == num_states(system)
     @assert 0 < discount(prop)  # Discount must be non-negative.
 end
@@ -402,7 +402,7 @@ struct FiniteTimeReward{R <: Real, T <: Integer, VR <: AbstractVector{R}} <:
     time_horizon::T
 end
 
-function checkproperty!(prop::FiniteTimeReward, system::IntervalMarkovProcess)
+function checkproperty!(prop::FiniteTimeReward, system::SimpleIntervalMarkovProcess)
     checkreward!(prop, system)
     checktimehorizon!(prop, system)
 end

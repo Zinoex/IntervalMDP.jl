@@ -10,11 +10,11 @@ Then the parallel product composition of ``\\mathcal{M}_1, \\ldots, \\mathcal{M}
 This means that the transition probability from state ``s = (s^1, \\ldots, s^n)`` to state ``s' = (s'^1, \\ldots, s'^n)`` is the product of the transition probabilities from ``s^i`` to ``s'^i`` in each process (accounting for actions if any of the processes are MDPs).
 Due to the parallel construction, value iteration can be done independently for each process over the value function tensor.
 
-Then the `ParallelProduct` type is defined by a vector of `StationaryIntervalMarkovProcess` and the initial states of the composition.
+Then the `ParallelProduct` type is defined by a vector of `IntervalMarkovProcess` (all have to be either stationary or time-varying) and the initial states of the composition.
 
 ### Fields
-- `orthogonal_processes::Vector{StationaryIntervalMarkovProcess{P}}`: the list of processes in the composition.
-- `initial_states::VT`: initial states.
+- `orthogonal_processes::Vector{IntervalMarkovProcess{P}}`: the list of processes in the composition.
+- `initial_states::VI`: initial states.
 - `num_states::Int32`: number of states.
 
 ### Examples
@@ -60,18 +60,36 @@ mc = TimeVaryingIntervalMarkovChain([prob1, prob2], initial_states)
 struct ParallelProduct{
     P <: IntervalProbabilities,
     VI <: InitialStates,
-} <: StationaryIntervalMarkovProcess{P}
-    orthogonal_processes::Vector{StationaryIntervalMarkovProcess{P}}
+} <: ProductIntervalMarkovProcess{P}
+    orthogonal_processes::Vector{IntervalMarkovProcess{P}}
     initial_states::VI
     num_states::Int32
+    subdims::Vector{Int32}
 end
 
-function ParallelProduct(orthogonal_processes::Vector{StationaryIntervalMarkovProcess{P}}, initial_states::InitialStates = AllStates()) where {P <: IntervalProbabilities}
+function ParallelProduct(orthogonal_processes::Vector{IntervalMarkovProcess{P}}, initial_states::InitialStates = AllStates()) where {P <: IntervalProbabilities}
     nstates = prod(num_states, orthogonal_processes)
+    sdims = map(dims, orthogonal_processes)
     
     return ParallelProduct(
         orthogonal_processes,
         initial_states,
-        nstates
+        nstates,
+        sdims
     )
 end
+
+subdims(pp::ParallelProduct) = pp.subdims
+dims(pp::ParallelProduct) = sum(subdims(pp))
+
+product_num_states(pp::ParallelProduct) = map(product_num_states, pp.orthogonal_processes)
+
+first_transition_prob(pp::ParallelProduct) = first_transition_prob(first(pp.orthogonal_processes))
+first_transition_prob(mp::SimpleIntervalMarkovProcess) = transition_prob(mp, 1)
+
+max_actions(pp::ParallelProduct) = maximum(max_actions, orthogonal_processes(pp))
+
+orthogonal_processes(pp::ParallelProduct) = pp.orthogonal_processes
+
+# TODO: Implement check that if any of the processes are time-varying,
+# then the time-varying processes have the same number of time steps.

@@ -24,12 +24,12 @@ Vres = similar(Vres)
 bellman!(ws, Vres, V, prob; upper_bound = true)
 @test Vres ≈ [0.3 * 4 + 0.7 * 10, 0.5 * 5 + 0.3 * 6 + 0.2 * 7]
 
-ws = IntervalMDP.SparseWorkspace(gap(prob), IntervalMDP.NoPolicyCache(prob))
+ws = IntervalMDP.SparseWorkspace(gap(prob), IntervalMDP.NoPolicyCache(), 1)
 Vres = similar(Vres)
 bellman!(ws, Vres, V, prob; upper_bound = true)
 @test Vres ≈ [0.3 * 4 + 0.7 * 10, 0.5 * 5 + 0.3 * 6 + 0.2 * 7]
 
-ws = IntervalMDP.ThreadedSparseWorkspace(gap(prob), IntervalMDP.NoPolicyCache(prob))
+ws = IntervalMDP.ThreadedSparseWorkspace(gap(prob), IntervalMDP.NoPolicyCache(), 1)
 Vres = similar(Vres)
 bellman!(ws, Vres, V, prob; upper_bound = true)
 @test Vres ≈ [0.3 * 4 + 0.7 * 10, 0.5 * 5 + 0.3 * 6 + 0.2 * 7]
@@ -60,12 +60,12 @@ Vres = similar(Vres)
 bellman!(ws, Vres, V, prob; upper_bound = false)
 @test Vres ≈ [0.5 * 1 + 0.3 * 4 + 0.2 * 10, 0.6 * 5 + 0.3 * 6 + 0.1 * 7]
 
-ws = IntervalMDP.SparseWorkspace(gap(prob), IntervalMDP.NoPolicyCache(prob))
+ws = IntervalMDP.SparseWorkspace(gap(prob), IntervalMDP.NoPolicyCache(), 1)
 Vres = similar(Vres)
 bellman!(ws, Vres, V, prob; upper_bound = false)
 @test Vres ≈ [0.5 * 1 + 0.3 * 4 + 0.2 * 10, 0.6 * 5 + 0.3 * 6 + 0.1 * 7]
 
-ws = IntervalMDP.ThreadedSparseWorkspace(gap(prob), IntervalMDP.NoPolicyCache(prob))
+ws = IntervalMDP.ThreadedSparseWorkspace(gap(prob), IntervalMDP.NoPolicyCache(), 1)
 Vres = similar(Vres)
 bellman!(ws, Vres, V, prob; upper_bound = false)
 @test Vres ≈ [0.5 * 1 + 0.3 * 4 + 0.2 * 10, 0.6 * 5 + 0.3 * 6 + 0.1 * 7]

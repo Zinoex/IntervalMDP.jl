@@ -37,17 +37,8 @@ function bellman(V, prob; upper_bound = false)
     return bellman!(Vres, V, prob; upper_bound = upper_bound)
 end
 
-function bellman!(Vres, V, prob; upper_bound = false)
-    workspace = construct_workspace(prob)
-    return bellman!(workspace, Vres, V, prob; upper_bound = upper_bound)
-end
-
-#########
-# Dense #
-#########
-
 """
-bellman!(workspace, Vres, V, prob; upper_bound = false, maximize = true)
+    bellman!(workspace, Vres, V, prob, stateptr; upper_bound = false, maximize = true)
 
 Compute in-place robust Bellman update with the value function `V` and the interval probabilities
 `prob` that upper or lower bounds the expectation of the value function `V` via O-maximization [1].
@@ -82,32 +73,37 @@ Vres = bellman!(workspace, Vres, V, prob; upper_bound = false, maximize = true)
 [1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
 
 """
-function bellman!(
-    workspace::AbstractDenseWorkspace,
-    Vres,
-    V,
-    prob::IntervalProbabilities;
-    upper_bound = false,
-    maximize = true,
-)
-    # rev=true for maximization
-    sortperm!(workspace.permutation, V; rev = upper_bound)
-    value_assignment!(workspace, Vres, V, prob, maximize)
+function bellman! end
 
-    return Vres
+function bellman!(Vres, V, prob; upper_bound = false)
+    workspace = construct_workspace(prob)
+    return bellman!(workspace, Vres, V, prob; upper_bound = upper_bound)
 end
 
-function value_assignment!(
+function bellman!(workspace, Vres, V, prob; upper_bound = false)
+    return bellman!(workspace, Vres, V, prob, stateptr(prob); upper_bound = upper_bound)
+end
+
+##################
+# Dense - simple #
+##################
+function bellman!(
     workspace::DenseWorkspace,
     Vres,
     V,
     prob::IntervalProbabilities,
-    maximize,
+    stateptr;
+    upper_bound = false,
+    maximize = true,
 )
     l = lower(prob)
     g = gap(prob)
 
-    @inbounds for (jₛ, (s₁, s₂)) in iterate_states(workspace.policy_cache)
+    # rev=true for maximization
+    sortperm!(workspace.permutation, V; rev = upper_bound)
+    
+    @inbounds for jₛ in 1:(length(stateptr) - 1)
+        s₁, s₂ = stateptr[jₛ], stateptr[jₛ + 1]
         action_values = @view workspace.actions[1:(s₂ - s₁)]
         for (i, jₐ) in enumerate(s₁:(s₂ - 1))
             lowerⱼ = @view l[:, jₐ]
@@ -117,23 +113,29 @@ function value_assignment!(
             action_values[i] = dot(V, lowerⱼ) + gap_value(V, gapⱼ, used, workspace.permutation)
         end
 
-        Vres[jₛ] = extract_policy!(workspace.policy_cache, action_values, V, jₛ, maximize)
+        Vres[jₛ] = extract_policy!(workspace.policy_cache, action_values, V, jₛ, [], s₁, maximize)
     end
 
     return Vres
 end
 
-function value_assignment!(
+function bellman!(
     workspace::ThreadedDenseWorkspace,
     Vres,
     V,
     prob::IntervalProbabilities,
-    maximize,
+    stateptr;
+    upper_bound = false,
+    maximize = true,
 )
+    # rev=true for maximization
+    sortperm!(workspace.permutation, V; rev = upper_bound)
+
     l = lower(prob)
     g = gap(prob)
 
-    @inbounds @threadstid tid for (jₛ, (s₁, s₂)) in iterate_states(workspace.policy_cache)
+    @inbounds @threadstid tid for jₛ in 1:(length(stateptr) - 1)
+        s₁, s₂ = stateptr[jₛ], stateptr[jₛ + 1]
         thread_actions = workspace.actions[tid]
         
         action_values = @view thread_actions[1:(s₂ - s₁)]
@@ -145,7 +147,7 @@ function value_assignment!(
             action_values[i] = dot(V, lowerⱼ) + gap_value(V, gapⱼ, used, workspace.permutation)
         end
 
-        Vres[jₛ] = extract_policy!(workspace.policy_cache, action_values, V, jₛ, maximize)
+        Vres[jₛ] = extract_policy!(workspace.policy_cache, action_values, V, jₛ, [], s₁, maximize)
     end
 
     return Vres
@@ -168,18 +170,98 @@ function gap_value(V, gap::VR, sum_lower, perm) where {VR <: AbstractVector}
     return res
 end
 
-##########
-# Sparse #
-##########
-
-function bellman!(workspace::ThreadedSparseWorkspace, Vres, V, prob; upper_bound = false, maximize = true)
+###################
+# Dense - product #
+###################
+function bellman!(
+    workspace::DenseProductWorkspace,
+    Vres,
+    V,
+    prob::IntervalProbabilities,
+    stateptr;
+    upper_bound = false,
+    maximize = true,
+)
     l = lower(prob)
     g = gap(prob)
 
-    @inbounds @threadstid tid for (jₛ, (s₁, s₂)) in iterate_states(workspace.policy_cache)
-        ws = workspace.thread_workspaces[tid]
+    @inbounds for other_index in eachotherindex(V)
+        Vₒ = @view V[:, other_index...]
+        perm = @view workspace.permutation[1:length(Vₒ)]
 
+        # rev=true for maximization
+        sortperm!(perm, Vₒ; rev = upper_bound)
+        
+        for jₛ in 1:(length(stateptr) - 1)
+            s₁, s₂ = stateptr[jₛ], stateptr[jₛ + 1]
+            action_values = @view workspace.actions[1:(s₂ - s₁)]
+            for (i, jₐ) in enumerate(s₁:(s₂ - 1))
+                lowerⱼ = @view l[:, jₐ]
+                gapⱼ = @view g[:, jₐ]
+                used = sum_lower(prob)[jₐ]
+
+                action_values[i] = dot(Vₒ, lowerⱼ) + gap_value(Vₒ, gapⱼ, used, perm)
+            end
+
+            Vres[jₛ, other_index...] = extract_policy!(workspace.policy_cache, action_values, Vₒ, jₛ, other_index, s₁, maximize)
+        end
+    end
+
+    return Vres
+end
+
+function bellman!(
+    workspace::ThreadedDenseProductWorkspace,
+    Vres,
+    V,
+    prob::IntervalProbabilities,
+    stateptr;
+    upper_bound = false,
+    maximize = true,
+)
+    @inbounds @threadstid tid for other_index in eachotherindex(V)
+        ws = workspace.actions[tid]
+        perm = @view ws.permutation[1:length(Vₒ)]
+
+        Vₒ = @view V[:, other_index...]
+
+        # rev=true for maximization
+        sortperm!(perm, Vₒ; rev = upper_bound)
+
+        l = lower(prob)
+        g = gap(prob)
+
+        for jₛ in 1:(length(stateptr) - 1)
+            s₁, s₂ = stateptr[jₛ], stateptr[jₛ + 1]
+            
+            action_values = @view ws.actions[1:(s₂ - s₁)]
+            for (i, jₐ) in enumerate(s₁:(s₂ - 1))
+                lowerⱼ = @view l[:, jₐ]
+                gapⱼ = @view g[:, jₐ]
+                used = sum_lower(prob)[jₐ]
+
+                action_values[i] = dot(Vₒ, lowerⱼ) + gap_value(Vₒ, gapⱼ, used, perm)
+            end
+
+            Vres[jₛ] = extract_policy!(workspace.policy_cache, action_values, Vₒ, jₛ, other_index, s₁, maximize)
+        end
+    end
+
+    return Vres
+end
+
+###################
+# Sparse - simple #
+###################
+function bellman!(workspace::ThreadedSparseWorkspace, Vres, V, prob, stateptr; upper_bound = false, maximize = true)
+    l = lower(prob)
+    g = gap(prob)
+
+    @inbounds @threadstid tid for jₛ in 1:(length(stateptr) - 1)
+        ws = workspace.thread_workspaces[tid]
+        s₁, s₂ = stateptr[jₛ], stateptr[jₛ + 1]
         action_values = @view ws.actions[1:(s₂ - s₁)]
+
         for (i, jₐ) in enumerate(s₁:(s₂ - 1))
             lowerⱼ = @view l[:, jₐ]
             gapⱼ = @view g[:, jₐ]
@@ -197,18 +279,20 @@ function bellman!(workspace::ThreadedSparseWorkspace, Vres, V, prob; upper_bound
             action_values[i] = dot(V, lowerⱼ) + gap_value(Vp_workspace, used)
         end
 
-        Vres[jₛ] = extract_policy!(workspace.policy_cache, action_values, V, jₛ, maximize)
+        Vres[jₛ] = extract_policy!(workspace.policy_cache, action_values, V, jₛ, [], s₁, maximize)
     end
 
     return Vres
 end
 
-function bellman!(workspace::SparseWorkspace, Vres, V, prob; upper_bound = false, maximize = true)
+function bellman!(workspace::SparseWorkspace, Vres, V, prob, stateptr; upper_bound = false, maximize = true)
     l = lower(prob)
     g = gap(prob)
 
-    @inbounds for (jₛ, (s₁, s₂)) in iterate_states(workspace.policy_cache)
+    @inbounds for jₛ in 1:(length(stateptr) - 1)
+        s₁, s₂ = stateptr[jₛ], stateptr[jₛ + 1]
         action_values = @view workspace.actions[1:(s₂ - s₁)]
+        
         for (i, jₐ) in enumerate(s₁:(s₂ - 1))
             lowerⱼ = @view l[:, jₐ]
             gapⱼ = @view g[:, jₐ]
@@ -226,7 +310,81 @@ function bellman!(workspace::SparseWorkspace, Vres, V, prob; upper_bound = false
             action_values[i] = dot(V, lowerⱼ) + gap_value(Vp_workspace, used)
         end
 
-        Vres[jₛ] = extract_policy!(workspace.policy_cache, action_values, V, jₛ, maximize)
+        Vres[jₛ] = extract_policy!(workspace.policy_cache, action_values, V, jₛ, [], s₁, maximize)
+    end
+
+    return Vres
+end
+
+###################
+# Sparse -product #
+###################
+function bellman!(workspace::ThreadedSparseProductWorkspace, Vres, V, prob, stateptr; upper_bound = false, maximize = true)
+    l = lower(prob)
+    g = gap(prob)
+
+    @inbounds @threadstid tid for other_index in eachotherindex(V)
+        ws = workspace.thread_workspaces[tid]
+        Vₒ = @view V[:, other_index...]
+    
+        for jₛ in 1:(length(stateptr) - 1)
+            s₁, s₂ = stateptr[jₛ], stateptr[jₛ + 1]
+            action_values = @view ws.actions[1:(s₂ - s₁)]
+
+            for (i, jₐ) in enumerate(s₁:(s₂ - 1))
+                lowerⱼ = @view l[:, jₐ]
+                gapⱼ = @view g[:, jₐ]
+                used = sum_lower(prob)[jₐ]
+
+                Vp_workspace = @view ws.values_gaps[1:nnz(gapⱼ)]
+                for (i, (V, p)) in
+                    enumerate(zip(@view(Vₒ[SparseArrays.nonzeroinds(gapⱼ)]), nonzeros(gapⱼ)))
+                    Vp_workspace[i] = (V, p)
+                end
+
+                # rev=true for maximization
+                sort!(Vp_workspace; rev = upper_bound, by = first)
+
+                action_values[i] = dot(Vₒ, lowerⱼ) + gap_value(Vp_workspace, used)
+            end
+
+            Vres[jₛ, other_index...] = extract_policy!(workspace.policy_cache, action_values, Vₒ, jₛ, other_index, s₁, maximize)
+        end
+    end
+
+    return Vres
+end
+
+function bellman!(workspace::SparseProductWorkspace, Vres, V, prob, stateptr; upper_bound = false, maximize = true)
+    l = lower(prob)
+    g = gap(prob)
+
+    @inbounds for other_index in eachotherindex(V)
+        Vₒ = @view V[:, other_index...]
+        
+        for jₛ in 1:(length(stateptr) - 1)
+            s₁, s₂ = stateptr[jₛ], stateptr[jₛ + 1]
+            action_values = @view workspace.actions[1:(s₂ - s₁)]
+
+            for (i, jₐ) in enumerate(s₁:(s₂ - 1))
+                lowerⱼ = @view l[:, jₐ]
+                gapⱼ = @view g[:, jₐ]
+                used = sum_lower(prob)[jₐ]
+
+                Vp_workspace = @view workspace.values_gaps[1:nnz(gapⱼ)]
+                for (i, (V, p)) in
+                    enumerate(zip(@view(Vₒ[SparseArrays.nonzeroinds(gapⱼ)]), nonzeros(gapⱼ)))
+                    Vp_workspace[i] = (V, p)
+                end
+
+                # rev=true for maximization
+                sort!(Vp_workspace; rev = upper_bound, by = first)
+
+                action_values[i] = dot(Vₒ, lowerⱼ) + gap_value(Vp_workspace, used)
+            end
+
+            Vres[jₛ] = extract_policy!(workspace.policy_cache, action_values, Vₒ, jₛ, [], s₁, maximize)
+        end
     end
 
     return Vres

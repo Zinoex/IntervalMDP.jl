@@ -12,5 +12,5 @@ function control_synthesis(problem::Problem{<:IntervalMarkovDecisionProcess})
     policy_cache = create_policy_cache(system(problem), Val(isfinitetime(prop)))
     V, k, res, policy_cache = _value_iteration!(policy_cache, problem)
 
-    return policy_indices_to_actions(problem, policy_cache), V, k, res
+    return cachetopolicy(policy_cache), V, k, res
 end

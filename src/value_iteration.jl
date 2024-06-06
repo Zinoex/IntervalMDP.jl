@@ -73,7 +73,7 @@ V, k, residual = value_iteration(problem)
 function value_iteration(
     problem::Problem,
 )
-    no_policy_cache = NoPolicyCache(system(problem))
+    no_policy_cache = NoPolicyCache()
     V, k, res, _ = _value_iteration!(no_policy_cache, problem)
 
     return V, k, res
@@ -95,13 +95,17 @@ function _value_iteration!(
     value_function = ValueFunction(problem)
     initialize!(value_function, spec)
 
-    step!(workspace, value_function, 0, mp, spec; upper_bound = upper_bound, maximize = maximize)
+    step!(workspace, value_function, 0, mp; upper_bound = upper_bound, maximize = maximize)
+    postprocess_value_function!(value_function, spec)
+    postprocess_policy_cache!(workspace.policy_cache)
     k = 1
 
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
 
-        step!(workspace, value_function, k, mp, spec; upper_bound = upper_bound, maximize = maximize)
+        step!(workspace, value_function, k, mp; upper_bound = upper_bound, maximize = maximize)
+        postprocess_value_function!(value_function, spec)
+        postprocess_policy_cache!(workspace.policy_cache)
         k += 1
     end
 
@@ -116,11 +120,26 @@ mutable struct ValueFunction{R, A <: AbstractArray{R}}
 end
 
 function ValueFunction(
-    problem::Problem,
+    problem::Problem{<:SimpleIntervalMarkovProcess},
 )
     mp = system(problem)
 
     previous = construct_value_function(gap(transition_prob(mp, 1)), num_states(mp))
+    current = copy(previous)
+
+    return ValueFunction(previous, current)
+end
+
+
+function ValueFunction(
+    problem::Problem{<:ProductIntervalMarkovProcess},
+)
+    mp = system(problem)
+
+    pns = product_num_states(mp) |> recursiveflatten |> collect
+    # Just need any one of the transition probabilities to dispatch
+    # to the correct method (based on the type).
+    previous = construct_value_function(gap(first_transition_prob(mp)), pns)
     current = copy(previous)
 
     return ValueFunction(previous, current)
@@ -145,30 +164,56 @@ function nextiteration!(V)
     return V
 end
 
-function step!(workspace, value_function, k, mp::StationaryIntervalMarkovProcess, spec; upper_bound, maximize)
+function step!(workspace, value_function, k, mp::StationaryIntervalMarkovProcess; upper_bound, maximize)
     prob = transition_prob(mp)
     bellman!(
         workspace,
         value_function.current,
         value_function.previous,
-        prob;
+        prob,
+        stateptr(mp);
         upper_bound = upper_bound,
         maximize = maximize,
     )
-    postprocess_value_function!(value_function, spec)
-    postprocess_policy_cache!(workspace.policy_cache)
 end
 
-function step!(workspace, value_function, k, mp::TimeVaryingIntervalMarkovProcess, spec; upper_bound, maximize)
+function step!(workspace, value_function, k, mp::TimeVaryingIntervalMarkovProcess; upper_bound, maximize)
     prob = transition_prob(mp, time_length(mp) - k)
     bellman!(
         workspace,
         value_function.current,
         value_function.previous,
-        prob;
+        prob,
+        stateptr(mp);
         upper_bound = upper_bound,
         maximize = maximize,
     )
-    postprocess_value_function!(value_function, spec)
-    postprocess_policy_cache!(workspace.policy_cache)
+end
+
+function step!(workspace, value_function, k, mp::ParallelProduct; upper_bound, maximize)
+    d = 0
+
+    for orthogonal_process in orthogonal_processes(mp)
+        process_dims = dims(orthogonal_process)
+        process_dim_indices = collect(1:process_dims) .+ d
+
+        paxis_indices = permuted_axis_indices(process_dim_indices, ndims(value_function.current))
+
+        permuted_current = PermutedDimsArray(value_function.current, paxis_indices)
+        permuted_previous = PermutedDimsArray(value_function.previous, paxis_indices)
+        permuted_value_function = ValueFunction(permuted_previous, permuted_current)
+
+        step!(workspace, permuted_value_function, k, orthogonal_process; upper_bound = upper_bound, maximize = maximize)
+        d += process_dims
+    end
+end
+
+function permuted_axis_indices(axis_dims, ndims)
+    axis_indices = copy(axis_dims)
+    sizehint!(axis_indices, ndims)
+    for i in 1:ndims
+        if i ∉ axis_dims
+            push!(axis_indices, i)
+        end
+    end
 end

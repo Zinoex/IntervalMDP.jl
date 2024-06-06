@@ -34,7 +34,7 @@ prob3 = IntervalProbabilities(; lower = [
     1.0
 ][:, :])
 
-transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
+transition_probs = [prob1, prob2, prob3]
 istates = [Int32(1)]
 
 mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
@@ -164,7 +164,7 @@ prob3 = IntervalProbabilities(; lower = [
     1.0
 ][:, :])
 
-transition_probs = [["a1"] => prob1, ["a2"] => prob2, ["sinking"] => prob3]
+transition_probs = [prob1, prob2, prob3]
 istates = [Int32(1)]
 
 mdp = IntervalMarkovDecisionProcess(transition_probs, istates)

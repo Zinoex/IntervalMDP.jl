@@ -14,7 +14,7 @@ Note that for time-varying models, model checking is only enabled for finite tim
 
 ### Fields
 - `transition_probs::Vector{P}`: interval on transition probabilities.
-- `initial_states::VT`: initial states.
+- `initial_states::VI`: initial states.
 - `num_states::Int32`: number of states.
 
 ### Examples
@@ -81,3 +81,5 @@ end
 function stateptr(mdp::TimeVaryingIntervalMarkovChain)
     return UnitRange{Int32}(1, mdp.num_states + 1)
 end
+
+max_actions(mc::TimeVaryingIntervalMarkovChain) = 1

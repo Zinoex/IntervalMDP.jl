@@ -27,16 +27,20 @@ Return the number of states.
 """
 num_states(mp::IntervalMarkovProcess) = mp.num_states
 
+abstract type SimpleIntervalMarkovProcess{P <: IntervalProbabilities} <: IntervalMarkovProcess{P} end
+dims(::SimpleIntervalMarkovProcess) = [Int32(1)]
+product_num_states(mp::SimpleIntervalMarkovProcess) = [num_states(mp)]
+
 ##############
 # Stationary #
-# ############
+##############
 """
     StationaryIntervalMarkovProcess{P <: IntervalProbabilities}
 
 An abstract type for stationary interval Markov processes including [`IntervalMarkovChain`](@ref) and [`IntervalMarkovDecisionProcess`](@ref).
 """
 abstract type StationaryIntervalMarkovProcess{P <: IntervalProbabilities} <:
-              IntervalMarkovProcess{P} end
+              SimpleIntervalMarkovProcess{P} end
 transition_prob(mp::StationaryIntervalMarkovProcess, t) = transition_prob(mp)
 time_length(mp::StationaryIntervalMarkovProcess) = typemax(Int64)
 
@@ -49,14 +53,14 @@ transition_prob(mp::StationaryIntervalMarkovProcess) = mp.transition_prob
 
 ################
 # Time-varying #
-# ##############
+################
 """
     TimeVaryingIntervalMarkovProcess{P <: IntervalProbabilities}
 
 An abstract type for time-varying interval Markov processes including [`TimeVaryingIntervalMarkovChain`](@ref).
 """
 abstract type TimeVaryingIntervalMarkovProcess{P <: IntervalProbabilities} <:
-              IntervalMarkovProcess{P} end
+              SimpleIntervalMarkovProcess{P} end
 transition_probs(s::TimeVaryingIntervalMarkovProcess) = s.transition_probs
 
 """
@@ -79,3 +83,13 @@ function transition_prob(mp::TimeVaryingIntervalMarkovProcess, t)
 
     return transition_probs(mp)[t]
 end
+
+##############################
+# Composite Markov processes #
+##############################
+"""
+    ProductIntervalMarkovProcess{P <: IntervalProbabilities}
+
+An abstract type for product interval Markov processes including [`ParallelProduct`](@ref).
+"""
+abstract type ProductIntervalMarkovProcess{P <: IntervalProbabilities} <: IntervalMarkovProcess{P} end

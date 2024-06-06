@@ -71,6 +71,15 @@ function checksize_imc!(p::IntervalProbabilities)
     return Int32(num_states)
 end
 
-function stateptr(mdp::IntervalMarkovChain)
-    return UnitRange{Int32}(1, mdp.num_states + 1)
+
+"""
+    stateptr(mc::IntervalMarkovChain)
+
+Return the state pointer of the Interval Markov Chain. See [stateptr(mc::IntervalMarkovDecisionProcess)](@ref) for more information
+on how the state pointer is defined and why it is needed.
+"""
+function stateptr(mc::IntervalMarkovChain)
+    return UnitRange{Int32}(1, mc.num_states + 1)
 end
+
+max_actions(mc::IntervalMarkovChain) = 1

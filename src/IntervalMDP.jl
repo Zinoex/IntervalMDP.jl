@@ -3,6 +3,7 @@ module IntervalMDP
 using LinearAlgebra, SparseArrays
 
 include("threading.jl")
+include("utils.jl")
 
 include("interval_probabilities.jl")
 export IntervalProbabilities
@@ -15,6 +16,7 @@ include("models/IntervalMarkovDecisionProcess.jl")
 include("models/TimeVaryingIntervalMarkovChain.jl")
 include("models/ParallelProduct.jl")
 export IntervalMarkovProcess, StationaryIntervalMarkovProcess, TimeVaryingIntervalMarkovProcess
+export ProductIntervalMarkovProcess
 export AllStates
 export IntervalMarkovChain, IntervalMarkovDecisionProcess
 export TimeVaryingIntervalMarkovChain
