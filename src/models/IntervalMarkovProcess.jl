@@ -88,8 +88,22 @@ end
 # Composite Markov processes #
 ##############################
 """
+ProductIntervalMarkovProcess{P <: IntervalProbabilities}
+
+An abstract type for composite interval Markov processes including [`SequentialIntervalMarkovProcess`](@ref) and [`ProductIntervalMarkovProcess`](@ref).
+"""
+abstract type CompositeIntervalMarkovProcess{P <: IntervalProbabilities} <: IntervalMarkovProcess{P} end
+
+"""
+    SequentialIntervalMarkovProcess{P <: IntervalProbabilities}
+
+An abstract type for sequential interval Markov processes.
+"""
+abstract type SequentialIntervalMarkovProcess{P <: IntervalProbabilities} <: CompositeIntervalMarkovProcess{P} end
+
+"""
     ProductIntervalMarkovProcess{P <: IntervalProbabilities}
 
 An abstract type for product interval Markov processes including [`ParallelProduct`](@ref).
 """
-abstract type ProductIntervalMarkovProcess{P <: IntervalProbabilities} <: IntervalMarkovProcess{P} end
+abstract type ProductIntervalMarkovProcess{P <: IntervalProbabilities} <: CompositeIntervalMarkovProcess{P} end

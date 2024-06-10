@@ -7,10 +7,10 @@ or `IntervalMarkovChain` and a list of terminal states.
 See [Data storage formats](@ref) for more information on the file format.
 """
 function read_intervalmdp_jl(model_path, spec_path)
-    mdp_or_mc = read_intervalmdp_jl_model(model_path)
+    mdp = read_intervalmdp_jl_model(model_path)
     spec = read_intervalmdp_jl_spec(spec_path)
 
-    return Problem(mdp_or_mc, spec)
+    return Problem(mdp, spec)
 end
 
 """
@@ -21,13 +21,12 @@ Read an `IntervalMarkovDecisionProcess` or `IntervalMarkovChain` from an Interva
 See [Data storage formats](@ref) for more information on the file format.
 """
 function read_intervalmdp_jl_model(model_path)
-    mdp_or_mc = Dataset(model_path) do dataset
+    mdp = Dataset(model_path) do dataset
         n = Int32(dataset.attrib["num_states"])
-        model = dataset.attrib["model"]
 
-        @assert model ∈ ["imdp", "imc"]
+        @assert dataset.attrib["model"] == "imdp"
         @assert dataset.attrib["rows"] == "to"
-        @assert dataset.attrib["cols"] ∈ ["from", "from/action"]
+        @assert dataset.attrib["cols"] == "from/action"
         @assert dataset.attrib["format"] == "sparse_csc"
 
         initial_states = convert.(Int32, dataset["initial_states"][:])
@@ -58,33 +57,12 @@ function read_intervalmdp_jl_model(model_path)
         )
 
         prob = IntervalProbabilities(; lower = P̲, upper = P̅)
+        stateptr = convert.(Int32, dataset["stateptr"][:])
 
-        if model == "imdp"
-            return read_intervalmdp_jl_mdp(dataset, prob, initial_states)
-        elseif model == "imc"
-            return read_intervalmdp_jl_mc(dataset, prob, initial_states)
-        end
+        return IntervalMarkovDecisionProcess(prob, stateptr, initial_states)
     end
 
-    return mdp_or_mc
-end
-
-function read_intervalmdp_jl_mdp(dataset, prob, initial_states)
-    @assert dataset.attrib["model"] == "imdp"
-    @assert dataset.attrib["cols"] == "from/action"
-
-    stateptr = convert.(Int32, dataset["stateptr"][:])
-
-    mdp = IntervalMarkovDecisionProcess(prob, stateptr, initial_states)
     return mdp
-end
-
-function read_intervalmdp_jl_mc(dataset, prob, initial_states)
-    @assert dataset.attrib["model"] == "imc"
-    @assert dataset.attrib["cols"] == "from"
-
-    mc = IntervalMarkovChain(prob, initial_states)
-    return mc
 end
 
 """
@@ -181,19 +159,21 @@ function read_intervalmdp_jl_reward_property(prop_dict)
 end
 
 """
-    write_intervalmdp_jl_model(model_path, mdp_or_mc)
+    write_intervalmdp_jl_model(model_path, mdp)
 
-Write an `IntervalMarkovDecisionProcess` or `IntervalMarkovChain` to an IntervalMDP.jl system file (netCDF sparse format).
+Write an `IntervalMarkovDecisionProcess` to an IntervalMDP.jl system file (netCDF sparse format).
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-function write_intervalmdp_jl_model(model_path, mdp_or_mc::StationaryIntervalMarkovProcess)
+function write_intervalmdp_jl_model(model_path, mdp::IntervalMarkovDecisionProcess)
     Dataset(model_path, "c") do dataset
+        dataset.attrib["model"] = "imdp"
         dataset.attrib["format"] = "sparse_csc"
-        dataset.attrib["num_states"] = num_states(mdp_or_mc)
+        dataset.attrib["num_states"] = num_states(mdp)
         dataset.attrib["rows"] = "to"
+        dataset.attrib["cols"] = "from/action"
 
-        istates = initial_states(mdp_or_mc)
+        istates = initial_states(mdp)
         if istates isa AllStates
             istates = Int32[]
         end
@@ -201,7 +181,7 @@ function write_intervalmdp_jl_model(model_path, mdp_or_mc::StationaryIntervalMar
         v = defVar(dataset, "initial_states", Int32, ("initial_states",); deflatelevel = 5)
         v[:] = istates
 
-        prob = transition_prob(mdp_or_mc)
+        prob = transition_prob(mdp)
         l = lower(prob)
         g = gap(prob)
 
@@ -241,28 +221,16 @@ function write_intervalmdp_jl_model(model_path, mdp_or_mc::StationaryIntervalMar
         )
         v[:] = l.nzval + g.nzval
 
-        return write_intervalmdp_jl_model_specific(dataset, mdp_or_mc)
+        defDim(dataset, "stateptr", length(stateptr(mdp)))
+        v = defVar(dataset, "stateptr", Int32, ("stateptr",))
+        v[:] = stateptr(mdp)
+
+        return nothing
     end
 end
 
 write_intervalmdp_jl_model(model_path, problem::Problem) =
     write_intervalmdp_jl_model(model_path, system(problem))
-
-function write_intervalmdp_jl_model_specific(dataset, mdp::IntervalMarkovDecisionProcess)
-    dataset.attrib["model"] = "imdp"
-    dataset.attrib["cols"] = "from/action"
-
-    defDim(dataset, "stateptr", length(IntervalMDP.stateptr(mdp)))
-    v = defVar(dataset, "stateptr", Int32, ("stateptr",))
-    v[:] = IntervalMDP.stateptr(mdp)
-
-    return nothing
-end
-
-function write_intervalmdp_jl_model_specific(dataset, mc::IntervalMarkovChain)
-    dataset.attrib["model"] = "imc"
-    return dataset.attrib["cols"] = "from"
-end
 
 """
     write_intervalmdp_jl_spec(spec_path, spec::Specification)

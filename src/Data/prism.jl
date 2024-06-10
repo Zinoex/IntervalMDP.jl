@@ -107,36 +107,6 @@ function write_prism_transitions_file(tra_path, mdp::IntervalMarkovDecisionProce
     end
 end
 
-function write_prism_transitions_file(tra_path, mc::IntervalMarkovChain)
-    number_states = num_states(mc)
-
-    prob = transition_prob(mc)
-    l, g = lower(prob), gap(prob)
-
-    num_columns = num_source(prob)
-    num_transitions = nnz(l)
-
-    open(tra_path, "w") do io
-        println(io, "$number_states $number_states $num_transitions")  # number_states number_choices number_transitions
-
-        for j in 1:num_columns
-            src = j - 1
-
-            column_lower = view(l, :, j)
-            I, V = SparseArrays.findnz(column_lower)
-
-            for (i, v) in zip(I, V)
-                dest = i - 1
-                pl = v
-                pu = pl + g[i, j]
-                pl = max(pl, 1e-12)
-
-                println(io, "$src 0 $dest [$pl,$pu] mc")
-            end
-        end
-    end
-end
-
 function write_prism_spec(lab_path, srew_path, pctl_path, mdp_or_mc, spec)
     write_prism_labels_file(lab_path, mdp_or_mc, system_property(spec))
     write_prism_rewards_file(srew_path, mdp_or_mc, system_property(spec))

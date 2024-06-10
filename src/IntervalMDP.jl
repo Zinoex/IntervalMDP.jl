@@ -11,15 +11,13 @@ export lower, upper, gap, sum_lower
 export num_source, axes_source, num_target, axes_target
 
 include("models/IntervalMarkovProcess.jl")
-include("models/IntervalMarkovChain.jl")
 include("models/IntervalMarkovDecisionProcess.jl")
-include("models/TimeVaryingIntervalMarkovChain.jl")
+include("models/TimeVaryingIntervalMarkovDecisionProcess.jl")
 include("models/ParallelProduct.jl")
 export IntervalMarkovProcess, StationaryIntervalMarkovProcess, TimeVaryingIntervalMarkovProcess
-export ProductIntervalMarkovProcess
+export CompositeIntervalMarkovProcess, SequentialIntervalMarkovProcess, ProductIntervalMarkovProcess
 export AllStates
-export IntervalMarkovChain, IntervalMarkovDecisionProcess
-export TimeVaryingIntervalMarkovChain
+export IntervalMarkovDecisionProcess, TimeVaryingIntervalMarkovDecisionProcess
 export ParallelProduct
 export transition_prob, num_states, initial_states, stateptr, tomarkovchain, time_length
 
