@@ -126,7 +126,7 @@ function write_prism_labels_file(lab_path, mdp_or_mc, prop::AbstractReachability
         end
 
         for tstate in target_states
-            state = tstate - 1  # PRISM uses 0-based indexing
+            state = tstate[1] - 1  # PRISM uses 0-based indexing
             println(io, "$state: 2")
         end
     end
@@ -146,12 +146,12 @@ function write_prism_labels_file(lab_path, mdp_or_mc, prop::AbstractReachAvoid)
         end
 
         for tstate in target_states
-            state = tstate - 1  # PRISM uses 0-based indexing
+            state = tstate[1] - 1  # PRISM uses 0-based indexing
             println(io, "$state: 2")
         end
 
         for astate in avoid_states
-            state = astate - 1  # PRISM uses 0-based indexing
+            state = astate[1] - 1  # PRISM uses 0-based indexing
             println(io, "$state: 3")
         end
     end

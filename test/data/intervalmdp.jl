@@ -73,7 +73,7 @@ rm(new_path)
 
 new_prop = system_property(new_spec)
 @test new_prop isa FiniteTimeReachability
-@test reach(new_prop) == [3]
+@test reach(new_prop) == [CartesianIndex(3)]
 @test time_horizon(new_prop) == 10
 
 # Test InfiniteTimeReachability
@@ -88,7 +88,7 @@ rm(new_path)
 
 new_prop = system_property(new_spec)
 @test new_prop isa InfiniteTimeReachability
-@test reach(new_prop) == [3]
+@test reach(new_prop) == [CartesianIndex(3)]
 @test convergence_eps(new_prop) ≈ 1e-6
 
 # Test FiniteTimeReachAvoid
@@ -103,8 +103,8 @@ rm(new_path)
 
 new_prop = system_property(new_spec)
 @test new_prop isa FiniteTimeReachAvoid
-@test reach(new_prop) == [3]
-@test avoid(new_prop) == [2]
+@test reach(new_prop) == [CartesianIndex(3)]
+@test avoid(new_prop) == [CartesianIndex(2)]
 @test time_horizon(new_prop) == 10
 
 # Test InfiniteTimeReachAvoid
@@ -119,8 +119,8 @@ rm(new_path)
 
 new_prop = system_property(new_spec)
 @test new_prop isa InfiniteTimeReachAvoid
-@test reach(new_prop) == [3]
-@test avoid(new_prop) == [2]
+@test reach(new_prop) == [CartesianIndex(3)]
+@test avoid(new_prop) == [CartesianIndex(2)]
 @test convergence_eps(new_prop) ≈ 1e-6
 
 # Test FiniteTimeReward

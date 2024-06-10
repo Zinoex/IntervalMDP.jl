@@ -44,7 +44,7 @@ function read_bmdp_tool_file(path)
         number_terminal = read_intline(readline(io))
 
         terminal_states = map(1:number_terminal) do _
-            return read_intline(readline(io)) + Int32(1)
+            return CartesianIndex(read_intline(readline(io)) + Int32(1))
         end
 
         probs = Vector{
@@ -137,13 +137,22 @@ write_bmdp_tool_file(
 ) = write_bmdp_tool_file(path, mdp, reach(prop))
 
 """
-    write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{T})
+    write_bmdp_tool_file(path, mdp::StationaryIntervalMarkovProcess, terminal_states::Vector{T})
+"""
+write_bmdp_tool_file(
+    path,
+    mdp::StationaryIntervalMarkovProcess,
+    terminal_states::Vector{T},
+) where {T} = write_bmdp_tool_file(path, mdp, CartesianIndex.(terminal_states))
+
+"""
+    write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{<:CartesianIndex})
 """
 function write_bmdp_tool_file(
     path,
     mdp::IntervalMarkovDecisionProcess,
-    terminal_states::Vector{T},
-) where {T <: Integer}
+    terminal_states::Vector{<:CartesianIndex},
+)
     prob = transition_prob(mdp)
     l, g = lower(prob), gap(prob)
     num_columns = num_source(prob)
@@ -159,7 +168,7 @@ function write_bmdp_tool_file(
         println(io, number_terminal)
 
         for terminal_state in terminal_states
-            println(io, terminal_state - 1)
+            println(io, terminal_state[1] - 1)
         end
 
         s = 1

@@ -199,11 +199,6 @@ function compute_concrete_product_mdp(
 end
 
 concrete_product_mdp = compute_concrete_product_mdp(dense_mdp, dense_mdp)
-display(gap(transition_prob(concrete_product_mdp)))
-
-triple_product = compute_concrete_product_mdp(dense_mdp, concrete_product_mdp)
-display(lower(transition_prob(triple_product)))
-display(gap(transition_prob(triple_product)))
 
 # Finite time reachability
 prop = FiniteTimeReachability([2 * 2], 5)

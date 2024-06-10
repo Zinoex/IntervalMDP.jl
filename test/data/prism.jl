@@ -8,7 +8,7 @@ spec = specification(problem)
 
 prop = system_property(spec)
 @test prop isa InfiniteTimeReachability
-@test reach(prop) == [207]
+@test reach(prop) == [CartesianIndex(207)]
 
 # Write back to a new path
 new_path = tempname()
@@ -45,7 +45,7 @@ spec = specification(new_problem)
 
 prop = system_property(spec)
 @test prop isa InfiniteTimeReachability
-@test reach(prop) == [207]
+@test reach(prop) == [CartesianIndex(207)]
 
 ## Explicit file paths
 problem = read_prism_file("data/multiObj_robotIMDP")
@@ -57,7 +57,7 @@ spec = specification(problem)
 
 prop = system_property(spec)
 @test prop isa InfiniteTimeReachability
-@test reach(prop) == [207]
+@test reach(prop) == [CartesianIndex(207)]
 
 # Write back to a new path
 new_path = tempname()
@@ -98,7 +98,7 @@ spec = specification(new_problem)
 
 prop = system_property(spec)
 @test prop isa InfiniteTimeReachability
-@test reach(prop) == [207]
+@test reach(prop) == [CartesianIndex(207)]
 
 ## Explicit file paths for reward prop
 prop = FiniteTimeReward(collect(1.0:207.0), 0.9, 10)
@@ -159,8 +159,8 @@ prop, istates =
     IntervalMDP.Data.read_prism_labels_file(new_path, FiniteTimeReachAvoid, (10,), nothing)
 
 @test prop isa FiniteTimeReachAvoid
-@test reach(prop) == [3]
-@test avoid(prop) == [2]
+@test reach(prop) == [CartesianIndex(3)]
+@test avoid(prop) == [CartesianIndex(2)]
 @test time_horizon(prop) == 10
 
 ## Write and read FTR min/max min/max

@@ -200,10 +200,11 @@ function interval_prob_hcat(
     return IntervalProbabilities(l, g, sl), stateptr
 end
 
-function Base.getindex(p::IntervalProbabilities, j)
+function Base.getindex(p::IntervalProbabilities, J)
     # Select by columns only! 
-    l = lower(p)[:, j]
-    g = gap(p)[:, j]
+    l = lower(p)[:, J]
+    g = gap(p)[:, J]
+    sum = sum_lower(p)[J]
 
-    return l, g
+    return IntervalProbabilities(l, g, sum)
 end

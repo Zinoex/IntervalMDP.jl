@@ -37,6 +37,8 @@ function checkconvergence!(prop, system::ParallelProduct)
     end
 end
 
+const UnionIndex = Union{<:Integer, <:Tuple}
+
 ## Temporal logics
 
 """
@@ -140,7 +142,7 @@ struct FiniteTimeReachability{VT <: Vector{<:CartesianIndex}} <: AbstractReachab
     time_horizon::Any
 end
 
-function FiniteTimeReachability(terminal_states::Vector, time_horizon)
+function FiniteTimeReachability(terminal_states::Vector{<:UnionIndex}, time_horizon)
     terminal_states = CartesianIndex.(terminal_states)
     return FiniteTimeReachability(terminal_states, time_horizon)
 end
@@ -193,7 +195,7 @@ struct InfiniteTimeReachability{R <: Real, VT <: Vector{<:CartesianIndex}} <:
     convergence_eps::R
 end
 
-function InfiniteTimeReachability(terminal_states::Vector, convergence_eps)
+function InfiniteTimeReachability(terminal_states::Vector{<:UnionIndex}, convergence_eps)
     terminal_states = CartesianIndex.(terminal_states)
     return InfiniteTimeReachability(terminal_states, convergence_eps)
 end
@@ -268,7 +270,7 @@ struct FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}} <: AbstractR
     time_horizon::Any
 end
 
-function FiniteTimeReachAvoid(reach::Vector, avoid::Vector, time_horizon)
+function FiniteTimeReachAvoid(reach::Vector{<:UnionIndex}, avoid::Vector{<:UnionIndex}, time_horizon)
     reach = CartesianIndex.(reach)
     avoid = CartesianIndex.(avoid)
     return FiniteTimeReachAvoid(reach, avoid, time_horizon)
@@ -328,7 +330,7 @@ struct InfiniteTimeReachAvoid{R <: Real, VT <: AbstractVector{<:CartesianIndex}}
     convergence_eps::R
 end
 
-function InfiniteTimeReachAvoid(reach::Vector, avoid::Vector, convergence_eps)
+function InfiniteTimeReachAvoid(reach::Vector{<:UnionIndex}, avoid::Vector{<:UnionIndex}, convergence_eps)
     reach = CartesianIndex.(reach)
     avoid = CartesianIndex.(avoid)
     return InfiniteTimeReachAvoid(reach, avoid, convergence_eps)

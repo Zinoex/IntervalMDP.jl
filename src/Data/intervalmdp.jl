@@ -123,7 +123,7 @@ end
 function read_intervalmdp_jl_reachability_property(prop_dict)
     @assert prop_dict["type"] == "reachability"
 
-    reach = convert(Vector{Int32}, prop_dict["reach"])
+    reach = vector2tuple.(prop_dict["reach"])
 
     if prop_dict["infinite_time"]
         return InfiniteTimeReachability(reach, prop_dict["eps"])
@@ -135,8 +135,8 @@ end
 function read_intervalmdp_jl_reach_avoid_property(prop_dict)
     @assert prop_dict["type"] == "reach-avoid"
 
-    reach = convert(Vector{Int32}, prop_dict["reach"])
-    avoid = convert(Vector{Int32}, prop_dict["avoid"])
+    reach = vector2tuple.(prop_dict["reach"])
+    avoid = vector2tuple.(prop_dict["avoid"])
 
     if prop_dict["infinite_time"]
         return InfiniteTimeReachAvoid(reach, avoid, prop_dict["eps"])
@@ -258,7 +258,7 @@ write_intervalmdp_jl_spec(spec_path, problem::Problem) =
 function intervalmdp_jl_property_dict(prop::FiniteTimeReachability)
     return Dict(
         "type" => "reachability",
-        "reach" => reach(prop),
+        "reach" => cartesian2tuple.(reach(prop)),
         "time_horizon" => time_horizon(prop),
         "infinite_time" => false,
     )
@@ -267,7 +267,7 @@ end
 function intervalmdp_jl_property_dict(prop::InfiniteTimeReachability)
     return Dict(
         "type" => "reachability",
-        "reach" => reach(prop),
+        "reach" => cartesian2tuple.(reach(prop)),
         "eps" => convergence_eps(prop),
         "infinite_time" => true,
     )
@@ -276,8 +276,8 @@ end
 function intervalmdp_jl_property_dict(prop::FiniteTimeReachAvoid)
     return Dict(
         "type" => "reach-avoid",
-        "reach" => reach(prop),
-        "avoid" => avoid(prop),
+        "reach" => cartesian2tuple.(reach(prop)),
+        "avoid" => cartesian2tuple.(avoid(prop)),
         "time_horizon" => time_horizon(prop),
         "infinite_time" => false,
     )
@@ -286,8 +286,8 @@ end
 function intervalmdp_jl_property_dict(prop::InfiniteTimeReachAvoid)
     return Dict(
         "type" => "reach-avoid",
-        "reach" => reach(prop),
-        "avoid" => avoid(prop),
+        "reach" => cartesian2tuple.(reach(prop)),
+        "avoid" => cartesian2tuple.(avoid(prop)),
         "eps" => convergence_eps(prop),
         "infinite_time" => true,
     )
@@ -328,3 +328,6 @@ function intervalmdp_jl_strategy_mode(mode::StrategyMode)
         return "maximize"
     end
 end
+
+cartesian2tuple(I) = Tuple(I)
+vector2tuple(v) = Tuple(v)

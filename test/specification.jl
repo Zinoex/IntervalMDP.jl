@@ -11,32 +11,32 @@ prop = FiniteTimeReachability([3], 10)
 @test isfinitetime(prop)
 @test time_horizon(prop) == 10
 
-@test reach(prop) == [3]
-@test terminal_states(prop) == [3]
+@test reach(prop) == [CartesianIndex(3)]
+@test terminal_states(prop) == [CartesianIndex(3)]
 
 prop = InfiniteTimeReachability([3], 1e-6)
 @test !isfinitetime(prop)
 @test convergence_eps(prop) == 1e-6
 
-@test reach(prop) == [3]
-@test terminal_states(prop) == [3]
+@test reach(prop) == [CartesianIndex(3)]
+@test terminal_states(prop) == [CartesianIndex(3)]
 
 # Reach-avoid
 prop = FiniteTimeReachAvoid([3], [4], 10)
 @test isfinitetime(prop)
 @test time_horizon(prop) == 10
 
-@test reach(prop) == [3]
-@test avoid(prop) == [4]
-@test issetequal(terminal_states(prop), [3, 4])
+@test reach(prop) == [CartesianIndex(3)]
+@test avoid(prop) == [CartesianIndex(4)]
+@test issetequal(terminal_states(prop), [CartesianIndex(3), CartesianIndex(4)])
 
 prop = InfiniteTimeReachAvoid([3], [4], 1e-6)
 @test !isfinitetime(prop)
 @test convergence_eps(prop) == 1e-6
 
-@test reach(prop) == [3]
-@test avoid(prop) == [4]
-@test issetequal(terminal_states(prop), [3, 4])
+@test reach(prop) == [CartesianIndex(3)]
+@test avoid(prop) == [CartesianIndex(4)]
+@test issetequal(terminal_states(prop), [CartesianIndex(3), CartesianIndex(4)])
 
 # Reward
 prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 10)
