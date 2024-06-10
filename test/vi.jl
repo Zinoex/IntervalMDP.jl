@@ -11,10 +11,10 @@ prob = IntervalProbabilities(;
     ],
 )
 
-mc = IntervalMarkovChain(prob, [1])
+mc = IntervalMarkovDecisionProcess(prob, UnitRange{Int32}(1, 4), [1])
 @test initial_states(mc) == [1]
 
-mc = IntervalMarkovChain(prob)
+mc = IntervalMarkovDecisionProcess(prob, UnitRange{Int32}(1, 4))
 
 prop = FiniteTimeReachability([3], 10)
 spec = Specification(prop, Pessimistic)

@@ -11,7 +11,7 @@ prob = IntervalProbabilities(;
     ),
 )
 
-mc = IntervalMarkovChain(prob, [1])
+mc = IntervalMarkovDecisionProcess(prob, UnitRange{Int32}(1, 4), [1])
 
 prop = FiniteTimeReachability([3], 10)
 spec = Specification(prop, Pessimistic)

@@ -1,5 +1,5 @@
 """
-    ParallelProduct{P <: IntervalProbabilities, VI <: Union{AllStates, AbstractVector}}
+    ParallelProduct{VI <: Union{AllStates, AbstractVector}}
 
 A type representing a parallel product composition of Interval Markov Process. See [1] for more information .
 
@@ -13,7 +13,7 @@ Due to the parallel construction, value iteration can be done independently for 
 Then the `ParallelProduct` type is defined by a vector of `IntervalMarkovProcess` (all have to be either stationary or time-varying) and the initial states of the composition.
 
 ### Fields
-- `orthogonal_processes::Vector{IntervalMarkovProcess{P}}`: the list of processes in the composition.
+- `orthogonal_processes::Vector{IntervalMarkovProcess}`: the list of processes in the composition.
 - `initial_states::VI`: initial states.
 - `num_states::Int32`: number of states.
 
@@ -58,17 +58,16 @@ mc = TimeVaryingIntervalMarkovChain([prob1, prob2], initial_states)
 
 """
 struct ParallelProduct{
-    P <: IntervalProbabilities,
     VI <: InitialStates,
-} <: ProductIntervalMarkovProcess{P}
-    orthogonal_processes::Vector{IntervalMarkovProcess{P}}
+} <: ProductIntervalMarkovProcess
+    orthogonal_processes::Vector{IntervalMarkovProcess}
     initial_states::VI
     num_states::Int32
     subdims::Vector{Int32}
 end
 
-function ParallelProduct(orthogonal_processes::Vector{IntervalMarkovProcess{P}}, initial_states::InitialStates = AllStates()) where {P <: IntervalProbabilities}
-    nstates = prod(num_states, orthogonal_processes)
+function ParallelProduct(orthogonal_processes::Vector{IntervalMarkovProcess}, initial_states::InitialStates = AllStates())
+    nstates = Int32(prod(num_states, orthogonal_processes))
     sdims = map(dims, orthogonal_processes)
     
     return ParallelProduct(
@@ -76,6 +75,15 @@ function ParallelProduct(orthogonal_processes::Vector{IntervalMarkovProcess{P}},
         initial_states,
         nstates,
         sdims
+    )
+end
+
+function ParallelProduct(orthogonal_processes::Vector, initial_states::InitialStates = AllStates())
+    orthogonal_processes = convert(Vector{IntervalMarkovProcess}, orthogonal_processes)
+    
+    return ParallelProduct(
+        orthogonal_processes,
+        initial_states
     )
 end
 

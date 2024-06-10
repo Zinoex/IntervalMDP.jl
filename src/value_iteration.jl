@@ -73,14 +73,14 @@ V, k, residual = value_iteration(problem)
 function value_iteration(
     problem::Problem,
 )
-    no_policy_cache = NoPolicyCache()
-    V, k, res, _ = _value_iteration!(no_policy_cache, problem)
+    strategy_config = NoStrategyConfig()
+    V, k, res, _ = _value_iteration!(strategy_config, problem)
 
     return V, k, res
 end
 
 function _value_iteration!(
-    policy_cache::AbstractPolicyCache,
+    strategy_config::AbstractStrategyConfig,
     problem::Problem,
 )
     mp = system(problem)
@@ -90,32 +90,34 @@ function _value_iteration!(
     maximize = strategy_mode(spec) == Maximize
 
     # It is more efficient to use allocate first and reuse across iterations
-    workspace = construct_workspace(mp, policy_cache)
+    workspace = construct_workspace(mp)
+    strategy_cache = construct_strategy_cache(mp, strategy_config)
 
     value_function = ValueFunction(problem)
     initialize!(value_function, spec)
 
-    step!(workspace, value_function, 0, mp; upper_bound = upper_bound, maximize = maximize)
+    step!(workspace, strategy_cache, value_function, 0, mp; upper_bound = upper_bound, maximize = maximize)
     postprocess_value_function!(value_function, spec)
-    postprocess_policy_cache!(workspace.policy_cache)
+    postprocess_strategy_cache!(strategy_cache)
     k = 1
 
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
 
-        step!(workspace, value_function, k, mp; upper_bound = upper_bound, maximize = maximize)
+        step!(workspace, strategy_cache, value_function, k, mp; upper_bound = upper_bound, maximize = maximize)
         postprocess_value_function!(value_function, spec)
-        postprocess_policy_cache!(workspace.policy_cache)
+        postprocess_strategy_cache!(strategy_cache)
         k += 1
     end
 
     # lastdiff! uses previous to store the latest difference
     # and it is already computed from the condition in the loop
-    return value_function.current, k, value_function.previous, policy_cache
+    return value_function.current, k, value_function.previous, strategy_cache
 end
 
 mutable struct ValueFunction{R, A <: AbstractArray{R}}
     previous::A
+    intermediate::A
     current::A
 end
 
@@ -127,7 +129,7 @@ function ValueFunction(
     previous = construct_value_function(gap(transition_prob(mp, 1)), num_states(mp))
     current = copy(previous)
 
-    return ValueFunction(previous, current)
+    return ValueFunction(previous, previous, current)
 end
 
 
@@ -136,13 +138,14 @@ function ValueFunction(
 )
     mp = system(problem)
 
-    pns = product_num_states(mp) |> recursiveflatten |> collect
+    pns = Tuple(product_num_states(mp) |> recursiveflatten |> collect)
     # Just need any one of the transition probabilities to dispatch
     # to the correct method (based on the type).
     previous = construct_value_function(gap(first_transition_prob(mp)), pns)
+    intermediate = copy(previous)
     current = copy(previous)
 
-    return ValueFunction(previous, current)
+    return ValueFunction(previous, intermediate, current)
 end
 
 function construct_value_function(::MR, num_states) where {R, MR <: AbstractMatrix{R}}
@@ -160,16 +163,18 @@ end
 
 function nextiteration!(V)
     copyto!(V.previous, V.current)
+    copyto!(V.intermediate, V.current)
 
     return V
 end
 
-function step!(workspace, value_function, k, mp::StationaryIntervalMarkovProcess; upper_bound, maximize)
+function step!(workspace, strategy_cache, value_function, k, mp::StationaryIntervalMarkovProcess; upper_bound, maximize)
     prob = transition_prob(mp)
     bellman!(
         workspace,
+        strategy_cache,
         value_function.current,
-        value_function.previous,
+        value_function.intermediate,
         prob,
         stateptr(mp);
         upper_bound = upper_bound,
@@ -177,12 +182,13 @@ function step!(workspace, value_function, k, mp::StationaryIntervalMarkovProcess
     )
 end
 
-function step!(workspace, value_function, k, mp::TimeVaryingIntervalMarkovProcess; upper_bound, maximize)
+function step!(workspace, strategy_cache, value_function, k, mp::TimeVaryingIntervalMarkovProcess; upper_bound, maximize)
     prob = transition_prob(mp, time_length(mp) - k)
     bellman!(
         workspace,
+        strategy_cache,
         value_function.current,
-        value_function.previous,
+        value_function.intermediate,
         prob,
         stateptr(mp);
         upper_bound = upper_bound,
@@ -190,30 +196,9 @@ function step!(workspace, value_function, k, mp::TimeVaryingIntervalMarkovProces
     )
 end
 
-function step!(workspace, value_function, k, mp::ParallelProduct; upper_bound, maximize)
-    d = 0
-
-    for orthogonal_process in orthogonal_processes(mp)
-        process_dims = dims(orthogonal_process)
-        process_dim_indices = collect(1:process_dims) .+ d
-
-        paxis_indices = permuted_axis_indices(process_dim_indices, ndims(value_function.current))
-
-        permuted_current = PermutedDimsArray(value_function.current, paxis_indices)
-        permuted_previous = PermutedDimsArray(value_function.previous, paxis_indices)
-        permuted_value_function = ValueFunction(permuted_previous, permuted_current)
-
-        step!(workspace, permuted_value_function, k, orthogonal_process; upper_bound = upper_bound, maximize = maximize)
-        d += process_dims
-    end
-end
-
-function permuted_axis_indices(axis_dims, ndims)
-    axis_indices = copy(axis_dims)
-    sizehint!(axis_indices, ndims)
-    for i in 1:ndims
-        if i ∉ axis_dims
-            push!(axis_indices, i)
-        end
+function step!(workspace, strategy_cache, value_function, k, mp::ParallelProduct; upper_bound, maximize)
+    for (ws, orthogonal_process) in zip(workspace.process_workspaces, orthogonal_processes(mp))
+        step!(ws, strategy_cache, value_function, k, orthogonal_process; upper_bound = upper_bound, maximize = maximize)
+        copyto!(value_function.intermediate, value_function.current)
     end
 end

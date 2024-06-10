@@ -7,41 +7,41 @@ function IntervalMDP.construct_value_function(
     return V
 end
 
-function IntervalMDP.extract_policy!(
-    value_function::IntervalMDP.ValueFunction,
-    policy_cache::IntervalMDP.NoPolicyCache,
-    stateptr::VT,
-    maximize,
-) where {VT <: CuVector}
-    R = eltype(value_function.cur)
-    V_per_state =
-        CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
+# function IntervalMDP.extract_strategy!(
+#     value_function::IntervalMDP.ValueFunction,
+#     policy_cache::IntervalMDP.NoPolicyCache,
+#     stateptr::VT,
+#     maximize,
+# ) where {VT <: CuVector}
+#     R = eltype(value_function.cur)
+#     V_per_state =
+#         CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
 
-    kernel = @cuda launch = false reduce_vov_kernel!(
-        maximize ? max : min,
-        maximize ? typemin(R) : typemax(R),
-        value_function.cur,
-        V_per_state,
-    )
+#     kernel = @cuda launch = false reduce_vov_kernel!(
+#         maximize ? max : min,
+#         maximize ? typemin(R) : typemax(R),
+#         value_function.cur,
+#         V_per_state,
+#     )
 
-    config = launch_configuration(kernel.fun)
+#     config = launch_configuration(kernel.fun)
 
-    threads = prevwarp(device(), config.threads)
+#     threads = prevwarp(device(), config.threads)
 
-    states_per_block = threads ÷ 32
-    blocks = min(65535, ceil(Int64, length(V_per_state) / states_per_block))
+#     states_per_block = threads ÷ 32
+#     blocks = min(65535, ceil(Int64, length(V_per_state) / states_per_block))
 
-    kernel(
-        maximize ? max : min,
-        maximize ? typemin(R) : typemax(R),
-        value_function.cur,
-        V_per_state;
-        threads = threads,
-        blocks = blocks,
-    )
+#     kernel(
+#         maximize ? max : min,
+#         maximize ? typemin(R) : typemax(R),
+#         value_function.cur,
+#         V_per_state;
+#         threads = threads,
+#         blocks = blocks,
+#     )
 
-    return value_function, policy_cache
-end
+#     return value_function, policy_cache
+# end
 
 function reduce_vov_kernel!(
     op,
@@ -84,90 +84,90 @@ function reduce_vov_kernel!(
     end
 end
 
-function IntervalMDP.extract_policy!(
-    value_function::IntervalMDP.ValueFunction,
-    policy_cache::IntervalMDP.TimeVaryingPolicyCache,
-    stateptr::VT,
-    maximize,
-) where {T, VT <: CuVector{T}}
-    R = eltype(value_function.cur)
-    V_per_state =
-        CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
+# function IntervalMDP.extract_policy!(
+#     value_function::IntervalMDP.ValueFunction,
+#     policy_cache::IntervalMDP.TimeVaryingPolicyCache,
+#     stateptr::VT,
+#     maximize,
+# ) where {T, VT <: CuVector{T}}
+#     R = eltype(value_function.cur)
+#     V_per_state =
+#         CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
 
-    argop = strict_argop(maximize)
+#     argop = strict_argop(maximize)
 
-    kernel = @cuda launch = false argreduce_vov_kernel!(
-        argop,
-        maximize ? typemin(R) : typemax(R),
-        zero(T),
-        value_function.cur,
-        policy_cache.cur_policy,
-        V_per_state,
-    )
+#     kernel = @cuda launch = false argreduce_vov_kernel!(
+#         argop,
+#         maximize ? typemin(R) : typemax(R),
+#         zero(T),
+#         value_function.cur,
+#         policy_cache.cur_policy,
+#         V_per_state,
+#     )
 
-    config = launch_configuration(kernel.fun)
+#     config = launch_configuration(kernel.fun)
 
-    threads = prevwarp(device(), config.threads)
+#     threads = prevwarp(device(), config.threads)
 
-    states_per_block = threads ÷ 32
-    blocks = min(65535, ceil(Int64, length(V_per_state) / states_per_block))
+#     states_per_block = threads ÷ 32
+#     blocks = min(65535, ceil(Int64, length(V_per_state) / states_per_block))
 
-    kernel(
-        argop,
-        maximize ? typemin(R) : typemax(R),
-        zero(T),
-        value_function.cur,
-        policy_cache.cur_policy,
-        V_per_state;
-        threads = threads,
-        blocks = blocks,
-    )
+#     kernel(
+#         argop,
+#         maximize ? typemin(R) : typemax(R),
+#         zero(T),
+#         value_function.cur,
+#         policy_cache.cur_policy,
+#         V_per_state;
+#         threads = threads,
+#         blocks = blocks,
+#     )
 
-    push!(policy_cache.policy, copy(policy_cache.cur_policy))
+#     push!(policy_cache.policy, copy(policy_cache.cur_policy))
 
-    return value_function, policy_cache
-end
+#     return value_function, policy_cache
+# end
 
-function IntervalMDP.extract_policy!(
-    value_function::IntervalMDP.ValueFunction,
-    policy_cache::IntervalMDP.StationaryPolicyCache,
-    stateptr::VT,
-    maximize,
-) where {T, VT <: CuVector{T}}
-    V_per_state =
-        CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
+# function IntervalMDP.extract_policy!(
+#     value_function::IntervalMDP.ValueFunction,
+#     policy_cache::IntervalMDP.StationaryPolicyCache,
+#     stateptr::VT,
+#     maximize,
+# ) where {T, VT <: CuVector{T}}
+#     V_per_state =
+#         CuVectorOfVector(stateptr, value_function.action_values, maximum(diff(stateptr)))
 
-    argop = strict_argop(maximize)
+#     argop = strict_argop(maximize)
 
-    kernel = @cuda launch = false argreduce_vov_kernel!(
-        argop,
-        value_function.prev,
-        policy_cache.policy,
-        value_function.cur,
-        policy_cache.policy,
-        V_per_state,
-    )
+#     kernel = @cuda launch = false argreduce_vov_kernel!(
+#         argop,
+#         value_function.prev,
+#         policy_cache.policy,
+#         value_function.cur,
+#         policy_cache.policy,
+#         V_per_state,
+#     )
 
-    config = launch_configuration(kernel.fun)
+#     config = launch_configuration(kernel.fun)
 
-    threads = prevwarp(device(), config.threads)
+#     threads = prevwarp(device(), config.threads)
 
-    states_per_block = threads ÷ 32
-    blocks = min(65535, ceil(Int64, length(V_per_state) / states_per_block))
+#     states_per_block = threads ÷ 32
+#     blocks = min(65535, ceil(Int64, length(V_per_state) / states_per_block))
 
-    kernel(
-        argop,
-        value_function.prev,
-        policy_cache.policy,
-        value_function.cur,
-        policy_cache.policy,
-        V_per_state;
-        threads = threads,
-        blocks = blocks,
-    )
+#     kernel(
+#         argop,
+#         value_function.prev,
+#         policy_cache.policy,
+#         value_function.cur,
+#         policy_cache.policy,
+#         V_per_state;
+#         threads = threads,
+#         blocks = blocks,
+#     )
 
-    return value_function, policy_cache
-end
+#     return value_function, policy_cache
+# end
 
 function strict_argop(maximize)
     gt = maximize ? (>) : (<)

@@ -84,6 +84,14 @@ function TimeVaryingIntervalMarkovDecisionProcess(
     return TimeVaryingIntervalMarkovDecisionProcess(transition_probs, stateptr, initial_states, num_states)
 end
 
+function TimeVaryingIntervalMarkovChain(
+    transition_probs::Vector{P},
+    initial_states::InitialStates = AllStates(),
+) where {P <: IntervalProbabilities}
+    stateptr = UnitRange{Int32}(1, num_source(first(transition_probs)) + 1)
+    return TimeVaryingIntervalMarkovDecisionProcess(transition_probs, stateptr, initial_states)
+end
+
 """
     stateptr(mdp::TimeVaryingIntervalMarkovDecisionProcess)
 
@@ -117,8 +125,7 @@ function tomarkovchain(
         new_probs[t] = transition_prob(mdp, t)[strategy_step]
     end
 
-    sptr = UnitRange{Int32}(1, num_states(mdp) + 1)
     istates = initial_states(mdp)
 
-    return TimeVaryingIntervalMarkovDecisionProcess(new_probs, sptr, istates)
+    return TimeVaryingIntervalMarkovChain(new_probs, istates)
 end

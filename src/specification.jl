@@ -17,8 +17,24 @@ function checktimehorizon!(prop, system::TimeVaryingIntervalMarkovProcess)
     @assert time_horizon(prop) == time_length(system) "The time horizon of the property does not match the time length of the system"
 end
 
-function checkconvergence!(prop)
+function checktimehorizon!(prop, system::ParallelProduct)
+    for orthogonal_process in orthogonal_processes(system)
+        checktimehorizon!(prop, orthogonal_process)
+    end
+end
+
+function checkconvergence!(prop, ::StationaryIntervalMarkovProcess)
     @assert convergence_eps(prop) > 0
+end
+
+function checkconvergence!(prop, ::TimeVaryingIntervalMarkovProcess)
+    @assert false "Time-varying interval Markov processes are not supported for infinite time properties."
+end
+
+function checkconvergence!(prop, system::ParallelProduct)
+    for orthogonal_process in orthogonal_processes(system)
+        checkconvergence!(prop, orthogonal_process)
+    end
 end
 
 ## Temporal logics
@@ -105,6 +121,7 @@ abstract type AbstractReachability <: Property end
 
 function initialize!(value_function, prop::AbstractReachability)
     @inbounds value_function.previous[reach(prop)] .= 1
+    @inbounds value_function.intermediate[reach(prop)] .= 1
 end
 
 function postprocess_value_function!(value_function, prop::AbstractReachability)
@@ -112,18 +129,23 @@ function postprocess_value_function!(value_function, prop::AbstractReachability)
 end
 
 """
-    FiniteTimeReachability{T, VT <: AbstractVector{T}}
+    FiniteTimeReachability{VT <: Vector{<:CartesianIndex}}
 
 Finite time reachability specified by a set of target/terminal states and a time horizon. 
 That is, if ``T`` is the set of target states and ``H`` is the time horizon, compute
 ``ℙ(∃k = 0…H, s_k ∈ T)``.
 """
-struct FiniteTimeReachability{T, VT <: AbstractVector{T}} <: AbstractReachability
+struct FiniteTimeReachability{VT <: Vector{<:CartesianIndex}} <: AbstractReachability
     terminal_states::VT
     time_horizon::Any
 end
 
-function checkproperty!(prop::FiniteTimeReachability, system::SimpleIntervalMarkovProcess)
+function FiniteTimeReachability(terminal_states::Vector, time_horizon)
+    terminal_states = CartesianIndex.(terminal_states)
+    return FiniteTimeReachability(terminal_states, time_horizon)
+end
+
+function checkproperty!(prop::FiniteTimeReachability, system)
     checkterminal!(terminal_states(prop), system)
     checktimehorizon!(prop, system)
 end
@@ -160,23 +182,28 @@ terminal states differ.
 reach(prop::FiniteTimeReachability) = prop.terminal_states
 
 """
-    InfiniteTimeReachability{R <: Real, T <: Integer, VT <: AbstractVector{T}} 
+    InfiniteTimeReachability{R <: Real, VT <: Vector{<:CartesianIndex}} 
  
 `InfiniteTimeReachability` is similar to [`FiniteTimeReachability`](@ref) except that the time horizon is infinite.
 The convergence threshold is that the largest value of the most recent Bellman residual is less than `eps`.
 """
-struct InfiniteTimeReachability{R <: Real, T <: Integer, VT <: AbstractVector{T}} <:
+struct InfiniteTimeReachability{R <: Real, VT <: Vector{<:CartesianIndex}} <:
        AbstractReachability
     terminal_states::VT
     convergence_eps::R
 end
 
+function InfiniteTimeReachability(terminal_states::Vector, convergence_eps)
+    terminal_states = CartesianIndex.(terminal_states)
+    return InfiniteTimeReachability(terminal_states, convergence_eps)
+end
+
 function checkproperty!(
     prop::InfiniteTimeReachability,
-    system::StationaryIntervalMarkovProcess,
+    system,
 )
     checkterminal!(terminal_states(prop), system)
-    checkconvergence!(prop)
+    checkconvergence!(prop, system)
 end
 
 function checkproperty!(::InfiniteTimeReachability, ::TimeVaryingIntervalMarkovProcess)
@@ -229,16 +256,22 @@ function postprocess_value_function!(value_function, prop::AbstractReachAvoid)
 end
 
 """
-    FiniteTimeReachAvoid{T <: Integer, VT <: AbstractVector{T}}
+    FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}}}
 
 Finite time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
 That is, if ``T`` is the set of target states, ``A`` is the set of states to avoid, and ``H`` is the time horizon, compute
 ``ℙ(∃k = 0…H, s_k ∈ T and ∀k' = 0…k, s_k' ∉ A)``.
 """
-struct FiniteTimeReachAvoid{T <: Integer, VT <: AbstractVector{T}} <: AbstractReachAvoid
+struct FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}} <: AbstractReachAvoid
     reach::VT
     avoid::VT
     time_horizon::Any
+end
+
+function FiniteTimeReachAvoid(reach::Vector, avoid::Vector, time_horizon)
+    reach = CartesianIndex.(reach)
+    avoid = CartesianIndex.(avoid)
+    return FiniteTimeReachAvoid(reach, avoid, time_horizon)
 end
 
 function checkproperty!(prop::FiniteTimeReachAvoid, system::SimpleIntervalMarkovProcess)
@@ -284,15 +317,21 @@ Return the set of states to avoid.
 avoid(prop::FiniteTimeReachAvoid) = prop.avoid
 
 """
-    InfiniteTimeReachAvoid{R <: Real, T <: Integer, VT <: AbstractVector{T}}
+    InfiniteTimeReachAvoid{R <: Real, VT <: AbstractVector{<:CartesianIndex}}
 
 `InfiniteTimeReachAvoid` is similar to [`FiniteTimeReachAvoid`](@ref) except that the time horizon is infinite.
 """
-struct InfiniteTimeReachAvoid{R <: Real, T <: Integer, VT <: AbstractVector{T}} <:
+struct InfiniteTimeReachAvoid{R <: Real, VT <: AbstractVector{<:CartesianIndex}} <:
        AbstractReachAvoid
     reach::VT
     avoid::VT
     convergence_eps::R
+end
+
+function InfiniteTimeReachAvoid(reach::Vector, avoid::Vector, convergence_eps)
+    reach = CartesianIndex.(reach)
+    avoid = CartesianIndex.(avoid)
+    return InfiniteTimeReachAvoid(reach, avoid, convergence_eps)
 end
 
 function checkproperty!(
@@ -301,7 +340,7 @@ function checkproperty!(
 )
     checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
-    checkconvergence!(prop)
+    checkconvergence!(prop, system)
 end
 
 function checkproperty!(::InfiniteTimeReachAvoid, ::TimeVaryingIntervalMarkovProcess)
@@ -344,10 +383,19 @@ Return the set of states to avoid.
 """
 avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
 
-function checkterminal!(terminal_states, system)
+function checkterminal!(terminal_states, system::SimpleIntervalMarkovProcess)
     nstates = num_states(system)
     for j in terminal_states
-        @assert 1 <= j <= nstates "The terminal state $j is not a valid state"
+        @assert 1 <= j[1] <= nstates "The terminal state $j exceeds the number of states $nstates"
+    end
+end
+
+function checkterminal!(terminal_states, system::ProductIntervalMarkovProcess)
+    pns = product_num_states(system) |> recursiveflatten |> collect
+    for j in terminal_states
+        j = Tuple(j)
+        @assert length(j) == length(pns) "The terminal state $j is not a valid state for an $(length(pns))-dimensional system"
+        @assert all(1 .<= j .&& j .<= pns) "The terminal state $j exceeds the number of states $pns along some dimension"
     end
 end
 
@@ -365,6 +413,7 @@ abstract type AbstractReward{R <: Real} <: Property end
 
 function initialize!(value_function, prop::AbstractReward)
     value_function.previous .= reward(prop)
+    value_function.intermediate .= reward(prop)
 end
 
 function postprocess_value_function!(value_function, prop::AbstractReward)
@@ -374,30 +423,37 @@ end
 
 function checkreward!(prop::AbstractReward, system::SimpleIntervalMarkovProcess)
     checkdevice!(reward(prop), transition_prob(system, 1))
-    @assert length(reward(prop)) == num_states(system)
-    @assert 0 < discount(prop)  # Discount must be non-negative.
+    @assert length(reward(prop)) == num_states(system) "The reward vector must have the same length $(length(reward(prop))) as the number of states $(num_states(system))"
+    @assert 0 < discount(prop) "The discount factor $(discount(prop)) must be greater than 0"
 end
 
-function checkdevice!(v::AbstractVector, p::IntervalProbabilities)
+function checkreward!(prop::AbstractReward, system::ProductIntervalMarkovProcess)
+    checkdevice!(reward(prop), transition_prob(system, 1))
+    pns = product_num_states(system) |> recursiveflatten |> collect
+    @assert size(reward(prop)) == pns "The reward vector must have the same dimensions $(size(reward(prop))) as the number of states along each axis $pns"
+    @assert 0 < discount(prop) "The discount factor $(discount(prop)) must be greater than 0"
+end
+
+function checkdevice!(v::AbstractArray, p::IntervalProbabilities)
     # Lower and gap are required to be the same type.
     checkdevice!(v, lower(p))
 end
 
-function checkdevice!(::AbstractVector, ::AbstractMatrix)
+function checkdevice!(::AbstractArray, ::AbstractMatrix)
     # Both arguments are on the CPU (technically in RAM).
     return nothing
 end
 
 """
-    FiniteTimeReward{R <: Real, T <: Integer, VR <: AbstractVector{R}}
+    FiniteTimeReward{R <: Real, T <: Integer, AR <: AbstractArray{R}}
 
 `FiniteTimeReward` is a property of rewards assigned to each state at each iteration
 and a discount factor. The time horizon is finite, so the discount factor is optional and 
 the optimal policy will be time-varying.
 """
-struct FiniteTimeReward{R <: Real, T <: Integer, VR <: AbstractVector{R}} <:
+struct FiniteTimeReward{R <: Real, T <: Integer, AR <: AbstractArray{R}} <:
        AbstractReward{R}
-    reward::VR
+    reward::AR
     discount::R
     time_horizon::T
 end
@@ -436,14 +492,14 @@ Return the time horizon of a finite time reward optimization.
 time_horizon(prop::FiniteTimeReward) = prop.time_horizon
 
 """
-    InfiniteTimeReward{R <: Real, VR <: AbstractVector{R}}
+    InfiniteTimeReward{R <: Real, AR <: AbstractArray{R}}
 
 `InfiniteTimeReward` is a property of rewards assigned to each state at each iteration
 and a discount factor for guaranteed convergence. The time horizon is infinite, so the optimal
 policy will be stationary.
 """
-struct InfiniteTimeReward{R <: Real, VR <: AbstractVector{R}} <: AbstractReward{R}
-    reward::VR
+struct InfiniteTimeReward{R <: Real, AR <: AbstractArray{R}} <: AbstractReward{R}
+    reward::AR
     discount::R
     convergence_eps::R
 end
@@ -451,7 +507,7 @@ end
 function checkproperty!(prop::InfiniteTimeReward, system::StationaryIntervalMarkovProcess)
     checkreward!(prop, system)
     @assert discount(prop) < 1
-    checkconvergence!(prop)
+    checkconvergence!(prop, system)
 end
 
 function checkproperty!(::InfiniteTimeReward, ::TimeVaryingIntervalMarkovProcess)

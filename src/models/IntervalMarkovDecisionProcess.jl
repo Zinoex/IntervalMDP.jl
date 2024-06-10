@@ -121,6 +121,14 @@ function IntervalMarkovDecisionProcess(
     return IntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
 end
 
+function IntervalMarkovChain(
+    transition_prob::IntervalProbabilities,
+    initial_states::InitialStates = AllStates(),
+)
+    stateptr = UnitRange{Int32}(1, num_source(transition_prob) + 1)
+    return IntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
+end
+
 function checksize_imdp!(p::IntervalProbabilities, stateptr::AbstractVector{Int32})
     num_states = length(stateptr) - 1
 
@@ -160,9 +168,8 @@ function tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVec
     new_probs = probs[strategy]
 
     istates = initial_states(mdp)
-    sptr = UnitRange{Int32}(1, num_states(mdp) + 1)
 
-    return IntervalMarkovDecisionProcess(new_probs, sptr, istates)
+    return IntervalMarkovChain(new_probs, istates)
 end
 
 """
@@ -182,8 +189,7 @@ function tomarkovchain(
         new_probs[t] = probs[strategy_step]
     end
 
-    sptr = UnitRange{Int32}(1, num_states(mdp) + 1)
     istates = initial_states(mdp)
 
-    return TimeVaryingIntervalMarkovDecisionProcess(new_probs, sptr, istates)
+    return TimeVaryingIntervalMarkovChain(new_probs, istates)
 end

@@ -1,9 +1,9 @@
 """
-    IntervalMarkovProcess{P <: IntervalProbabilities}
+    IntervalMarkovProcess
 
 An abstract type for interval Markov processes including [`IntervalMarkovChain`](@ref) and [`IntervalMarkovDecisionProcess`](@ref).
 """
-abstract type IntervalMarkovProcess{P <: IntervalProbabilities} end
+abstract type IntervalMarkovProcess end
 
 """
     initial_states(mp::IntervalMarkovProcess)
@@ -27,8 +27,8 @@ Return the number of states.
 """
 num_states(mp::IntervalMarkovProcess) = mp.num_states
 
-abstract type SimpleIntervalMarkovProcess{P <: IntervalProbabilities} <: IntervalMarkovProcess{P} end
-dims(::SimpleIntervalMarkovProcess) = [Int32(1)]
+abstract type SimpleIntervalMarkovProcess{P <: IntervalProbabilities} <: IntervalMarkovProcess end
+dims(::SimpleIntervalMarkovProcess) = one(Int32)
 product_num_states(mp::SimpleIntervalMarkovProcess) = [num_states(mp)]
 
 ##############
@@ -88,22 +88,22 @@ end
 # Composite Markov processes #
 ##############################
 """
-ProductIntervalMarkovProcess{P <: IntervalProbabilities}
+ProductIntervalMarkovProcess
 
 An abstract type for composite interval Markov processes including [`SequentialIntervalMarkovProcess`](@ref) and [`ProductIntervalMarkovProcess`](@ref).
 """
-abstract type CompositeIntervalMarkovProcess{P <: IntervalProbabilities} <: IntervalMarkovProcess{P} end
+abstract type CompositeIntervalMarkovProcess <: IntervalMarkovProcess end
 
 """
-    SequentialIntervalMarkovProcess{P <: IntervalProbabilities}
+    SequentialIntervalMarkovProcess
 
 An abstract type for sequential interval Markov processes.
 """
-abstract type SequentialIntervalMarkovProcess{P <: IntervalProbabilities} <: CompositeIntervalMarkovProcess{P} end
+abstract type SequentialIntervalMarkovProcess <: CompositeIntervalMarkovProcess end
 
 """
-    ProductIntervalMarkovProcess{P <: IntervalProbabilities}
+    ProductIntervalMarkovProcess
 
 An abstract type for product interval Markov processes including [`ParallelProduct`](@ref).
 """
-abstract type ProductIntervalMarkovProcess{P <: IntervalProbabilities} <: CompositeIntervalMarkovProcess{P} end
+abstract type ProductIntervalMarkovProcess <: CompositeIntervalMarkovProcess end

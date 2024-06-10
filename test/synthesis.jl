@@ -54,7 +54,7 @@ end
 mc = tomarkovchain(mdp, policy)
 prop = FiniteTimeReachability([3], 10)
 spec = Specification(prop, Pessimistic, Maximize)
-problem = Problem(mdp, spec)
+problem = Problem(mc, spec)
 
 @test num_states(mc) == num_states(mdp)
 @test time_length(mc) == 10
@@ -84,7 +84,7 @@ policy, V, k, res = control_synthesis(problem)
 mc = tomarkovchain(mdp, policy)
 prop = InfiniteTimeReachability([3], 1e-6)
 spec = Specification(prop, Pessimistic, Maximize)
-problem = Problem(mdp, spec)
+problem = Problem(mc, spec)
 
 @test num_states(mc) == num_states(mdp)
 

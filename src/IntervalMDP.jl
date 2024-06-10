@@ -14,10 +14,12 @@ include("models/IntervalMarkovProcess.jl")
 include("models/IntervalMarkovDecisionProcess.jl")
 include("models/TimeVaryingIntervalMarkovDecisionProcess.jl")
 include("models/ParallelProduct.jl")
-export IntervalMarkovProcess, StationaryIntervalMarkovProcess, TimeVaryingIntervalMarkovProcess
+export IntervalMarkovProcess
+export SimpleIntervalMarkovProcess, StationaryIntervalMarkovProcess, TimeVaryingIntervalMarkovProcess
 export CompositeIntervalMarkovProcess, SequentialIntervalMarkovProcess, ProductIntervalMarkovProcess
 export AllStates
 export IntervalMarkovDecisionProcess, TimeVaryingIntervalMarkovDecisionProcess
+export IntervalMarkovChain, TimeVaryingIntervalMarkovChain
 export ParallelProduct
 export transition_prob, num_states, initial_states, stateptr, tomarkovchain, time_length
 
@@ -36,7 +38,9 @@ export StrategyMode, Maximize, Minimize
 export Specification, Problem
 export system, specification, system_property, satisfaction_mode, strategy_mode
 
-include("policy.jl")
+include("strategy.jl")
+export AbstractStrategyConfig, NoStrategyConfig, TimeVaryingStrategyConfig, StationaryStrategyConfig
+export construct_strategy_cache
 
 include("workspace.jl")
 export construct_workspace

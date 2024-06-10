@@ -204,7 +204,6 @@ function Base.getindex(p::IntervalProbabilities, j)
     # Select by columns only! 
     l = lower(p)[:, j]
     g = gap(p)[:, j]
-    sum = sum_lower(p)[j]
 
-    return IntervalProbabilities(l, g, sum)
+    return l, g
 end

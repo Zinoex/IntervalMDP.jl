@@ -100,66 +100,10 @@ prop = system_property(spec)
 @test prop isa InfiniteTimeReachability
 @test reach(prop) == [207]
 
-# Write IntervalMarkovChain
-prob = IntervalProbabilities(;
-    lower = sparse_hcat(
-        SparseVector(3, [2, 3], [0.1, 0.2]),
-        SparseVector(3, [1, 2, 3], [0.5, 0.3, 0.1]),
-        SparseVector(3, [3], [1.0]),
-    ),
-    upper = sparse_hcat(
-        SparseVector(3, [1, 2, 3], [0.5, 0.6, 0.7]),
-        SparseVector(3, [1, 2, 3], [0.7, 0.5, 0.3]),
-        SparseVector(3, [3], [1.0]),
-    ),
-)
-
-mc = IntervalMarkovChain(prob, [1])
-
-prop = FiniteTimeReachability([3], 10)
-spec = Specification(prop, Pessimistic, Maximize)
-problem = Problem(mc, spec)
-
-new_path = tempname()
-write_prism_file(new_path, problem)
-
-# Check the file is there
-@test isfile(new_path * ".sta")
-@test isfile(new_path * ".tra")
-@test isfile(new_path * ".lab")
-@test isfile(new_path * ".pctl")
-
-# Read new file and check that the models represent the same system
-new_problem = read_prism_file(new_path)
-rm(new_path * ".sta")
-rm(new_path * ".tra")
-rm(new_path * ".lab")
-rm(new_path * ".pctl")
-
-new_mdp = system(new_problem)
-
-@test num_states(mc) == num_states(new_mdp)
-
-transition_probabilities = transition_prob(mc)
-new_transition_probabilities = transition_prob(new_mdp)
-
-@test size(transition_probabilities) == size(new_transition_probabilities)
-@test lower(transition_probabilities) ≈ lower(new_transition_probabilities)
-@test gap(transition_probabilities) ≈ gap(new_transition_probabilities)
-
-spec = specification(new_problem)
-@test satisfaction_mode(spec) == Pessimistic
-@test strategy_mode(spec) == Maximize
-
-prop = system_property(spec)
-@test prop isa FiniteTimeReachability
-@test reach(prop) == [3]
-@test time_horizon(prop) == 10
-
 ## Explicit file paths for reward prop
-prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 10)
+prop = FiniteTimeReward(collect(1.0:207.0), 0.9, 10)
 spec = Specification(prop, Pessimistic, Maximize)
-problem = Problem(mc, spec)
+problem = Problem(mdp, spec)
 
 # Write back to a new path
 new_path = tempname()
@@ -188,9 +132,9 @@ rm(new_path * "e.pctl")
 # Check the two systems match
 new_mdp = system(new_problem)
 
-@test num_states(mc) == num_states(new_mdp)
+@test num_states(mdp) == num_states(new_mdp)
 
-transition_probabilities = transition_prob(mc)
+transition_probabilities = transition_prob(mdp)
 new_transition_probabilities = transition_prob(new_mdp)
 
 @test size(transition_probabilities) == size(new_transition_probabilities)
@@ -203,14 +147,14 @@ spec = specification(new_problem)
 
 prop = system_property(spec)
 @test prop isa FiniteTimeReward
-@test reward(prop) ≈ [1.0, 2.0, 3.0]
+@test reward(prop) ≈ collect(1.0:207.0)
 @test discount(prop) ≈ 1.0
 
 ## Write and read reach avoid labels
 new_path = tempname()
 prop = FiniteTimeReachAvoid([3], [2], 10)
 
-IntervalMDP.Data.write_prism_labels_file(new_path, mc, prop)
+IntervalMDP.Data.write_prism_labels_file(new_path, mdp, prop)
 prop, istates =
     IntervalMDP.Data.read_prism_labels_file(new_path, FiniteTimeReachAvoid, (10,), nothing)
 

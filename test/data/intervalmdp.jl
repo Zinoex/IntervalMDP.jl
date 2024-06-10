@@ -18,42 +18,6 @@ new_transition_probabilities = transition_prob(new_mdp)
 @test lower(transition_probabilities) ≈ lower(new_transition_probabilities)
 @test gap(transition_probabilities) ≈ gap(new_transition_probabilities)
 
-# Write IntervalMarkovChain
-prob = IntervalProbabilities(;
-    lower = sparse_hcat(
-        SparseVector(3, [2, 3], [0.1, 0.2]),
-        SparseVector(3, [1, 2, 3], [0.5, 0.3, 0.1]),
-        SparseVector(3, [3], [1.0]),
-    ),
-    upper = sparse_hcat(
-        SparseVector(3, [1, 2, 3], [0.5, 0.6, 0.7]),
-        SparseVector(3, [1, 2, 3], [0.7, 0.5, 0.3]),
-        SparseVector(3, [3], [1.0]),
-    ),
-)
-
-mc = IntervalMarkovChain(prob, [1])
-
-new_path = tempname() * ".nc"
-write_intervalmdp_jl_model(new_path, mc)
-
-# Check the file is there
-@test isfile(new_path)
-
-# Read new file and check that the models represent the same system
-new_mc = read_intervalmdp_jl_model(new_path)
-rm(new_path)
-
-@test new_mc isa IntervalMarkovChain
-@test num_states(mc) == num_states(new_mc)
-
-transition_probabilities = transition_prob(mc)
-new_transition_probabilities = transition_prob(new_mc)
-
-@test size(transition_probabilities) == size(new_transition_probabilities)
-@test lower(transition_probabilities) ≈ lower(new_transition_probabilities)
-@test gap(transition_probabilities) ≈ gap(new_transition_probabilities)
-
 # Test specification
 prop = FiniteTimeReachability([3], 10)
 pes_min_spec = Specification(prop, Pessimistic, Minimize)
