@@ -54,12 +54,12 @@ transition_prob(mp::StationaryIntervalMarkovProcess) = mp.transition_prob
 # Time-varying #
 ################
 """
-    TimeVaryingIntervalMarkovProcess{P <: IntervalProbabilities}
+    TimeVaryingIntervalMarkovProcess
 
 An abstract type for time-varying interval Markov processes including [`TimeVaryingIntervalMarkovChain`](@ref).
 """
-abstract type TimeVaryingIntervalMarkovProcess{P <: IntervalProbabilities} <:
-              SimpleIntervalMarkovProcess{P} end
+abstract type TimeVaryingIntervalMarkovProcess <:
+              SimpleIntervalMarkovProcess end
 transition_probs(s::TimeVaryingIntervalMarkovProcess) = s.transition_probs
 
 """

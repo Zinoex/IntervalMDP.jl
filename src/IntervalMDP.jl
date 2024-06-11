@@ -2,8 +2,13 @@ module IntervalMDP
 
 using LinearAlgebra, SparseArrays
 
+
+const UnionIndex = Union{<:Integer, <:Tuple}
+
 include("threading.jl")
 include("utils.jl")
+include("errors.jl")
+export InvalidStateError, StateDimensionMismatch
 
 include("interval_probabilities.jl")
 export IntervalProbabilities
@@ -51,9 +56,6 @@ export bellman, bellman!
 include("value_iteration.jl")
 export value_iteration, termination_criteria
 export TerminationCriteria, FixedIterationsCriteria, CovergenceCriteria
-
-include("certify.jl")
-export satisfaction_probability
 
 include("synthesis.jl")
 export control_synthesis

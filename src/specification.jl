@@ -8,13 +8,20 @@ Super type for all system Property
 abstract type Property end
 
 function checktimehorizon!(prop, ::StationaryIntervalMarkovProcess)
-    @assert time_horizon(prop) > 0
+    if time_horizon(prop) < 1
+        throw(DomainError(time_horizon(prop), "the time horizon of the property must be greater than 0"))
+    end
 end
 
 function checktimehorizon!(prop, system::TimeVaryingIntervalMarkovProcess)
-    @assert time_horizon(prop) > 0
+    if time_horizon(prop) < 1
+        throw(DomainError(time_horizon(prop), "the time horizon of the property must be greater than 0"))
+    end
+
     # It is not meaningful to check a property with a different time horizon.
-    @assert time_horizon(prop) == time_length(system) "The time horizon of the property does not match the time length of the system"
+    if time_horizon(prop) != time_length(system)
+        throw(ArgumentError("the time horizon of the property ($(time_horizon(prop))) does not match the time length of the system ($(time_length(system)))"))
+    end
 end
 
 function checktimehorizon!(prop, system::ParallelProduct)
@@ -24,11 +31,13 @@ function checktimehorizon!(prop, system::ParallelProduct)
 end
 
 function checkconvergence!(prop, ::StationaryIntervalMarkovProcess)
-    @assert convergence_eps(prop) > 0
+    if convergence_eps(prop) <= 0
+        throw(DomainError(convergence_eps(prop), "the convergence threshold of the property must be greater than 0"))
+    end
 end
 
 function checkconvergence!(prop, ::TimeVaryingIntervalMarkovProcess)
-    @assert false "Time-varying interval Markov processes are not supported for infinite time properties."
+    throw(ArgumentError("time-varying interval Markov processes are not supported for infinite time properties."))
 end
 
 function checkconvergence!(prop, system::ParallelProduct)
@@ -36,8 +45,6 @@ function checkconvergence!(prop, system::ParallelProduct)
         checkconvergence!(prop, orthogonal_process)
     end
 end
-
-const UnionIndex = Union{<:Integer, <:Tuple}
 
 ## Temporal logics
 
@@ -148,8 +155,8 @@ function FiniteTimeReachability(terminal_states::Vector{<:UnionIndex}, time_hori
 end
 
 function checkproperty!(prop::FiniteTimeReachability, system)
-    checkterminal!(terminal_states(prop), system)
     checktimehorizon!(prop, system)
+    checkterminal!(terminal_states(prop), system)
 end
 
 """
@@ -204,12 +211,12 @@ function checkproperty!(
     prop::InfiniteTimeReachability,
     system,
 )
-    checkterminal!(terminal_states(prop), system)
     checkconvergence!(prop, system)
+    checkterminal!(terminal_states(prop), system)
 end
 
 function checkproperty!(::InfiniteTimeReachability, ::TimeVaryingIntervalMarkovProcess)
-    @assert false "Time-varying interval Markov processes are not supported for infinite time properties."
+    throw(ArgumentError("time-varying interval Markov processes are not supported for infinite time properties."))
 end
 
 """
@@ -277,9 +284,9 @@ function FiniteTimeReachAvoid(reach::Vector{<:UnionIndex}, avoid::Vector{<:Union
 end
 
 function checkproperty!(prop::FiniteTimeReachAvoid, system::SimpleIntervalMarkovProcess)
+    checktimehorizon!(prop, system)
     checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
-    checktimehorizon!(prop, system)
 end
 
 """
@@ -340,13 +347,13 @@ function checkproperty!(
     prop::InfiniteTimeReachAvoid,
     system::StationaryIntervalMarkovProcess,
 )
+    checkconvergence!(prop, system)
     checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
-    checkconvergence!(prop, system)
 end
 
 function checkproperty!(::InfiniteTimeReachAvoid, ::TimeVaryingIntervalMarkovProcess)
-    @assert false "Time-varying interval Markov processes are not supported for infinite time properties."
+    throw(ArgumentError("time-varying interval Markov processes are not supported for infinite time properties."))
 end
 
 """
@@ -388,7 +395,11 @@ avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
 function checkterminal!(terminal_states, system::SimpleIntervalMarkovProcess)
     nstates = num_states(system)
     for j in terminal_states
-        @assert 1 <= j[1] <= nstates "The terminal state $j exceeds the number of states $nstates"
+        j = j[1]
+
+        if j < 1 || j > nstates
+            throw(InvalidStateError(j, nstates))
+        end
     end
 end
 
@@ -396,13 +407,21 @@ function checkterminal!(terminal_states, system::ProductIntervalMarkovProcess)
     pns = product_num_states(system) |> recursiveflatten |> collect
     for j in terminal_states
         j = Tuple(j)
-        @assert length(j) == length(pns) "The terminal state $j is not a valid state for an $(length(pns))-dimensional system"
-        @assert all(1 .<= j .&& j .<= pns) "The terminal state $j exceeds the number of states $pns along some dimension"
+
+        if length(j) != length(pns)
+            throw(StateDimensionMismatch(j, pns))
+        end
+
+        if any(j .< 1) || any(j .> pns)
+            throw(InvalidStateError(j, pns))
+        end
     end
 end
 
 function checkdisjoint!(reach, avoid)
-    @assert isdisjoint(reach, avoid) "The reach and avoid sets are not disjoint"
+    if !isdisjoint(reach, avoid)
+        throw(DomainError((reach, avoid), "reach and avoid sets are not disjoint"))
+    end
 end
 
 ## Reward
@@ -425,15 +444,27 @@ end
 
 function checkreward!(prop::AbstractReward, system::SimpleIntervalMarkovProcess)
     checkdevice!(reward(prop), transition_prob(system, 1))
-    @assert length(reward(prop)) == num_states(system) "The reward vector must have the same length $(length(reward(prop))) as the number of states $(num_states(system))"
-    @assert 0 < discount(prop) "The discount factor $(discount(prop)) must be greater than 0"
+
+    if length(reward(prop)) != num_states(system)
+        throw(DimensionMismatch("the reward vector must have the same length $(length(reward(prop))) as the number of states $(num_states(system))"))
+    end
+
+    if discount(prop) <= 0
+        throw(DomainError(discount(prop), "the discount factor must be greater than 0"))
+    end
 end
 
 function checkreward!(prop::AbstractReward, system::ProductIntervalMarkovProcess)
     checkdevice!(reward(prop), transition_prob(system, 1))
+    
     pns = product_num_states(system) |> recursiveflatten |> collect
-    @assert size(reward(prop)) == pns "The reward vector must have the same dimensions $(size(reward(prop))) as the number of states along each axis $pns"
-    @assert 0 < discount(prop) "The discount factor $(discount(prop)) must be greater than 0"
+    if length(reward(prop)) != prod(pns)
+        throw(DimensionMismatch("the reward array must have the same dimensions $(size(reward(prop))) as the number of states along each axis $pns"))
+    end
+
+    if discount(prop) <= 0
+        throw(DomainError(discount(prop), "the discount factor must be greater than 0"))
+    end
 end
 
 function checkdevice!(v::AbstractArray, p::IntervalProbabilities)
@@ -461,8 +492,8 @@ struct FiniteTimeReward{R <: Real, T <: Integer, AR <: AbstractArray{R}} <:
 end
 
 function checkproperty!(prop::FiniteTimeReward, system::SimpleIntervalMarkovProcess)
-    checkreward!(prop, system)
     checktimehorizon!(prop, system)
+    checkreward!(prop, system)
 end
 
 """
@@ -507,13 +538,16 @@ struct InfiniteTimeReward{R <: Real, AR <: AbstractArray{R}} <: AbstractReward{R
 end
 
 function checkproperty!(prop::InfiniteTimeReward, system::StationaryIntervalMarkovProcess)
-    checkreward!(prop, system)
-    @assert discount(prop) < 1
     checkconvergence!(prop, system)
+    checkreward!(prop, system)
+
+    if discount(prop) >= 1
+        throw(DomainError(discount(prop), "the discount factor must be less than 1 for infinite horizon discounted rewards"))
+    end
 end
 
 function checkproperty!(::InfiniteTimeReward, ::TimeVaryingIntervalMarkovProcess)
-    @assert false "Time-varying interval Markov processes are not supported for infinite time properties."
+    throw(ArgumentError("time-varying interval Markov processes are not supported for infinite time properties."))
 end
 
 """
