@@ -1,7 +1,7 @@
 """
     IntervalProbabilities{R, VR <: AbstractVector{R}, MR <: AbstractMatrix{R}}
 
-A matrix pair to represent the lower and upper bound transition probabilities from a source state or source/action pair to a target state.
+A matrix pair to represent the lower and upper bound transition probabilities from all source states or source/action pairs to all target states.
 The matrices can be `Matrix{R}` or `SparseMatrixCSC{R}`, or their CUDA equivalents. For memory efficiency, it is recommended to use sparse matrices.
 
 The columns represent the source and the rows represent the target, as if the probability matrix was a linear transformation.
@@ -176,13 +176,6 @@ axes_source(p::IntervalProbabilities) = axes(gap(p), 2)
 Return the number of target states.
 """
 num_target(p::IntervalProbabilities) = size(gap(p), 1)
-
-"""
-    axes_target(p::IntervalProbabilities)
-
-Return the valid range of indices for the target states.
-"""
-axes_target(p::IntervalProbabilities) = axes(gap(p), 1)
 
 stateptr(prob::IntervalProbabilities) = UnitRange{Int32}(1, num_source(prob) + 1)
 

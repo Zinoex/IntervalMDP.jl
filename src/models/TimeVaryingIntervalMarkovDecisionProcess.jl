@@ -60,7 +60,7 @@ struct TimeVaryingIntervalMarkovDecisionProcess{
     P <: IntervalProbabilities,
     VT <: AbstractVector{Int32},
     VI <: InitialStates,
-} <: TimeVaryingIntervalMarkovProcess{P}
+} <: TimeVaryingIntervalMarkovProcess
     transition_probs::Vector{P}
     stateptr::VT
     initial_states::VI
@@ -68,10 +68,10 @@ struct TimeVaryingIntervalMarkovDecisionProcess{
 end
 
 function TimeVaryingIntervalMarkovDecisionProcess(
-    transition_probs::Vector{P},
+    transition_probs::Vector{<:IntervalProbabilities},
     stateptr::AbstractVector{Int32},
     initial_states::InitialStates = AllStates(),
-) where {P <: IntervalProbabilities}
+)
     @assert !isempty(transition_probs) "The vector of transition probabilities must not be empty"
 
     num_states = checksize_imdp!(first(transition_probs), stateptr)
@@ -84,10 +84,19 @@ function TimeVaryingIntervalMarkovDecisionProcess(
     return TimeVaryingIntervalMarkovDecisionProcess(transition_probs, stateptr, initial_states, num_states)
 end
 
+"""
+    TimeVaryingIntervalMarkovChain(transition_probs::Vector{<:IntervalProbabilities}, initial_states::InitialStates = AllStates())
+
+Construct an Interval Markov Chain from a sequence of square matrix pairs of interval transition probabilities. The initial states are optional and if not specified,
+all states are assumed to be initial states. The number of states is inferred from the size of the transition probability matrix.
+
+The returned type is an `TimeVaryingIntervalMarkovDecisionProcess` with only one action per state (i.e. `stateptr[j + 1] - stateptr[j] == 1` for all `j`).
+This is done to unify the interface for value iteration.
+"""
 function TimeVaryingIntervalMarkovChain(
-    transition_probs::Vector{P},
+    transition_probs::Vector{<:IntervalProbabilities},
     initial_states::InitialStates = AllStates(),
-) where {P <: IntervalProbabilities}
+)
     stateptr = UnitRange{Int32}(1, num_source(first(transition_probs)) + 1)
     return TimeVaryingIntervalMarkovDecisionProcess(transition_probs, stateptr, initial_states)
 end

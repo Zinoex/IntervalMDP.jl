@@ -27,7 +27,7 @@ Return the number of states.
 """
 num_states(mp::IntervalMarkovProcess) = mp.num_states
 
-abstract type SimpleIntervalMarkovProcess{P <: IntervalProbabilities} <: IntervalMarkovProcess end
+abstract type SimpleIntervalMarkovProcess <: IntervalMarkovProcess end
 dims(::SimpleIntervalMarkovProcess) = one(Int32)
 product_num_states(mp::SimpleIntervalMarkovProcess) = [num_states(mp)]
 
@@ -35,12 +35,11 @@ product_num_states(mp::SimpleIntervalMarkovProcess) = [num_states(mp)]
 # Stationary #
 ##############
 """
-    StationaryIntervalMarkovProcess{P <: IntervalProbabilities}
+    StationaryIntervalMarkovProcess
 
-An abstract type for stationary interval Markov processes including [`IntervalMarkovChain`](@ref) and [`IntervalMarkovDecisionProcess`](@ref).
+An abstract type for stationary interval Markov processes including [`IntervalMarkovDecisionProcess`](@ref).
 """
-abstract type StationaryIntervalMarkovProcess{P <: IntervalProbabilities} <:
-              SimpleIntervalMarkovProcess{P} end
+abstract type StationaryIntervalMarkovProcess <: SimpleIntervalMarkovProcess end
 transition_prob(mp::StationaryIntervalMarkovProcess, t) = transition_prob(mp)
 time_length(mp::StationaryIntervalMarkovProcess) = typemax(Int64)
 
@@ -72,9 +71,9 @@ must be done over for a finite time property of equal length.
 time_length(mp::TimeVaryingIntervalMarkovProcess) = length(transition_probs(mp))
 
 """
-    transition_prob(s::TimeVaryingIntervalMarkovProcess, t)
+    transition_prob(mp::TimeVaryingIntervalMarkovProcess, t)
 
-Return the interval on transition probabilities at time step ``t``.
+Return the interval on transition probabilities at time step ``t`` in the range `1:time_length(mp)`.
 """
 function transition_prob(mp::TimeVaryingIntervalMarkovProcess, t)
     if t < 1 || t > time_length(mp)

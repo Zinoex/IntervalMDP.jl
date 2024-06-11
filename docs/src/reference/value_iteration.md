@@ -2,6 +2,7 @@
 
 ```@docs
 value_iteration
+control_synthesis
 ```
 
 ## Bellman update
@@ -10,4 +11,8 @@ value_iteration
 bellman
 bellman!
 construct_workspace
+construct_strategy_cache
+NoStrategyConfig
+StationaryStrategyConfig
+TimeVaryingStrategyConfig
 ```
