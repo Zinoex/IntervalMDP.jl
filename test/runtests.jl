@@ -12,6 +12,7 @@ using IntervalMDP, SparseArrays, CUDA
 end
 
 @testset "sparse" include("sparse/sparse.jl")
+@testset "parallel" include("parallel/parallel.jl")
 @testset "data" include("data/data.jl")
 
 if CUDA.functional()
