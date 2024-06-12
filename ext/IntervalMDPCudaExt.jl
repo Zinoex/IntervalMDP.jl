@@ -20,7 +20,6 @@ function Adapt.adapt_structure(
     return IntervalMarkovDecisionProcess(
         adapt(T, transition_prob(mdp)),
         adapt(CuArray{Int32}, IntervalMDP.stateptr(mdp)),
-        actions(mdp),
         adapt(CuArray{Int32}, initial_states(mdp)),
         num_states(mdp),
     )
@@ -33,7 +32,6 @@ function Adapt.adapt_structure(
     return TimeVaryingIntervalMarkovDecisionProcess(
         adapt.(T, IntervalMDP.transition_probs(mdp)),
         adapt(CuArray{Int32}, IntervalMDP.stateptr(mdp)),
-        actions(mdp),
         adapt(CuArray{Int32}, initial_states(mdp)),
         num_states(mdp),
     )

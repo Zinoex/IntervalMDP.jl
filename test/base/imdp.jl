@@ -42,6 +42,8 @@ mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
 
 mdp = IntervalMarkovDecisionProcess(transition_probs)
 
+@test_throws DimensionMismatch IntervalMarkovChain(prob1)
+
 # Finite time reachability
 @testset "finite time reachability" begin
     prop = FiniteTimeReachability([3], 10)

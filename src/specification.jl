@@ -129,12 +129,12 @@ Super type for all reachability-like property.
 abstract type AbstractReachability <: Property end
 
 function initialize!(value_function, prop::AbstractReachability)
-    @inbounds value_function.previous[reach(prop)] .= 1
-    @inbounds value_function.intermediate[reach(prop)] .= 1
+    @inbounds value_function.previous[reach(prop)] .= 1.0
+    @inbounds value_function.intermediate[reach(prop)] .= 1.0
 end
 
 function postprocess_value_function!(value_function, prop::AbstractReachability)
-    @inbounds value_function.current[reach(prop)] .= 1
+    @inbounds value_function.current[reach(prop)] .= 1.0
 end
 
 """
@@ -257,8 +257,8 @@ A property of reachability that includes a set of states to avoid.
 abstract type AbstractReachAvoid <: AbstractReachability end
 
 function postprocess_value_function!(value_function, prop::AbstractReachAvoid)
-    @inbounds value_function.current[reach(prop)] .= 1
-    @inbounds value_function.current[avoid(prop)] .= 0
+    @inbounds value_function.current[reach(prop)] .= 1.0
+    @inbounds value_function.current[avoid(prop)] .= 0.0
 end
 
 """

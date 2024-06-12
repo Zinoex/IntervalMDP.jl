@@ -9,7 +9,7 @@
 
     V = IntervalMDP.cu([1.0, 2.0, 3.0])
 
-    Vres = bellman(V, prob; max = true)
+    Vres = bellman(V, prob; upper_bound = true)
     Vres = Vector(Vres)
     @test Vres ≈ [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
 
@@ -21,7 +21,7 @@
 
     V = IntervalMDP.cu([1.0, 2.0, 3.0])
 
-    Vres = bellman(V, prob; max = true)
+    Vres = bellman(V, prob; upper_bound = true)
     Vres = Vector(Vres)
     @test Vres ≈ [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
 end
@@ -37,7 +37,7 @@ end
 
     V = IntervalMDP.cu([1.0, 2.0, 3.0])
 
-    Vres = bellman(V, prob; max = false)
+    Vres = bellman(V, prob; upper_bound = false)
     Vres = Vector(Vres)
     @test Vres ≈ [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
 end
