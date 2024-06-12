@@ -37,7 +37,10 @@ prob3 = IntervalProbabilities(; lower = [
 transition_probs = [prob1, prob2, prob3]
 istates = [Int32(1)]
 
-mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs, istates))
+mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
+@test initial_states(mdp) == istates
+
+mdp = IntervalMarkovDecisionProcess(transition_probs)
 
 # Finite time reachability
 @testset "finite time reachability" begin
@@ -111,7 +114,7 @@ end
 
 # Finite time reward
 @testset "finite time reward" begin
-    prop = IntervalMDP.cu(FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10))
+    prop = FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10)
     spec = Specification(prop, Pessimistic, Maximize)
     problem = Problem(mdp, spec)
     V_fixed_it1, k, _ = value_iteration(problem)

@@ -38,6 +38,13 @@ prob3 = IntervalProbabilities(; lower = [
 transition_probs = [prob1, prob2, prob3]
 dense_mdp = IntervalMarkovDecisionProcess(transition_probs)
 
+# Value iteration of orthogonal component
+prop = FiniteTimeReachability([3], 10)
+spec = Specification(prop, Pessimistic, Maximize)
+problem = Problem(dense_mdp, spec)
+V_fixed_it_ortho, k, _ = value_iteration(problem)
+V_fixed_it_ortho = V_fixed_it_ortho .* reshape(V_fixed_it_ortho, 1, 3)
+
 # Sparse MDP
 prob1 = IntervalProbabilities(;
     lower = sparse([
@@ -88,8 +95,9 @@ product_mdp = ParallelProduct([dense_mdp, dense_mdp])
 prop = FiniteTimeReachability([(3, 3)], 10)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(product_mdp, spec)
-V_fixed_it1, k, _ = value_iteration(problem)
+V_fixed_it, k, _ = value_iteration(problem)
 @test k == 10
+@test V_fixed_it_ortho ≈ V_fixed_it
 
 # Dense/Sparse Parallel Product
 product_mdp = ParallelProduct([dense_mdp, sparse_mdp])
@@ -98,9 +106,9 @@ product_mdp = ParallelProduct([dense_mdp, sparse_mdp])
 prop = FiniteTimeReachability([(3, 3)], 10)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(product_mdp, spec)
-V_fixed_it2, k, _ = value_iteration(problem)
+V_fixed_it, k, _ = value_iteration(problem)
 @test k == 10
-@test V_fixed_it1 ≈ V_fixed_it2
+@test V_fixed_it_ortho ≈ V_fixed_it
 
 # Sparse/Dense Parallel Product
 product_mdp = ParallelProduct([sparse_mdp, dense_mdp])
@@ -109,9 +117,9 @@ product_mdp = ParallelProduct([sparse_mdp, dense_mdp])
 prop = FiniteTimeReachability([(3, 3)], 10)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(product_mdp, spec)
-V_fixed_it3, k, _ = value_iteration(problem)
+V_fixed_it, k, _ = value_iteration(problem)
 @test k == 10
-@test V_fixed_it1 ≈ V_fixed_it3
+@test V_fixed_it_ortho ≈ V_fixed_it
 
 # Sparse/Sparse Parallel Product
 product_mdp = ParallelProduct([sparse_mdp, sparse_mdp])
@@ -120,9 +128,9 @@ product_mdp = ParallelProduct([sparse_mdp, sparse_mdp])
 prop = FiniteTimeReachability([(3, 3)], 10)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(product_mdp, spec)
-V_fixed_it4, k, _ = value_iteration(problem)
+V_fixed_it, k, _ = value_iteration(problem)
 @test k == 10
-@test V_fixed_it1 ≈ V_fixed_it4
+@test V_fixed_it_ortho ≈ V_fixed_it
 
 #################################
 # Test against concrete product #
@@ -152,6 +160,13 @@ prob2 = IntervalProbabilities(;
 transition_probs = [prob1, prob2]
 dense_mdp = IntervalMarkovDecisionProcess(transition_probs)
 
+# Value iteration of orthogonal component
+prop = FiniteTimeReachability([2], 5)
+spec = Specification(prop, Pessimistic, Maximize)
+problem = Problem(dense_mdp, spec)
+V_fixed_it_ortho, k, _ = value_iteration(problem)
+V_fixed_it_ortho = V_fixed_it_ortho .* reshape(V_fixed_it_ortho, 1, 2)
+
 product_mdp = ParallelProduct([dense_mdp, dense_mdp])
 
 # Finite time reachability
@@ -160,6 +175,7 @@ spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(product_mdp, spec)
 V_fixed_it_abstract, k, _ = value_iteration(problem)
 @test k == 5
+@test V_fixed_it_ortho ≈ V_fixed_it_abstract
 
 function compute_concrete_product_mdp(
     mdp1::IntervalMarkovDecisionProcess,

@@ -1,9 +1,8 @@
 
 @testset "cuda/adapt" begin
-    adaptor = IntervalMDP.CuModelAdaptor{Float64, Int32}
+    adaptor = IntervalMDP.CuModelAdaptor{Float64}
 
     @test IntervalMDP.valtype(adaptor) == Float64
-    @test IntervalMDP.indtype(adaptor) == Int32
 end
 
 test_files = [
@@ -17,7 +16,5 @@ test_files = [
     "dense/synthesis.jl",
 ]
 for f in test_files
-    @testset "cuda/$f" begin
-        include(f)
-    end
+    @testset "cuda/$f" include(f)
 end

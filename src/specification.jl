@@ -207,10 +207,7 @@ function InfiniteTimeReachability(terminal_states::Vector{<:UnionIndex}, converg
     return InfiniteTimeReachability(terminal_states, convergence_eps)
 end
 
-function checkproperty!(
-    prop::InfiniteTimeReachability,
-    system,
-)
+function checkproperty!(prop::InfiniteTimeReachability, system)
     checkconvergence!(prop, system)
     checkterminal!(terminal_states(prop), system)
 end
@@ -283,7 +280,7 @@ function FiniteTimeReachAvoid(reach::Vector{<:UnionIndex}, avoid::Vector{<:Union
     return FiniteTimeReachAvoid(reach, avoid, time_horizon)
 end
 
-function checkproperty!(prop::FiniteTimeReachAvoid, system::SimpleIntervalMarkovProcess)
+function checkproperty!(prop::FiniteTimeReachAvoid, system)
     checktimehorizon!(prop, system)
     checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
@@ -343,10 +340,7 @@ function InfiniteTimeReachAvoid(reach::Vector{<:UnionIndex}, avoid::Vector{<:Uni
     return InfiniteTimeReachAvoid(reach, avoid, convergence_eps)
 end
 
-function checkproperty!(
-    prop::InfiniteTimeReachAvoid,
-    system::StationaryIntervalMarkovProcess,
-)
+function checkproperty!(prop::InfiniteTimeReachAvoid, system)
     checkconvergence!(prop, system)
     checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
@@ -395,10 +389,13 @@ avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
 function checkterminal!(terminal_states, system::SimpleIntervalMarkovProcess)
     nstates = num_states(system)
     for j in terminal_states
-        j = j[1]
+        if length(j) != 1
+            throw(StateDimensionMismatch(j, 1))
+        end
 
+        j = j[1]
         if j < 1 || j > nstates
-            throw(InvalidStateError(j, nstates))
+            throw(InvalidStateError(promote(j, nstates)...))
         end
     end
 end
@@ -409,7 +406,7 @@ function checkterminal!(terminal_states, system::ProductIntervalMarkovProcess)
         j = Tuple(j)
 
         if length(j) != length(pns)
-            throw(StateDimensionMismatch(j, pns))
+            throw(StateDimensionMismatch(j, length(pns)))
         end
 
         if any(j .< 1) || any(j .> pns)
@@ -443,7 +440,7 @@ function postprocess_value_function!(value_function, prop::AbstractReward)
 end
 
 function checkreward!(prop::AbstractReward, system::SimpleIntervalMarkovProcess)
-    checkdevice!(reward(prop), transition_prob(system, 1))
+    checkdevice!(reward(prop), system)
 
     if length(reward(prop)) != num_states(system)
         throw(DimensionMismatch("the reward vector must have the same length $(length(reward(prop))) as the number of states $(num_states(system))"))
@@ -455,7 +452,7 @@ function checkreward!(prop::AbstractReward, system::SimpleIntervalMarkovProcess)
 end
 
 function checkreward!(prop::AbstractReward, system::ProductIntervalMarkovProcess)
-    checkdevice!(reward(prop), transition_prob(system, 1))
+    checkdevice!(reward(prop), system)
     
     pns = product_num_states(system) |> recursiveflatten |> collect
     if length(reward(prop)) != prod(pns)
@@ -465,6 +462,16 @@ function checkreward!(prop::AbstractReward, system::ProductIntervalMarkovProcess
     if discount(prop) <= 0
         throw(DomainError(discount(prop), "the discount factor must be greater than 0"))
     end
+end
+
+function checkdevice!(v::AbstractArray, system::ProductIntervalMarkovProcess)
+    for orthogonal_process in orthogonal_processes(system)
+        checkdevice!(v, orthogonal_process)
+    end
+end
+
+function checkdevice!(v::AbstractArray, system::SimpleIntervalMarkovProcess)
+    checkdevice!(v, transition_prob(system, 1))
 end
 
 function checkdevice!(v::AbstractArray, p::IntervalProbabilities)
@@ -491,7 +498,7 @@ struct FiniteTimeReward{R <: Real, T <: Integer, AR <: AbstractArray{R}} <:
     time_horizon::T
 end
 
-function checkproperty!(prop::FiniteTimeReward, system::SimpleIntervalMarkovProcess)
+function checkproperty!(prop::FiniteTimeReward, system)
     checktimehorizon!(prop, system)
     checkreward!(prop, system)
 end
@@ -537,7 +544,7 @@ struct InfiniteTimeReward{R <: Real, AR <: AbstractArray{R}} <: AbstractReward{R
     convergence_eps::R
 end
 
-function checkproperty!(prop::InfiniteTimeReward, system::StationaryIntervalMarkovProcess)
+function checkproperty!(prop::InfiniteTimeReward, system)
     checkconvergence!(prop, system)
     checkreward!(prop, system)
 
