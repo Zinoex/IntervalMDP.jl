@@ -17,7 +17,7 @@ tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector)
 tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector{<:AbstractVector})
 ```
 
-## Time-varying Markov decision process
+## Time-varying Markov Processes
 ```@docs
 TimeVaryingIntervalMarkovProcess
 transition_prob(mp::TimeVaryingIntervalMarkovProcess, t)
@@ -26,6 +26,13 @@ TimeVaryingIntervalMarkovChain
 TimeVaryingIntervalMarkovDecisionProcess
 stateptr(mdp::TimeVaryingIntervalMarkovDecisionProcess)
 tomarkovchain(mdp::TimeVaryingIntervalMarkovDecisionProcess, strategy::AbstractVector{<:AbstractVector})
+```
+
+## Composite Markov Processes
+```@docs
+CompositeIntervalMarkovProcess
+ProductIntervalMarkovProcess
+ParallelProduct
 ```
 
 ## Probability representation
