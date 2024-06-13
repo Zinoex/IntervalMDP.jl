@@ -65,7 +65,7 @@ end
 end
 
 #### Large matrices
-@testset "large matrices"
+@testset "large matrices" begin
     function sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
         prob_split = 1 / nnz_per_column
 
@@ -96,64 +96,74 @@ end
     end
 
     # Many columns
-    rng = MersenneTwister(55392)
+    @testset "many columns" begin
+        rng = MersenneTwister(55392)
 
-    n = 100000
-    m = 100000  # It has to be greater than 2^16 to exceed maximum grid size
-    nnz_per_column = 10
-    prob, V, cuda_prob, cuda_V = sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
+        n = 100000
+        m = 1000000  # It has to be greater than 8 * 2^16 to exceed maximum grid size
+        nnz_per_column = 10
+        prob, V, cuda_prob, cuda_V = sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
 
-    V_cpu = bellman(V, prob; upper_bound = false)
-    V_gpu = Vector(bellman(cuda_V, cuda_prob; upper_bound = false))
+        V_cpu = bellman(V, prob; upper_bound = false)
+        V_gpu = Vector(bellman(cuda_V, cuda_prob; upper_bound = false))
 
-    @test V_cpu ≈ V_gpu
+        @test V_cpu ≈ V_gpu
+    end
 
     # Many non-zeros
-    rng = MersenneTwister(55392)
+    @testset "many non-zeros" begin
+        rng = MersenneTwister(55392)
 
-    n = 100000
-    m = 10
-    nnz_per_column = 1500   # It has to be greater than 187 to fill shared memory with 8 states per block.
-    prob, V, cuda_prob, cuda_V = sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
+        n = 100000
+        m = 10
+        nnz_per_column = 1500   # It has to be greater than 187 to fill shared memory with 8 states per block.
+        prob, V, cuda_prob, cuda_V = sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
 
-    V_cpu = bellman(V, prob; upper_bound = false)
-    V_gpu = Vector(bellman(cuda_V, cuda_prob; upper_bound = false))
+        V_cpu = bellman(V, prob; upper_bound = false)
+        V_gpu = Vector(bellman(cuda_V, cuda_prob; upper_bound = false))
 
-    @test V_cpu ≈ V_gpu
+        @test V_cpu ≈ V_gpu
+    end
 
     # More non-zeros
-    rng = MersenneTwister(55392)
+    @testset "more non-zeros" begin
+        rng = MersenneTwister(55392)
 
-    n = 100000
-    m = 10
-    nnz_per_column = 4000   # It has to be greater than 3800 to exceed shared memory for ff implementation
-    prob, V, cuda_prob, cuda_V = sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
+        n = 100000
+        m = 10
+        nnz_per_column = 4000   # It has to be greater than 3800 to exceed shared memory for ff implementation
+        prob, V, cuda_prob, cuda_V = sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
 
-    V_cpu = bellman(V, prob; upper_bound = false)
-    V_gpu = Vector(bellman(cuda_V, cuda_prob; upper_bound = false))
+        V_cpu = bellman(V, prob; upper_bound = false)
+        V_gpu = Vector(bellman(cuda_V, cuda_prob; upper_bound = false))
 
-    @test V_cpu ≈ V_gpu
+        @test V_cpu ≈ V_gpu
+    end
 
     # Most non-zeros
-    rng = MersenneTwister(55392)
+    @testset "most non-zeros" begin
+        rng = MersenneTwister(55392)
 
-    n = 100000
-    m = 10
-    nnz_per_column = 6000   # It has to be greater than 5800 to exceed shared memory for fi implementation
-    prob, V, cuda_prob, cuda_V = sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
+        n = 100000
+        m = 10
+        nnz_per_column = 6000   # It has to be greater than 5800 to exceed shared memory for fi implementation
+        prob, V, cuda_prob, cuda_V = sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
 
-    V_cpu = bellman(V, prob; upper_bound = false)
-    V_gpu = Vector(bellman(cuda_V, cuda_prob; upper_bound = false))
+        V_cpu = bellman(V, prob; upper_bound = false)
+        V_gpu = Vector(bellman(cuda_V, cuda_prob; upper_bound = false))
 
-    @test V_cpu ≈ V_gpu
+        @test V_cpu ≈ V_gpu
+    end
 
     # Too many non-zeros
-    rng = MersenneTwister(55392)
+    @testset "too many non-zeros" begin
+        rng = MersenneTwister(55392)
 
-    n = 100000
-    m = 10
-    nnz_per_column = 8000   # It has to be greater than 7800 to exceed shared memory for ii implementation
-    prob, V, cuda_prob, cuda_V = sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
+        n = 100000
+        m = 10
+        nnz_per_column = 8000   # It has to be greater than 7800 to exceed shared memory for ii implementation
+        prob, V, cuda_prob, cuda_V = sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
 
-    @test_throws IntervalMDP.OutOfSharedMemory bellman(cuda_V, cuda_prob; upper_bound = false)
+        @test_throws IntervalMDP.OutOfSharedMemory bellman(cuda_V, cuda_prob; upper_bound = false)
+    end
 end

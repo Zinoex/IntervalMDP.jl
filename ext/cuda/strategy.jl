@@ -85,7 +85,7 @@ end
         s += warpsize()
     end
 
-    opt_val, opt_idx = argmin_warp(action_lt, opt_val, opt_idx, lane)
+    opt_val, opt_idx = argmin_warp(action_lt, opt_val, opt_idx)
 
     if lane == 1
         @inbounds cache.cur_strategy[j] = opt_idx
