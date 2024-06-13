@@ -68,9 +68,17 @@ function TimeVaryingStrategyCache(cur_strategy::A) where {A}
     return TimeVaryingStrategyCache(cur_strategy, Vector{A}())
 end
 
-function construct_strategy_cache(mp::M, ::TimeVaryingStrategyConfig) where {M <: SimpleIntervalMarkovProcess}
-    cur_strategy = zeros(Int32, num_states(mp))
+function construct_strategy_cache(mp::M, config::TimeVaryingStrategyConfig) where {M <: SimpleIntervalMarkovProcess}
+    return construct_strategy_cache(mp::M, transition_prob(mp, 1), config::TimeVaryingStrategyConfig)
+end
+
+function construct_strategy_cache(mp::M, ::IntervalProbabilities{R, VR}, ::TimeVaryingStrategyConfig) where {M <: SimpleIntervalMarkovProcess, R <: Real, VR <: AbstractVector{R}}
+    cur_strategy = construct_action_cache(mp::M, transition_prob(mp))
     return TimeVaryingStrategyCache(cur_strategy)
+end
+
+function construct_action_cache(mp::M, ::IntervalProbabilities{R, VR}) where {M <: SimpleIntervalMarkovProcess, R <: Real, VR <: AbstractVector{R}}
+    return zeros(Int32, num_states(mp))
 end
 
 function cachetostrategy(
@@ -103,8 +111,8 @@ struct StationaryStrategyCache{A <: AbstractArray{Int32}} <: AbstractStrategyCac
 end
 
 function construct_strategy_cache(mp::M, ::StationaryStrategyConfig) where {M <: SimpleIntervalMarkovProcess}
-    cur_strategy = zeros(Int32, num_states(mp))
-    return StationaryStrategyCache(cur_strategy)
+    strategy = construct_action_cache(mp::M, transition_prob(mp))
+    return StationaryStrategyCache(strategy)
 end
 
 function cachetostrategy(

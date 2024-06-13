@@ -43,3 +43,25 @@ end
 
     return val
 end
+
+@inline function argmin_warp(lt, val, idx)
+    assume(warpsize() == 32)
+    offset = Int32(16)
+    while offset > 0
+        up_val = shfl_down_sync(0xffffffff, val, offset)
+        up_idx = shfl_down_sync(0xffffffff, idx, offset)
+        val, idx = argop(lt, val, idx, up_val, up_idx)
+        
+        offset >>= 1
+    end
+
+    return val, idx
+end
+
+@inline function argop(lt, val, idx, other_val, other_idx)
+    if iszero(idx) || (!iszero(other_idx) && lt(other_val, val))
+        return other_val, other_idx
+    else
+        return val, idx
+    end
+end

@@ -1,37 +1,135 @@
-# function IntervalMDP.construct_strategy_cache(mp::M, ::TimeVaryingStrategyConfig) where {M <: SimpleIntervalMarkovProcess}
-#     cur_strategy = CUDA.zeros(Int32, num_states(mp))
-#     return IntervalMDP.TimeVaryingStrategyCache(stateptr(mp), cur_strategy)
-# end
+function IntervalMDP.construct_action_cache(mp::M, ::IntervalProbabilities{R, VR}) where {M <: SimpleIntervalMarkovProcess, R <: Real, VR <: AbstractGPUVector{R}}
+    return CUDA.zeros(Int32, num_states(mp))
+end
 
-# function IntervalMDP.construct_strategy_cache(mp::M, ::StationaryStrategyConfig) where {M <: SimpleIntervalMarkovProcess}
-#     cur_strategy = CUDA.zeros(Int32, num_states(mp))
-#     return IntervalMDP.StationaryStrategyCache(stateptr(mp), cur_strategy)
-# end
+abstract type ActiveCache end
+
+struct NoStrategyActiveCache <: ActiveCache end
+Adapt.@adapt_structure NoStrategyActiveCache
+@inline function active_cache(::IntervalMDP.NoStrategyCache)
+    return NoStrategyActiveCache()
+end
+
+struct TimeVaryingStrategyActiveCache{V <: AbstractVector{Int32}} <: ActiveCache
+    cur_strategy::V
+end
+Adapt.@adapt_structure TimeVaryingStrategyActiveCache
+@inline function active_cache(strategy_cache::IntervalMDP.TimeVaryingStrategyCache)
+    return TimeVaryingStrategyActiveCache(strategy_cache.cur_strategy)
+end
+
+struct StationaryStrategyActiveCache{V <: AbstractVector{Int32}} <: ActiveCache
+    strategy::V
+end
+Adapt.@adapt_structure StationaryStrategyActiveCache
+@inline function active_cache(strategy_cache::IntervalMDP.StationaryStrategyCache)
+    return StationaryStrategyActiveCache(strategy_cache.strategy)
+end
+
 
 @inline function extract_strategy_warp!(
-    ::IntervalMDP.NoStrategyCache,
+    ::NoStrategyActiveCache,
     values::AbstractVector{Tv},
     V,
     j,
     s₁,
-    action_min,
+    action_reduce,
     lane
 ) where {Tv}
     assume(warpsize() == 32)
+    action_min, action_neutral = action_reduce[1], action_reduce[3]
 
     warp_aligned_length = kernel_nextwarp(length(values))
-    @inbounds opt_val = values[1]
+    @inbounds opt_val = action_neutral
 
-    # Add the lower bound multiplied by the value
     s = lane
     @inbounds while s <= warp_aligned_length
-        if s <= length(values)
-            opt_val = action_min(opt_val, values[s])
+        new_val = if s <= length(values)
+            values[s]
+        else
+            action_neutral
         end
+        opt_val = action_min(new_val, opt_val)
 
         s += warpsize()
     end
 
     opt_val = CUDA.reduce_warp(action_min, opt_val)
+    return opt_val
+end
+
+@inline function extract_strategy_warp!(
+    cache::TimeVaryingStrategyActiveCache,
+    values::AbstractVector{Tv},
+    V,
+    j,
+    s₁,
+    action_reduce,
+    lane
+) where {Tv}
+    assume(warpsize() == 32)
+    action_lt, action_neutral = action_reduce[2], action_reduce[3]
+
+    warp_aligned_length = kernel_nextwarp(length(values))
+    opt_val, opt_idx = action_neutral, s₁
+
+    s = lane
+    @inbounds while s <= warp_aligned_length
+        new_val, new_idx = if s <= length(values)
+            values[s], s₁ + s - 1
+        else
+            action_neutral, s₁
+        end
+        opt_val, opt_idx = argop(action_lt, opt_val, opt_idx, new_val, new_idx)
+
+        s += warpsize()
+    end
+
+    opt_val, opt_idx = argmin_warp(action_lt, opt_val, opt_idx, lane)
+
+    if lane == 1
+        @inbounds cache.cur_strategy[j] = opt_idx
+    end
+
+    return opt_val
+end
+
+@inline function extract_strategy_warp!(
+    cache::StationaryStrategyActiveCache,
+    values::AbstractVector{Tv},
+    V,
+    j,
+    s₁,
+    action_reduce,
+    lane
+) where {Tv}
+    assume(warpsize() == 32)
+    action_lt, action_neutral = action_reduce[2], action_reduce[3]
+
+    warp_aligned_length = kernel_nextwarp(length(values))
+    opt_val, opt_idx = if iszero(cache.strategy[j])
+        action_neutral, s₁
+    else
+        V[j], cache.strategy[j]
+    end
+
+    s = lane
+    @inbounds while s <= warp_aligned_length
+        new_val, new_idx = if s <= length(values)
+            values[s], s₁ + s - 1
+        else
+            action_neutral, s₁
+        end
+        opt_val, opt_idx = argop(action_lt, opt_val, opt_idx, new_val, new_idx)
+
+        s += warpsize()
+    end
+
+    opt_val, opt_idx = argmin_warp(action_lt, opt_val, opt_idx)
+
+    if lane == 1
+        @inbounds cache.strategy[j] = opt_idx
+    end
+
     return opt_val
 end

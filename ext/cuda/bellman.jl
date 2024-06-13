@@ -13,13 +13,13 @@ function IntervalMDP.bellman!(
 
     kernel = @cuda launch = false dense_bellman_kernel!(
         workspace,
-        strategy_cache,
+        active_cache(strategy_cache),
         Vres,
         V,
         prob,
         stateptr,
         upper_bound ? (>=) : (<=),
-        maximize ? max : min
+        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv))
     )
 
     config = launch_configuration(kernel.fun; shmem = shmem)
@@ -37,15 +37,15 @@ function IntervalMDP.bellman!(
     blocks = min(2^16 - 1, cld(length(Vres), warps))
     shmem = length(V) * (sizeof(Int32) + sizeof(Tv)) + warps * workspace.max_actions * sizeof(Tv)
 
-    CUDA.@sync kernel(
+    kernel(
         workspace,
-        strategy_cache,
+        active_cache(strategy_cache),
         Vres,
         V,
         prob,
         stateptr,
         upper_bound ? (>=) : (<=),
-        maximize ? max : min;
+        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv));
         blocks = blocks,
         threads = threads,
         shmem = shmem,
@@ -62,7 +62,7 @@ function dense_bellman_kernel!(
     prob::IntervalProbabilities{Tv},
     stateptr,
     value_lt,
-    action_min,
+    action_reduce,
 ) where {Tv}
     assume(warpsize() == 32)
     nwarps = div(blockDim().x, warpsize())
@@ -81,7 +81,7 @@ function dense_bellman_kernel!(
     block_bitonic_sort!(value, perm, value_lt)
 
     # O-maxmization
-    dense_omaximization!(action_workspace, strategy_cache, Vres, value, perm, prob, stateptr, action_min)
+    dense_omaximization!(action_workspace, strategy_cache, Vres, value, perm, prob, stateptr, action_reduce)
 
     return nothing
 end
@@ -107,7 +107,7 @@ end
     perm,
     prob,
     stateptr,
-    action_min,
+    action_reduce,
 )
     assume(warpsize() == 32)
 
@@ -116,7 +116,7 @@ end
 
     j = wid + (blockIdx().x - one(Int32)) * warps
     @inbounds while j <= length(Vres)
-        state_dense_omaximization!(action_workspace, strategy_cache, Vres, value, perm, prob, stateptr, action_min, j)
+        state_dense_omaximization!(action_workspace, strategy_cache, Vres, value, perm, prob, stateptr, action_reduce, j)
         j += gridDim().x * warps
     end
 
@@ -131,7 +131,7 @@ end
     perm,
     prob::IntervalProbabilities{Tv},
     stateptr,
-    action_min,
+    action_reduce,
     jₛ
 ) where {Tv}
     lane = mod1(threadIdx().x, warpsize())
@@ -172,7 +172,7 @@ end
         Vres,
         jₛ,
         s₁,
-        action_min,
+        action_reduce,
         lane
     )
 
@@ -257,29 +257,29 @@ function IntervalMDP.bellman!(
     V,
     prob::IntervalProbabilities{Tv},
     stateptr;
-    max = true
+    upper_bound = false,
+    maximize = true,
 ) where {Tv}
-    Vres .= Transpose(Transpose(V) * lower(prob))
 
     # Try to find the best kernel for the problem.
 
     # Small amounts of shared memory per state, then use multiple states per block
-    if try_small_sparse_gap_assignment!(workspace, Vres, V, prob; max = max)
+    if try_small_sparse_gap_assignment!(workspace, strategy_cache, Vres, V, prob, stateptr; upper_bound = upper_bound, maximize = maximize)
         return Vres
     end
 
     # Try if we can fit all values and gaps into shared memory
-    if try_large_ff_sparse_gap_assignment!(workspace, Vres, V, prob; max = max)
+    if try_large_ff_sparse_gap_assignment!(workspace, strategy_cache, Vres, V, prob, stateptr; upper_bound = upper_bound, maximize = maximize)
         return Vres
     end
 
     # Try if we can fit all values and permutation indices into shared memory (25% less memory relative to ff) 
-    if try_large_fi_sparse_gap_assignment!(workspace, Vres, V, prob; max = max)
+    if try_large_fi_sparse_gap_assignment!(workspace, strategy_cache, Vres, V, prob, stateptr; upper_bound = upper_bound, maximize = maximize)
         return Vres
     end
 
     # Try if we can fit permutation indices into shared memory (50% less memory relative to ff) 
-    if try_large_ii_sparse_gap_assignment!(workspace, Vres, V, prob; max = max)
+    if try_large_ii_sparse_gap_assignment!(workspace, strategy_cache, Vres, V, prob, stateptr; upper_bound = upper_bound, maximize = maximize)
         return Vres
     end
 
@@ -288,16 +288,20 @@ end
 
 function try_small_sparse_gap_assignment!(
     workspace::CuSparseWorkspace,
+    strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres,
     V,
-    prob::IntervalProbabilities{Tv};
-    max = true,
+    prob::IntervalProbabilities{Tv},
+    stateptr;
+    upper_bound = false,
+    maximize = true,
 ) where {Tv}
     # Execution plan:
     # - at least 8 states per block
     # - one warp per state
     # - use shared memory to store the values and gap probability
     # - use bitonic sort in a warp to sort values
+    Vres .= Transpose(Transpose(V) * lower(prob))
 
     desired_warps = 8
     shmem = workspace.max_nonzeros * 2 * sizeof(Tv) * desired_warps
@@ -461,19 +465,23 @@ end
 
 function try_large_ff_sparse_gap_assignment!(
     workspace::CuSparseWorkspace,
+    strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres,
     V,
-    prob::IntervalProbabilities{Tv};
-    max = true,
+    prob::IntervalProbabilities{Tv},
+    stateptr;
+    upper_bound = false,
+    maximize = true,
 ) where {Tv}
     # Execution plan:
     # - one state per block
     # - use shared memory to store the values and gap probability
     # - use bitonic sort in a block to sort the values 
+    Vres .= Transpose(Transpose(V) * lower(prob))
 
-    shmem = workspace.max_nonzeros * 2 * sizeof(Tv)
+    shmem = workspace.max_nonzeros * 2 * sizeof(Tv) + workspace.max_actions * sizeof(Tv)
 
-    kernel = @cuda launch = false ff_sparse_gap_assignment_kernel!(
+    kernel = @cuda launch = false ff_sparse_bellman_kernel!(
         workspace,
         Vres,
         V,
@@ -651,15 +659,19 @@ end
 
 function try_large_fi_sparse_gap_assignment!(
     workspace::CuSparseWorkspace,
+    strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres,
     V,
-    prob::IntervalProbabilities{Tv};
-    max = true,
+    prob::IntervalProbabilities{Tv},
+    stateptr;
+    upper_bound = false,
+    maximize = true,
 ) where {Tv}
     # Execution plan:
     # - one state per block
     # - use shared memory to store the values and permutation indices
     # - use bitonic sort in a block to sort the values 
+    Vres .= Transpose(Transpose(V) * lower(prob))
 
     shmem = workspace.max_nonzeros * (sizeof(Tv) + sizeof(Int32))
 
@@ -836,15 +848,19 @@ end
 
 function try_large_ii_sparse_gap_assignment!(
     workspace::CuSparseWorkspace,
+    strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres,
     V,
-    prob::IntervalProbabilities{Tv};
-    max = true,
+    prob::IntervalProbabilities{Tv},
+    stateptr;
+    upper_bound = false,
+    maximize = true,
 ) where {Tv}
     # Execution plan:
     # - one state per block
     # - use shared memory to store only permutation indices
     # - use bitonic sort in a block to sort the permutation indices by the values 
+    Vres .= Transpose(Transpose(V) * lower(prob))
 
     shmem = workspace.max_nonzeros * 2 * sizeof(Int32)
 
