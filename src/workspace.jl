@@ -135,11 +135,13 @@ end
 
 struct ThreadedDenseProductWorkspace{T <: Real} <: CompositeWorkspace
     thread_workspaces::Vector{DenseProductWorkspace{T}}
+    state_index::Int32
+    action_index::Int32
 end
 
 function ThreadedDenseProductWorkspace(p::AbstractMatrix{T}, ntarget, max_actions, state_index, action_index) where {T <: Real}
     thread_workspaces = [DenseProductWorkspace(p, ntarget, max_actions, state_index, action_index) for _ in 1:Threads.nthreads()]
-    return ThreadedDenseWorkspace(thread_workspaces, max_actions)
+    return ThreadedDenseProductWorkspace(thread_workspaces, state_index, action_index)
 end
 
 function _construct_workspace(p::AbstractMatrix, mp::SimpleIntervalMarkovProcess, state_index, action_index)
@@ -169,12 +171,14 @@ end
 
 struct ThreadedSparseProductWorkspace{T} <: CompositeWorkspace
     thread_workspaces::Vector{SparseProductWorkspace{T}}
+    state_index::Int32
+    action_index::Int32
 end
 
 function ThreadedSparseProductWorkspace(p::AbstractSparseMatrix, ntarget, max_actions, state_index, action_index)
     nthreads = Threads.nthreads()
     thread_workspaces = [SparseProductWorkspace(p, ntarget, max_actions, state_index, action_index) for _ in 1:nthreads]
-    return ThreadedSparseProductWorkspace(thread_workspaces)
+    return ThreadedSparseProductWorkspace(thread_workspaces, state_index, action_index)
 end
 
 function _construct_workspace(p::AbstractSparseMatrix, mp::SimpleIntervalMarkovProcess, state_index, action_index)

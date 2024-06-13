@@ -312,7 +312,7 @@ function bellman!(
     maximize = true,
 )
     @inbounds @threadstid tid for other_index in eachotherindex(V, workspace.state_index)
-        ws = workspace.actions[tid]
+        ws = workspace.thread_workspaces[tid]
 
         Vₒ = selectotherdims(V, workspace.state_index, other_index)
         perm = @view ws.permutation[1:length(Vₒ)]
@@ -344,24 +344,23 @@ function bellman!(
 end
 
 # Sparse
-function bellman!(workspace::ThreadedSparseProductWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob, stateptr; upper_bound = false, maximize = true)
+function bellman!(workspace::SparseProductWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob, stateptr; upper_bound = false, maximize = true)
     l = lower(prob)
     g = gap(prob)
 
-    @inbounds @threadstid tid for other_index in eachotherindex(V, workspace.state_index)
-        ws = workspace.thread_workspaces[tid]
+    @inbounds for other_index in eachotherindex(V, workspace.state_index)
         Vₒ = selectotherdims(V, workspace.state_index, other_index)
-    
+        
         for jₛ in 1:(length(stateptr) - 1)
             s₁, s₂ = stateptr[jₛ], stateptr[jₛ + 1]
-            action_values = @view ws.actions[1:(s₂ - s₁)]
+            action_values = @view workspace.actions[1:(s₂ - s₁)]
 
             for (i, jₐ) in enumerate(s₁:(s₂ - 1))
                 lowerⱼ = @view l[:, jₐ]
                 gapⱼ = @view g[:, jₐ]
                 used = sum_lower(prob)[jₐ]
 
-                Vp_workspace = @view ws.values_gaps[1:nnz(gapⱼ)]
+                Vp_workspace = @view workspace.values_gaps[1:nnz(gapⱼ)]
                 for (i, (V, p)) in
                     enumerate(zip(@view(Vₒ[SparseArrays.nonzeroinds(gapⱼ)]), nonzeros(gapⱼ)))
                     Vp_workspace[i] = (V, p)
@@ -381,23 +380,24 @@ function bellman!(workspace::ThreadedSparseProductWorkspace, strategy_cache::Abs
     return Vres
 end
 
-function bellman!(workspace::SparseProductWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob, stateptr; upper_bound = false, maximize = true)
+function bellman!(workspace::ThreadedSparseProductWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob, stateptr; upper_bound = false, maximize = true)
     l = lower(prob)
     g = gap(prob)
 
-    @inbounds for other_index in eachotherindex(V, workspace.state_index)
+    @inbounds @threadstid tid for other_index in eachotherindex(V, workspace.state_index)
+        ws = workspace.thread_workspaces[tid]
         Vₒ = selectotherdims(V, workspace.state_index, other_index)
-        
+    
         for jₛ in 1:(length(stateptr) - 1)
             s₁, s₂ = stateptr[jₛ], stateptr[jₛ + 1]
-            action_values = @view workspace.actions[1:(s₂ - s₁)]
+            action_values = @view ws.actions[1:(s₂ - s₁)]
 
             for (i, jₐ) in enumerate(s₁:(s₂ - 1))
                 lowerⱼ = @view l[:, jₐ]
                 gapⱼ = @view g[:, jₐ]
                 used = sum_lower(prob)[jₐ]
 
-                Vp_workspace = @view workspace.values_gaps[1:nnz(gapⱼ)]
+                Vp_workspace = @view ws.values_gaps[1:nnz(gapⱼ)]
                 for (i, (V, p)) in
                     enumerate(zip(@view(Vₒ[SparseArrays.nonzeroinds(gapⱼ)]), nonzeros(gapⱼ)))
                     Vp_workspace[i] = (V, p)
