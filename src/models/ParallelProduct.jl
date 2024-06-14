@@ -88,7 +88,7 @@ function ParallelProduct(orthogonal_processes::Vector, initial_states::InitialSt
 end
 
 subdims(pp::ParallelProduct) = pp.subdims
-dims(pp::ParallelProduct) = sum(subdims(pp))
+dims(pp::ParallelProduct) = Int32(sum(subdims(pp)))
 
 product_num_states(pp::ParallelProduct) = map(product_num_states, pp.orthogonal_processes)
 
