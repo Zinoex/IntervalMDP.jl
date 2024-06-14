@@ -193,7 +193,7 @@ function _construct_workspace(p::AbstractSparseMatrix, mp::SimpleIntervalMarkovP
 end
 
 # Parallel product workspace
-struct ParallelProductWorkspace
+struct ParallelProductWorkspace <: CompositeWorkspace
     process_workspaces::Vector{CompositeWorkspace}
 end
 
