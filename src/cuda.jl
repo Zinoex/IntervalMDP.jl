@@ -14,12 +14,12 @@ end
 function Base.showerror(io::IO, e::OutOfSharedMemory)
     println(
         io,
-        "Out of shared memory: minimum required size is ",
+        "Out of shared memory: minimum required shared memory for the problem is ",
         e.min_shared_memory,
         " bytes.",
     )
     println(
         io,
-        "Please try either the CPU implementation, the (dense) decomposed representation (preferred), or use a larger GPU..",
+        "Please try either the CPU implementation, the (dense) decomposed representation (preferred), or use a larger GPU.",
     )
 end

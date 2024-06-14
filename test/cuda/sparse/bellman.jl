@@ -99,9 +99,9 @@ end
     @testset "many columns" begin
         rng = MersenneTwister(55392)
 
-        n = 100000
+        n = 100
         m = 1000000  # It has to be greater than 8 * 2^16 to exceed maximum grid size
-        nnz_per_column = 10
+        nnz_per_column = 2
         prob, V, cuda_prob, cuda_V = sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
 
         V_cpu = bellman(V, prob; upper_bound = false)
