@@ -30,7 +30,7 @@ function IntervalMDP.bellman!(
     # - squeeze as many states as possible in a block
     # - use shared memory to store the values and permutation
     # - use bitonic sort to sort the values for all states in a block
-    wanted_threads = min(1024, max_states_per_block * length(Vres))
+    wanted_threads = min(1024, 32 * length(Vres))
 
     threads = min(max_threads, wanted_threads)
     warps = div(threads, 32)

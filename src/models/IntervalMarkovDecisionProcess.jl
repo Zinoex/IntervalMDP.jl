@@ -141,8 +141,8 @@ end
 function checksize_imdp!(p::IntervalProbabilities, stateptr::AbstractVector{Int32})
     num_states = length(stateptr) - 1
 
-    num_actions_per_state = diff(stateptr)
-    @assert all(num_actions_per_state .> 0) "The number of actions per state must be positive"
+    min_actions = mindiff(stateptr)
+    @assert all(min_actions > 0) "The number of actions per state must be positive"
 
     if num_target(p) != num_states
         throw(
@@ -164,7 +164,7 @@ I.e. `transition_prob[:, stateptr[j]:stateptr[j + 1] - 1]` is the transition pro
 """
 stateptr(mdp::IntervalMarkovDecisionProcess) = mdp.stateptr
 
-max_actions(mdp::IntervalMarkovDecisionProcess) = stateptr(mdp) |> diff |> maximum
+max_actions(mdp::IntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp))
 
 """
     tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector)
