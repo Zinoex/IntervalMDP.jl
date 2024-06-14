@@ -30,6 +30,10 @@ function checktimehorizon!(prop, system::ParallelProduct)
     end
 end
 
+function checktimehorizon!(prop, system::MultiDim)
+    checktimehorizon!(prop, system.underlying_process)
+end
+
 function checkconvergence!(prop, ::StationaryIntervalMarkovProcess)
     if convergence_eps(prop) <= 0
         throw(DomainError(convergence_eps(prop), "the convergence threshold of the property must be greater than 0"))
@@ -44,6 +48,10 @@ function checkconvergence!(prop, system::ParallelProduct)
     for orthogonal_process in orthogonal_processes(system)
         checkconvergence!(prop, orthogonal_process)
     end
+end
+
+function checkconvergence!(prop, system::MultiDim)
+    checkconvergence!(prop, system.underlying_process)
 end
 
 ## Temporal logics
@@ -451,7 +459,7 @@ function checkreward!(prop::AbstractReward, system::SimpleIntervalMarkovProcess)
     end
 end
 
-function checkreward!(prop::AbstractReward, system::ProductIntervalMarkovProcess)
+function checkreward!(prop::AbstractReward, system::Union{<:ProductIntervalMarkovProcess, <:MultiDim})
     checkdevice!(reward(prop), system)
     
     pns = product_num_states(system) |> recursiveflatten |> collect
@@ -468,6 +476,10 @@ function checkdevice!(v::AbstractArray, system::ProductIntervalMarkovProcess)
     for orthogonal_process in orthogonal_processes(system)
         checkdevice!(v, orthogonal_process)
     end
+end
+
+function checkdevice!(v::AbstractArray, system::MultiDim)
+    checkdevice!(v, system.underlying_process)
 end
 
 function checkdevice!(v::AbstractArray, system::SimpleIntervalMarkovProcess)

@@ -126,7 +126,7 @@ function ValueFunction(
 )
     mp = system(problem)
 
-    previous = construct_value_function(gap(transition_prob(mp, 1)), num_states(mp))
+    previous = construct_value_function(transition_matrix_type(mp), num_states(mp))
     current = copy(previous)
 
     return ValueFunction(previous, previous, current)
@@ -134,21 +134,21 @@ end
 
 
 function ValueFunction(
-    problem::Problem{<:ProductIntervalMarkovProcess},
+    problem::Problem{<:Union{<:ProductIntervalMarkovProcess, <:MultiDim}},
 )
     mp = system(problem)
 
     pns = Tuple(product_num_states(mp) |> recursiveflatten |> collect)
     # Just need any one of the transition probabilities to dispatch
     # to the correct method (based on the type).
-    previous = construct_value_function(gap(first_transition_prob(mp)), pns)
+    previous = construct_value_function(transition_matrix_type(mp), pns)
     intermediate = copy(previous)
     current = copy(previous)
 
     return ValueFunction(previous, intermediate, current)
 end
 
-function construct_value_function(::MR, num_states) where {R, MR <: AbstractMatrix{R}}
+function construct_value_function(::Type{MR}, num_states) where {R, MR <: AbstractMatrix{R}}
     V = zeros(R, num_states)
     return V
 end
@@ -194,6 +194,22 @@ function step!(workspace, strategy_cache, value_function, k, mp::TimeVaryingInte
         upper_bound = upper_bound,
         maximize = maximize,
     )
+end
+
+function step!(workspace::MultiDimProductWorkspace, strategy_cache, value_function, k, mp::MultiDim; upper_bound, maximize)
+    vf_shape = (
+        size(value_function.current)[1:workspace.state_index - 1]...,
+        prod(size(value_function.current)[workspace.state_index:workspace.state_index + mp.num_dims - 1]),
+        size(value_function.current)[workspace.state_index + mp.num_dims:end]...,
+    )
+
+    reshaped_value_function = ValueFunction(
+        reshape(value_function.current, vf_shape...),
+        reshape(value_function.intermediate, vf_shape...),
+        reshape(value_function.previous, vf_shape...),
+    )
+    
+    step!(workspace.process_workspace, strategy_cache, reshaped_value_function, k, mp.underlying_process; upper_bound = upper_bound, maximize = maximize)
 end
 
 function step!(workspace, strategy_cache, value_function, k, mp::ParallelProduct; upper_bound, maximize)

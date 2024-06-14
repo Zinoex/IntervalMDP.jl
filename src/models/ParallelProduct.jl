@@ -92,12 +92,9 @@ dims(pp::ParallelProduct) = sum(subdims(pp))
 
 product_num_states(pp::ParallelProduct) = map(product_num_states, pp.orthogonal_processes)
 
-first_transition_prob(pp::ParallelProduct) = first_transition_prob(first(pp.orthogonal_processes))
-first_transition_prob(mp::SimpleIntervalMarkovProcess) = transition_prob(mp, 1)
-
-max_actions(pp::ParallelProduct) = maximum(max_actions, orthogonal_processes(pp))
-
 orthogonal_processes(pp::ParallelProduct) = pp.orthogonal_processes
+max_actions(pp::ParallelProduct) = maximum(max_actions, orthogonal_processes(pp))
+transition_matrix_type(pp::ParallelProduct) = transition_matrix_type(first(orthogonal_processes(pp)))
 
 # TODO: Implement check that if any of the processes are time-varying,
 # then the time-varying processes have the same number of time steps.

@@ -1,20 +1,19 @@
 
-function construct_workspace end
-
-##########
-# Simple #
-##########
-
 """
-    construct_workspace(mp::SimpleIntervalMarkovProcess)
+    construct_workspace(mp::IntervalMarkovProcess)
 
 Construct a workspace for computing the Bellman update, given a value function.
 If the Bellman update is used in a hot-loop, it is more efficient to use this function
 to preallocate the workspace and reuse across iterations.
 
-The workspace type is determined by the type and size of the transition probability matrix,
+The workspace type is determined by the type and size of the Markov process,
 as well as the number of threads available.
 """
+function construct_workspace end
+
+##########
+# Simple #
+##########
 construct_workspace(mp::SimpleIntervalMarkovProcess) = construct_workspace(transition_prob(mp, 1), max_actions(mp))
 
 """
@@ -98,17 +97,8 @@ end
 # Composite #
 #############
 
-"""
-construct_workspace(mp::ParallelProduct)
-
-Construct a workspace for computing the Bellman update, given a value function.
-If the Bellman update is used in a hot-loop, it is more efficient to use this function
-to preallocate the workspace and reuse across iterations.
-
-The workspace type is determined by the type and size of the transition probability matrix,
-as well as the number of threads available.
-"""
 construct_workspace(mp::ParallelProduct) = _construct_workspace(mp)
+construct_workspace(mp::MultiDim) = _construct_workspace(mp)
 
 abstract type CompositeWorkspace end
 
@@ -215,3 +205,21 @@ function _construct_workspace(mp::ParallelProduct, state_index, action_index)
 end
 
 _construct_workspace(mp::SimpleIntervalMarkovProcess, state_index, action_index) = _construct_workspace(gap(transition_prob(mp, 1)), mp, state_index, action_index)
+
+# Multi-dim product workspace
+struct MultiDimProductWorkspace
+    process_workspace::CompositeWorkspace
+    state_index::Int32
+    action_index::Int32
+end
+
+function _construct_workspace(mp::MultiDim)
+    workspace, _, _ = _construct_workspace(mp, one(Int32), one(Int32))
+    return workspace
+end
+
+function _construct_workspace(mp::MultiDim, orig_state_index, orig_action_index)
+    workspace, state_index, action_index = _construct_workspace(mp.underlying_process, orig_state_index, orig_action_index)
+
+    return MultiDimProductWorkspace(workspace, orig_state_index, orig_action_index), state_index, action_index
+end
