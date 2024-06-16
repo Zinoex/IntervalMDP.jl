@@ -17,7 +17,7 @@ function reducediff(op, stateptr::CuVector{Int32}, neutral)
     threads = min(max_threads, wanted_threads)
     blocks = 1
 
-    kernel(op, stateptr, ret_arr; blocks = blocks, threads = threads)
+    kernel(op, stateptr, neutral, ret_arr; blocks = blocks, threads = threads)
 
     return CUDA.@allowscalar ret_arr[1]
 end
