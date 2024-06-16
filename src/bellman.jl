@@ -294,7 +294,7 @@ function bellman!(
             end
 
             sidx = state_index(workspace, jₛ, other_index)
-            Vres[sidx] = extract_strategy!(strategy_cache, action_values, Vₒ, sidx, s₁, maximize)
+            Vres[sidx] = extract_strategy!(strategy_cache, action_values, V, sidx, s₁, maximize)
         end
     end
 
@@ -336,7 +336,7 @@ function bellman!(
             end
 
             sidx = state_index(workspace, jₛ, other_index)
-            Vres[sidx] = extract_strategy!(strategy_cache, action_values, Vₒ, sidx, s₁, maximize)
+            Vres[sidx] = extract_strategy!(strategy_cache, action_values, V, sidx, s₁, maximize)
         end
     end
 
@@ -373,7 +373,7 @@ function bellman!(workspace::SparseProductWorkspace, strategy_cache::AbstractStr
             end
 
             sidx = state_index(workspace, jₛ, other_index)
-            Vres[sidx] = extract_strategy!(strategy_cache, action_values, Vₒ, sidx, s₁, maximize)
+            Vres[sidx] = extract_strategy!(strategy_cache, action_values, V, sidx, s₁, maximize)
         end
     end
 
@@ -410,7 +410,7 @@ function bellman!(workspace::ThreadedSparseProductWorkspace, strategy_cache::Abs
             end
 
             sidx = state_index(workspace, jₛ, other_index)
-            Vres[sidx] = extract_strategy!(strategy_cache, action_values, Vₒ, sidx, s₁, maximize)
+            Vres[sidx] = extract_strategy!(strategy_cache, action_values, V, sidx, s₁, maximize)
         end
     end
 

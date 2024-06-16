@@ -197,8 +197,8 @@ function step!(workspace, strategy_cache, value_function, k, mp::TimeVaryingInte
 end
 
 function step!(workspace, strategy_cache, value_function, k, mp::ParallelProduct; upper_bound, maximize)
-    for (ws, orthogonal_process) in zip(workspace.process_workspaces, orthogonal_processes(mp))
-        step!(ws, strategy_cache, value_function, k, orthogonal_process; upper_bound = upper_bound, maximize = maximize)
+    for (ws, sc, orthogonal_process) in zip(orthogonal_workspaces(workspace), orthogonal_caches(strategy_cache), orthogonal_processes(mp))
+        step!(ws, sc, value_function, k, orthogonal_process; upper_bound = upper_bound, maximize = maximize)
         copyto!(value_function.intermediate, value_function.current)
     end
 end

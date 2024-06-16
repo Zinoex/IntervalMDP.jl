@@ -196,6 +196,7 @@ end
 struct ParallelProductWorkspace <: CompositeWorkspace
     process_workspaces::Vector{CompositeWorkspace}
 end
+orthogonal_workspaces(workspace::ParallelProductWorkspace) = workspace.process_workspaces
 
 function _construct_workspace(mp::ParallelProduct)
     workspace, _, _ = _construct_workspace(mp, one(Int32), one(Int32))

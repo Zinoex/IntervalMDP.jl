@@ -1,5 +1,5 @@
-function IntervalMDP.construct_action_cache(mp::M, ::IntervalProbabilities{R, VR}) where {M <: SimpleIntervalMarkovProcess, R <: Real, VR <: AbstractGPUVector{R}}
-    return CUDA.zeros(Int32, num_states(mp))
+function IntervalMDP.construct_action_cache(::IntervalProbabilities{R, VR}, dims) where {R <: Real, VR <: AbstractGPUVector{R}}
+    return CUDA.zeros(Int32, dims)
 end
 
 abstract type ActiveCache end
