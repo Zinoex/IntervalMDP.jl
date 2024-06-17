@@ -7,10 +7,11 @@ Formally, let ``\\mathcal{M}_i = (S^i, S_0^i, \\bar{P}^i, \\underbar{P}^i)`` be 
 Then the parallel product composition of ``\\mathcal{M}_1, \\ldots, \\mathcal{M}_n`` is defined as follows:
 ``(S, S_0, \\bar{P}, \\underbar{P})`` where ``S = S^1 \\times \\ldots \\times S^n``, ``S_0`` is the set of initial states in ``S`` (we ignore the initial states from the individual processes),
 ``\\bar{P} = \\bar{P}^1 \\cdot \\ldots \\cdot \\bar{P}^n``, and ``\\underbar{P} = \\underbar{P}^1 \\cdot \\ldots \\cdot \\underbar{P}^n``.
+# TODO: Update this definition when the theory is established.
 This means that the transition probability from state ``s = (s^1, \\ldots, s^n)`` to state ``s' = (s'^1, \\ldots, s'^n)`` is the product of the transition probabilities from ``s^i`` to ``s'^i`` in each process (accounting for actions if any of the processes are MDPs).
 Due to the parallel construction, value iteration can be done independently for each process over the value function tensor.
 
-Then the `ParallelProduct` type is defined by a vector of `IntervalMarkovProcess` (all have to be either stationary or time-varying) and the initial states of the composition.
+Then the `ParallelProduct` type is defined by a vector of `IntervalMarkovProcess` and the initial states of the composition.
 
 ### Fields
 - `orthogonal_processes::Vector{IntervalMarkovProcess}`: the list of processes in the composition.
@@ -63,12 +64,12 @@ struct ParallelProduct{
     orthogonal_processes::Vector{IntervalMarkovProcess}
     initial_states::VI
     num_states::Int32
-    subdims::Vector{Int32}
+    dims::Int32
 end
 
 function ParallelProduct(orthogonal_processes::Vector{IntervalMarkovProcess}, initial_states::InitialStates = AllStates())
     nstates = Int32(prod(num_states, orthogonal_processes))
-    sdims = map(dims, orthogonal_processes)
+    sdims = Int32(sum(dims, orthogonal_processes))
     
     return ParallelProduct(
         orthogonal_processes,
@@ -87,8 +88,7 @@ function ParallelProduct(orthogonal_processes::Vector, initial_states::InitialSt
     )
 end
 
-subdims(pp::ParallelProduct) = pp.subdims
-dims(pp::ParallelProduct) = Int32(sum(subdims(pp)))
+dims(pp::ParallelProduct) = pp.dims
 
 product_num_states(pp::ParallelProduct) = map(product_num_states, pp.orthogonal_processes)
 
