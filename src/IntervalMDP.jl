@@ -15,6 +15,7 @@ include("transitions.jl")
 export IntervalProbabilities, Transitions
 export lower, upper, gap, sum_lower
 export num_source, axes_source, num_target
+export transition_hcat
 
 include("models/IntervalMarkovProcess.jl")
 include("models/IntervalMarkovDecisionProcess.jl")

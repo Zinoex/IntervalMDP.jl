@@ -2,6 +2,10 @@ function IntervalMDP.construct_action_cache(::IntervalProbabilities{R, VR}, dims
     return CUDA.zeros(Int32, dims)
 end
 
+function construct_action_cache(::Transitions{Tv, Ti, V}, dims) where {Tv <: Number, Ti <: Integer, V <: AbstractGPUVector{Ti}}
+    return CUDA.zeros(Int32, dims)
+end
+
 abstract type ActiveCache end
 
 struct NoStrategyActiveCache <: ActiveCache end

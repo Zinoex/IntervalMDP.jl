@@ -92,6 +92,44 @@ function construct_workspace(p::AbstractSparseMatrix, max_actions; threshold = 1
     end
 end
 
+# Deterministic
+struct DeterministicWorkspace{T <: Real}
+    actions::Vector{T}
+end
+
+function DeterministicWorkspace(::Transitions{T}, max_actions) where {T <: Real}
+    actions = Vector{T}(undef, max_actions)
+    return DeterministicWorkspace(actions)
+end
+
+struct ThreadedDeterministicWorkspace{T}
+    thread_workspaces::Vector{DeterministicWorkspace{T}}
+end
+
+function ThreadedDeterministicWorkspace(p::Transitions, max_actions)
+    nthreads = Threads.nthreads()
+    thread_workspaces = [DeterministicWorkspace(p, max_actions) for _ in 1:nthreads]
+    return ThreadedDeterministicWorkspace(thread_workspaces)
+end
+
+"""
+    construct_workspace(prob::Transitions, max_actions=1; threshold = 10)
+
+Construct a workspace for computing the Bellman update, given a value function.
+If the Bellman update is used in a hot-loop, it is more efficient to use this function
+to preallocate the workspace and reuse across iterations.
+
+The workspace type is determined by the type and size of the transition probability matrix,
+as well as the number of threads available.
+"""
+function construct_workspace(p::Transitions, max_actions=1; threshold = 10)
+    if Threads.nthreads() == 1 || size(p, 2) <= threshold
+        return DeterministicWorkspace(p, max_actions)
+    else
+        return ThreadedDeterministicWorkspace(p, max_actions)
+    end
+end
+
 
 #############
 # Composite #

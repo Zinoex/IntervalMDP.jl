@@ -36,7 +36,70 @@ end
 
 # Default to Float64 for the type of the non-zero values
 function Transitions(colptr::V, rowval::V, dims::NTuple{2, Int}) where {Ti, V <: AbstractVector{Ti}}        
-    return Transitions(Float64, colptr, rowval, dims, nnz)
+    return Transitions(Float64, colptr, rowval, dims)
+end
+
+"""
+TODO: write documentation
+"""
+function transition_hcat(m, X::AbstractVector{Ti}...) where {Ti}
+    # check sizes
+    n = length(X)
+    maximum(maximum, X) == m || throw(DimensionMismatch("Inconsistent column lengths."))
+
+    tnnz = length(X[1])
+    for j = 2:n
+        tnnz += length(X[j])
+    end
+
+    # construction
+    colptr = Vector{Ti}(undef, n + 1)
+    nzrow = Vector{Ti}(undef, tnnz)
+    roff = 1
+    @inbounds for j = 1:n
+        xnzind = X[j]
+        colptr[j] = roff
+        copyto!(nzrow, roff, xnzind)
+        roff += length(xnzind)
+    end
+    colptr[n+1] = roff
+    return Transitions(colptr, nzrow, (m, n))
+end
+
+function _transition_hcat(X::Transitions{Tv, Ti, V}...) where {Tv <: Number, Ti <: Integer, V <: AbstractVector{Ti}}
+    N = length(X)
+
+    # check sizes
+    n = sum(x -> size(x, 2), X)
+    m = size(X[1], 1)
+
+    tnnz = nnz(X[1])
+    for j = 2:N
+        size(X[j], 1) == m || throw(DimensionMismatch("Inconsistent column lengths."))
+        tnnz += nnz(X[j])
+    end
+
+    # construction
+    colptr = Vector{Ti}(undef, n + 1)
+    nzrow = Vector{Ti}(undef, tnnz)
+    roff = 1
+    k = 1
+
+    @inbounds for j = 1:N
+        xnzind = rowvals(X[j])
+        copyto!(nzrow, roff, xnzind)
+
+        @inbounds for i = 1:size(X[j], 2)
+            colptr[k] = roff
+            roff += nnz(@view(X[j][:, i]))
+            k += 1
+        end
+    end
+    colptr[n+1] = roff
+
+    stateptr = Int32[1; 1 .+ cumsum([num_source(p) for p in X])]
+
+    return Transitions(colptr, nzrow, (m, n)), stateptr
 end
 
 # Accessors for properties of interval probabilities
@@ -51,7 +114,7 @@ struct Ones{Tv} <: AbstractVector{Tv}
     len::Int
 end
 Base.size(o::Ones) = (o.len,)
-Base.size(o::Ones, dim::Integer) = o.len
+Base.size(o::Ones, dim::Integer) = isone(dim) ? o.len : 1
 @inline Base.getindex(o::Ones{Tv}, i) where {Tv} = (@boundscheck checkbounds(o, i); one(Tv))
 
 SparseArrays.nonzeros(p::Transitions{Tv}) where {Tv} = Ones(Tv, p.colptr[end] - 1)
@@ -61,7 +124,7 @@ SparseArrays.nonzeros(p::Transitions{Tv}) where {Tv} = Ones(Tv, p.colptr[end] - 
 
 Return the number of source states or source/action pairs.
 """
-num_source(p::Transitions) = size(gap(p), 2)
+num_source(p::Transitions) = size(p, 2)
 
 """
     axes_source(p::Transitions)
@@ -75,6 +138,6 @@ axes_source(p::Transitions) = 1:num_source(p)
 
 Return the number of target states.
 """
-num_target(p::Transitions) = size(gap(p), 1)
+num_target(p::Transitions) = size(p, 1)
 
-stateptr(prob::Transitions) = prob.colptr
+stateptr(prob::Transitions{Tv, Ti}) where {Tv, Ti} = UnitRange{Ti}(1, num_source(prob) + one(Ti))

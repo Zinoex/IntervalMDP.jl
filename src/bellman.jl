@@ -177,7 +177,7 @@ function gap_value(V, gap::VR, sum_lower, perm) where {VR <: AbstractVector}
 end
 
 # Sparse
-function bellman!(workspace::SparseWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob, stateptr; upper_bound = false, maximize = true)
+function bellman!(workspace::SparseWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob::IntervalProbabilities, stateptr; upper_bound = false, maximize = true)
     l = lower(prob)
     g = gap(prob)
 
@@ -208,7 +208,7 @@ function bellman!(workspace::SparseWorkspace, strategy_cache::AbstractStrategyCa
     return Vres
 end
 
-function bellman!(workspace::ThreadedSparseWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob, stateptr; upper_bound = false, maximize = true)
+function bellman!(workspace::ThreadedSparseWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob::IntervalProbabilities, stateptr; upper_bound = false, maximize = true)
     l = lower(prob)
     g = gap(prob)
 
@@ -255,6 +255,48 @@ function gap_value(Vp, sum_lower)
     end
 
     return res
+end
+
+# Deterministic
+function bellman!(workspace::DeterministicWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob::Transitions, stateptr; upper_bound = false, maximize = true)
+    reduceop = upper_bound ? maximum : minimum
+    
+    @inbounds for jₛ in 1:(length(stateptr) - 1)
+        s₁, s₂ = stateptr[jₛ], stateptr[jₛ + 1]
+        action_values = @view workspace.actions[1:(s₂ - s₁)]
+        
+        for (i, jₐ) in enumerate(s₁:(s₂ - 1))
+            pⱼ = @view prob[:, jₐ]
+
+            transition_values = @view V[SparseArrays.nonzeroinds(pⱼ)]
+            action_values[i] = reduceop(transition_values)
+        end
+
+        Vres[jₛ] = extract_strategy!(strategy_cache, action_values, V, jₛ, s₁, maximize)
+    end
+
+    return Vres
+end
+
+function bellman!(workspace::ThreadedDeterministicWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob::Transitions, stateptr; upper_bound = false, maximize = true)
+    reduceop = upper_bound ? maximum : minimum
+    
+    @inbounds @threadstid tid for jₛ in 1:(length(stateptr) - 1)
+        ws = workspace.thread_workspaces[tid]
+        s₁, s₂ = stateptr[jₛ], stateptr[jₛ + 1]
+        action_values = @view ws.actions[1:(s₂ - s₁)]
+
+        for (i, jₐ) in enumerate(s₁:(s₂ - 1))
+            pⱼ = @view prob[:, jₐ]
+
+            transition_values = @view V[SparseArrays.nonzeroinds(pⱼ)]
+            action_values[i] = reduceop(transition_values)
+        end
+
+        Vres[jₛ] = extract_strategy!(strategy_cache, action_values, V, jₛ, s₁, maximize)
+    end
+
+    return Vres
 end
 
 #############
@@ -344,7 +386,7 @@ function bellman!(
 end
 
 # Sparse
-function bellman!(workspace::SparseProductWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob, stateptr; upper_bound = false, maximize = true)
+function bellman!(workspace::SparseProductWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob::IntervalProbabilities, stateptr; upper_bound = false, maximize = true)
     l = lower(prob)
     g = gap(prob)
 
@@ -380,7 +422,7 @@ function bellman!(workspace::SparseProductWorkspace, strategy_cache::AbstractStr
     return Vres
 end
 
-function bellman!(workspace::ThreadedSparseProductWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob, stateptr; upper_bound = false, maximize = true)
+function bellman!(workspace::ThreadedSparseProductWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob::IntervalProbabilities, stateptr; upper_bound = false, maximize = true)
     l = lower(prob)
     g = gap(prob)
 

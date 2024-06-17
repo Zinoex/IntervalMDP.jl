@@ -80,13 +80,10 @@ function DeterministicMarkovDecisionProcess(
     transition_probs::Vector{<:Transitions},
     initial_states::InitialStates = AllStates(),
 )
-    # TODO: Fix
-    transition_prob, stateptr = interval_prob_hcat(transition_probs)
+    transition_prob, stateptr = _transition_hcat(transition_probs...)
 
     return DeterministicMarkovDecisionProcess(transition_prob, stateptr, initial_states)
 end
-
-# TODO: Constructor from a list/array of transitions for each source
 
 # TODO: Document
 function DeterministicMarkovChain(

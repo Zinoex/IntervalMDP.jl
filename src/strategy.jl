@@ -46,6 +46,10 @@ function construct_strategy_cache(::IntervalProbabilities, ::NoStrategyConfig)
     return NoStrategyCache()
 end
 
+function construct_strategy_cache(::Transitions, ::NoStrategyConfig)
+    return NoStrategyCache()
+end
+
 function construct_strategy_cache(::SimpleIntervalMarkovProcess, ::NoStrategyConfig)
     return NoStrategyCache()
 end
@@ -90,6 +94,10 @@ function construct_action_cache(::IntervalProbabilities{R, VR}, dims) where {R <
     return zeros(Int32, dims)
 end
 
+function construct_action_cache(::Transitions{Tv, Ti, V}, dims) where {Tv <: Number, Ti <: Integer, V <: AbstractVector{Ti}}
+    return zeros(Int32, dims)
+end
+
 function cachetostrategy(
     strategy_cache::TimeVaryingStrategyCache,
 )
@@ -104,9 +112,11 @@ function extract_strategy!(
     s₁,
     maximize,
 ) where {R <: Real}
-    opt_val = maximize ? typemin(R) : typemax(R)
-    opt_index = s₁
-    neutral = (opt_val, opt_index)
+    neutral = if iszero(strategy_cache.cur_strategy[j])
+        maximize ? typemin(R) : typemax(R), s₁
+    else
+        V[j], strategy_cache.cur_strategy[j]
+    end
     
     return _extract_strategy!(strategy_cache.cur_strategy, values, neutral, j, s₁, maximize)
 end
