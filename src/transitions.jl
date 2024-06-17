@@ -45,7 +45,8 @@ TODO: write documentation
 function transition_hcat(m, X::AbstractVector{Ti}...) where {Ti}
     # check sizes
     n = length(X)
-    maximum(maximum, X) == m || throw(DimensionMismatch("Inconsistent column lengths."))
+    minimum(minimum, X) >= 1 || throw(DimensionMismatch("Invalid row indices."))
+    maximum(maximum, X) <= m || throw(DimensionMismatch("Inconsistent column lengths."))
 
     tnnz = length(X[1])
     for j = 2:n

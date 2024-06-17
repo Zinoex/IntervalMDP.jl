@@ -134,7 +134,7 @@ end
 
 
 function ValueFunction(
-    problem::Problem{<:Union{<:ProductIntervalMarkovProcess, <:MultiDim}},
+    problem::Problem{<:Union{<:ProductIntervalMarkovProcess, <:SequentialIntervalMarkovProcess}},
 )
     mp = system(problem)
 
@@ -196,11 +196,23 @@ function step!(workspace, strategy_cache, value_function, k, mp::TimeVaryingInte
     )
 end
 
+function step!(workspace::SequentialWorkspace, strategy_cache, value_function, k, mp; upper_bound, maximize)
+    # Iterate over the processes in reverse order since value iteration is back-stepping
+    for (ws, sc, sequential_process) in zip(
+            sequential_workspaces(workspace) |> reverse,
+            sequential_caches(strategy_cache) |> reverse,
+            sequential_processes(mp) |> reverse
+        )
+        step!(ws, sc, value_function, k, sequential_process; upper_bound = upper_bound, maximize = maximize)
+        copyto!(value_function.intermediate, value_function.current)
+    end
+end
+
 function step!(workspace::MultiDimProductWorkspace, strategy_cache, value_function, k, mp::MultiDim; upper_bound, maximize)
     vf_shape = (
         size(value_function.current)[1:workspace.state_index - 1]...,
-        prod(size(value_function.current)[workspace.state_index:workspace.state_index + mp.num_dims - 1]),
-        size(value_function.current)[workspace.state_index + mp.num_dims:end]...,
+        prod(size(value_function.current)[workspace.state_index:workspace.state_index + dims(mp) - 1]),
+        size(value_function.current)[workspace.state_index + dims(mp):end]...,
     )
 
     reshaped_value_function = ValueFunction(
@@ -212,7 +224,7 @@ function step!(workspace::MultiDimProductWorkspace, strategy_cache, value_functi
     step!(workspace.process_workspace, strategy_cache, reshaped_value_function, k, mp.underlying_process; upper_bound = upper_bound, maximize = maximize)
 end
 
-function step!(workspace, strategy_cache, value_function, k, mp::ParallelProduct; upper_bound, maximize)
+function step!(workspace::ParallelProductWorkspace, strategy_cache, value_function, k, mp; upper_bound, maximize)
     for (ws, sc, orthogonal_process) in zip(orthogonal_workspaces(workspace), orthogonal_caches(strategy_cache), orthogonal_processes(mp))
         step!(ws, sc, value_function, k, orthogonal_process; upper_bound = upper_bound, maximize = maximize)
         copyto!(value_function.intermediate, value_function.current)

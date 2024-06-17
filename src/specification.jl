@@ -30,6 +30,12 @@ function checktimehorizon!(prop, system::ParallelProduct)
     end
 end
 
+function checktimehorizon!(prop, system::Sequential)
+    for sequential_process in sequential_processes(system)
+        checktimehorizon!(prop, sequential_process)
+    end
+end
+
 function checktimehorizon!(prop, system::MultiDim)
     checktimehorizon!(prop, system.underlying_process)
 end
@@ -47,6 +53,12 @@ end
 function checkconvergence!(prop, system::ParallelProduct)
     for orthogonal_process in orthogonal_processes(system)
         checkconvergence!(prop, orthogonal_process)
+    end
+end
+
+function checkconvergence!(prop, system::Sequential)
+    for sequential_process in sequential_processes(system)
+        checkconvergence!(prop, sequential_process)
     end
 end
 
@@ -409,6 +421,21 @@ function checkterminal!(terminal_states, system::SimpleIntervalMarkovProcess)
 end
 
 function checkterminal!(terminal_states, system::ProductIntervalMarkovProcess)
+    pns = product_num_states(system) |> recursiveflatten |> collect
+    for j in terminal_states
+        j = Tuple(j)
+
+        if length(j) != length(pns)
+            throw(StateDimensionMismatch(j, length(pns)))
+        end
+
+        if any(j .< 1) || any(j .> pns)
+            throw(InvalidStateError(j, pns))
+        end
+    end
+end
+
+function checkterminal!(terminal_states, system::Sequential)
     pns = product_num_states(system) |> recursiveflatten |> collect
     for j in terminal_states
         j = Tuple(j)

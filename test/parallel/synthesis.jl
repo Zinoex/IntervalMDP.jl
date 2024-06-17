@@ -118,7 +118,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[1].strategy .= 0
-            ws_direct = IntervalMDP.DenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32), one(Int32))
+            ws_direct = IntervalMDP.DenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[1], Vres, V, transition_prob(dense_mdp), stateptr(dense_mdp); upper_bound = true, maximize = false)
             @test Vres ≈ Vdes
@@ -129,7 +129,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[1].strategy .= 0
-            ws_direct = IntervalMDP.ThreadedDenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32), one(Int32))
+            ws_direct = IntervalMDP.ThreadedDenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[1], Vres, V, transition_prob(dense_mdp), stateptr(dense_mdp); upper_bound = true, maximize = false)
             @test Vres ≈ Vdes
@@ -163,7 +163,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[2].strategy .= 0
-            ws_direct = IntervalMDP.SparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.SparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(sparse_mdp), stateptr(sparse_mdp); upper_bound = true, maximize = false)
             @test Vres ≈ Vdes
@@ -174,7 +174,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[2].strategy .= 0
-            ws_direct = IntervalMDP.ThreadedSparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.ThreadedSparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(sparse_mdp), stateptr(sparse_mdp); upper_bound = true, maximize = false)
             @test Vres ≈ Vdes
@@ -218,7 +218,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[1].strategy .= 0
-            ws_direct = IntervalMDP.DenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32), one(Int32))
+            ws_direct = IntervalMDP.DenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[1], Vres, V, transition_prob(dense_mdp), stateptr(dense_mdp); upper_bound = false, maximize = true)
             @test Vres ≈ Vdes
@@ -229,7 +229,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[1].strategy .= 0
-            ws_direct = IntervalMDP.ThreadedDenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32), one(Int32))
+            ws_direct = IntervalMDP.ThreadedDenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[1], Vres, V, transition_prob(dense_mdp), stateptr(dense_mdp); upper_bound = false, maximize = true)
             @test Vres ≈ Vdes
@@ -264,7 +264,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[2].strategy .= 0
-            ws_direct = IntervalMDP.SparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.SparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(sparse_mdp), stateptr(sparse_mdp); upper_bound = false, maximize = true)
             @test Vres ≈ Vdes
@@ -275,7 +275,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[2].strategy .= 0
-            ws_direct = IntervalMDP.ThreadedSparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.ThreadedSparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(sparse_mdp), stateptr(sparse_mdp); upper_bound = false, maximize = true)
             @test Vres ≈ Vdes
@@ -331,7 +331,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[1].cur_strategy .= 0
-            ws_direct = IntervalMDP.DenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32), one(Int32))
+            ws_direct = IntervalMDP.DenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[1], Vres, V, transition_prob(dense_mdp), stateptr(dense_mdp); upper_bound = true, maximize = false)
             @test Vres ≈ Vdes
@@ -342,7 +342,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[1].cur_strategy .= 0
-            ws_direct = IntervalMDP.ThreadedDenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32), one(Int32))
+            ws_direct = IntervalMDP.ThreadedDenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[1], Vres, V, transition_prob(dense_mdp), stateptr(dense_mdp); upper_bound = true, maximize = false)
             @test Vres ≈ Vdes
@@ -376,7 +376,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[2].cur_strategy .= 0
-            ws_direct = IntervalMDP.SparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.SparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(sparse_mdp), stateptr(sparse_mdp); upper_bound = true, maximize = false)
             @test Vres ≈ Vdes
@@ -387,7 +387,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[2].cur_strategy .= 0
-            ws_direct = IntervalMDP.ThreadedSparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.ThreadedSparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(sparse_mdp), stateptr(sparse_mdp); upper_bound = true, maximize = false)
             @test Vres ≈ Vdes
@@ -431,7 +431,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[1].cur_strategy .= 0
-            ws_direct = IntervalMDP.DenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32), one(Int32))
+            ws_direct = IntervalMDP.DenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[1], Vres, V, transition_prob(dense_mdp), stateptr(dense_mdp); upper_bound = false, maximize = true)
             @test Vres ≈ Vdes
@@ -442,7 +442,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[1].cur_strategy .= 0
-            ws_direct = IntervalMDP.ThreadedDenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32), one(Int32))
+            ws_direct = IntervalMDP.ThreadedDenseProductWorkspace(gap(transition_prob(dense_mdp)), num_states(dense_mdp), IntervalMDP.max_actions(dense_mdp), one(Int32))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[1], Vres, V, transition_prob(dense_mdp), stateptr(dense_mdp); upper_bound = false, maximize = true)
             @test Vres ≈ Vdes
@@ -477,7 +477,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[2].cur_strategy .= 0
-            ws_direct = IntervalMDP.SparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.SparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(sparse_mdp), stateptr(sparse_mdp); upper_bound = false, maximize = true)
             @test Vres ≈ Vdes
@@ -488,7 +488,7 @@ dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
             ]
 
             strategy_cache.orthogonal_caches[2].cur_strategy .= 0
-            ws_direct = IntervalMDP.ThreadedSparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.ThreadedSparseProductWorkspace(gap(transition_prob(sparse_mdp)), num_states(sparse_mdp), IntervalMDP.max_actions(sparse_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(sparse_mdp), stateptr(sparse_mdp); upper_bound = false, maximize = true)
             @test Vres ≈ Vdes
@@ -558,7 +558,7 @@ end
             ]
 
             strategy_cache.orthogonal_caches[2].strategy .= 0
-            ws_direct = IntervalMDP.DeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.DeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(deterministic_mdp), stateptr(deterministic_mdp); upper_bound = true, maximize = false)
             @test Vres ≈ Vdes
@@ -569,7 +569,7 @@ end
             ]
 
             strategy_cache.orthogonal_caches[2].strategy .= 0
-            ws_direct = IntervalMDP.ThreadedDeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.ThreadedDeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(deterministic_mdp), stateptr(deterministic_mdp); upper_bound = true, maximize = false)
             @test Vres ≈ Vdes
@@ -613,7 +613,7 @@ end
             ]
 
             strategy_cache.orthogonal_caches[2].strategy .= 0
-            ws_direct = IntervalMDP.DeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.DeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(deterministic_mdp), stateptr(deterministic_mdp); upper_bound = false, maximize = true)
             @test Vres ≈ Vdes
@@ -624,7 +624,7 @@ end
             ]
 
             strategy_cache.orthogonal_caches[2].strategy .= 0
-            ws_direct = IntervalMDP.ThreadedDeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.ThreadedDeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(deterministic_mdp), stateptr(deterministic_mdp); upper_bound = false, maximize = true)
             @test Vres ≈ Vdes
@@ -680,7 +680,7 @@ end
             ]
 
             strategy_cache.orthogonal_caches[2].cur_strategy .= 0
-            ws_direct = IntervalMDP.DeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.DeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(deterministic_mdp), stateptr(deterministic_mdp); upper_bound = true, maximize = false)
             @test Vres ≈ Vdes
@@ -691,7 +691,7 @@ end
             ]
 
             strategy_cache.orthogonal_caches[2].cur_strategy .= 0
-            ws_direct = IntervalMDP.ThreadedDeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.ThreadedDeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(deterministic_mdp), stateptr(deterministic_mdp); upper_bound = true, maximize = false)
             @test Vres ≈ Vdes
@@ -735,7 +735,7 @@ end
             ]
 
             strategy_cache.orthogonal_caches[2].cur_strategy .= 0
-            ws_direct = IntervalMDP.DeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.DeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(deterministic_mdp), stateptr(deterministic_mdp); upper_bound = false, maximize = true)
             @test Vres ≈ Vdes
@@ -746,7 +746,7 @@ end
             ]
 
             strategy_cache.orthogonal_caches[2].cur_strategy .= 0
-            ws_direct = IntervalMDP.ThreadedDeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2), Int32(2))
+            ws_direct = IntervalMDP.ThreadedDeterministicProductWorkspace(transition_prob(deterministic_mdp), num_states(deterministic_mdp), IntervalMDP.max_actions(deterministic_mdp), Int32(2))
             Vres = similar(Vres)
             bellman!(ws_direct, strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(deterministic_mdp), stateptr(deterministic_mdp); upper_bound = false, maximize = true)
             @test Vres ≈ Vdes

@@ -188,9 +188,14 @@ function _extract_strategy!(
     return opt_val
 end
 
-# Composite types
+########################
+# Composite strategies #
+########################
+
+# Product
 abstract type ProductStrategyCache <: AbstractStrategyCache end
 
+# Parallel
 struct ParallelProductStrategyCache <: ProductStrategyCache
     orthogonal_caches::Vector{AbstractStrategyCache}
 end
@@ -220,4 +225,63 @@ function cachetostrategy(
     strategy_cache::ParallelProductStrategyCache,
 )
     return [cachetostrategy(orthogonal_cache) for orthogonal_cache in orthogonal_caches(strategy_cache)]
+end
+
+# Sequential
+struct SequentialStrategyCache <: AbstractStrategyCache
+    sequential_caches::Vector{AbstractStrategyCache}
+end
+sequential_caches(cache::SequentialStrategyCache) = cache.sequential_caches
+
+function construct_strategy_cache(mp::Sequential, config::AbstractStrategyConfig)
+    dims = Tuple(product_num_states(mp) |> recursiveflatten |> collect)
+
+    return SequentialStrategyCache(
+        [construct_strategy_cache(sequential_process, config, dims) for sequential_process in sequential_processes(mp)]
+    )
+end
+
+function construct_strategy_cache(mp::Sequential, config::AbstractStrategyConfig, dims)
+    return SequentialStrategyCache(
+        [construct_strategy_cache(sequential_process, config, dims) for sequential_process in sequential_processes(mp)]
+    )
+end
+
+function postprocess_strategy_cache!(strategy_cache::SequentialStrategyCache)
+    for sequential_cache in sequential_caches(strategy_cache)
+        postprocess_strategy_cache!(sequential_cache)
+    end
+end
+
+function cachetostrategy(
+    strategy_cache::SequentialStrategyCache,
+)
+    return [cachetostrategy(sequential_cache) for sequential_cache in sequential_caches(strategy_cache)]
+end
+
+# MultiDim
+struct MultiDimStrategyCache <: AbstractStrategyCache
+    subcache::AbstractStrategyCache
+end
+
+function construct_strategy_cache(mp::MultiDim, config::AbstractStrategyConfig)
+    dims = Tuple(product_num_states(mp) |> recursiveflatten |> collect)
+
+    return MultiDimStrategyCache(construct_strategy_cache(mp.underlying_process, config, dims))
+end
+
+function construct_strategy_cache(mp::MultiDim, config::AbstractStrategyConfig, dims)
+    return MultiDimStrategyCache(
+        construct_strategy_cache(mp.underlying_process, config, dims)
+    )
+end
+
+function postprocess_strategy_cache!(strategy_cache::MultiDimStrategyCache)
+    postprocess_strategy_cache!(strategy_cache.subcache)
+end
+
+function cachetostrategy(
+    strategy_cache::MultiDimStrategyCache,
+)
+    return cachetostrategy(strategy_cache.subcache)
 end

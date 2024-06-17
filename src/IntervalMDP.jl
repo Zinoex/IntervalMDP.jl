@@ -24,6 +24,7 @@ include("models/DeterministicMarkovDecisionProcess.jl")
 include("models/TimeVaryingDeterministicMarkovDecisionProcess.jl")
 include("models/ParallelProduct.jl")
 include("models/MultiDim.jl")
+include("models/Sequential.jl")
 export IntervalMarkovProcess
 export SimpleIntervalMarkovProcess, StationaryIntervalMarkovProcess, TimeVaryingIntervalMarkovProcess
 export CompositeIntervalMarkovProcess, SequentialIntervalMarkovProcess, ProductIntervalMarkovProcess
@@ -32,7 +33,7 @@ export IntervalMarkovDecisionProcess, TimeVaryingIntervalMarkovDecisionProcess
 export IntervalMarkovChain, TimeVaryingIntervalMarkovChain
 export DeterministicMarkovDecisionProcess, TimeVaryingDeterministicMarkovDecisionProcess
 export DeterministicMarkovChain, TimeVaryingDeterministicMarkovChain
-export ParallelProduct, MultiDim
+export ParallelProduct, MultiDim, Sequential
 export transition_prob, num_states, initial_states, stateptr, tomarkovchain, time_length
 
 include("specification.jl")
