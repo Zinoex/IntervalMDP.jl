@@ -132,6 +132,36 @@ V_fixed_it, k, _ = value_iteration(problem)
 @test k == 10
 @test V_fixed_it_ortho ≈ V_fixed_it
 
+
+######################
+# Nested composition #
+######################
+prop = FiniteTimeReachability([(3, 3, 3)], 10)
+spec = Specification(prop, Pessimistic, Maximize)
+
+nested_product_mdp1 = ParallelProduct([dense_mdp, ParallelProduct([dense_mdp, sparse_mdp])])
+problem = Problem(nested_product_mdp1, spec)
+V_fixed_it1, k, _ = value_iteration(problem)
+@test k == 10
+
+nested_product_mdp2 = ParallelProduct([ParallelProduct([dense_mdp, sparse_mdp]), dense_mdp])
+problem = Problem(nested_product_mdp2, spec)
+V_fixed_it2, k, _ = value_iteration(problem)
+@test k == 10
+@test V_fixed_it1 ≈ V_fixed_it2
+
+nested_product_mdp3 = ParallelProduct([sparse_mdp, ParallelProduct([dense_mdp, sparse_mdp])])
+problem = Problem(nested_product_mdp3, spec)
+V_fixed_it3, k, _ = value_iteration(problem)
+@test k == 10
+@test V_fixed_it1 ≈ V_fixed_it3
+
+nested_product_mdp4 = ParallelProduct([ParallelProduct([dense_mdp, sparse_mdp]), sparse_mdp])
+problem = Problem(nested_product_mdp4, spec)
+V_fixed_it4, k, _ = value_iteration(problem)
+@test k == 10
+@test V_fixed_it1 ≈ V_fixed_it4
+
 #################################
 # Test against concrete product #
 #################################
