@@ -458,3 +458,55 @@ function bellman!(workspace::ThreadedSparseProductWorkspace, strategy_cache::Abs
 
     return Vres
 end
+
+# Deterministic
+function bellman!(workspace::DeterministicProductWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob::Transitions, stateptr; upper_bound = false, maximize = true)
+    reduceop = upper_bound ? maximum : minimum
+
+    @inbounds for other_index in eachotherindex(V, workspace.state_index)
+        Vₒ = selectotherdims(V, workspace.state_index, other_index)
+        
+        for jₛ in 1:(length(stateptr) - 1)
+            s₁, s₂ = stateptr[jₛ], stateptr[jₛ + 1]
+            action_values = @view workspace.actions[1:(s₂ - s₁)]
+            
+            for (i, jₐ) in enumerate(s₁:(s₂ - 1))
+                pⱼ = @view prob[:, jₐ]
+
+                transition_values = @view Vₒ[SparseArrays.nonzeroinds(pⱼ)]
+                action_values[i] = reduceop(transition_values)
+            end
+
+            sidx = state_index(workspace, jₛ, other_index)
+            Vres[sidx] = extract_strategy!(strategy_cache, action_values, V, sidx, s₁, maximize)
+        end
+    end
+
+    return Vres
+end
+
+function bellman!(workspace::ThreadedDeterministicProductWorkspace, strategy_cache::AbstractStrategyCache, Vres, V, prob::Transitions, stateptr; upper_bound = false, maximize = true)
+    reduceop = upper_bound ? maximum : minimum
+
+    @inbounds @threadstid tid for other_index in eachotherindex(V, workspace.state_index)
+        ws = workspace.thread_workspaces[tid]
+        Vₒ = selectotherdims(V, workspace.state_index, other_index)
+    
+        for jₛ in 1:(length(stateptr) - 1)
+            s₁, s₂ = stateptr[jₛ], stateptr[jₛ + 1]
+            action_values = @view ws.actions[1:(s₂ - s₁)]
+            
+            for (i, jₐ) in enumerate(s₁:(s₂ - 1))
+                pⱼ = @view prob[:, jₐ]
+
+                transition_values = @view Vₒ[SparseArrays.nonzeroinds(pⱼ)]
+                action_values[i] = reduceop(transition_values)
+            end
+
+            sidx = state_index(workspace, jₛ, other_index)
+            Vres[sidx] = extract_strategy!(strategy_cache, action_values, V, sidx, s₁, maximize)
+        end
+    end
+
+    return Vres
+end

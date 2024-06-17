@@ -147,7 +147,7 @@ function state_index(workspace, j, idxs)
     return idx
 end
 
-# Dense - simple
+# Dense
 struct DenseProductWorkspace{T <: Real} <: CompositeWorkspace
     permutation::Vector{Int32}
     actions::Vector{T}
@@ -183,7 +183,7 @@ function _construct_workspace(p::AbstractMatrix, mp::SimpleIntervalMarkovProcess
     end
 end
 
-# Sparse - simple
+# Sparse
 struct SparseProductWorkspace{T <: Real}  <: CompositeWorkspace
     values_gaps::Vector{Tuple{T, T}}
     actions::Vector{T}
@@ -220,6 +220,41 @@ function _construct_workspace(p::AbstractSparseMatrix, mp::SimpleIntervalMarkovP
     end
 end
 
+# Deterministic
+struct DeterministicProductWorkspace{T <: Real}  <: CompositeWorkspace
+    actions::Vector{T}
+    state_index::Int32
+    action_index::Int32
+end
+
+function DeterministicProductWorkspace(::Transitions{T}, ntarget, max_actions, state_index, action_index) where {T <: Real}
+    actions = Vector{T}(undef, max_actions)
+    return DeterministicProductWorkspace( actions, state_index, action_index)
+end
+
+struct ThreadedDeterministicProductWorkspace{T} <: CompositeWorkspace
+    thread_workspaces::Vector{DeterministicProductWorkspace{T}}
+    state_index::Int32
+    action_index::Int32
+end
+
+function ThreadedDeterministicProductWorkspace(p::Transitions, ntarget, max_actions, state_index, action_index)
+    nthreads = Threads.nthreads()
+    thread_workspaces = [DeterministicProductWorkspace(p, ntarget, max_actions, state_index, action_index) for _ in 1:nthreads]
+    return ThreadedDeterministicProductWorkspace(thread_workspaces, state_index, action_index)
+end
+
+function _construct_workspace(p::Transitions, mp::DeterministicMarkovDecisionProcess, state_index, action_index)
+    ntarget = num_states(mp)
+    mactions = max_actions(mp)
+
+    if Threads.nthreads() == 1
+        return DeterministicProductWorkspace(p, ntarget, mactions, state_index, action_index), state_index + one(Int32), action_index + one(Int32)
+    else
+        return ThreadedDeterministicProductWorkspace(p, ntarget, mactions, state_index, action_index), state_index + one(Int32), action_index + one(Int32)
+    end
+end
+
 # Parallel product workspace
 struct ParallelProductWorkspace <: CompositeWorkspace
     process_workspaces::Vector{CompositeWorkspace}
@@ -243,7 +278,8 @@ function _construct_workspace(mp::ParallelProduct, state_index, action_index)
     return ParallelProductWorkspace(workspaces), state_index, action_index
 end
 
-_construct_workspace(mp::SimpleIntervalMarkovProcess, state_index, action_index) = _construct_workspace(gap(transition_prob(mp, 1)), mp, state_index, action_index)
+_construct_workspace(mp::SimpleIntervalMarkovProcess, state_index, action_index) = _construct_workspace(transition_prob(mp, 1), mp, state_index, action_index)
+_construct_workspace(prob::IntervalProbabilities, mp, state_index, action_index) = _construct_workspace(gap(prob), mp, state_index, action_index)
 
 # Multi-dim product workspace
 struct MultiDimProductWorkspace

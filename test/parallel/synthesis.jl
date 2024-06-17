@@ -367,7 +367,7 @@ end
         Vdes = mapreduce(transpose, vcat, [Vdes1, Vdes2, Vdes3])
 
         Vres = similar(V)
-        bellman!(ws1.process_workspaces[2], strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(sparse_mdp), stateptr(sparse_mdp); upper_bound = true, maximize = false)
+        bellman!(ws.process_workspaces[2], strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(sparse_mdp), stateptr(sparse_mdp); upper_bound = true, maximize = false)
         @test Vres ≈ Vdes
         @test strategy_cache.orthogonal_caches[2].cur_strategy == [
             2 3 4
@@ -422,7 +422,7 @@ end
 
         strategy_cache.orthogonal_caches[1].cur_strategy .= 0
         Vres = similar(V)
-        bellman!(ws1.process_workspaces[1], strategy_cache.orthogonal_caches[1], Vres, V, transition_prob(dense_mdp), stateptr(dense_mdp); upper_bound = false, maximize = true)
+        bellman!(ws.process_workspaces[1], strategy_cache.orthogonal_caches[1], Vres, V, transition_prob(dense_mdp), stateptr(dense_mdp); upper_bound = false, maximize = true)
         @test Vres ≈ Vdes
         @test strategy_cache.orthogonal_caches[1].cur_strategy == [
             2 2 2
@@ -468,7 +468,7 @@ end
 
         strategy_cache.orthogonal_caches[2].cur_strategy .= 0
         Vres = similar(V)
-        bellman!(ws1.process_workspaces[2], strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(sparse_mdp), stateptr(sparse_mdp); upper_bound = false, maximize = true)
+        bellman!(ws.process_workspaces[2], strategy_cache.orthogonal_caches[2], Vres, V, transition_prob(sparse_mdp), stateptr(sparse_mdp); upper_bound = false, maximize = true)
         @test Vres ≈ Vdes
         @test strategy_cache.orthogonal_caches[2].cur_strategy == [
             2 3 4
