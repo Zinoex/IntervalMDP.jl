@@ -93,7 +93,6 @@ dims(pp::ParallelProduct) = pp.dims
 product_num_states(pp::ParallelProduct) = map(product_num_states, pp.orthogonal_processes)
 
 orthogonal_processes(pp::ParallelProduct) = pp.orthogonal_processes
-max_actions(pp::ParallelProduct) = maximum(max_actions, orthogonal_processes(pp))
 transition_matrix_type(pp::ParallelProduct) = transition_matrix_type(first(orthogonal_processes(pp)))
 
 # TODO: Implement check that if any of the processes are time-varying,
