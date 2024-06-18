@@ -221,7 +221,7 @@ function step!(workspace::MultiDimProductWorkspace, strategy_cache, value_functi
         reshape(value_function.previous, vf_shape...),
     )
     
-    step!(workspace.process_workspace, strategy_cache, reshaped_value_function, k, mp.underlying_process; upper_bound = upper_bound, maximize = maximize)
+    step!(workspace.process_workspace, strategy_cache.subcache, reshaped_value_function, k, mp.underlying_process; upper_bound = upper_bound, maximize = maximize)
 end
 
 function step!(workspace::ParallelProductWorkspace, strategy_cache, value_function, k, mp; upper_bound, maximize)
