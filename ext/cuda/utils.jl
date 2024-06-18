@@ -65,3 +65,9 @@ end
         return val, idx
     end
 end
+
+@inline function selectotherdims(A::AbstractArray, dim, idxs)
+    head, tail = idxs[1:dim - 1], idxs[dim:end]
+
+    return view(A, head..., Colon(), tail...)
+end

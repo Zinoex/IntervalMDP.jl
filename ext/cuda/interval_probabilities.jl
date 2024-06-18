@@ -31,7 +31,7 @@ function IntervalMDP.interval_prob_hcat(
     l_colptr = CUDA.zeros(Ti, num_col + 1)
     nnz_sofar = 0
     nX_sofar = 0
-    @inbounds for i in 1:length(l)
+    @inbounds for i in eachindex(l)
         li = l[i]
         nX = size(li, 2)
         l_colptr[(1:(nX + 1)) .+ nX_sofar] = li.colPtr .+ nnz_sofar
@@ -48,7 +48,7 @@ function IntervalMDP.interval_prob_hcat(
     g_colptr = CUDA.zeros(Ti, num_col + 1)
     nnz_sofar = 0
     nX_sofar = 0
-    @inbounds for i in 1:length(g)
+    @inbounds for i in eachindex(g)
         gi = g[i]
         nX = size(gi, 2)
         g_colptr[(1:(nX + 1)) .+ nX_sofar] = gi.colPtr .+ nnz_sofar
