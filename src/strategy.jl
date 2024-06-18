@@ -54,8 +54,8 @@ function construct_strategy_cache(::SimpleIntervalMarkovProcess, ::NoStrategyCon
     return NoStrategyCache()
 end
 
-function construct_strategy_cache(::SimpleIntervalMarkovProcess, ::NoStrategyConfig, dims)
-    return NoStrategyCache()
+function _construct_strategy_cache(::M, ::NoStrategyConfig, dims, state_index) where {M <: SimpleIntervalMarkovProcess}
+    return NoStrategyCache(), state_index + one(Int32)
 end
 
 function extract_strategy!(
@@ -85,9 +85,9 @@ function construct_strategy_cache(mp::M, ::TimeVaryingStrategyConfig) where {M <
     return TimeVaryingStrategyCache(cur_strategy)
 end
 
-function construct_strategy_cache(mp::M, ::TimeVaryingStrategyConfig, dims) where {M <: SimpleIntervalMarkovProcess}
+function _construct_strategy_cache(mp::M, ::TimeVaryingStrategyConfig, dims, state_index) where {M <: SimpleIntervalMarkovProcess}
     cur_strategy = construct_action_cache(transition_prob(mp, 1), dims)
-    return TimeVaryingStrategyCache(cur_strategy)
+    return TimeVaryingStrategyCache(cur_strategy), state_index + one(Int32)
 end
 
 function construct_action_cache(::IntervalProbabilities{R, VR}, dims) where {R <: Real, VR <: AbstractVector{R}}
@@ -134,9 +134,9 @@ function construct_strategy_cache(mp::M, ::StationaryStrategyConfig) where {M <:
     return StationaryStrategyCache(strategy)
 end
 
-function construct_strategy_cache(mp::M, ::StationaryStrategyConfig, dims) where {M <: SimpleIntervalMarkovProcess}
+function _construct_strategy_cache(mp::M, ::StationaryStrategyConfig, dims, state_index) where {M <: SimpleIntervalMarkovProcess}
     strategy = construct_action_cache(transition_prob(mp), dims)
-    return StationaryStrategyCache(strategy)
+    return StationaryStrategyCache(strategy), state_index + one(Int32)
 end
 
 function cachetostrategy(
@@ -204,15 +204,16 @@ orthogonal_caches(cache::ParallelProductStrategyCache) = cache.orthogonal_caches
 function construct_strategy_cache(mp::ParallelProduct, config::AbstractStrategyConfig)
     dims = Tuple(product_num_states(mp) |> recursiveflatten |> collect)
 
-    return ParallelProductStrategyCache(
-        [construct_strategy_cache(orthogonal_process, config, dims) for orthogonal_process in orthogonal_processes(mp)]
-    )
+    return _construct_strategy_cache(mp, config, dims, one(Int32))[1]
 end
 
-function construct_strategy_cache(mp::ParallelProduct, config::AbstractStrategyConfig, dims)
-    return ParallelProductStrategyCache(
-        [construct_strategy_cache(orthogonal_process, config, dims) for orthogonal_process in orthogonal_processes(mp)]
-    )
+function _construct_strategy_cache(mp::ParallelProduct, config::AbstractStrategyConfig, dims, state_index)
+    orthogonal_caches = Vector{AbstractStrategyCache}(undef, length(orthogonal_processes(mp)))
+    for (i, orthogonal_process) in enumerate(orthogonal_processes(mp))
+        orthogonal_caches[i], state_index = _construct_strategy_cache(orthogonal_process, config, dims, state_index)
+    end
+
+    return ParallelProductStrategyCache(orthogonal_caches), state_index
 end
 
 function postprocess_strategy_cache!(strategy_cache::ParallelProductStrategyCache)
@@ -236,15 +237,16 @@ sequential_caches(cache::SequentialStrategyCache) = cache.sequential_caches
 function construct_strategy_cache(mp::Sequential, config::AbstractStrategyConfig)
     dims = Tuple(product_num_states(mp) |> recursiveflatten |> collect)
 
-    return SequentialStrategyCache(
-        [construct_strategy_cache(sequential_process, config, dims) for sequential_process in sequential_processes(mp)]
-    )
+    return _construct_strategy_cache(mp, config, dims, one(Int32))[1]
 end
 
-function construct_strategy_cache(mp::Sequential, config::AbstractStrategyConfig, dims)
-    return SequentialStrategyCache(
-        [construct_strategy_cache(sequential_process, config, dims) for sequential_process in sequential_processes(mp)]
-    )
+function _construct_strategy_cache(mp::Sequential, config::AbstractStrategyConfig, dims, orig_state_index)
+    sequential_caches = Vector{AbstractStrategyCache}(undef, length(sequential_processes(mp)))
+    for (i, sequential_process) in enumerate(sequential_processes(mp))
+        sequential_caches[i], state_index = _construct_strategy_cache(sequential_process, config, dims, orig_state_index)
+    end
+
+    return SequentialStrategyCache(sequential_caches), state_index
 end
 
 function postprocess_strategy_cache!(strategy_cache::SequentialStrategyCache)
@@ -267,13 +269,14 @@ end
 function construct_strategy_cache(mp::MultiDim, config::AbstractStrategyConfig)
     dims = Tuple(product_num_states(mp) |> recursiveflatten |> collect)
 
-    return MultiDimStrategyCache(construct_strategy_cache(mp.underlying_process, config, dims))
+    return _construct_strategy_cache(mp, config, dims, one(Int32))
 end
 
-function construct_strategy_cache(mp::MultiDim, config::AbstractStrategyConfig, dims)
-    return MultiDimStrategyCache(
-        construct_strategy_cache(mp.underlying_process, config, dims)
-    )
+function _construct_strategy_cache(mp::MultiDim, config::AbstractStrategyConfig, ds, state_index)
+    ds = (ds[1:state_index - 1]..., num_states(mp), ds[state_index + dims(mp):end]...)
+    subcache, _ = _construct_strategy_cache(mp.underlying_process, config, ds, state_index)
+
+    return MultiDimStrategyCache(subcache), state_index + dims(mp)
 end
 
 function postprocess_strategy_cache!(strategy_cache::MultiDimStrategyCache)
