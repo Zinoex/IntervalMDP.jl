@@ -2,7 +2,7 @@
 @inline recursiveflatten(x) = x
 
 @inline eachotherindex(A::AbstractArray, dim) = _eachotherindex(axes(A), dim)
-@inline _eachotherindex(t::Tuple{Any}, dim) = []
+@inline _eachotherindex(t::Tuple{Any}, dim) = [CartesianIndex{0}()]
 @inline function _eachotherindex(t::Tuple, dim) 
     t = t[1:end .!= dim]
     return CartesianIndices(t)
