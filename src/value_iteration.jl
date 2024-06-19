@@ -203,10 +203,11 @@ function step!(workspace::MultiDimProductWorkspace, strategy_cache, value_functi
         size(value_function.current)[workspace.state_index + mp.num_dims:end]...,
     )
 
+    # The order here is very important! Unfortunately, the type system cannot enforce it. 
     reshaped_value_function = ValueFunction(
-        reshape(value_function.current, vf_shape...),
-        reshape(value_function.intermediate, vf_shape...),
         reshape(value_function.previous, vf_shape...),
+        reshape(value_function.intermediate, vf_shape...),
+        reshape(value_function.current, vf_shape...),
     )
     
     step!(workspace.process_workspace, strategy_cache, reshaped_value_function, k, mp.underlying_process; upper_bound = upper_bound, maximize = maximize)
