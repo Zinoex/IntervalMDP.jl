@@ -124,12 +124,14 @@ V_fixed_it, k, _ = value_iteration(problem)
 # Sparse/Sparse Parallel Product
 product_mdp = ParallelProduct([sparse_mdp, sparse_mdp])
 
-# Infinite time reachability
-prop = InfiniteTimeReachability([(3, 3)], 1e-6)
+# Finite time reachability
+prop = FiniteTimeReachability([(3, 3)], 10)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(product_mdp, spec)
-V_fixed_it, k, res = value_iteration(problem)
-@test maximum(res) < 1e-6
+V_fixed_it, k, _ = value_iteration(problem)
+@test k == 10
+@test V_fixed_it_ortho ≈ V_fixed_it
+
 
 ######################
 # Nested composition #
