@@ -117,5 +117,16 @@ end
 
 @test strategy[2][1][10] == [1 1 1; 3 3 4; 5 5 5]
 for i in 1:9
-    @test strategy[2][1][i] == [1 1 1; 4 4 4; 5 5 5]
+    @test strategy[2][1][i] == [1 1 1; 3 4 4; 5 5 5]
 end
+
+# Infinite time reachability
+prop = InfiniteTimeReachability([(3, 3)], 1e-6)
+spec = Specification(prop, Pessimistic, Maximize)
+problem = Problem(sequential_mdp, spec)
+strategy, V_fixed_it, k, res = control_synthesis(problem)
+@test maximum(res) < 1e-6
+
+@test strategy[1] == [1, 4, 5, 6, 7, 10, 11, 12, 14]
+@test strategy[2][2] == [1 4 5; 1 4 5; 1 4 5]
+@test strategy[2][1] == [1 1 1; 3 4 4; 5 5 5]

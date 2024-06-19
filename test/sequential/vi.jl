@@ -109,3 +109,10 @@ spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(sequential_mdp, spec)
 V_fixed_it, k, _ = value_iteration(problem)
 @test k == 10
+
+# Infinite time reachability
+prop = InfiniteTimeReachability([(3, 3)], 1e-6)
+spec = Specification(prop, Pessimistic, Maximize)
+problem = Problem(sequential_mdp, spec)
+V_fixed_it, k, res = value_iteration(problem)
+@test maximum(res) < 1e-6
