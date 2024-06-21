@@ -61,21 +61,21 @@ prob3 = IntervalProbabilities(;
     upper = [0.0; 0.0; 1.0]
 )
 
-transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
+transition_probs = [prob1, prob2, prob3]
 initial_states = [1]  # Initial states are optional
 mdp = IntervalMarkovDecisionProcess(transition_probs, initial_states)
 ```
 
-Note that for an IMDP, the transition probabilities are specified as a list of pairs from actions to transition probabilities for each state.
+Note that for an IMDP, the transition probabilities are specified as a list of transition probabilities (with each column representing an action) for each state.
 The constructor will concatenate the transition probabilities into a single matrix, such that the columns represent source/action pairs and the rows represent target states.
 It will in addition construct a state pointer `stateptr` pointing to the first column of each state and concatenate a list of actions.
 See [`IntervalMarkovDecisionProcess`](@ref) for more details on how to construct an IMDP.
 
-For IMC, the transition probability structure is significantly simpler with source states on the columns and target states on the rows of the transition matrices.
+For IMC, the transition probability structure is significantly simpler with source states on the columns and target states on the rows of the transition matrices. Internally, they are both represented by an `IntervalMarkovDecisionProcess`.
 
-Next, we choose a specification. Currently, we support reachability, reach-avoid, and reward properties.
+Next, we choose a specification. Currently supported are reachability, reach-avoid, and reward properties.
 For reachability, we specify a target set of states and for reach-avoid we specify a target set of states and an avoid set of states.
-Furthermore, we distinguish between finite and infinite horizon properties. In addition to the property, we need to specify whether we want to maximize or minimize the optimistic or pessimistic satistisfaction probability or discounted reward.
+Furthermore, this package distinguishes distinguish between finite and infinite horizon properties - for finite horizon, a time horizon must be given while for infinite horizon, a convergence threshold must be given. In addition to the property, we need to specify whether we want to maximize or minimize the optimistic or pessimistic satisfaction probability or discounted reward.
 
 ```julia
 ## Properties
@@ -109,13 +109,10 @@ spec = Specification(prop, Optimistic, Minimize)
 problem = Problem(imdp_or_imc, spec)
 ```
 
-Finally, we call `value_iteration` or `satisfaction_prob` to solve the specification.
-`satisfaction_prob` returns the probability of satisfying the specification from the initial condition,
-while `value_iteration` returns the value function for all states in addition to the number of iterations performed and the last Bellman residual.
+Finally, we call `value_iteration` to solve the specification. `value_iteration` returns the value function for all states in addition to the number of iterations performed and the last Bellman residual.
 
 ```julia
 V, k, residual = value_iteration(problem)
-sat_prob = satisfaction_prob(problem)
 ```
 
 !!! note
@@ -232,4 +229,4 @@ prob = IntervalProbabilities(;
 mc = IntervalMarkovChain(prob,[1])
 ```
 
-[^1]: The difference to `CUDA.jl`s `cu` function is that we allow the specification of both the value and index type, which is important due to register pressure. To reduce register pressure but maintain accuracy, we are opinoinated to `Float64` values and `Int32` indices.
+[^1]: The difference to `CUDA.jl`'s `cu` function is that we allow the specification of both the value and index type, which is important due to register pressure. To reduce register pressure but maintain accuracy, we are opinoinated to `Float64` values and `Int32` indices.
