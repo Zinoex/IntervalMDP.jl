@@ -259,6 +259,9 @@ function IntervalMDP.bellman!(
     upper_bound = false,
     maximize = true,
 ) where {Tv}
+    # This is not working yet, but work in progress. 
+    error("Not implemented")
+
     blocks = 1
     num_block_indices = 0
 
