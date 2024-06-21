@@ -34,7 +34,7 @@ prob3 = IntervalProbabilities(; lower = [
     1.0
 ][:, :])
 
-transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
+transition_probs = [prob1, prob2, prob3]
 istates = [Int32(1)]
 
 mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
@@ -47,14 +47,14 @@ policy, V, k, res = control_synthesis(problem)
 
 @test length(policy) == 10
 for row in policy
-    @test row == ["a1", "a2", "sinking"]
+    @test row == [1, 4, 5]
 end
 
 # Extract IMC from IMDP and policy from control_synthesis
 mc = tomarkovchain(mdp, policy)
 prop = FiniteTimeReachability([3], 10)
 spec = Specification(prop, Pessimistic, Maximize)
-problem = Problem(mdp, spec)
+problem = Problem(mc, spec)
 
 @test num_states(mc) == num_states(mdp)
 @test time_length(mc) == 10
@@ -71,20 +71,20 @@ policy, V, k, res = control_synthesis(problem)
 @test length(policy) == 10
 
 for row in policy
-    @test row == ["a2", "a2", "sinking"]
+    @test row == [2, 4, 5]
 end
 
 prop = InfiniteTimeReachability([3], 1e-6)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(mdp, spec)
 policy, V, k, res = control_synthesis(problem)
-@test policy == ["a1", "a2", "sinking"]
+@test policy == [1, 4, 5]
 
 # Extract IMC from IMDP and policy from control_synthesis
 mc = tomarkovchain(mdp, policy)
 prop = InfiniteTimeReachability([3], 1e-6)
 spec = Specification(prop, Pessimistic, Maximize)
-problem = Problem(mdp, spec)
+problem = Problem(mc, spec)
 
 @test num_states(mc) == num_states(mdp)
 

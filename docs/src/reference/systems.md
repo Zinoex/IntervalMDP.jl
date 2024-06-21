@@ -4,36 +4,47 @@
 IntervalMarkovProcess
 num_states(s::IntervalMarkovProcess)
 initial_states(s::IntervalMarkovProcess)
+AllStates
+```
+
+## Stationary Markov Processes
+```@docs
 StationaryIntervalMarkovProcess
 transition_prob(mp::StationaryIntervalMarkovProcess)
+IntervalMarkovChain
+IntervalMarkovDecisionProcess
+stateptr(mdp::IntervalMarkovDecisionProcess)
+tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector)
+tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector{<:AbstractVector})
+```
+
+## Time-varying Markov Processes
+```@docs
 TimeVaryingIntervalMarkovProcess
 transition_prob(mp::TimeVaryingIntervalMarkovProcess, t)
 time_length(mp::TimeVaryingIntervalMarkovProcess)
-```
-
-## Markov chain
-```@docs
-IntervalMarkovChain
 TimeVaryingIntervalMarkovChain
+TimeVaryingIntervalMarkovDecisionProcess
+stateptr(mdp::TimeVaryingIntervalMarkovDecisionProcess)
+tomarkovchain(mdp::TimeVaryingIntervalMarkovDecisionProcess, strategy::AbstractVector{<:AbstractVector})
 ```
 
-## Markov decision process
+## Composite Markov Processes
 ```@docs
-IntervalMarkovDecisionProcess
-actions(mdp::IntervalMarkovDecisionProcess)
-num_choices(mdp::IntervalMarkovDecisionProcess)
-tomarkovchain
+CompositeIntervalMarkovProcess
+ProductIntervalMarkovProcess
+ParallelProduct
+SequentialIntervalMarkovProcess
 ```
 
 ## Probability representation
 ```@docs
 IntervalProbabilities
-lower(s::IntervalProbabilities)
-upper(s::IntervalProbabilities)
-gap(s::IntervalProbabilities)
-sum_lower(s::IntervalProbabilities)
-num_source(s::IntervalProbabilities)
-num_target(s::IntervalProbabilities)
-axes_source(s::IntervalProbabilities)
-axes_target(s::IntervalProbabilities)
+lower(p::IntervalProbabilities)
+upper(p::IntervalProbabilities)
+gap(p::IntervalProbabilities)
+sum_lower(p::IntervalProbabilities)
+num_source(p::IntervalProbabilities)
+num_target(p::IntervalProbabilities)
+axes_source(p::IntervalProbabilities)
 ```

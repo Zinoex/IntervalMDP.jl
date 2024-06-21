@@ -19,125 +19,9 @@ termination_criteria(prop, finitetime::Val{false}) =
     CovergenceCriteria(convergence_eps(prop))
 
 """
-    value_iteration(problem::Problem{<:IntervalMarkovChain, <:Specification})
+    value_iteration(problem::Problem)
 
-Solve optimistic/pessimistic specification problems using value iteration for interval Markov chain.
-
-### Examples
-
-```jldoctest
-prob = IntervalProbabilities(;
-    lower = [
-        0.0 0.5 0.0
-        0.1 0.3 0.0
-        0.2 0.1 1.0
-    ],
-    upper = [
-        0.5 0.7 0.0
-        0.6 0.5 0.0
-        0.7 0.3 1.0
-    ],
-)
-
-mc = IntervalMarkovChain(prob, 1)
-
-terminal_states = [3]
-time_horizon = 10
-prop = FiniteTimeReachability(terminal_states, time_horizon)
-spec = Specification(prop, Pessimistic)
-problem = Problem(mc, spec)
-V, k, residual = value_iteration(problem)
-```
-
-"""
-function value_iteration(
-    problem::Problem{M, S},
-) where {
-    M <: Union{IntervalMarkovChain, TimeVaryingIntervalMarkovChain},
-    S <: Specification,
-}
-    mc = system(problem)
-    spec = specification(problem)
-    term_criteria = termination_criteria(spec)
-    upper_bound = satisfaction_mode(spec) == Optimistic
-
-    prob = transition_prob(mc, time_length(mc))
-
-    # It is more efficient to use allocate first and reuse across iterations
-    workspace = construct_workspace(prob)
-
-    value_function = IMCValueFunction(problem)
-    initialize!(value_function, spec)
-
-    step_imc!(value_function, workspace, prob; upper_bound = upper_bound)
-    postprocess!(value_function, spec)
-    k = 1
-
-    while !term_criteria(value_function.cur, k, lastdiff!(value_function))
-        nextiteration!(value_function)
-
-        prob = transition_prob(mc, time_length(mc) - k)
-        step_imc!(value_function, workspace, prob; upper_bound = upper_bound)
-        postprocess!(value_function, spec)
-
-        k += 1
-    end
-
-    # lastdiff! uses prev to store the latest difference
-    # and it is already computed from the condition in the loop
-    return value_function.cur, k, value_function.prev
-end
-
-function construct_value_function(::MR, num_states) where {R, MR <: AbstractMatrix{R}}
-    V = zeros(R, num_states)
-    return V
-end
-
-mutable struct IMCValueFunction{VR}
-    prev::VR
-    cur::VR
-end
-
-function IMCValueFunction(problem::Problem{M, S}) where {M <: IntervalMarkovChain, S}
-    mc = system(problem)
-
-    # Transition probabilities are always defined for time-step 1
-    prob = transition_prob(mc, 1)
-    prev = construct_value_function(gap(prob), num_states(mc))
-    cur = copy(prev)
-
-    return IMCValueFunction(prev, cur)
-end
-
-function lastdiff!(V)
-    # Reuse prev to store the latest difference
-    V.prev .-= V.cur
-    rmul!(V.prev, -1.0)
-
-    return V.prev
-end
-
-function nextiteration!(V)
-    copyto!(V.prev, V.cur)
-
-    return V
-end
-
-function step_imc!(
-    value_function::IMCValueFunction,
-    workspace,
-    prob::IntervalProbabilities;
-    upper_bound,
-)
-    bellman!(workspace, value_function.cur, value_function.prev, prob; max = upper_bound)
-
-    return value_function
-end
-
-"""
-    value_iteration(problem::Problem{<:IntervalMarkovDecisionProcess, <:Specification})
-
-Solve minimizes/mazimizes optimistic/pessimistic specification problems using value iteration for interval Markov decision processes. 
+Solve minimizes/mazimizes optimistic/pessimistic specification problems using value iteration for interval Markov processes. 
 
 ### Examples
 
@@ -173,7 +57,7 @@ prob3 = IntervalProbabilities(;
     upper = [0.0; 0.0; 1.0]
 )
 
-transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
+transition_probs = [prob1, prob2, prob3]
 initial_state = 1
 mdp = IntervalMarkovDecisionProcess(transition_probs, initial_state)
 
@@ -186,192 +70,177 @@ V, k, residual = value_iteration(problem)
 ```
 
 """
-function value_iteration(
-    problem::Problem{M, S},
-) where {M <: IntervalMarkovDecisionProcess, S <: Specification}
-    no_policy_cache = NoPolicyCache()
-    V, k, res, no_policy_cache = _value_iteration!(no_policy_cache, problem)
+function value_iteration(problem::Problem)
+    strategy_config = NoStrategyConfig()
+    V, k, res, _ = _value_iteration!(strategy_config, problem)
 
     return V, k, res
 end
 
-function _value_iteration!(
-    policy_cache::AbstractPolicyCache,
-    problem::Problem{M, S},
-) where {M <: IntervalMarkovDecisionProcess, S <: Specification}
-    mdp = system(problem)
+function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Problem)
+    mp = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(spec)
     upper_bound = satisfaction_mode(spec) == Optimistic
     maximize = strategy_mode(spec) == Maximize
 
-    prob = transition_prob(mdp)
-    sptr = stateptr(mdp)
-
     # It is more efficient to use allocate first and reuse across iterations
-    workspace = construct_workspace(prob)
+    workspace = construct_workspace(mp)
+    strategy_cache = construct_strategy_cache(mp, strategy_config)
 
-    value_function = IMDPValueFunction(problem)
+    value_function = ValueFunction(problem)
     initialize!(value_function, spec)
 
-    value_function, policy_cache = step_imdp!(
-        value_function,
-        policy_cache,
+    step!(
         workspace,
-        prob,
-        sptr;
-        maximize = maximize,
+        strategy_cache,
+        value_function,
+        0,
+        mp;
         upper_bound = upper_bound,
+        maximize = maximize,
     )
-    postprocess!(value_function, spec)
+    postprocess_value_function!(value_function, spec)
+    postprocess_strategy_cache!(strategy_cache)
     k = 1
 
-    while !term_criteria(value_function.cur, k, lastdiff!(value_function))
+    while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
-        value_function, policy_cache = step_imdp!(
-            value_function,
-            policy_cache,
-            workspace,
-            prob,
-            sptr;
-            maximize = maximize,
-            upper_bound = upper_bound,
-        )
-        postprocess!(value_function, spec)
 
+        step!(
+            workspace,
+            strategy_cache,
+            value_function,
+            k,
+            mp;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
+        postprocess_value_function!(value_function, spec)
+        postprocess_strategy_cache!(strategy_cache)
         k += 1
     end
 
-    # lastdiff! uses prev to store the latest difference
+    # lastdiff! uses previous to store the latest difference
     # and it is already computed from the condition in the loop
-    return value_function.cur, k, value_function.prev, policy_cache
+    return value_function.current, k, value_function.previous, strategy_cache
 end
 
-mutable struct IMDPValueFunction{VR}
-    prev::VR
-    cur::VR
-    action_values::VR
+mutable struct ValueFunction{R, A <: AbstractArray{R}}
+    previous::A
+    intermediate::A
+    current::A
 end
 
-function IMDPValueFunction(
-    problem::Problem{M, S},
-) where {M <: IntervalMarkovDecisionProcess, S}
-    mdp = system(problem)
+function ValueFunction(problem::Problem{<:SimpleIntervalMarkovProcess})
+    mp = system(problem)
 
-    prev = construct_value_function(gap(transition_prob(mdp)), num_states(mdp))
-    cur = copy(prev)
+    previous = construct_value_function(gap(transition_prob(mp, 1)), num_states(mp))
+    current = copy(previous)
 
-    action_values = similar(prev, num_choices(mdp))
-
-    return IMDPValueFunction(prev, cur, action_values)
+    return ValueFunction(previous, previous, current)
 end
 
-function step_imdp!(
-    value_function,
-    policy_cache,
+function ValueFunction(problem::Problem{<:ProductIntervalMarkovProcess})
+    mp = system(problem)
+
+    pns = Tuple(product_num_states(mp) |> recursiveflatten |> collect)
+    # Just need any one of the transition probabilities to dispatch
+    # to the correct method (based on the type).
+    previous = construct_value_function(gap(first_transition_prob(mp)), pns)
+    intermediate = copy(previous)
+    current = copy(previous)
+
+    return ValueFunction(previous, intermediate, current)
+end
+
+function construct_value_function(::MR, num_states) where {R, MR <: AbstractMatrix{R}}
+    V = zeros(R, num_states)
+    return V
+end
+
+function lastdiff!(V)
+    # Reuse prev to store the latest difference
+    V.previous .-= V.current
+    rmul!(V.previous, -1.0)
+
+    return V.previous
+end
+
+function nextiteration!(V)
+    copyto!(V.previous, V.current)
+    copyto!(V.intermediate, V.current)
+
+    return V
+end
+
+function step!(
     workspace,
-    prob::IntervalProbabilities,
-    stateptr;
-    maximize,
+    strategy_cache,
+    value_function,
+    k,
+    mp::StationaryIntervalMarkovProcess;
     upper_bound,
+    maximize,
 )
+    prob = transition_prob(mp)
     bellman!(
         workspace,
-        value_function.action_values,
-        value_function.prev,
-        prob;
-        max = upper_bound,
+        strategy_cache,
+        value_function.current,
+        value_function.intermediate,
+        prob,
+        stateptr(mp);
+        upper_bound = upper_bound,
+        maximize = maximize,
     )
-
-    return extract_policy!(value_function, policy_cache, stateptr, maximize)
 end
 
-function extract_policy!(
-    value_function::IMDPValueFunction,
-    policy_cache::NoPolicyCache,
-    stateptr::VT,
+function step!(
+    workspace,
+    strategy_cache,
+    value_function,
+    k,
+    mp::TimeVaryingIntervalMarkovProcess;
+    upper_bound,
     maximize,
-) where {VT <: AbstractVector}
-    gt = maximize ? (>) : (<)
-
-    @inbounds for j in 1:(length(stateptr) - 1)
-        s1 = stateptr[j]
-        s2 = stateptr[j + 1]
-
-        opt = value_function.action_values[s1]
-        for i in (s1 + 1):(s2 - 1)
-            if gt(value_function.action_values[i], opt)
-                opt = value_function.action_values[i]
-            end
-        end
-
-        value_function.cur[j] = opt
-    end
-
-    return value_function, policy_cache
+)
+    prob = transition_prob(mp, time_length(mp) - k)
+    bellman!(
+        workspace,
+        strategy_cache,
+        value_function.current,
+        value_function.intermediate,
+        prob,
+        stateptr(mp);
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
 end
 
-function extract_policy!(
-    value_function::IMDPValueFunction,
-    policy_cache::TimeVaryingPolicyCache,
-    stateptr::VT,
+function step!(
+    workspace,
+    strategy_cache,
+    value_function,
+    k,
+    mp::ParallelProduct;
+    upper_bound,
     maximize,
-) where {VT <: AbstractVector}
-    gt = maximize ? (>) : (<)
-
-    @inbounds for j in 1:(length(stateptr) - 1)
-        s1 = stateptr[j]
-        s2 = stateptr[j + 1]
-
-        opt_val = value_function.action_values[s1]
-        opt_index = s1
-
-        for i in (s1 + 1):(s2 - 1)
-            if gt(value_function.action_values[i], opt_val)
-                opt_val = value_function.action_values[i]
-                opt_index = i
-            end
-        end
-
-        policy_cache.cur_policy[j] = opt_index
-        value_function.cur[j] = opt_val
+)
+    for (ws, sc, orthogonal_process) in zip(
+        orthogonal_workspaces(workspace),
+        orthogonal_caches(strategy_cache),
+        orthogonal_processes(mp),
+    )
+        step!(
+            ws,
+            sc,
+            value_function,
+            k,
+            orthogonal_process;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
+        copyto!(value_function.intermediate, value_function.current)
     end
-
-    push!(policy_cache.policy, copy(policy_cache.cur_policy))
-
-    return value_function, policy_cache
-end
-
-function extract_policy!(
-    value_function::IMDPValueFunction,
-    policy_cache::StationaryPolicyCache,
-    stateptr::VT,
-    maximize,
-) where {VT <: AbstractVector}
-    gt = maximize ? (>) : (<)
-
-    @inbounds for j in 1:(length(stateptr) - 1)
-        s1 = stateptr[j]
-        s2 = stateptr[j + 1]
-
-        if iszero(policy_cache.policy[j])
-            opt_val = value_function.action_values[s1]
-            opt_index = s1
-        else
-            opt_val = value_function.prev[j]
-            opt_index = policy_cache.policy[j]
-        end
-
-        for i in s1:(s2 - 1)
-            if gt(value_function.action_values[i], opt_val)
-                opt_val = value_function.action_values[i]
-                opt_index = i
-            end
-        end
-
-        policy_cache.policy[j] = opt_index
-        value_function.cur[j] = opt_val
-    end
-
-    return value_function, policy_cache
 end

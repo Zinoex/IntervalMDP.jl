@@ -1,7 +1,7 @@
 """
     IntervalProbabilities{R, VR <: AbstractVector{R}, MR <: AbstractMatrix{R}}
 
-A matrix pair to represent the lower and upper bound transition probabilities from a source state or source/action pair to a target state.
+A matrix pair to represent the lower and upper bound transition probabilities from all source states or source/action pairs to all target states.
 The matrices can be `Matrix{R}` or `SparseMatrixCSC{R}`, or their CUDA equivalents. For memory efficiency, it is recommended to use sparse matrices.
 
 The columns represent the source and the rows represent the target, as if the probability matrix was a linear transformation.
@@ -120,6 +120,9 @@ end
 
 Base.size(p::IntervalProbabilities) = size(p.lower)
 Base.size(p::IntervalProbabilities, dim::Integer) = size(p.lower, dim)
+# Views for interval probabilities are only for the source states or source/action pairs
+Base.view(p::IntervalProbabilities, J) =
+    IntervalProbabilities(view(lower(p), :, J), view(gap(p), :, J), view(sum_lower(p), J))
 
 """
     lower(p::IntervalProbabilities)
@@ -134,7 +137,8 @@ lower(p::IntervalProbabilities) = p.lower
 Return the upper bound transition probabilities from a source state or source/action pair to a target state.
 
 !!! note
-    It is not recommended to use this function for the hot loop of O-maximization, because it is not just an accessor and requires allocation and computation.
+    It is not recommended to use this function for the hot loop of O-maximization. Because the [`IntervalProbabilities`](@ref)
+    stores the lower and gap transition probabilities, fetching the upper bound requires allocation and computation.
 """
 upper(p::IntervalProbabilities) = p.lower + p.gap
 
@@ -175,15 +179,9 @@ Return the number of target states.
 """
 num_target(p::IntervalProbabilities) = size(gap(p), 1)
 
-"""
-    axes_target(p::IntervalProbabilities)
-
-Return the valid range of indices for the target states.
-"""
-axes_target(p::IntervalProbabilities) = axes(gap(p), 1)
+stateptr(prob::IntervalProbabilities) = UnitRange{Int32}(1, num_source(prob) + 1)
 
 function interval_prob_hcat(
-    T,
     ps::Vector{<:IntervalProbabilities{R, VR, MR}},
 ) where {R, VR, MR <: AbstractMatrix{R}}
     l = mapreduce(lower, hcat, ps)
@@ -192,16 +190,16 @@ function interval_prob_hcat(
     sl = mapreduce(sum_lower, vcat, ps)
 
     lengths = map(num_source, ps)
-    stateptr = T[1; cumsum(lengths) .+ 1]
+    stateptr = Int32[1; cumsum(lengths) .+ 1]
 
     return IntervalProbabilities(l, g, sl), stateptr
 end
 
-function Base.getindex(p::IntervalProbabilities, j)
+function Base.getindex(p::IntervalProbabilities, J)
     # Select by columns only! 
-    l = lower(p)[:, j]
-    g = gap(p)[:, j]
-    sum = sum_lower(p)[j]
+    l = lower(p)[:, J]
+    g = gap(p)[:, J]
+    sum = sum_lower(p)[J]
 
     return IntervalProbabilities(l, g, sum)
 end

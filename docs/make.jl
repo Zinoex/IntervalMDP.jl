@@ -24,7 +24,6 @@ makedocs(;
             "Systems" => "reference/systems.md",
             "Specifications" => "reference/specifications.md",
             "Value Iteration" => "reference/value_iteration.md",
-            "Certification & synthesis" => "reference/certification.md",
             "Data Storage" => "reference/data.md",
         ],
         "Index" => "api.md",

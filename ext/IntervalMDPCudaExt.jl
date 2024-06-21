@@ -11,58 +11,53 @@ using IntervalMDP, LinearAlgebra
 Adapt.@adapt_structure IntervalProbabilities
 
 # Opinionated conversion to GPU with Float64 values and Int32 indices
-IntervalMDP.cu(model) = adapt(IntervalMDP.CuModelAdaptor{Float64, Int32}, model)
-
-function Adapt.adapt_structure(
-    T::Type{<:IntervalMDP.CuModelAdaptor},
-    mc::IntervalMarkovChain,
-)
-    Itype = IntervalMDP.indtype(T)
-    return IntervalMarkovChain(
-        adapt(T, transition_prob(mc)),
-        adapt(CuArray{Itype}, initial_states(mc)),
-        Itype(num_states(mc)),
-    )
-end
+IntervalMDP.cu(model) = adapt(IntervalMDP.CuModelAdaptor{Float64}, model)
 
 function Adapt.adapt_structure(
     T::Type{<:IntervalMDP.CuModelAdaptor},
     mdp::IntervalMarkovDecisionProcess,
 )
-    Itype = IntervalMDP.indtype(T)
     return IntervalMarkovDecisionProcess(
         adapt(T, transition_prob(mdp)),
-        adapt(CuArray{Itype}, IntervalMDP.stateptr(mdp)),
-        actions(mdp),
-        adapt(CuArray{Itype}, initial_states(mdp)),
-        Itype(num_states(mdp)),
+        adapt(CuArray{Int32}, IntervalMDP.stateptr(mdp)),
+        adapt(CuArray{Int32}, initial_states(mdp)),
+        num_states(mdp),
     )
 end
 
 function Adapt.adapt_structure(
     T::Type{<:IntervalMDP.CuModelAdaptor},
-    policy_cache::IntervalMDP.TimeVaryingPolicyCache,
+    mdp::TimeVaryingIntervalMarkovDecisionProcess,
 )
-    Itype = IntervalMDP.indtype(T)
-    return IntervalMDP.TimeVaryingPolicyCache(
-        adapt(CuArray{Itype}, policy_cache.cur_policy),
-        adapt.(CuArray{Itype}, policy_cache.policy),
+    return TimeVaryingIntervalMarkovDecisionProcess(
+        adapt.(T, IntervalMDP.transition_probs(mdp)),
+        adapt(CuArray{Int32}, IntervalMDP.stateptr(mdp)),
+        adapt(CuArray{Int32}, initial_states(mdp)),
+        num_states(mdp),
     )
 end
 
-function Adapt.adapt_structure(
-    T::Type{<:IntervalMDP.CuModelAdaptor},
-    policy_cache::IntervalMDP.StationaryPolicyCache,
-)
-    Itype = IntervalMDP.indtype(T)
-    return IntervalMDP.StationaryPolicyCache(adapt(CuArray{Itype}, policy_cache.policy))
+function Adapt.adapt_structure(T::Type{<:IntervalMDP.CuModelAdaptor}, mdp::ParallelProduct)
+    return ParallelProduct(
+        convert(
+            Vector{IntervalMarkovProcess},
+            adapt.(T, IntervalMDP.orthogonal_processes(mdp)),
+        ),
+        adapt(CuArray{Int32}, initial_states(mdp)),
+        num_states(mdp),
+        IntervalMDP.subdims(mdp),
+    )
 end
+
+Adapt.adapt_structure(T::Type{<:IntervalMDP.CuModelAdaptor}, is::AllStates) = is
 
 include("cuda/utils.jl")
 include("cuda/array.jl")
 include("cuda/sorting.jl")
 include("cuda/workspace.jl")
-include("cuda/bellman.jl")
+include("cuda/strategy.jl")
+include("cuda/bellman/dense.jl")
+include("cuda/bellman/sparse.jl")
 include("cuda/value_iteration.jl")
 include("cuda/interval_probabilities.jl")
 include("cuda/specification.jl")

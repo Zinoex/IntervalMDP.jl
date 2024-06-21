@@ -9,12 +9,11 @@ function IntervalMDP.compute_gap(
     upper = SparseMatrixCSC(upper)
     lower = SparseMatrixCSC(lower)
     lower, gap = IntervalMDP.compute_gap(lower, upper)
-    return adapt(IntervalMDP.CuModelAdaptor{Tv, Ti}, lower),
-    adapt(IntervalMDP.CuModelAdaptor{Tv, Ti}, gap)
+    return adapt(IntervalMDP.CuModelAdaptor{Tv}, lower),
+    adapt(IntervalMDP.CuModelAdaptor{Tv}, gap)
 end
 
 function IntervalMDP.interval_prob_hcat(
-    T,
     transition_probs::Vector{
         <:IntervalProbabilities{Tv, <:AbstractVector{Tv}, <:CuSparseMatrixCSC{Tv, Ti}},
     },
@@ -32,7 +31,7 @@ function IntervalMDP.interval_prob_hcat(
     l_colptr = CUDA.zeros(Ti, num_col + 1)
     nnz_sofar = 0
     nX_sofar = 0
-    @inbounds for i in 1:length(l)
+    @inbounds for i in eachindex(l)
         li = l[i]
         nX = size(li, 2)
         l_colptr[(1:(nX + 1)) .+ nX_sofar] = li.colPtr .+ nnz_sofar
@@ -49,7 +48,7 @@ function IntervalMDP.interval_prob_hcat(
     g_colptr = CUDA.zeros(Ti, num_col + 1)
     nnz_sofar = 0
     nX_sofar = 0
-    @inbounds for i in 1:length(g)
+    @inbounds for i in eachindex(g)
         gi = g[i]
         nX = size(gi, 2)
         g_colptr[(1:(nX + 1)) .+ nX_sofar] = gi.colPtr .+ nnz_sofar
@@ -64,7 +63,7 @@ function IntervalMDP.interval_prob_hcat(
     sl = mapreduce(sum_lower, vcat, transition_probs)
 
     lengths = map(num_source, transition_probs)
-    stateptr = CuVector{Ti}([1; cumsum(lengths) .+ 1])  # Prioritize Ti over T
+    stateptr = CuVector{Ti}([1; cumsum(lengths) .+ 1])
 
     return IntervalProbabilities(l, g, sl), stateptr
 end

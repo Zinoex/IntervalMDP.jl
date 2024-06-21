@@ -44,7 +44,7 @@ function read_bmdp_tool_file(path)
         number_terminal = read_intline(readline(io))
 
         terminal_states = map(1:number_terminal) do _
-            return read_intline(readline(io)) + Int32(1)
+            return CartesianIndex(read_intline(readline(io)) + Int32(1))
         end
 
         probs = Vector{
@@ -137,21 +137,29 @@ write_bmdp_tool_file(
 ) = write_bmdp_tool_file(path, mdp, reach(prop))
 
 """
-    write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{T})
+    write_bmdp_tool_file(path, mdp::StationaryIntervalMarkovProcess, terminal_states::Vector{T})
+"""
+write_bmdp_tool_file(
+    path,
+    mdp::StationaryIntervalMarkovProcess,
+    terminal_states::Vector{T},
+) where {T} = write_bmdp_tool_file(path, mdp, CartesianIndex.(terminal_states))
+
+"""
+    write_bmdp_tool_file(path, mdp::IntervalMarkovDecisionProcess, terminal_states::Vector{<:CartesianIndex})
 """
 function write_bmdp_tool_file(
     path,
     mdp::IntervalMarkovDecisionProcess,
-    terminal_states::Vector{T},
-) where {T <: Integer}
+    terminal_states::Vector{<:CartesianIndex},
+)
     prob = transition_prob(mdp)
     l, g = lower(prob), gap(prob)
     num_columns = num_source(prob)
     sptr = IntervalMDP.stateptr(mdp)
-    act = actions(mdp)
 
     number_states = num_states(mdp)
-    number_actions = length(unique(act))
+    number_actions = IntervalMDP.max_actions(mdp)
     number_terminal = length(terminal_states)
 
     open(path, "w") do io
@@ -160,19 +168,19 @@ function write_bmdp_tool_file(
         println(io, number_terminal)
 
         for terminal_state in terminal_states
-            println(io, terminal_state - 1)
+            println(io, terminal_state[1] - 1)
         end
 
         s = 1
+        action = 0
         for j in 1:num_columns
-            action = act[j]
-
             if sptr[s + 1] == j
                 s += 1
+                action = 0
             end
             src = s - 1
 
-            column_lower = view(l, :, j)
+            column_lower = @view l[:, j]
             I, V = SparseArrays.findnz(column_lower)
 
             for (i, v) in zip(I, V)
@@ -183,45 +191,8 @@ function write_bmdp_tool_file(
                 transition = "$src $action $dest $pl $pu"
                 println(io, transition)
             end
-        end
-    end
-end
 
-function write_bmdp_tool_file(
-    path,
-    mdp::IntervalMarkovChain,
-    terminal_states::Vector{T},
-) where {T <: Integer}
-    prob = transition_prob(mdp)
-    l, g = lower(prob), gap(prob)
-    num_columns = num_source(prob)
-
-    number_states = num_states(mdp)
-    number_terminal = length(terminal_states)
-
-    open(path, "w") do io
-        println(io, number_states)
-        println(io, 1)  # number_actions
-        println(io, number_terminal)
-
-        for terminal_state in terminal_states
-            println(io, terminal_state - 1)
-        end
-
-        for j in 1:num_columns
-            src = j - 1
-
-            column_lower = view(l, :, j)
-            I, V = SparseArrays.findnz(column_lower)
-
-            for (i, v) in zip(I, V)
-                dest = i - 1
-                pl = v
-                pu = pl + g[i, j]
-
-                transition = "$src 0 $dest $pl $pu"
-                println(io, transition)
-            end
+            action += 1
         end
     end
 end
