@@ -4,7 +4,7 @@ abstract type AbstractStrategyConfig end
     NoStrategyConfig
 
 A configuration for a strategy cache that does not store policies.
-See [construct_strategy_cache](@ref) for more details on how to construct the cache from the configuration.
+See [`construct_strategy_cache`](@ref) for more details on how to construct the cache from the configuration.
 """
 struct NoStrategyConfig <: AbstractStrategyConfig end
 
@@ -14,7 +14,7 @@ struct NoStrategyConfig <: AbstractStrategyConfig end
 A configuration for a strategy cache that stores stationary policies.
 Note that the strategy is updated at each iteration of the value iteration algorithm,
 if a new choice is strictly better than the previous one. See [1, Section 4.3] for more details why this is necessary.
-See [construct_strategy_cache](@ref) for more details on how to construct the cache from the configuration.
+See [`construct_strategy_cache`](@ref) for more details on how to construct the cache from the configuration.
 
 [1] Forejt, Vojtěch, et al. "Automated verification techniques for probabilistic systems." Formal Methods for Eternal Networked Software Systems: 11th International School on Formal Methods for the Design of Computer, Communication and Software Systems, SFM 2011, Bertinoro, Italy, June 13-18, 2011. Advanced Lectures 11 (2011): 53-113.
 """
@@ -24,7 +24,7 @@ struct StationaryStrategyConfig <: AbstractStrategyConfig end
     TimeVaryingStrategyConfig
 
 A configuration for a strategy cache that stores time-varying policies.
-See [construct_strategy_cache](@ref) for more details on how to construct the cache from the configuration.
+See [`construct_strategy_cache`](@ref) for more details on how to construct the cache from the configuration.
 """
 struct TimeVaryingStrategyConfig <: AbstractStrategyConfig end
 
@@ -32,7 +32,7 @@ struct TimeVaryingStrategyConfig <: AbstractStrategyConfig end
 abstract type AbstractStrategyCache end
 
 """
-    construct_strategy_cache(mp::IntervalMarkovProcess, config::AbstractStrategyConfig)
+    construct_strategy_cache(mp::Union{IntervalProbabilities, IntervalMarkovProcess}, config::AbstractStrategyConfig)
 
 Construct a strategy cache from a configuration for a given interval Markov process. The resuling cache type
 depends on the configuration and the device to store the strategy depends on the device of the Markov process.

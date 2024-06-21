@@ -4,6 +4,7 @@
 IntervalMarkovProcess
 num_states(s::IntervalMarkovProcess)
 initial_states(s::IntervalMarkovProcess)
+AllStates
 ```
 
 ## Stationary Markov Processes
@@ -33,6 +34,7 @@ tomarkovchain(mdp::TimeVaryingIntervalMarkovDecisionProcess, strategy::AbstractV
 CompositeIntervalMarkovProcess
 ProductIntervalMarkovProcess
 ParallelProduct
+SequentialIntervalMarkovProcess
 ```
 
 ## Probability representation

@@ -164,8 +164,11 @@ end
     FiniteTimeReachability{VT <: Vector{<:CartesianIndex}}
 
 Finite time reachability specified by a set of target/terminal states and a time horizon. 
-That is, if ``T`` is the set of target states and ``H`` is the time horizon, compute
-``ℙ(∃k = 0…H, s_k ∈ T)``.
+That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states and ``H`` is the time horizon,
+the property is 
+```math
+    \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T).
+```
 """
 struct FiniteTimeReachability{VT <: Vector{<:CartesianIndex}} <: AbstractReachability
     terminal_states::VT
@@ -216,8 +219,9 @@ reach(prop::FiniteTimeReachability) = prop.terminal_states
 """
     InfiniteTimeReachability{R <: Real, VT <: Vector{<:CartesianIndex}} 
  
-`InfiniteTimeReachability` is similar to [`FiniteTimeReachability`](@ref) except that the time horizon is infinite.
-The convergence threshold is that the largest value of the most recent Bellman residual is less than `eps`.
+`InfiniteTimeReachability` is similar to [`FiniteTimeReachability`](@ref) except that the time horizon is infinite, i.e., ``H = \\infty``.
+In practice it means, performing the value iteration until the value function has converged, defined by some threshold `convergence_eps`.
+The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
 """
 struct InfiniteTimeReachability{R <: Real, VT <: Vector{<:CartesianIndex}} <:
        AbstractReachability
@@ -292,8 +296,11 @@ end
     FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}}}
 
 Finite time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
-That is, if ``T`` is the set of target states, ``A`` is the set of states to avoid, and ``H`` is the time horizon, compute
-``ℙ(∃k = 0…H, s_k ∈ T and ∀k' = 0…k, s_k' ∉ A)``.
+That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states, ``A`` is the set of states to avoid,
+and ``H`` is the time horizon, the property is 
+```math
+    \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T, \\text{ and } \\forall k' = \\{0, \\ldots, k\\}, s_k' \\notin A).
+```
 """
 struct FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}} <: AbstractReachAvoid
     reach::VT
@@ -356,7 +363,7 @@ avoid(prop::FiniteTimeReachAvoid) = prop.avoid
 """
     InfiniteTimeReachAvoid{R <: Real, VT <: AbstractVector{<:CartesianIndex}}
 
-`InfiniteTimeReachAvoid` is similar to [`FiniteTimeReachAvoid`](@ref) except that the time horizon is infinite.
+`InfiniteTimeReachAvoid` is similar to [`FiniteTimeReachAvoid`](@ref) except that the time horizon is infinite, i.e., ``H = \\infty``.
 """
 struct InfiniteTimeReachAvoid{R <: Real, VT <: AbstractVector{<:CartesianIndex}} <:
        AbstractReachAvoid
@@ -534,9 +541,12 @@ end
 """
     FiniteTimeReward{R <: Real, T <: Integer, AR <: AbstractArray{R}}
 
-`FiniteTimeReward` is a property of rewards assigned to each state at each iteration
-and a discount factor. The time horizon is finite, so the discount factor is optional and 
-the optimal policy will be time-varying.
+`FiniteTimeReward` is a property of rewards ``R : S \\to \\mathbb{R}`` assigned to each state at each iteration
+and a discount factor ``\\gamma``. The time horizon ``H`` is finite, so the discount factor is optional and 
+the optimal policy will be time-varying. Given a strategy ``\\pi : S \\to A``, the property is
+```math
+    V(s_0) = \\mathbb{E}\\left[\\sum_{k=0}^{H} \\gamma^k R(s_k) \\mid s_0, \\pi\\right].
+```
 """
 struct FiniteTimeReward{R <: Real, T <: Integer, AR <: AbstractArray{R}} <:
        AbstractReward{R}
@@ -582,7 +592,7 @@ time_horizon(prop::FiniteTimeReward) = prop.time_horizon
     InfiniteTimeReward{R <: Real, AR <: AbstractArray{R}}
 
 `InfiniteTimeReward` is a property of rewards assigned to each state at each iteration
-and a discount factor for guaranteed convergence. The time horizon is infinite, so the optimal
+and a discount factor for guaranteed convergence. The time horizon is infinite, i.e. ``H = \\infty``, so the optimal
 policy will be stationary.
 """
 struct InfiniteTimeReward{R <: Real, AR <: AbstractArray{R}} <: AbstractReward{R}

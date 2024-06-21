@@ -27,7 +27,6 @@ Vcur = bellman(Vprev, prob; upper_bound = false)
 !!! note
     This function will construct a workspace object and an output vector.
     For a hot-loop, it is more efficient to use `bellman!` and pass in pre-allocated objects.
-    See [`construct_workspace`](@ref) for how to pre-allocate the workspace.
 
 [1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
 
@@ -47,7 +46,8 @@ That is, if `upper_bound == true` then an upper bound is computed and if `upper_
 bound is computed. 
 
 The output is constructed in the input `Vres` and returned. The workspace object is also modified,
-and depending on the type, the strategy cache may be modified as well.
+and depending on the type, the strategy cache may be modified as well. See [`construct_workspace`](@ref)
+and [`construct_strategy_cache`](@ref) for more details on how to pre-allocate the workspace and strategy cache.
 
 ### Examples
 

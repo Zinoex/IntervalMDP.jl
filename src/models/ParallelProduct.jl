@@ -19,39 +19,96 @@ Then the `ParallelProduct` type is defined by a vector of `IntervalMarkovProcess
 
 ### Examples
 
-# TODO: Update this example
-
 ```jldoctest
+# Dense MDP
 prob1 = IntervalProbabilities(;
     lower = [
-        0.0 0.5 0.0
-        0.1 0.3 0.0
-        0.2 0.1 1.0
+        0.0 0.5
+        0.1 0.3
+        0.2 0.1
     ],
     upper = [
-        0.5 0.7 0.0
-        0.6 0.5 0.0
-        0.7 0.3 1.0
+        0.5 0.7
+        0.6 0.5
+        0.7 0.3
     ],
 )
 
 prob2 = IntervalProbabilities(;
     lower = [
-        0.2 0.1 0.0
-        0.1 0.3 0.0
-        0.0 0.5 1.0
+        0.1 0.2
+        0.2 0.3
+        0.3 0.4
     ],
     upper = [
-        0.7 0.3 0.0
-        0.6 0.5 0.0
-        0.5 0.7 1.0
+        0.6 0.6
+        0.5 0.5
+        0.4 0.4
     ],
 )
 
-mc = TimeVaryingIntervalMarkovChain([prob1, prob2])
-# or
-initial_states = [1, 2, 3]
-mc = TimeVaryingIntervalMarkovChain([prob1, prob2], initial_states)
+prob3 = IntervalProbabilities(; lower = [
+    0.0
+    0.0
+    1.0
+][:, :], upper = [
+    0.0
+    0.0
+    1.0
+][:, :])
+
+transition_probs = [prob1, prob2, prob3]
+dense_mdp = IntervalMarkovDecisionProcess(transition_probs)
+
+# Sparse MDP
+prob1 = IntervalProbabilities(;
+    lower = sparse([
+        0.0 0.5
+        0.1 0.3
+        0.2 0.1
+    ]),
+    upper = sparse([
+        0.5 0.7
+        0.6 0.5
+        0.7 0.3
+    ]),
+)
+
+prob2 = IntervalProbabilities(;
+    lower = sparse([
+        0.1 0.2
+        0.2 0.3
+        0.3 0.4
+    ]),
+    upper = sparse([
+        0.6 0.6
+        0.5 0.5
+        0.4 0.4
+    ]),
+)
+
+prob3 = IntervalProbabilities(;
+    lower = sparse([
+        0.0
+        0.0
+        1.0
+    ][:, :]),
+    upper = sparse([
+        0.0
+        0.0
+        1.0
+    ][:, :]),
+)
+
+transition_probs = [prob1, prob2, prob3]
+sparse_mdp = IntervalMarkovDecisionProcess(transition_probs)
+
+# Dense/Sparse Parallel Product - it is possible to mix dense and sparse MDPs in the parallel product.
+product_mdp = ParallelProduct([dense_mdp, sparse_mdp])
+
+# or with initial states
+initial_states = [(1, 1), (1, 2), (2, 1)]
+product_mdp = ParallelProduct([dense_mdp, sparse_mdp], initial_states)
 ```
 
 [1] Nilsson, Petter, et al. "Toward Specification-Guided Active Mars Exploration for Cooperative Robot Teams." Robotics: Science and systems. Vol. 14. 2018.

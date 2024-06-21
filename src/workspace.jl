@@ -100,13 +100,13 @@ end
 #############
 
 """
-construct_workspace(mp::ParallelProduct)
+    construct_workspace(mp::ParallelProduct)
 
 Construct a workspace for computing the Bellman update, given a value function.
 If the Bellman update is used in a hot-loop, it is more efficient to use this function
 to preallocate the workspace and reuse across iterations.
 
-The workspace type is determined by the type and size of the transition probability matrix,
+The workspace composite hierachy is determined by process structure and the type of transition probability matrices,
 as well as the number of threads available.
 """
 construct_workspace(mp::ParallelProduct) = _construct_workspace(mp)

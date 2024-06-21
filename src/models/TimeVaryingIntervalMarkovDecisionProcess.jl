@@ -125,7 +125,7 @@ max_actions(mdp::TimeVaryingIntervalMarkovDecisionProcess) = maxdiff(stateptr(md
     tomarkovchain(mdp::TimeVaryingIntervalMarkovDecisionProcess, strategy::AbstractVector{<:AbstractVector})
 
 Extract an Interval Markov Chain (IMC) from a Time-Varying Interval Markov Decision Process under a time-varying strategy. The length of 
-`strategy` must be equal to the time length of the time-varying model. The returned type is a TimeVaryingIntervalMarkovDecisionProcess
+`strategy` must be equal to the time length of the time-varying model. The returned type is a `TimeVaryingIntervalMarkovDecisionProcess`
 with only one action per state per time-step. The extracted IMC is time-varying.
 """
 function tomarkovchain(

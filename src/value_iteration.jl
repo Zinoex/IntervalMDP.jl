@@ -57,7 +57,7 @@ prob3 = IntervalProbabilities(;
     upper = [0.0; 0.0; 1.0]
 )
 
-transition_probs = [["a1", "a2"] => prob1, ["a1", "a2"] => prob2, ["sinking"] => prob3]
+transition_probs = [prob1, prob2, prob3]
 initial_state = 1
 mdp = IntervalMarkovDecisionProcess(transition_probs, initial_state)
 

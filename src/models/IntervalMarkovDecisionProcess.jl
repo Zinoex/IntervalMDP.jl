@@ -170,7 +170,7 @@ max_actions(mdp::IntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp))
     tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector)
 
 Extract an Interval Markov Chain (IMC) from an Interval Markov Decision Process under a stationary strategy. The returned type remains
-an IntervalMarkovDecisionProcess with only one action per state. The extracted IMC is stationary.
+an `IntervalMarkovDecisionProcess` with only one action per state. The extracted IMC is stationary.
 """
 function tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector)
     probs = transition_prob(mdp)
@@ -185,7 +185,7 @@ end
     tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector{<:AbstractVector})
 
 Extract an Interval Markov Chain (IMC) from an Interval Markov Decision Process under a time-varying strategy. The returned type is
-a TimeVaryingIntervalMarkovDecisionProcess with only one action per state per time-step. The extracted IMC is time-varying.
+a `TimeVaryingIntervalMarkovDecisionProcess` with only one action per state per time-step. The extracted IMC is time-varying.
 """
 function tomarkovchain(
     mdp::IntervalMarkovDecisionProcess,
