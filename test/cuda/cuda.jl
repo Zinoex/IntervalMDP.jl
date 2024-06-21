@@ -6,15 +6,15 @@
 end
 
 test_files = [
-    # "dense/bellman.jl",
-    # "dense/vi.jl",
-    # "dense/imdp.jl",
-    # "dense/synthesis.jl",
-    # "sparse/bellman.jl",
-    # "sparse/vi.jl",
-    # "sparse/imdp.jl",
-    # "sparse/synthesis.jl",
-    "parallel/bellman.jl",
+    "dense/bellman.jl",
+    "dense/vi.jl",
+    "dense/imdp.jl",
+    "dense/synthesis.jl",
+    "sparse/bellman.jl",
+    "sparse/vi.jl",
+    "sparse/imdp.jl",
+    "sparse/synthesis.jl",
+    # "parallel/bellman.jl",
     # "parallel/vi.jl",
     # "parallel/synthesis.jl",
 ]

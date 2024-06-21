@@ -124,34 +124,32 @@ struct DenseProductWorkspace{T <: Real} <: CompositeWorkspace
     permutation::Vector{Int32}
     actions::Vector{T}
     state_index::Int32
-    action_index::Int32
 end
 
-function DenseProductWorkspace(::AbstractMatrix{T}, ntarget, max_actions, state_index, action_index) where {T <: Real}
+function DenseProductWorkspace(::AbstractMatrix{T}, ntarget, max_actions, state_index) where {T <: Real}
     perm = Vector{Int32}(undef, ntarget)
     actions = Vector{T}(undef, max_actions)
-    return DenseProductWorkspace(perm, actions, state_index, action_index)
+    return DenseProductWorkspace(perm, actions, state_index)
 end
 
 struct ThreadedDenseProductWorkspace{T <: Real} <: CompositeWorkspace
     thread_workspaces::Vector{DenseProductWorkspace{T}}
     state_index::Int32
-    action_index::Int32
 end
 
-function ThreadedDenseProductWorkspace(p::AbstractMatrix{T}, ntarget, max_actions, state_index, action_index) where {T <: Real}
-    thread_workspaces = [DenseProductWorkspace(p, ntarget, max_actions, state_index, action_index) for _ in 1:Threads.nthreads()]
-    return ThreadedDenseProductWorkspace(thread_workspaces, state_index, action_index)
+function ThreadedDenseProductWorkspace(p::AbstractMatrix{T}, ntarget, max_actions, state_index) where {T <: Real}
+    thread_workspaces = [DenseProductWorkspace(p, ntarget, max_actions, state_index) for _ in 1:Threads.nthreads()]
+    return ThreadedDenseProductWorkspace(thread_workspaces, state_index)
 end
 
-function _construct_workspace(p::AbstractMatrix, mp::SimpleIntervalMarkovProcess, state_index, action_index)
+function _construct_workspace(p::AbstractMatrix, mp::SimpleIntervalMarkovProcess, state_index)
     ntarget = num_states(mp)
     mactions = max_actions(mp)
 
     if Threads.nthreads() == 1
-        return DenseProductWorkspace(p, ntarget, mactions, state_index, action_index), state_index + one(Int32), action_index + one(Int32)
+        return DenseProductWorkspace(p, ntarget, mactions, state_index), state_index + one(Int32)
     else
-        return ThreadedDenseProductWorkspace(p, ntarget, mactions, state_index, action_index), state_index + one(Int32), action_index + one(Int32)
+        return ThreadedDenseProductWorkspace(p, ntarget, mactions, state_index), state_index + one(Int32)
     end
 end
 
@@ -160,35 +158,33 @@ struct SparseProductWorkspace{T <: Real}  <: CompositeWorkspace
     values_gaps::Vector{Tuple{T, T}}
     actions::Vector{T}
     state_index::Int32
-    action_index::Int32
 end
 
-function SparseProductWorkspace(::AbstractSparseMatrix{T}, ntarget, max_actions, state_index, action_index) where {T <: Real}
+function SparseProductWorkspace(::AbstractSparseMatrix{T}, ntarget, max_actions, state_index) where {T <: Real}
     values_gaps = Vector{Tuple{T, T}}(undef, ntarget)
     actions = Vector{T}(undef, max_actions)
-    return SparseProductWorkspace(values_gaps, actions, state_index, action_index)
+    return SparseProductWorkspace(values_gaps, actions, state_index)
 end
 
 struct ThreadedSparseProductWorkspace{T} <: CompositeWorkspace
     thread_workspaces::Vector{SparseProductWorkspace{T}}
     state_index::Int32
-    action_index::Int32
 end
 
-function ThreadedSparseProductWorkspace(p::AbstractSparseMatrix, ntarget, max_actions, state_index, action_index)
+function ThreadedSparseProductWorkspace(p::AbstractSparseMatrix, ntarget, max_actions, state_index)
     nthreads = Threads.nthreads()
-    thread_workspaces = [SparseProductWorkspace(p, ntarget, max_actions, state_index, action_index) for _ in 1:nthreads]
-    return ThreadedSparseProductWorkspace(thread_workspaces, state_index, action_index)
+    thread_workspaces = [SparseProductWorkspace(p, ntarget, max_actions, state_index) for _ in 1:nthreads]
+    return ThreadedSparseProductWorkspace(thread_workspaces, state_index)
 end
 
-function _construct_workspace(p::AbstractSparseMatrix, mp::SimpleIntervalMarkovProcess, state_index, action_index)
+function _construct_workspace(p::AbstractSparseMatrix, mp::SimpleIntervalMarkovProcess, state_index)
     ntarget = num_states(mp)
     mactions = max_actions(mp)
 
     if Threads.nthreads() == 1
-        return SparseProductWorkspace(p, ntarget, mactions, state_index, action_index), state_index + one(Int32), action_index + one(Int32)
+        return SparseProductWorkspace(p, ntarget, mactions, state_index), state_index + one(Int32)
     else
-        return ThreadedSparseProductWorkspace(p, ntarget, mactions, state_index, action_index), state_index + one(Int32), action_index + one(Int32)
+        return ThreadedSparseProductWorkspace(p, ntarget, mactions, state_index), state_index + one(Int32)
     end
 end
 
@@ -199,20 +195,20 @@ end
 orthogonal_workspaces(workspace::ParallelProductWorkspace) = workspace.process_workspaces
 
 function _construct_workspace(mp::ParallelProduct)
-    workspace, _, _ = _construct_workspace(mp, one(Int32), one(Int32))
+    workspace, _ = _construct_workspace(mp, one(Int32))
     return workspace
 end
 
-function _construct_workspace(mp::ParallelProduct, state_index, action_index)
+function _construct_workspace(mp::ParallelProduct, state_index)
     workspaces = CompositeWorkspace[]
     sizehint!(workspaces, length(orthogonal_processes(mp)))
     
     for orthogonal_process in orthogonal_processes(mp)
-        workspace, state_index, action_index = _construct_workspace(orthogonal_process, state_index, action_index)
+        workspace, state_index = _construct_workspace(orthogonal_process, state_index)
         push!(workspaces, workspace)
     end
 
-    return ParallelProductWorkspace(workspaces), state_index, action_index
+    return ParallelProductWorkspace(workspaces), state_index
 end
 
-_construct_workspace(mp::SimpleIntervalMarkovProcess, state_index, action_index) = _construct_workspace(gap(transition_prob(mp, 1)), mp, state_index, action_index)
+_construct_workspace(mp::SimpleIntervalMarkovProcess, state_index) = _construct_workspace(gap(transition_prob(mp, 1)), mp, state_index)

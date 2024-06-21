@@ -13,13 +13,12 @@ IntervalMDP.construct_workspace(::AbstractGPUMatrix, max_actions) = CuDenseWorks
 struct CuDenseProductWorkspace <: IntervalMDP.CompositeWorkspace
     max_actions::Int32
     state_index::Int32
-    action_index::Int32
 end
 
-function IntervalMDP._construct_workspace(::AbstractGPUMatrix, mp::SimpleIntervalMarkovProcess, state_index, action_index)
+function IntervalMDP._construct_workspace(::AbstractGPUMatrix, mp::SimpleIntervalMarkovProcess, state_index)
     mactions = IntervalMDP.max_actions(mp)
 
-    return CuDenseProductWorkspace(mactions, state_index, action_index), state_index + one(Int32), action_index + one(Int32)
+    return CuDenseProductWorkspace(mactions, state_index), state_index + one(Int32)
 end
 
 ####################
@@ -41,16 +40,15 @@ IntervalMDP.construct_workspace(p::AbstractCuSparseMatrix, max_actions) = CuSpar
 struct CuSparseProductWorkspace <: IntervalMDP.CompositeWorkspace
     max_actions::Int32
     state_index::Int32
-    action_index::Int32
 end
 
-function CuSparseProductWorkspace(p::AbstractCuSparseMatrix, max_actions, state_index, action_index)
+function CuSparseProductWorkspace(p::AbstractCuSparseMatrix, max_actions, state_index)
     max_nonzeros = maximum(nnz, eachcol(p))
-    return CuSparseProductWorkspace(max_nonzeros, max_actions, state_index, action_index)
+    return CuSparseProductWorkspace(max_nonzeros, max_actions, state_index)
 end
 
-function IntervalMDP._construct_workspace(p::AbstractCuSparseMatrix, mp::SimpleIntervalMarkovProcess, state_index, action_index)
+function IntervalMDP._construct_workspace(p::AbstractCuSparseMatrix, mp::SimpleIntervalMarkovProcess, state_index)
     mactions = IntervalMDP.max_actions(mp)
 
-    return CuSparseProductWorkspace(p, mactions, state_index, action_index), state_index + one(Int32), action_index + one(Int32)
+    return CuSparseProductWorkspace(p, mactions, state_index), state_index + one(Int32)
 end
