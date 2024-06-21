@@ -81,7 +81,12 @@ function TimeVaryingIntervalMarkovDecisionProcess(
         @assert num_states_t == num_states "The number of states must be the same for all time steps"
     end
 
-    return TimeVaryingIntervalMarkovDecisionProcess(transition_probs, stateptr, initial_states, num_states)
+    return TimeVaryingIntervalMarkovDecisionProcess(
+        transition_probs,
+        stateptr,
+        initial_states,
+        num_states,
+    )
 end
 
 """
@@ -98,7 +103,11 @@ function TimeVaryingIntervalMarkovChain(
     initial_states::InitialStates = AllStates(),
 )
     stateptr = UnitRange{Int32}(1, num_source(first(transition_probs)) + 1)
-    return TimeVaryingIntervalMarkovDecisionProcess(transition_probs, stateptr, initial_states)
+    return TimeVaryingIntervalMarkovDecisionProcess(
+        transition_probs,
+        stateptr,
+        initial_states,
+    )
 end
 
 """
@@ -112,7 +121,6 @@ stateptr(mdp::TimeVaryingIntervalMarkovDecisionProcess) = mdp.stateptr
 
 max_actions(mdp::TimeVaryingIntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp))
 
-
 """
     tomarkovchain(mdp::TimeVaryingIntervalMarkovDecisionProcess, strategy::AbstractVector{<:AbstractVector})
 
@@ -125,7 +133,11 @@ function tomarkovchain(
     strategy::AbstractVector{<:AbstractVector},
 )
     if length(strategy) != time_length(mdp)
-        throw(ArgumentError("The length of the strategy ($(length(strategy))) must be equal to the time length of the time-varying model ($(time_length(mdp)))"))
+        throw(
+            ArgumentError(
+                "The length of the strategy ($(length(strategy))) must be equal to the time length of the time-varying model ($(time_length(mdp)))",
+            ),
+        )
     end
 
     new_probs = Vector{typeof(probs)}(undef, length(strategy))

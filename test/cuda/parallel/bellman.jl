@@ -25,21 +25,17 @@ prob2 = IntervalProbabilities(;
     ],
 )
 
-prob3 = IntervalProbabilities(;
-    lower = [
-        0.0
-        0.0
-        1.0
-    ][:, :],
-    upper = [
-        0.0
-        0.0
-        1.0
-    ][:, :]
-)
+prob3 = IntervalProbabilities(; lower = [
+    0.0
+    0.0
+    1.0
+][:, :], upper = [
+    0.0
+    0.0
+    1.0
+][:, :])
 dense_mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3])
 cu_dense_mdp = IntervalMDP.cu(dense_mdp)
-
 
 prob1 = IntervalProbabilities(;
     lower = sparse([
@@ -64,7 +60,7 @@ prob2 = IntervalProbabilities(;
         0.0
         1.0
         0.0
-    ][:, :])
+    ][:, :]),
 )
 
 prob3 = IntervalProbabilities(;
@@ -117,12 +113,34 @@ strategy_cache = IntervalMDP.NoStrategyCache()
     Vdes = hcat(Vdes1, Vdes2, Vdes3)
 
     Vres = similar(V)
-    bellman!(ws1.process_workspaces[1], strategy_cache, Vres, V, transition_prob(cu_dense_mdp), stateptr(cu_dense_mdp); upper_bound = true, maximize = false)
+    bellman!(
+        ws1.process_workspaces[1],
+        strategy_cache,
+        Vres,
+        V,
+        transition_prob(cu_dense_mdp),
+        stateptr(cu_dense_mdp);
+        upper_bound = true,
+        maximize = false,
+    )
     @test Array(Vres) ≈ Vdes
 
-    ws_direct = IntervalMDP.CuDenseProductWorkspace(IntervalMDP.max_actions(cu_dense_mdp), one(Int32), one(Int32))
+    ws_direct = IntervalMDP.CuDenseProductWorkspace(
+        IntervalMDP.max_actions(cu_dense_mdp),
+        one(Int32),
+        one(Int32),
+    )
     Vres = similar(V)
-    bellman!(ws_direct, strategy_cache, Vres, V, transition_prob(cu_dense_mdp), stateptr(cu_dense_mdp); upper_bound = true, maximize = false)
+    bellman!(
+        ws_direct,
+        strategy_cache,
+        Vres,
+        V,
+        transition_prob(cu_dense_mdp),
+        stateptr(cu_dense_mdp);
+        upper_bound = true,
+        maximize = false,
+    )
     @test Array(Vres) ≈ Vdes
 
     # Second IMDP
@@ -147,7 +165,6 @@ strategy_cache = IntervalMDP.NoStrategyCache()
     # Vres = similar(V)
     # bellman!(ws_direct, strategy_cache, Vres, V, transition_prob(cu_sparse_mdp), stateptr(cu_sparse_mdp); upper_bound = true, maximize = false)
     # @test Array(Vres) ≈ Vdes
-
 
     ##########################
     # Second parallel product #
@@ -196,12 +213,34 @@ strategy_cache = IntervalMDP.NoStrategyCache()
     Vdes = mapreduce(transpose, vcat, [Vdes1, Vdes2, Vdes3])
 
     Vres = similar(V)
-    bellman!(ws2.process_workspaces[2], strategy_cache, Vres, V, transition_prob(cu_dense_mdp), stateptr(cu_dense_mdp); upper_bound = true, maximize = false)
+    bellman!(
+        ws2.process_workspaces[2],
+        strategy_cache,
+        Vres,
+        V,
+        transition_prob(cu_dense_mdp),
+        stateptr(cu_dense_mdp);
+        upper_bound = true,
+        maximize = false,
+    )
     @test Array(Vres) ≈ Vdes
 
-    ws_direct = IntervalMDP.CuDenseProductWorkspace(IntervalMDP.max_actions(cu_dense_mdp), Int32(2), Int32(2))
+    ws_direct = IntervalMDP.CuDenseProductWorkspace(
+        IntervalMDP.max_actions(cu_dense_mdp),
+        Int32(2),
+        Int32(2),
+    )
     Vres = similar(V)
-    bellman!(ws_direct, strategy_cache, Vres, V, transition_prob(cu_dense_mdp), stateptr(cu_dense_mdp); upper_bound = true, maximize = false)
+    bellman!(
+        ws_direct,
+        strategy_cache,
+        Vres,
+        V,
+        transition_prob(cu_dense_mdp),
+        stateptr(cu_dense_mdp);
+        upper_bound = true,
+        maximize = false,
+    )
     @test Array(Vres) ≈ Vdes
 end
 
@@ -231,12 +270,34 @@ end
     Vdes = hcat(Vdes1, Vdes2, Vdes3)
 
     Vres = similar(V)
-    bellman!(ws1.process_workspaces[1], strategy_cache, Vres, V, transition_prob(cu_dense_mdp), stateptr(cu_dense_mdp); upper_bound = false, maximize = true)
+    bellman!(
+        ws1.process_workspaces[1],
+        strategy_cache,
+        Vres,
+        V,
+        transition_prob(cu_dense_mdp),
+        stateptr(cu_dense_mdp);
+        upper_bound = false,
+        maximize = true,
+    )
     @test Array(Vres) ≈ Vdes
 
-    ws_direct = IntervalMDP.CuDenseProductWorkspace(IntervalMDP.max_actions(cu_dense_mdp), one(Int32), one(Int32))
+    ws_direct = IntervalMDP.CuDenseProductWorkspace(
+        IntervalMDP.max_actions(cu_dense_mdp),
+        one(Int32),
+        one(Int32),
+    )
     Vres = similar(V)
-    bellman!(ws_direct, strategy_cache, Vres, V, transition_prob(cu_dense_mdp), stateptr(cu_dense_mdp); upper_bound = false, maximize = true)
+    bellman!(
+        ws_direct,
+        strategy_cache,
+        Vres,
+        V,
+        transition_prob(cu_dense_mdp),
+        stateptr(cu_dense_mdp);
+        upper_bound = false,
+        maximize = true,
+    )
     @test Array(Vres) ≈ Vdes
 
     # Second IMDP
@@ -261,7 +322,6 @@ end
     # Vres = similar(V)
     # bellman!(ws_direct, strategy_cache, Vres, V, transition_prob(cu_sparse_mdp), stateptr(cu_sparse_mdp); upper_bound = false, maximize = true)
     # @test Array(Vres) ≈ Vdes
-
 
     ##########################
     # Second parallel product #
@@ -310,11 +370,33 @@ end
     Vdes = mapreduce(transpose, vcat, [Vdes1, Vdes2, Vdes3])
 
     Vres = similar(V)
-    bellman!(ws2.process_workspaces[2], strategy_cache, Vres, V, transition_prob(cu_dense_mdp), stateptr(cu_dense_mdp); upper_bound = false, maximize = true)
+    bellman!(
+        ws2.process_workspaces[2],
+        strategy_cache,
+        Vres,
+        V,
+        transition_prob(cu_dense_mdp),
+        stateptr(cu_dense_mdp);
+        upper_bound = false,
+        maximize = true,
+    )
     @test Array(Vres) ≈ Vdes
 
-    ws_direct = IntervalMDP.CuDenseProductWorkspace(IntervalMDP.max_actions(cu_dense_mdp), Int32(2), Int32(2))
+    ws_direct = IntervalMDP.CuDenseProductWorkspace(
+        IntervalMDP.max_actions(cu_dense_mdp),
+        Int32(2),
+        Int32(2),
+    )
     Vres = similar(V)
-    bellman!(ws_direct, strategy_cache, Vres, V, transition_prob(cu_dense_mdp), stateptr(cu_dense_mdp); upper_bound = false, maximize = true)
+    bellman!(
+        ws_direct,
+        strategy_cache,
+        Vres,
+        V,
+        transition_prob(cu_dense_mdp),
+        stateptr(cu_dense_mdp);
+        upper_bound = false,
+        maximize = true,
+    )
     @test Array(Vres) ≈ Vdes
 end

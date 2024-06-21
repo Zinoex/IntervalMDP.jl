@@ -2,7 +2,6 @@ module IntervalMDP
 
 using LinearAlgebra, SparseArrays
 
-
 const UnionIndex = Union{<:Integer, <:Tuple}
 
 include("threading.jl")
@@ -20,8 +19,10 @@ include("models/IntervalMarkovDecisionProcess.jl")
 include("models/TimeVaryingIntervalMarkovDecisionProcess.jl")
 include("models/ParallelProduct.jl")
 export IntervalMarkovProcess
-export SimpleIntervalMarkovProcess, StationaryIntervalMarkovProcess, TimeVaryingIntervalMarkovProcess
-export CompositeIntervalMarkovProcess, SequentialIntervalMarkovProcess, ProductIntervalMarkovProcess
+export SimpleIntervalMarkovProcess,
+    StationaryIntervalMarkovProcess, TimeVaryingIntervalMarkovProcess
+export CompositeIntervalMarkovProcess,
+    SequentialIntervalMarkovProcess, ProductIntervalMarkovProcess
 export AllStates
 export IntervalMarkovDecisionProcess, TimeVaryingIntervalMarkovDecisionProcess
 export IntervalMarkovChain, TimeVaryingIntervalMarkovChain
@@ -44,7 +45,8 @@ export Specification, Problem
 export system, specification, system_property, satisfaction_mode, strategy_mode
 
 include("strategy.jl")
-export AbstractStrategyConfig, NoStrategyConfig, TimeVaryingStrategyConfig, StationaryStrategyConfig
+export AbstractStrategyConfig,
+    NoStrategyConfig, TimeVaryingStrategyConfig, StationaryStrategyConfig
 export construct_strategy_cache
 
 include("workspace.jl")

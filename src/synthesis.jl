@@ -9,7 +9,8 @@ function control_synthesis(problem::Problem)
     spec = specification(problem)
     prop = system_property(spec)
 
-    strategy_config = isfinitetime(prop) ? TimeVaryingStrategyConfig() : StationaryStrategyConfig()
+    strategy_config =
+        isfinitetime(prop) ? TimeVaryingStrategyConfig() : StationaryStrategyConfig()
     V, k, res, strategy_cache = _value_iteration!(strategy_config, problem)
 
     return cachetostrategy(strategy_cache), V, k, res

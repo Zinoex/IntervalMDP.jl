@@ -121,7 +121,8 @@ end
 Base.size(p::IntervalProbabilities) = size(p.lower)
 Base.size(p::IntervalProbabilities, dim::Integer) = size(p.lower, dim)
 # Views for interval probabilities are only for the source states or source/action pairs
-Base.view(p::IntervalProbabilities, J) = IntervalProbabilities(view(lower(p), :, J), view(gap(p), :, J), view(sum_lower(p), J))
+Base.view(p::IntervalProbabilities, J) =
+    IntervalProbabilities(view(lower(p), :, J), view(gap(p), :, J), view(sum_lower(p), J))
 
 """
     lower(p::IntervalProbabilities)

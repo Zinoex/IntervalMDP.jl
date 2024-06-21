@@ -41,7 +41,6 @@ function reducediff_kernel!(op, stateptr, neutral, retarr)
     return
 end
 
-
 # This is type piracy - please port upstream to CUDA when FixedSparseCSC are stable.
 CUDA.CUSPARSE.CuSparseMatrixCSC{Tv, Ti}(M::SparseArrays.FixedSparseCSC) where {Tv, Ti} =
     CuSparseMatrixCSC{Tv, Ti}(
@@ -79,12 +78,8 @@ Adapt.adapt_storage(
     M::SparseArrays.FixedSparseCSC,
 ) where {Tv} = CuSparseMatrixCSC{Tv, Int32}(M)
 
-Adapt.adapt_storage(
-    ::Type{IntervalMDP.CuModelAdaptor{Tv}},
-    M::SparseMatrixCSC,
-) where {Tv} = CuSparseMatrixCSC{Tv, Int32}(M)
+Adapt.adapt_storage(::Type{IntervalMDP.CuModelAdaptor{Tv}}, M::SparseMatrixCSC) where {Tv} =
+    CuSparseMatrixCSC{Tv, Int32}(M)
 
-Adapt.adapt_storage(
-    ::Type{IntervalMDP.CuModelAdaptor{Tv}},
-    x::AbstractArray,
-) where {Tv} = adapt(CuArray{Tv}, x)
+Adapt.adapt_storage(::Type{IntervalMDP.CuModelAdaptor{Tv}}, x::AbstractArray) where {Tv} =
+    adapt(CuArray{Tv}, x)

@@ -226,7 +226,7 @@ spec = Specification(prop, Optimistic, Minimize)
                 spec = Specification(prop)
                 @test_throws InvalidStateError Problem(product_mc, spec)
             end
-    
+
             @testset "reach/avoid" begin
                 prop = FiniteTimeReachAvoid([4], [2], 10) # out-of-bounds
                 spec = Specification(prop)

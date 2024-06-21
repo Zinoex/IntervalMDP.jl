@@ -1,4 +1,7 @@
-function IntervalMDP.construct_action_cache(::IntervalProbabilities{R, VR}, dims) where {R <: Real, VR <: AbstractGPUVector{R}}
+function IntervalMDP.construct_action_cache(
+    ::IntervalProbabilities{R, VR},
+    dims,
+) where {R <: Real, VR <: AbstractGPUVector{R}}
     return CUDA.zeros(Int32, dims)
 end
 
@@ -26,7 +29,6 @@ Adapt.@adapt_structure StationaryStrategyActiveCache
     return StationaryStrategyActiveCache(strategy_cache.strategy)
 end
 
-
 @inline function extract_strategy_warp!(
     ::NoStrategyActiveCache,
     values::AbstractVector{Tv},
@@ -34,7 +36,7 @@ end
     j,
     s₁,
     action_reduce,
-    lane
+    lane,
 ) where {Tv}
     assume(warpsize() == 32)
     action_min, action_neutral = action_reduce[1], action_reduce[3]
@@ -65,7 +67,7 @@ end
     j,
     s₁,
     action_reduce,
-    lane
+    lane,
 ) where {Tv}
     assume(warpsize() == 32)
     action_lt, action_neutral = action_reduce[2], action_reduce[3]
@@ -101,7 +103,7 @@ end
     j,
     s₁,
     action_reduce,
-    lane
+    lane,
 ) where {Tv}
     assume(warpsize() == 32)
     action_lt, action_neutral = action_reduce[2], action_reduce[3]

@@ -70,19 +70,14 @@ V, k, residual = value_iteration(problem)
 ```
 
 """
-function value_iteration(
-    problem::Problem,
-)
+function value_iteration(problem::Problem)
     strategy_config = NoStrategyConfig()
     V, k, res, _ = _value_iteration!(strategy_config, problem)
 
     return V, k, res
 end
 
-function _value_iteration!(
-    strategy_config::AbstractStrategyConfig,
-    problem::Problem,
-)
+function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Problem)
     mp = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(spec)
@@ -96,7 +91,15 @@ function _value_iteration!(
     value_function = ValueFunction(problem)
     initialize!(value_function, spec)
 
-    step!(workspace, strategy_cache, value_function, 0, mp; upper_bound = upper_bound, maximize = maximize)
+    step!(
+        workspace,
+        strategy_cache,
+        value_function,
+        0,
+        mp;
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
     postprocess_value_function!(value_function, spec)
     postprocess_strategy_cache!(strategy_cache)
     k = 1
@@ -104,7 +107,15 @@ function _value_iteration!(
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
 
-        step!(workspace, strategy_cache, value_function, k, mp; upper_bound = upper_bound, maximize = maximize)
+        step!(
+            workspace,
+            strategy_cache,
+            value_function,
+            k,
+            mp;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
         postprocess_value_function!(value_function, spec)
         postprocess_strategy_cache!(strategy_cache)
         k += 1
@@ -121,9 +132,7 @@ mutable struct ValueFunction{R, A <: AbstractArray{R}}
     current::A
 end
 
-function ValueFunction(
-    problem::Problem{<:SimpleIntervalMarkovProcess},
-)
+function ValueFunction(problem::Problem{<:SimpleIntervalMarkovProcess})
     mp = system(problem)
 
     previous = construct_value_function(gap(transition_prob(mp, 1)), num_states(mp))
@@ -132,10 +141,7 @@ function ValueFunction(
     return ValueFunction(previous, previous, current)
 end
 
-
-function ValueFunction(
-    problem::Problem{<:ProductIntervalMarkovProcess},
-)
+function ValueFunction(problem::Problem{<:ProductIntervalMarkovProcess})
     mp = system(problem)
 
     pns = Tuple(product_num_states(mp) |> recursiveflatten |> collect)
@@ -168,7 +174,15 @@ function nextiteration!(V)
     return V
 end
 
-function step!(workspace, strategy_cache, value_function, k, mp::StationaryIntervalMarkovProcess; upper_bound, maximize)
+function step!(
+    workspace,
+    strategy_cache,
+    value_function,
+    k,
+    mp::StationaryIntervalMarkovProcess;
+    upper_bound,
+    maximize,
+)
     prob = transition_prob(mp)
     bellman!(
         workspace,
@@ -182,7 +196,15 @@ function step!(workspace, strategy_cache, value_function, k, mp::StationaryInter
     )
 end
 
-function step!(workspace, strategy_cache, value_function, k, mp::TimeVaryingIntervalMarkovProcess; upper_bound, maximize)
+function step!(
+    workspace,
+    strategy_cache,
+    value_function,
+    k,
+    mp::TimeVaryingIntervalMarkovProcess;
+    upper_bound,
+    maximize,
+)
     prob = transition_prob(mp, time_length(mp) - k)
     bellman!(
         workspace,
@@ -196,9 +218,29 @@ function step!(workspace, strategy_cache, value_function, k, mp::TimeVaryingInte
     )
 end
 
-function step!(workspace, strategy_cache, value_function, k, mp::ParallelProduct; upper_bound, maximize)
-    for (ws, sc, orthogonal_process) in zip(orthogonal_workspaces(workspace), orthogonal_caches(strategy_cache), orthogonal_processes(mp))
-        step!(ws, sc, value_function, k, orthogonal_process; upper_bound = upper_bound, maximize = maximize)
+function step!(
+    workspace,
+    strategy_cache,
+    value_function,
+    k,
+    mp::ParallelProduct;
+    upper_bound,
+    maximize,
+)
+    for (ws, sc, orthogonal_process) in zip(
+        orthogonal_workspaces(workspace),
+        orthogonal_caches(strategy_cache),
+        orthogonal_processes(mp),
+    )
+        step!(
+            ws,
+            sc,
+            value_function,
+            k,
+            orthogonal_process;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
         copyto!(value_function.intermediate, value_function.current)
     end
 end

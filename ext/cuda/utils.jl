@@ -51,7 +51,7 @@ end
         up_val = shfl_down_sync(0xffffffff, val, offset)
         up_idx = shfl_down_sync(0xffffffff, idx, offset)
         val, idx = argop(lt, val, idx, up_val, up_idx)
-        
+
         offset >>= 1
     end
 
@@ -67,7 +67,7 @@ end
 end
 
 @inline function selectotherdims(A::AbstractArray, dim, idxs)
-    head, tail = idxs[1:dim - 1], idxs[dim:end]
+    head, tail = idxs[1:(dim - 1)], idxs[dim:end]
 
     return view(A, head..., Colon(), tail...)
 end

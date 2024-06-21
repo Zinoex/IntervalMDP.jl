@@ -54,14 +54,7 @@ function construct_strategy_cache(::SimpleIntervalMarkovProcess, ::NoStrategyCon
     return NoStrategyCache()
 end
 
-function extract_strategy!(
-    ::NoStrategyCache,
-    values,
-    V,
-    j,
-    s₁,
-    maximize,
-)
+function extract_strategy!(::NoStrategyCache, values, V, j, s₁, maximize)
     return maximize ? maximum(values) : minimum(values)
 end
 postprocess_strategy_cache!(::NoStrategyCache) = nothing
@@ -76,23 +69,31 @@ function TimeVaryingStrategyCache(cur_strategy::A) where {A}
     return TimeVaryingStrategyCache(cur_strategy, Vector{A}())
 end
 
-function construct_strategy_cache(mp::M, ::TimeVaryingStrategyConfig) where {M <: SimpleIntervalMarkovProcess}
+function construct_strategy_cache(
+    mp::M,
+    ::TimeVaryingStrategyConfig,
+) where {M <: SimpleIntervalMarkovProcess}
     cur_strategy = construct_action_cache(transition_prob(mp, 1), num_states(mp))
     return TimeVaryingStrategyCache(cur_strategy)
 end
 
-function construct_strategy_cache(mp::M, ::TimeVaryingStrategyConfig, dims) where {M <: SimpleIntervalMarkovProcess}
+function construct_strategy_cache(
+    mp::M,
+    ::TimeVaryingStrategyConfig,
+    dims,
+) where {M <: SimpleIntervalMarkovProcess}
     cur_strategy = construct_action_cache(transition_prob(mp, 1), dims)
     return TimeVaryingStrategyCache(cur_strategy)
 end
 
-function construct_action_cache(::IntervalProbabilities{R, VR}, dims) where {R <: Real, VR <: AbstractVector{R}}
+function construct_action_cache(
+    ::IntervalProbabilities{R, VR},
+    dims,
+) where {R <: Real, VR <: AbstractVector{R}}
     return zeros(Int32, dims)
 end
 
-function cachetostrategy(
-    strategy_cache::TimeVaryingStrategyCache,
-)
+function cachetostrategy(strategy_cache::TimeVaryingStrategyCache)
     return [Array(indices) for indices in reverse(strategy_cache.strategy)]
 end
 
@@ -107,7 +108,7 @@ function extract_strategy!(
     opt_val = maximize ? typemin(R) : typemax(R)
     opt_index = s₁
     neutral = (opt_val, opt_index)
-    
+
     return _extract_strategy!(strategy_cache.cur_strategy, values, neutral, j, s₁, maximize)
 end
 function postprocess_strategy_cache!(strategy_cache::TimeVaryingStrategyCache)
@@ -119,19 +120,24 @@ struct StationaryStrategyCache{A <: AbstractArray{Int32}} <: AbstractStrategyCac
     strategy::A
 end
 
-function construct_strategy_cache(mp::M, ::StationaryStrategyConfig) where {M <: SimpleIntervalMarkovProcess}
+function construct_strategy_cache(
+    mp::M,
+    ::StationaryStrategyConfig,
+) where {M <: SimpleIntervalMarkovProcess}
     strategy = construct_action_cache(transition_prob(mp), num_states(mp))
     return StationaryStrategyCache(strategy)
 end
 
-function construct_strategy_cache(mp::M, ::StationaryStrategyConfig, dims) where {M <: SimpleIntervalMarkovProcess}
+function construct_strategy_cache(
+    mp::M,
+    ::StationaryStrategyConfig,
+    dims,
+) where {M <: SimpleIntervalMarkovProcess}
     strategy = construct_action_cache(transition_prob(mp), dims)
     return StationaryStrategyCache(strategy)
 end
 
-function cachetostrategy(
-    strategy_cache::StationaryStrategyCache,
-)
+function cachetostrategy(strategy_cache::StationaryStrategyCache)
     return Array(strategy_cache.strategy)
 end
 
@@ -143,7 +149,6 @@ function extract_strategy!(
     s₁,
     maximize,
 ) where {R <: Real}
-
     neutral = if iszero(strategy_cache.strategy[j])
         maximize ? typemin(R) : typemax(R), s₁
     else
@@ -155,16 +160,9 @@ end
 postprocess_strategy_cache!(::StationaryStrategyCache) = nothing
 
 # Shared between stationary and time-varying strategies
-function _extract_strategy!(
-    cur_strategy,
-    values,
-    neutral,
-    j,
-    s₁,
-    maximize,
-)
+function _extract_strategy!(cur_strategy, values, neutral, j, s₁, maximize)
     gt = maximize ? (>) : (<)
-    
+
     opt_val, opt_index = neutral
 
     for (i, v) in enumerate(values)
@@ -189,15 +187,17 @@ orthogonal_caches(cache::ParallelProductStrategyCache) = cache.orthogonal_caches
 function construct_strategy_cache(mp::ParallelProduct, config::AbstractStrategyConfig)
     dims = Tuple(product_num_states(mp) |> recursiveflatten |> collect)
 
-    return ParallelProductStrategyCache(
-        [construct_strategy_cache(orthogonal_process, config, dims) for orthogonal_process in orthogonal_processes(mp)]
-    )
+    return ParallelProductStrategyCache([
+        construct_strategy_cache(orthogonal_process, config, dims) for
+        orthogonal_process in orthogonal_processes(mp)
+    ])
 end
 
 function construct_strategy_cache(mp::ParallelProduct, config::AbstractStrategyConfig, dims)
-    return ParallelProductStrategyCache(
-        [construct_strategy_cache(orthogonal_process, config, dims) for orthogonal_process in orthogonal_processes(mp)]
-    )
+    return ParallelProductStrategyCache([
+        construct_strategy_cache(orthogonal_process, config, dims) for
+        orthogonal_process in orthogonal_processes(mp)
+    ])
 end
 
 function postprocess_strategy_cache!(strategy_cache::ParallelProductStrategyCache)
@@ -206,8 +206,9 @@ function postprocess_strategy_cache!(strategy_cache::ParallelProductStrategyCach
     end
 end
 
-function cachetostrategy(
-    strategy_cache::ParallelProductStrategyCache,
-)
-    return [cachetostrategy(orthogonal_cache) for orthogonal_cache in orthogonal_caches(strategy_cache)]
+function cachetostrategy(strategy_cache::ParallelProductStrategyCache)
+    return [
+        cachetostrategy(orthogonal_cache) for
+        orthogonal_cache in orthogonal_caches(strategy_cache)
+    ]
 end

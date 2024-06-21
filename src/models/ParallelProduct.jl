@@ -57,34 +57,30 @@ mc = TimeVaryingIntervalMarkovChain([prob1, prob2], initial_states)
 [1] Nilsson, Petter, et al. "Toward Specification-Guided Active Mars Exploration for Cooperative Robot Teams." Robotics: Science and systems. Vol. 14. 2018.
 
 """
-struct ParallelProduct{
-    VI <: InitialStates,
-} <: ProductIntervalMarkovProcess
+struct ParallelProduct{VI <: InitialStates} <: ProductIntervalMarkovProcess
     orthogonal_processes::Vector{IntervalMarkovProcess}
     initial_states::VI
     num_states::Int32
     subdims::Vector{Int32}
 end
 
-function ParallelProduct(orthogonal_processes::Vector{IntervalMarkovProcess}, initial_states::InitialStates = AllStates())
+function ParallelProduct(
+    orthogonal_processes::Vector{IntervalMarkovProcess},
+    initial_states::InitialStates = AllStates(),
+)
     nstates = Int32(prod(num_states, orthogonal_processes))
     sdims = map(dims, orthogonal_processes)
-    
-    return ParallelProduct(
-        orthogonal_processes,
-        initial_states,
-        nstates,
-        sdims
-    )
+
+    return ParallelProduct(orthogonal_processes, initial_states, nstates, sdims)
 end
 
-function ParallelProduct(orthogonal_processes::Vector, initial_states::InitialStates = AllStates())
+function ParallelProduct(
+    orthogonal_processes::Vector,
+    initial_states::InitialStates = AllStates(),
+)
     orthogonal_processes = convert(Vector{IntervalMarkovProcess}, orthogonal_processes)
-    
-    return ParallelProduct(
-        orthogonal_processes,
-        initial_states
-    )
+
+    return ParallelProduct(orthogonal_processes, initial_states)
 end
 
 subdims(pp::ParallelProduct) = pp.subdims
@@ -92,7 +88,8 @@ dims(pp::ParallelProduct) = Int32(sum(subdims(pp)))
 
 product_num_states(pp::ParallelProduct) = map(product_num_states, pp.orthogonal_processes)
 
-first_transition_prob(pp::ParallelProduct) = first_transition_prob(first(pp.orthogonal_processes))
+first_transition_prob(pp::ParallelProduct) =
+    first_transition_prob(first(pp.orthogonal_processes))
 first_transition_prob(mp::SimpleIntervalMarkovProcess) = transition_prob(mp, 1)
 
 max_actions(pp::ParallelProduct) = maximum(max_actions, orthogonal_processes(pp))

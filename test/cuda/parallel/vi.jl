@@ -132,7 +132,6 @@ V_fixed_it, k, _ = value_iteration(problem)
 @test k == 10
 @test V_fixed_it_ortho ≈ V_fixed_it
 
-
 ######################
 # Nested composition #
 ######################
@@ -150,13 +149,15 @@ V_fixed_it2, k, _ = value_iteration(problem)
 @test k == 10
 @test V_fixed_it1 ≈ V_fixed_it2
 
-nested_product_mdp3 = ParallelProduct([sparse_mdp, ParallelProduct([dense_mdp, sparse_mdp])])
+nested_product_mdp3 =
+    ParallelProduct([sparse_mdp, ParallelProduct([dense_mdp, sparse_mdp])])
 problem = Problem(nested_product_mdp3, spec)
 V_fixed_it3, k, _ = value_iteration(problem)
 @test k == 10
 @test V_fixed_it1 ≈ V_fixed_it3
 
-nested_product_mdp4 = ParallelProduct([ParallelProduct([dense_mdp, sparse_mdp]), sparse_mdp])
+nested_product_mdp4 =
+    ParallelProduct([ParallelProduct([dense_mdp, sparse_mdp]), sparse_mdp])
 problem = Problem(nested_product_mdp4, spec)
 V_fixed_it4, k, _ = value_iteration(problem)
 @test k == 10
@@ -165,27 +166,21 @@ V_fixed_it4, k, _ = value_iteration(problem)
 #################################
 # Test against concrete product #
 #################################
-prob1 = IntervalProbabilities(;
-    lower = [
-        0.2
-        0.1
-    ][:, :],
-    upper = [
-        0.7
-        0.5
-    ][:, :],
-)
+prob1 = IntervalProbabilities(; lower = [
+    0.2
+    0.1
+][:, :], upper = [
+    0.7
+    0.5
+][:, :])
 
-prob2 = IntervalProbabilities(;
-    lower = [
-        0.0
-        1.0
-    ][:, :],
-    upper = [
-        0.0
-        1.0
-    ][:, :],
-)
+prob2 = IntervalProbabilities(; lower = [
+    0.0
+    1.0
+][:, :], upper = [
+    0.0
+    1.0
+][:, :])
 
 transition_probs = [prob1, prob2]
 dense_mdp = IntervalMarkovDecisionProcess(transition_probs)
@@ -220,8 +215,8 @@ function compute_concrete_product_mdp(
             state_lower = Vector{Float64}[]
             state_upper = Vector{Float64}[]
 
-            for a1 in stateptr(mdp1)[s1]:stateptr(mdp1)[s1 + 1] - 1
-                for a2 in stateptr(mdp2)[s2]:stateptr(mdp2)[s2 + 1] - 1
+            for a1 in stateptr(mdp1)[s1]:(stateptr(mdp1)[s1 + 1] - 1)
+                for a2 in stateptr(mdp2)[s2]:(stateptr(mdp2)[s2 + 1] - 1)
                     l1_a1, u1_a1 = lower(prob1)[:, a1], upper(prob1)[:, a1]
                     l2_a2, u2_a2 = lower(prob2)[:, a2], upper(prob2)[:, a2]
 

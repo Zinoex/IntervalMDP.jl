@@ -9,7 +9,9 @@ function IntervalMDP.bellman!(
     maximize = true,
 ) where {Tv}
     max_states_per_block = 32
-    shmem = length(V) * (sizeof(Int32) + sizeof(Tv)) + max_states_per_block * workspace.max_actions * sizeof(Tv)
+    shmem =
+        length(V) * (sizeof(Int32) + sizeof(Tv)) +
+        max_states_per_block * workspace.max_actions * sizeof(Tv)
 
     kernel = @cuda launch = false dense_bellman_kernel!(
         workspace,
@@ -19,7 +21,7 @@ function IntervalMDP.bellman!(
         prob,
         stateptr,
         upper_bound ? (>=) : (<=),
-        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv))
+        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv)),
     )
 
     config = launch_configuration(kernel.fun; shmem = shmem)
@@ -35,7 +37,9 @@ function IntervalMDP.bellman!(
     threads = min(max_threads, wanted_threads)
     warps = div(threads, 32)
     blocks = min(2^16 - 1, cld(length(Vres), warps))
-    shmem = length(V) * (sizeof(Int32) + sizeof(Tv)) + warps * workspace.max_actions * sizeof(Tv)
+    shmem =
+        length(V) * (sizeof(Int32) + sizeof(Tv)) +
+        warps * workspace.max_actions * sizeof(Tv)
 
     kernel(
         workspace,
@@ -74,14 +78,27 @@ function dense_bellman_kernel!(
 
     # Prepare sorting shared memory
     value = CuDynamicSharedArray(Tv, length(V), nwarps * workspace.max_actions * sizeof(Tv))
-    perm = CuDynamicSharedArray(Int32, length(V), (nwarps * workspace.max_actions + length(V)) * sizeof(Tv))
+    perm = CuDynamicSharedArray(
+        Int32,
+        length(V),
+        (nwarps * workspace.max_actions + length(V)) * sizeof(Tv),
+    )
 
     # Perform sorting
     dense_initialize_sorting_shared_memory!(V, value, perm)
     block_bitonic_sort!(value, perm, value_lt)
 
     # O-maxmization
-    dense_omaximization!(action_workspace, strategy_cache, Vres, value, perm, prob, stateptr, action_reduce)
+    dense_omaximization!(
+        action_workspace,
+        strategy_cache,
+        Vres,
+        value,
+        perm,
+        prob,
+        stateptr,
+        action_reduce,
+    )
 
     return nothing
 end
@@ -116,7 +133,17 @@ end
 
     j = wid + (blockIdx().x - one(Int32)) * warps
     @inbounds while j <= length(Vres)
-        state_dense_omaximization!(action_workspace, strategy_cache, Vres, value, perm, prob, stateptr, action_reduce, j)
+        state_dense_omaximization!(
+            action_workspace,
+            strategy_cache,
+            Vres,
+            value,
+            perm,
+            prob,
+            stateptr,
+            action_reduce,
+            j,
+        )
         j += gridDim().x * warps
     end
 
@@ -132,7 +159,7 @@ end
     prob::IntervalProbabilities{Tv},
     stateptr,
     action_reduce,
-    jₛ
+    jₛ,
 ) where {Tv}
     lane = mod1(threadIdx().x, warpsize())
 
@@ -148,14 +175,7 @@ end
         sum_lowerⱼ = sum_lower(prob)[jₐ]
 
         # Use O-maxmization to find the value for the action
-        v = state_action_dense_omaximization!(
-            value,
-            perm,
-            lowerⱼ,
-            gapⱼ,
-            sum_lowerⱼ,
-            lane
-        )
+        v = state_action_dense_omaximization!(value, perm, lowerⱼ, gapⱼ, sum_lowerⱼ, lane)
 
         if lane == one(Int32)
             action_values[k] = v
@@ -173,7 +193,7 @@ end
         jₛ,
         s₁,
         action_reduce,
-        lane
+        lane,
     )
 
     if lane == one(Int32)
@@ -188,7 +208,7 @@ end
     lower,
     gap,
     sum_lower::Tv,
-    lane
+    lane,
 ) where {Tv}
     assume(warpsize() == 32)
 
@@ -281,7 +301,9 @@ function IntervalMDP.bellman!(
     Iother = compute_Iother(V, num_block_indices, workspace.state_index)
 
     max_warps = 32
-    shmem = length(V) * (sizeof(Int32) + sizeof(Tv)) + max_warps * workspace.max_actions * sizeof(Tv)
+    shmem =
+        length(V) * (sizeof(Int32) + sizeof(Tv)) +
+        max_warps * workspace.max_actions * sizeof(Tv)
 
     kernel = @cuda launch = false dense_product_bellman_kernel!(
         workspace,
@@ -293,7 +315,7 @@ function IntervalMDP.bellman!(
         Iblock,
         Iother,
         upper_bound ? (>=) : (<=),
-        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv))
+        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv)),
     )
 
     config = launch_configuration(kernel.fun; shmem = shmem)
@@ -308,7 +330,9 @@ function IntervalMDP.bellman!(
 
     threads = min(max_threads, wanted_threads)
     warps = div(threads, 32)
-    shmem = num_target(prob) * (sizeof(Int32) + sizeof(Tv)) + warps * workspace.max_actions * sizeof(Tv)
+    shmem =
+        num_target(prob) * (sizeof(Int32) + sizeof(Tv)) +
+        warps * workspace.max_actions * sizeof(Tv)
 
     kernel(
         workspace,
@@ -377,8 +401,16 @@ function dense_product_bellman_kernel!(
     @inbounds action_workspace = @view action_workspace[:, wid]
 
     # Prepare sorting shared memory
-    value = CuDynamicSharedArray(Tv, num_target(prob), nwarps * workspace.max_actions * sizeof(Tv))
-    perm = CuDynamicSharedArray(Int32, num_target(prob), (nwarps * workspace.max_actions + num_target(prob)) * sizeof(Tv))
+    value = CuDynamicSharedArray(
+        Tv,
+        num_target(prob),
+        nwarps * workspace.max_actions * sizeof(Tv),
+    )
+    perm = CuDynamicSharedArray(
+        Int32,
+        num_target(prob),
+        (nwarps * workspace.max_actions + num_target(prob)) * sizeof(Tv),
+    )
 
     iblock = Iblock[blockIdx().x]
 
@@ -416,7 +448,17 @@ end
 
     j = wid
     @inbounds while j <= length(Vres)
-        state_dense_omaximization!(action_workspace, strategy_cache, Vres, value, perm, prob, stateptr, action_reduce, j)
+        state_dense_omaximization!(
+            action_workspace,
+            strategy_cache,
+            Vres,
+            value,
+            perm,
+            prob,
+            stateptr,
+            action_reduce,
+            j,
+        )
         j += warps
     end
 

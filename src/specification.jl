@@ -9,18 +9,32 @@ abstract type Property end
 
 function checktimehorizon!(prop, ::StationaryIntervalMarkovProcess)
     if time_horizon(prop) < 1
-        throw(DomainError(time_horizon(prop), "the time horizon of the property must be greater than 0"))
+        throw(
+            DomainError(
+                time_horizon(prop),
+                "the time horizon of the property must be greater than 0",
+            ),
+        )
     end
 end
 
 function checktimehorizon!(prop, system::TimeVaryingIntervalMarkovProcess)
     if time_horizon(prop) < 1
-        throw(DomainError(time_horizon(prop), "the time horizon of the property must be greater than 0"))
+        throw(
+            DomainError(
+                time_horizon(prop),
+                "the time horizon of the property must be greater than 0",
+            ),
+        )
     end
 
     # It is not meaningful to check a property with a different time horizon.
     if time_horizon(prop) != time_length(system)
-        throw(ArgumentError("the time horizon of the property ($(time_horizon(prop))) does not match the time length of the system ($(time_length(system)))"))
+        throw(
+            ArgumentError(
+                "the time horizon of the property ($(time_horizon(prop))) does not match the time length of the system ($(time_length(system)))",
+            ),
+        )
     end
 end
 
@@ -32,12 +46,21 @@ end
 
 function checkconvergence!(prop, ::StationaryIntervalMarkovProcess)
     if convergence_eps(prop) <= 0
-        throw(DomainError(convergence_eps(prop), "the convergence threshold of the property must be greater than 0"))
+        throw(
+            DomainError(
+                convergence_eps(prop),
+                "the convergence threshold of the property must be greater than 0",
+            ),
+        )
     end
 end
 
 function checkconvergence!(prop, ::TimeVaryingIntervalMarkovProcess)
-    throw(ArgumentError("time-varying interval Markov processes are not supported for infinite time properties."))
+    throw(
+        ArgumentError(
+            "time-varying interval Markov processes are not supported for infinite time properties.",
+        ),
+    )
 end
 
 function checkconvergence!(prop, system::ParallelProduct)
@@ -213,7 +236,11 @@ function checkproperty!(prop::InfiniteTimeReachability, system)
 end
 
 function checkproperty!(::InfiniteTimeReachability, ::TimeVaryingIntervalMarkovProcess)
-    throw(ArgumentError("time-varying interval Markov processes are not supported for infinite time properties."))
+    throw(
+        ArgumentError(
+            "time-varying interval Markov processes are not supported for infinite time properties.",
+        ),
+    )
 end
 
 """
@@ -274,7 +301,11 @@ struct FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}} <: AbstractR
     time_horizon::Any
 end
 
-function FiniteTimeReachAvoid(reach::Vector{<:UnionIndex}, avoid::Vector{<:UnionIndex}, time_horizon)
+function FiniteTimeReachAvoid(
+    reach::Vector{<:UnionIndex},
+    avoid::Vector{<:UnionIndex},
+    time_horizon,
+)
     reach = CartesianIndex.(reach)
     avoid = CartesianIndex.(avoid)
     return FiniteTimeReachAvoid(reach, avoid, time_horizon)
@@ -334,7 +365,11 @@ struct InfiniteTimeReachAvoid{R <: Real, VT <: AbstractVector{<:CartesianIndex}}
     convergence_eps::R
 end
 
-function InfiniteTimeReachAvoid(reach::Vector{<:UnionIndex}, avoid::Vector{<:UnionIndex}, convergence_eps)
+function InfiniteTimeReachAvoid(
+    reach::Vector{<:UnionIndex},
+    avoid::Vector{<:UnionIndex},
+    convergence_eps,
+)
     reach = CartesianIndex.(reach)
     avoid = CartesianIndex.(avoid)
     return InfiniteTimeReachAvoid(reach, avoid, convergence_eps)
@@ -347,7 +382,11 @@ function checkproperty!(prop::InfiniteTimeReachAvoid, system)
 end
 
 function checkproperty!(::InfiniteTimeReachAvoid, ::TimeVaryingIntervalMarkovProcess)
-    throw(ArgumentError("time-varying interval Markov processes are not supported for infinite time properties."))
+    throw(
+        ArgumentError(
+            "time-varying interval Markov processes are not supported for infinite time properties.",
+        ),
+    )
 end
 
 """
@@ -443,7 +482,11 @@ function checkreward!(prop::AbstractReward, system::SimpleIntervalMarkovProcess)
     checkdevice!(reward(prop), system)
 
     if length(reward(prop)) != num_states(system)
-        throw(DimensionMismatch("the reward vector must have the same length $(length(reward(prop))) as the number of states $(num_states(system))"))
+        throw(
+            DimensionMismatch(
+                "the reward vector must have the same length $(length(reward(prop))) as the number of states $(num_states(system))",
+            ),
+        )
     end
 
     if discount(prop) <= 0
@@ -453,10 +496,14 @@ end
 
 function checkreward!(prop::AbstractReward, system::ProductIntervalMarkovProcess)
     checkdevice!(reward(prop), system)
-    
+
     pns = product_num_states(system) |> recursiveflatten |> collect
     if length(reward(prop)) != prod(pns)
-        throw(DimensionMismatch("the reward array must have the same dimensions $(size(reward(prop))) as the number of states along each axis $pns"))
+        throw(
+            DimensionMismatch(
+                "the reward array must have the same dimensions $(size(reward(prop))) as the number of states along each axis $pns",
+            ),
+        )
     end
 
     if discount(prop) <= 0
@@ -549,12 +596,21 @@ function checkproperty!(prop::InfiniteTimeReward, system)
     checkreward!(prop, system)
 
     if discount(prop) >= 1
-        throw(DomainError(discount(prop), "the discount factor must be less than 1 for infinite horizon discounted rewards"))
+        throw(
+            DomainError(
+                discount(prop),
+                "the discount factor must be less than 1 for infinite horizon discounted rewards",
+            ),
+        )
     end
 end
 
 function checkproperty!(::InfiniteTimeReward, ::TimeVaryingIntervalMarkovProcess)
-    throw(ArgumentError("time-varying interval Markov processes are not supported for infinite time properties."))
+    throw(
+        ArgumentError(
+            "time-varying interval Markov processes are not supported for infinite time properties.",
+        ),
+    )
 end
 
 """

@@ -37,22 +37,19 @@ function Adapt.adapt_structure(
     )
 end
 
-function Adapt.adapt_structure(
-    T::Type{<:IntervalMDP.CuModelAdaptor},
-    mdp::ParallelProduct,
-)
+function Adapt.adapt_structure(T::Type{<:IntervalMDP.CuModelAdaptor}, mdp::ParallelProduct)
     return ParallelProduct(
-        convert(Vector{IntervalMarkovProcess}, adapt.(T, IntervalMDP.orthogonal_processes(mdp))),
+        convert(
+            Vector{IntervalMarkovProcess},
+            adapt.(T, IntervalMDP.orthogonal_processes(mdp)),
+        ),
         adapt(CuArray{Int32}, initial_states(mdp)),
         num_states(mdp),
         IntervalMDP.subdims(mdp),
     )
 end
 
-Adapt.adapt_structure(
-    T::Type{<:IntervalMDP.CuModelAdaptor},
-    is::AllStates,
-) = is
+Adapt.adapt_structure(T::Type{<:IntervalMDP.CuModelAdaptor}, is::AllStates) = is
 
 include("cuda/utils.jl")
 include("cuda/array.jl")
