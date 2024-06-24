@@ -126,7 +126,7 @@ function ParallelProduct(
     initial_states::InitialStates = AllStates(),
 )
     nstates = Int32(prod(num_states, orthogonal_processes))
-    sdims = map(dims, orthogonal_processes)
+    sdims = map(ndims, orthogonal_processes)
 
     return ParallelProduct(orthogonal_processes, initial_states, nstates, sdims)
 end
@@ -141,15 +141,11 @@ function ParallelProduct(
 end
 
 subdims(pp::ParallelProduct) = pp.subdims
-dims(pp::ParallelProduct) = Int32(sum(subdims(pp)))
+Base.ndims(pp::ParallelProduct) = Int32(sum(subdims(pp)))
 
-product_num_states(pp::ParallelProduct) = map(product_num_states, pp.orthogonal_processes)
-
-first_transition_prob(pp::ParallelProduct) =
-    first_transition_prob(first(pp.orthogonal_processes))
-first_transition_prob(mp::SimpleIntervalMarkovProcess) = transition_prob(mp, 1)
-
+product_num_states(pp::ParallelProduct) = Tuple(collect(map(product_num_states, pp.orthogonal_processes)))
 max_actions(pp::ParallelProduct) = maximum(max_actions, orthogonal_processes(pp))
+transition_matrix_type(pp::ParallelProduct) = transition_matrix_type(first(orthogonal_processes(pp)))
 
 orthogonal_processes(pp::ParallelProduct) = pp.orthogonal_processes
 

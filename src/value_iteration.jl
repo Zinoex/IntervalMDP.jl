@@ -138,14 +138,14 @@ function ValueFunction(problem::Problem)
     pns = product_num_states(mp) |> recursiveflatten
     # Just need any one of the transition probabilities to dispatch
     # to the correct method (based on the type).
-    previous = construct_value_function(gap(first_transition_prob(mp)), pns)
+    previous = construct_value_function(transition_matrix_type(mp), pns)
     intermediate = copy(previous)
     current = copy(previous)
 
     return ValueFunction(previous, intermediate, current)
 end
 
-function construct_value_function(::MR, num_states) where {R, MR <: AbstractMatrix{R}}
+function construct_value_function(::Type{MR}, num_states) where {R, MR <: AbstractMatrix{R}}
     V = zeros(R, num_states)
     return V
 end
