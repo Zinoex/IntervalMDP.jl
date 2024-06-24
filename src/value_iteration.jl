@@ -132,16 +132,7 @@ mutable struct ValueFunction{R, A <: AbstractArray{R}}
     current::A
 end
 
-function ValueFunction(problem::Problem{<:SimpleIntervalMarkovProcess})
-    mp = system(problem)
-
-    previous = construct_value_function(gap(transition_prob(mp, 1)), num_states(mp))
-    current = copy(previous)
-
-    return ValueFunction(previous, previous, current)
-end
-
-function ValueFunction(problem::Problem{<:ProductIntervalMarkovProcess})
+function ValueFunction(problem::Problem)
     mp = system(problem)
 
     pns = product_num_states(mp) |> recursiveflatten
