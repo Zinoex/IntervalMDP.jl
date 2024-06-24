@@ -447,7 +447,7 @@ function checkterminal!(terminal_states, system::SimpleIntervalMarkovProcess)
 end
 
 function checkterminal!(terminal_states, system::ProductIntervalMarkovProcess)
-    pns = product_num_states(system) |> recursiveflatten |> collect
+    pns = product_num_states(system) |> recursiveflatten
     for j in terminal_states
         j = Tuple(j)
 
@@ -504,7 +504,7 @@ end
 function checkreward!(prop::AbstractReward, system::ProductIntervalMarkovProcess)
     checkdevice!(reward(prop), system)
 
-    pns = product_num_states(system) |> recursiveflatten |> collect
+    pns = product_num_states(system) |> recursiveflatten
     if length(reward(prop)) != prod(pns)
         throw(
             DimensionMismatch(

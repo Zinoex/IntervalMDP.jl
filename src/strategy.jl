@@ -185,7 +185,7 @@ end
 orthogonal_caches(cache::ParallelProductStrategyCache) = cache.orthogonal_caches
 
 function construct_strategy_cache(mp::ParallelProduct, config::AbstractStrategyConfig)
-    dims = Tuple(product_num_states(mp) |> recursiveflatten |> collect)
+    dims = product_num_states(mp) |> recursiveflatten
 
     return ParallelProductStrategyCache([
         construct_strategy_cache(orthogonal_process, config, dims) for

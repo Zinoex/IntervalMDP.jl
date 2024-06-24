@@ -144,7 +144,7 @@ end
 function ValueFunction(problem::Problem{<:ProductIntervalMarkovProcess})
     mp = system(problem)
 
-    pns = Tuple(product_num_states(mp) |> recursiveflatten |> collect)
+    pns = product_num_states(mp) |> recursiveflatten
     # Just need any one of the transition probabilities to dispatch
     # to the correct method (based on the type).
     previous = construct_value_function(gap(first_transition_prob(mp)), pns)
