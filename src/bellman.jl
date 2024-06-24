@@ -253,13 +253,41 @@ function gap_value(Vp, sum_lower)
     return res
 end
 
+# Dense
+function bellman!(
+    workspace::DenseProductWorkspace,
+    strategy_cache::AbstractStrategyCache,
+    Vres,
+    V,
+    prob::ProductIntervalProbabilities,
+    stateptr;
+    upper_bound = false,
+    maximize = true,
+)
+    @inbounds for other_index in eachotherindex(V, [workspace.state_index + i - 1 for i in 1:ndims(prob)])
+        Vₒ = selectotherdims(V, workspace.state_index, ndims(prob), other_index)
+        perm = @view workspace.permutation[1:length(Vₒ)]
+        act = workspace.actions
+
+        # rev=true for maximization
+        sortperm!(perm, Vₒ; rev = upper_bound)
+
+        for jₛ in 1:(length(stateptr) - 1)
+            sidx = state_index(workspace, jₛ, other_index)
+            bellman_dense!(act, perm, strategy_cache, Vres, V, Vₒ, prob, stateptr, jₛ, sidx, maximize)
+        end
+    end
+
+    return Vres
+end
+
 #############
 # Composite #
 #############
 
 # Dense
 function bellman!(
-    workspace::DenseProductWorkspace,
+    workspace::DenseParallelWorkspace,
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
@@ -286,7 +314,7 @@ function bellman!(
 end
 
 function bellman!(
-    workspace::ThreadedDenseProductWorkspace,
+    workspace::ThreadedDenseParallelWorkspace,
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,

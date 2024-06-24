@@ -16,6 +16,15 @@ end
     return view(A, idxs...)
 end
 
+@inline function selectotherdims(A::AbstractArray, dim, ndims, idxs)
+    idxs = Tuple(idxs)
+    head, tail = Base.split_rest(idxs, length(idxs) - dim + 1)
+    full_size = (Colon() for _ in 1:ndims)
+    idxs = (head..., full_size..., tail...)
+
+    return view(A, idxs...)
+end
+
 @inline @inbounds maxdiff(x::V) where {V <: AbstractVector} =
     maximum(x[i + 1] - x[i] for i in 1:(length(x) - 1))
 @inline @inbounds mindiff(x::V) where {V <: AbstractVector} =

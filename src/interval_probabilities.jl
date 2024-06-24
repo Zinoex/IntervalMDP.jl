@@ -1,3 +1,5 @@
+abstract type AbstractIntervalProbabilities end
+
 """
     IntervalProbabilities{R, VR <: AbstractVector{R}, MR <: AbstractMatrix{R}}
 
@@ -38,7 +40,7 @@ sparse_prob = IntervalProbabilities(;
 [1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
 
 """
-struct IntervalProbabilities{R, VR <: AbstractVector{R}, MR <: AbstractMatrix{R}}
+struct IntervalProbabilities{R, VR <: AbstractVector{R}, MR <: AbstractMatrix{R}} <: AbstractIntervalProbabilities
     lower::MR
     gap::MR
 
@@ -179,6 +181,7 @@ Return the number of target states.
 """
 num_target(p::IntervalProbabilities) = size(gap(p), 1)
 
+Base.ndims(::IntervalProbabilities) = one(Int32)
 stateptr(prob::IntervalProbabilities) = UnitRange{Int32}(1, num_source(prob) + 1)
 
 function interval_prob_hcat(
@@ -203,3 +206,78 @@ function Base.getindex(p::IntervalProbabilities, J)
 
     return IntervalProbabilities(l, g, sum)
 end
+
+##################################
+# Product Interval Probabilities #
+##################################
+
+"""
+    ProductIntervalProbabilities{N, P <: IntervalProbabilities}
+
+A tuples of `IntervalProbabilities` transition probabilities from all source states or source/action pairs to the
+target states along each dimension. 
+
+### Fields
+- `probs::NTuple{N, P}`: A tuple of `IntervalProbabilities` transition probabilities along each dimension.
+- `dims::NTuple{N, Int32}`: Storing the dimensions of the product MDP.
+
+### Examples
+# TODO: Update example
+```jldoctest
+"""
+struct ProductIntervalProbabilities{N, P <: IntervalProbabilities} <: AbstractIntervalProbabilities
+    probs::NTuple{N, P}
+    dims::NTuple{N, Int32}
+end
+
+"""
+    lower(p::ProductIntervalProbabilities, i)
+
+Return the lower bound transition probabilities from a source state or source/action pair to a target state.
+"""
+lower(p::ProductIntervalProbabilities, i) = p.probs[i].lower
+
+"""
+    upper(p::ProductIntervalProbabilities, i)
+
+Return the upper bound transition probabilities from a source state or source/action pair to a target state.
+
+!!! note
+    It is not recommended to use this function for the hot loop of O-maximization. Because the [`IntervalProbabilities`](@ref)
+    stores the lower and gap transition probabilities, fetching the upper bound requires allocation and computation.
+"""
+upper(p::ProductIntervalProbabilities, i) = p.probs[i].lower + p.probs[i].gap
+
+"""
+    gap(p::ProductIntervalProbabilities, i)
+
+Return the gap between upper and lower bound transition probabilities from a source state or source/action pair to a target state.
+"""
+gap(p::ProductIntervalProbabilities, i) = p.probs[i].gap
+
+"""
+    sum_lower(p::ProductIntervalProbabilities, i) 
+
+Return the sum of lower bound transition probabilities from a source state or source/action pair to all target states.
+This is useful in efficiently implementing O-maximization, where we start with a lower bound probability assignment
+and iteratively, according to the ordering, adding the gap until the sum of probabilities is 1.
+"""
+sum_lower(p::ProductIntervalProbabilities, i) = p.probs[i].sum_lower
+
+"""
+    num_source(p::ProductIntervalProbabilities)
+
+Return the number of source states or source/action pairs.
+"""
+num_source(p::ProductIntervalProbabilities) = num_source(first(p.probs))
+
+"""
+    axes_source(p::ProductIntervalProbabilities)
+
+Return the valid range of indices for the source states or source/action pairs.
+"""
+axes_source(p::ProductIntervalProbabilities) = axes_source(first(p.probs))
+
+num_target(p::ProductIntervalProbabilities) = Tuple(map(num_target, p.probs))
+stateptr(p::ProductIntervalProbabilities) = UnitRange{Int32}(1, num_source(p) + 1)
+Base.ndims(p::ProductIntervalProbabilities) = length(p.probs)

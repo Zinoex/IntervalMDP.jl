@@ -95,6 +95,44 @@ function construct_workspace(p::AbstractSparseMatrix, max_actions; threshold = 1
     end
 end
 
+# Product
+struct DenseProductWorkspace{T <: Real, AT <: Array{T}}
+    expectation_cache::AT
+    permutation::Vector{Int32}
+    actions::Vector{T}
+    state_index::Int32
+end
+
+function DenseProductWorkspace(p::ProductIntervalProbabilities{N, <:IntervalProbabilities{R}}, max_actions) where {N, R}
+    pns = num_target(p)
+    n = maximum(pns)
+
+    pns = pns[1:end - 1]
+
+    perm = Vector{Int32}(undef, n)
+    expectation_cache = zeros(R, pns)
+    actions = Vector{R}(undef, max_actions)
+    return DenseProductWorkspace(expectation_cache, perm, actions, one(Int32))
+end
+
+struct ThreadedDenseProductWorkspace{T, AT}
+    thread_workspaces::Vector{DenseProductWorkspace{T, AT}}
+end
+
+function ThreadedDenseProductWorkspace(p::ProductIntervalProbabilities, max_actions)
+    nthreads = Threads.nthreads()
+    thread_workspaces = [DenseProductWorkspace(p, max_actions) for _ in 1:nthreads]
+    return ThreadedDenseProductWorkspace(thread_workspaces)
+end
+
+function construct_workspace(p::ProductIntervalProbabilities, max_actions)
+    if Threads.nthreads() == 1
+        return DenseProductWorkspace(p, max_actions)
+    else
+        return ThreadedDenseProductWorkspace(p, max_actions)
+    end
+end
+
 #############
 # Composite #
 #############
@@ -121,13 +159,13 @@ function state_index(workspace, j, idxs)
 end
 
 # Dense - simple
-struct DenseProductWorkspace{T <: Real} <: CompositeWorkspace
+struct DenseParallelWorkspace{T <: Real} <: CompositeWorkspace
     permutation::Vector{Int32}
     actions::Vector{T}
     state_index::Int32
 end
 
-function DenseProductWorkspace(
+function DenseParallelWorkspace(
     ::AbstractMatrix{T},
     ntarget,
     max_actions,
@@ -135,25 +173,25 @@ function DenseProductWorkspace(
 ) where {T <: Real}
     perm = Vector{Int32}(undef, ntarget)
     actions = Vector{T}(undef, max_actions)
-    return DenseProductWorkspace(perm, actions, state_index)
+    return DenseParallelWorkspace(perm, actions, state_index)
 end
 
-struct ThreadedDenseProductWorkspace{T <: Real} <: CompositeWorkspace
-    thread_workspaces::Vector{DenseProductWorkspace{T}}
+struct ThreadedDenseParallelWorkspace{T <: Real} <: CompositeWorkspace
+    thread_workspaces::Vector{DenseParallelWorkspace{T}}
     state_index::Int32
 end
 
-function ThreadedDenseProductWorkspace(
+function ThreadedDenseParallelWorkspace(
     p::AbstractMatrix{T},
     ntarget,
     max_actions,
     state_index,
 ) where {T <: Real}
     thread_workspaces = [
-        DenseProductWorkspace(p, ntarget, max_actions, state_index) for
+        DenseParallelWorkspace(p, ntarget, max_actions, state_index) for
         _ in 1:Threads.nthreads()
     ]
-    return ThreadedDenseProductWorkspace(thread_workspaces, state_index)
+    return ThreadedDenseParallelWorkspace(thread_workspaces, state_index)
 end
 
 function _construct_workspace(
@@ -165,10 +203,10 @@ function _construct_workspace(
     mactions = max_actions(mp)
 
     if Threads.nthreads() == 1
-        return DenseProductWorkspace(p, ntarget, mactions, state_index),
+        return DenseParallelWorkspace(p, ntarget, mactions, state_index),
         state_index + one(Int32)
     else
-        return ThreadedDenseProductWorkspace(p, ntarget, mactions, state_index),
+        return ThreadedDenseParallelWorkspace(p, ntarget, mactions, state_index),
         state_index + one(Int32)
     end
 end

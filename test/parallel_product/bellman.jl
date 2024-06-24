@@ -122,7 +122,7 @@ strategy_cache = IntervalMDP.NoStrategyCache()
     )
     @test Vres ≈ Vdes
 
-    ws_direct = IntervalMDP.DenseProductWorkspace(
+    ws_direct = IntervalMDP.DenseParallelWorkspace(
         gap(transition_prob(dense_mdp)),
         num_states(dense_mdp),
         IntervalMDP.max_actions(dense_mdp),
@@ -141,7 +141,7 @@ strategy_cache = IntervalMDP.NoStrategyCache()
     )
     @test Vres ≈ Vdes
 
-    ws_direct = IntervalMDP.ThreadedDenseProductWorkspace(
+    ws_direct = IntervalMDP.ThreadedDenseParallelWorkspace(
         gap(transition_prob(dense_mdp)),
         num_states(dense_mdp),
         IntervalMDP.max_actions(dense_mdp),
@@ -326,7 +326,7 @@ strategy_cache = IntervalMDP.NoStrategyCache()
     )
     @test Vres ≈ Vdes
 
-    ws_direct = IntervalMDP.DenseProductWorkspace(
+    ws_direct = IntervalMDP.DenseParallelWorkspace(
         gap(transition_prob(dense_mdp)),
         num_states(dense_mdp),
         IntervalMDP.max_actions(dense_mdp),
@@ -345,7 +345,7 @@ strategy_cache = IntervalMDP.NoStrategyCache()
     )
     @test Vres ≈ Vdes
 
-    ws_direct = IntervalMDP.ThreadedDenseProductWorkspace(
+    ws_direct = IntervalMDP.ThreadedDenseParallelWorkspace(
         gap(transition_prob(dense_mdp)),
         num_states(dense_mdp),
         IntervalMDP.max_actions(dense_mdp),
@@ -403,7 +403,7 @@ end
     )
     @test Vres ≈ Vdes
 
-    ws_direct = IntervalMDP.DenseProductWorkspace(
+    ws_direct = IntervalMDP.DenseParallelWorkspace(
         gap(transition_prob(dense_mdp)),
         num_states(dense_mdp),
         IntervalMDP.max_actions(dense_mdp),
@@ -422,7 +422,7 @@ end
     )
     @test Vres ≈ Vdes
 
-    ws_direct = IntervalMDP.ThreadedDenseProductWorkspace(
+    ws_direct = IntervalMDP.ThreadedDenseParallelWorkspace(
         gap(transition_prob(dense_mdp)),
         num_states(dense_mdp),
         IntervalMDP.max_actions(dense_mdp),
@@ -607,7 +607,7 @@ end
     )
     @test Vres ≈ Vdes
 
-    ws_direct = IntervalMDP.DenseProductWorkspace(
+    ws_direct = IntervalMDP.DenseParallelWorkspace(
         gap(transition_prob(dense_mdp)),
         num_states(dense_mdp),
         IntervalMDP.max_actions(dense_mdp),
@@ -626,7 +626,7 @@ end
     )
     @test Vres ≈ Vdes
 
-    ws_direct = IntervalMDP.ThreadedDenseProductWorkspace(
+    ws_direct = IntervalMDP.ThreadedDenseParallelWorkspace(
         gap(transition_prob(dense_mdp)),
         num_states(dense_mdp),
         IntervalMDP.max_actions(dense_mdp),
