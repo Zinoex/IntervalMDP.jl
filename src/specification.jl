@@ -432,21 +432,7 @@ Return the set of states to avoid.
 """
 avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
 
-function checkterminal!(terminal_states, system::SimpleIntervalMarkovProcess)
-    nstates = num_states(system)
-    for j in terminal_states
-        if length(j) != 1
-            throw(StateDimensionMismatch(j, 1))
-        end
-
-        j = j[1]
-        if j < 1 || j > nstates
-            throw(InvalidStateError(promote(j, nstates)...))
-        end
-    end
-end
-
-function checkterminal!(terminal_states, system::ProductIntervalMarkovProcess)
+function checkterminal!(terminal_states, system)
     pns = product_num_states(system) |> recursiveflatten
     for j in terminal_states
         j = Tuple(j)
@@ -485,27 +471,11 @@ function postprocess_value_function!(value_function, prop::AbstractReward)
     value_function.current += reward(prop)
 end
 
-function checkreward!(prop::AbstractReward, system::SimpleIntervalMarkovProcess)
-    checkdevice!(reward(prop), system)
-
-    if length(reward(prop)) != num_states(system)
-        throw(
-            DimensionMismatch(
-                "the reward vector must have the same length $(length(reward(prop))) as the number of states $(num_states(system))",
-            ),
-        )
-    end
-
-    if discount(prop) <= 0
-        throw(DomainError(discount(prop), "the discount factor must be greater than 0"))
-    end
-end
-
-function checkreward!(prop::AbstractReward, system::ProductIntervalMarkovProcess)
+function checkreward!(prop::AbstractReward, system)
     checkdevice!(reward(prop), system)
 
     pns = product_num_states(system) |> recursiveflatten
-    if length(reward(prop)) != prod(pns)
+    if size(reward(prop)) != pns
         throw(
             DimensionMismatch(
                 "the reward array must have the same dimensions $(size(reward(prop))) as the number of states along each axis $pns",
@@ -518,14 +488,18 @@ function checkreward!(prop::AbstractReward, system::ProductIntervalMarkovProcess
     end
 end
 
-function checkdevice!(v::AbstractArray, system::ProductIntervalMarkovProcess)
+function checkdevice!(v::AbstractArray, system::ParallelProduct)
     for orthogonal_process in orthogonal_processes(system)
         checkdevice!(v, orthogonal_process)
     end
 end
 
-function checkdevice!(v::AbstractArray, system::SimpleIntervalMarkovProcess)
+function checkdevice!(v::AbstractArray, system::TimeVaryingIntervalMarkovDecisionProcess)
     checkdevice!(v, transition_prob(system, 1))
+end
+
+function checkdevice!(v::AbstractArray, system::StationaryIntervalMarkovProcess)
+    checkdevice!(v, transition_prob(system))
 end
 
 function checkdevice!(v::AbstractArray, p::IntervalProbabilities)

@@ -39,6 +39,8 @@ depends on the configuration and the device to store the strategy depends on the
 """
 function construct_strategy_cache end
 
+construct_strategy_cache(mp::IntervalMarkovProcess, config) = construct_strategy_cache(mp, config, product_num_states(mp) |> recursiveflatten)
+
 # Strategy cache for not storing policies - useful for dispatching
 struct NoStrategyCache <: AbstractStrategyCache end
 
@@ -46,11 +48,7 @@ function construct_strategy_cache(::IntervalProbabilities, ::NoStrategyConfig)
     return NoStrategyCache()
 end
 
-function construct_strategy_cache(::SimpleIntervalMarkovProcess, ::NoStrategyConfig)
-    return NoStrategyCache()
-end
-
-function construct_strategy_cache(::SimpleIntervalMarkovProcess, ::NoStrategyConfig, dims)
+function construct_strategy_cache(mp::SimpleIntervalMarkovProcess, ::NoStrategyConfig, dims)
     return NoStrategyCache()
 end
 
@@ -67,14 +65,6 @@ end
 
 function TimeVaryingStrategyCache(cur_strategy::A) where {A}
     return TimeVaryingStrategyCache(cur_strategy, Vector{A}())
-end
-
-function construct_strategy_cache(
-    mp::M,
-    ::TimeVaryingStrategyConfig,
-) where {M <: SimpleIntervalMarkovProcess}
-    cur_strategy = construct_action_cache(transition_prob(mp, 1), num_states(mp))
-    return TimeVaryingStrategyCache(cur_strategy)
 end
 
 function construct_strategy_cache(
@@ -118,14 +108,6 @@ end
 # Strategy cache for storing stationary policies
 struct StationaryStrategyCache{A <: AbstractArray{Int32}} <: AbstractStrategyCache
     strategy::A
-end
-
-function construct_strategy_cache(
-    mp::M,
-    ::StationaryStrategyConfig,
-) where {M <: SimpleIntervalMarkovProcess}
-    strategy = construct_action_cache(transition_prob(mp), num_states(mp))
-    return StationaryStrategyCache(strategy)
 end
 
 function construct_strategy_cache(
@@ -183,15 +165,6 @@ struct ParallelProductStrategyCache <: ProductStrategyCache
     orthogonal_caches::Vector{AbstractStrategyCache}
 end
 orthogonal_caches(cache::ParallelProductStrategyCache) = cache.orthogonal_caches
-
-function construct_strategy_cache(mp::ParallelProduct, config::AbstractStrategyConfig)
-    dims = product_num_states(mp) |> recursiveflatten
-
-    return ParallelProductStrategyCache([
-        construct_strategy_cache(orthogonal_process, config, dims) for
-        orthogonal_process in orthogonal_processes(mp)
-    ])
-end
 
 function construct_strategy_cache(mp::ParallelProduct, config::AbstractStrategyConfig, dims)
     return ParallelProductStrategyCache([
