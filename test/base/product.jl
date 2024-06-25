@@ -1,9 +1,10 @@
 using LazySets
 using SpecialFunctions: erf
+using LinearAlgebra: I
 
 function IMDP_abstraction()
-    A = 0.9 * zeros(2, 2)
-    B = 0.7 * zeros(2, 2)
+    A = 0.9 * I
+    B = 0.7 * I
     sigma = 2.0
 
     X = Hyperrectangle(; low=[-10.0, -10.0], high=[10.0, 10.0])
@@ -29,7 +30,6 @@ function IMDP_abstraction()
 
     U_split = split(U, [3, 3])
 
-    # TODO: Check transition probabilities
     transition_prob(x, v_lower, v_upper) = 0.5 * erf((x - v_upper) / (sigma * sqrt(2.0)), (x - v_lower) / (sigma * sqrt(2.0)))
 
     probs1 = IntervalProbabilities{Float64, Vector{Float64}, Matrix{Float64}}[]
@@ -57,8 +57,7 @@ function IMDP_abstraction()
                 for u in U_split
                     Xij_u = A * X_split[source1 - 1, source2 - 1] + B * u
                     Xij_u = box_approximation(Xij_u)
-                    # TODO: Something is wrong since each action has the same probabilities.
-
+                    
                     probs1_lower = zeros(l[1] + 1, 1)
                     probs1_upper = zeros(l[1] + 1, 1)
 
@@ -145,7 +144,7 @@ end
 
 pmdp, reach_set, avoid_set = IMDP_abstraction()
 
-prop = FiniteTimeReachAvoid(reach_set, avoid_set, 1)
+prop = FiniteTimeReachAvoid(reach_set, avoid_set, 10)
 spec = Specification(prop, Pessimistic, Maximize)
 prob = Problem(pmdp, spec)
 
