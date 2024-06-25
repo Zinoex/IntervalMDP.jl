@@ -264,8 +264,6 @@ function bellman!(
     upper_bound = false,
     maximize = true,
 )
-    println("Starting bellman!")
-
     @inbounds for other_index in eachotherindex(V, [workspace.state_index + i - 1 for i in 1:ndims(prob)])
         Vₒ = selectotherdims(V, workspace.state_index, ndims(prob), other_index)
 
@@ -311,10 +309,6 @@ function bellman!(
                 end
 
                 actions[i] = Vₑ[1]
-            end
-
-            if jₛ_cart == CartesianIndex(2, 2)
-                display(actions)
             end
 
             Vres[sidx_cart] = extract_strategy!(strategy_cache, actions, V, sidx_cart, sidx_linear, s₁, maximize)
