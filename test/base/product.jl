@@ -14,7 +14,6 @@ function IMDP_orthogonal_abstraction()
 
     reach_region = Hyperrectangle(; low=[4.0, -6.0], high=[10.0, -2.0])
 
-    # TODO: Change this to be asymmetric - requires changing the reach region.
     l = [5, 5]
     X1_split = split(X1, l[1])
     X2_split = split(X2, l[2])
