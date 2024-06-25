@@ -109,7 +109,7 @@ function bellman!(
     upper_bound = false,
     maximize = true,
 )
-    # rev=true for maximization
+    # rev=true for upper bound
     sortperm!(workspace.permutation, V; rev = upper_bound)
 
     for jₛ in 1:(length(stateptr) - 1)
@@ -130,7 +130,7 @@ function bellman!(
     upper_bound = false,
     maximize = true,
 )
-    # rev=true for maximization
+    # rev=true for upper bound
     sortperm!(workspace.permutation, V; rev = upper_bound)
 
     @threadstid tid for jₛ in 1:(length(stateptr) - 1)
@@ -226,7 +226,7 @@ function bellman_sparse!(workspace, strategy_cache, Vres, V, Vₒ, prob, statept
                 Vp_workspace[i] = (V, p)
             end
 
-            # rev=true for maximization
+            # rev=true for upper bound
             sort!(Vp_workspace; rev = upper_bound, by = first)
 
             action_values[i] = dot(Vₒ, lowerⱼ) + gap_value(Vp_workspace, used)
@@ -280,7 +280,7 @@ function bellman!(
                     Vᵢ = @view Vₒ[inner_other_index, :]
                     perm = @view workspace.permutation[1:length(Vᵢ)]
 
-                    # rev=true for maximization
+                    # rev=true for upper bound
                     sortperm!(perm, Vᵢ; rev = upper_bound)
 
                     lowerⱼ = @view lower(prob[end])[:, jₐ]
@@ -297,7 +297,7 @@ function bellman!(
                         Vᵢ = @view Vₑ[inner_other_index, :]
                         perm = @view workspace.permutation[1:length(Vᵢ)]
     
-                        # rev=true for maximization
+                        # rev=true for upper bound
                         sortperm!(perm, Vᵢ; rev = upper_bound)
     
                         lowerⱼ = @view lower(prob[d])[:, jₐ]
@@ -338,7 +338,7 @@ function bellman!(
         perm = @view workspace.permutation[1:length(Vₒ)]
         act = workspace.actions
 
-        # rev=true for maximization
+        # rev=true for upper bound
         sortperm!(perm, Vₒ; rev = upper_bound)
 
         for jₛ in 1:(length(stateptr) - 1)
@@ -367,7 +367,7 @@ function bellman!(
         perm = @view ws.permutation[1:length(Vₒ)]
         act = ws.actions
 
-        # rev=true for maximization
+        # rev=true for upper bound
         sortperm!(perm, Vₒ; rev = upper_bound)
 
         for jₛ in 1:(length(stateptr) - 1)
