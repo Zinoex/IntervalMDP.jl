@@ -281,3 +281,8 @@ axes_source(p::ProductIntervalProbabilities) = axes_source(first(p.probs))
 num_target(p::ProductIntervalProbabilities) = Tuple(map(num_target, p.probs))
 stateptr(p::ProductIntervalProbabilities) = UnitRange{Int32}(1, num_source(p) + 1)
 Base.ndims(p::ProductIntervalProbabilities) = length(p.probs)
+
+Base.getindex(p::ProductIntervalProbabilities, i) = p.probs[i]
+Base.lastindex(p::ProductIntervalProbabilities) = length(p.probs)
+Base.firstindex(p::ProductIntervalProbabilities) = 1
+Base.length(p::ProductIntervalProbabilities) = length(p.probs)

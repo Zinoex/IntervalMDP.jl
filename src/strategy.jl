@@ -52,7 +52,7 @@ function construct_strategy_cache(mp::SimpleIntervalMarkovProcess, ::NoStrategyC
     return NoStrategyCache()
 end
 
-function extract_strategy!(::NoStrategyCache, values, V, j, s₁, maximize)
+function extract_strategy!(::NoStrategyCache, values, V, jᵥ, jₐ, s₁, maximize)
     return maximize ? maximum(values) : minimum(values)
 end
 postprocess_strategy_cache!(::NoStrategyCache) = nothing
@@ -91,7 +91,8 @@ function extract_strategy!(
     strategy_cache::TimeVaryingStrategyCache,
     values::AbstractArray{R},
     V,
-    j,
+    jᵥ,
+    jₐ,
     s₁,
     maximize,
 ) where {R <: Real}
@@ -99,7 +100,7 @@ function extract_strategy!(
     opt_index = s₁
     neutral = (opt_val, opt_index)
 
-    return _extract_strategy!(strategy_cache.cur_strategy, values, neutral, j, s₁, maximize)
+    return _extract_strategy!(strategy_cache.cur_strategy, values, neutral, jₐ, s₁, maximize)
 end
 function postprocess_strategy_cache!(strategy_cache::TimeVaryingStrategyCache)
     push!(strategy_cache.strategy, copy(strategy_cache.cur_strategy))
@@ -127,17 +128,18 @@ function extract_strategy!(
     strategy_cache::StationaryStrategyCache,
     values::AbstractArray{R},
     V,
-    j,
+    jᵥ,
+    jₐ,
     s₁,
     maximize,
 ) where {R <: Real}
-    neutral = if iszero(strategy_cache.strategy[j])
+    neutral = if iszero(strategy_cache.strategy[jₐ])
         maximize ? typemin(R) : typemax(R), s₁
     else
-        V[j], strategy_cache.strategy[j]
+        V[jᵥ], strategy_cache.strategy[jₐ]
     end
 
-    return _extract_strategy!(strategy_cache.strategy, values, neutral, j, s₁, maximize)
+    return _extract_strategy!(strategy_cache.strategy, values, neutral, jₐ, s₁, maximize)
 end
 postprocess_strategy_cache!(::StationaryStrategyCache) = nothing
 

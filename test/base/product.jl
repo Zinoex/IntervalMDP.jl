@@ -13,6 +13,7 @@ function IMDP_abstraction()
 
     reach_region = Hyperrectangle(; low=[4.0, -6.0], high=[10.0, -2.0])
 
+    # TODO: Change this to be asymmetric - requires changing the reach region.
     l = [5, 5]
     X1_split = split(X1, l[1])
     X2_split = split(X2, l[2])
@@ -28,6 +29,7 @@ function IMDP_abstraction()
 
     U_split = split(U, [3, 3])
 
+    # TODO: Check transition probabilities
     transition_prob(x, v_lower, v_upper) = 0.5 * erf((x - v_upper) / (sigma * sqrt(2.0)), (x - v_lower) / (sigma * sqrt(2.0)))
 
     probs1 = IntervalProbabilities{Float64, Vector{Float64}, Matrix{Float64}}[]
@@ -55,6 +57,7 @@ function IMDP_abstraction()
                 for u in U_split
                     Xij_u = A * X_split[source1 - 1, source2 - 1] + B * u
                     Xij_u = box_approximation(Xij_u)
+                    # TODO: Something is wrong since each action has the same probabilities.
 
                     probs1_lower = zeros(l[1] + 1, 1)
                     probs1_upper = zeros(l[1] + 1, 1)
@@ -99,13 +102,13 @@ function IMDP_abstraction()
                             )
                         else
                             probs2_upper[target2, 1] = max(
-                                transition_prob(center(Xij_u)[2], low(X1_split[target2 - 1])[1], high(X1_split[target2 - 1])[1]),
-                                transition_prob(low(Xij_u)[2], low(X1_split[target2 - 1])[1], high(X1_split[target2 - 1])[1]),
-                                transition_prob(high(Xij_u)[2], low(X1_split[target2 - 1])[1], high(X1_split[target2 - 1])[1])
+                                transition_prob(center(Xij_u)[2], low(X2_split[target2 - 1])[1], high(X2_split[target2 - 1])[1]),
+                                transition_prob(low(Xij_u)[2], low(X2_split[target2 - 1])[1], high(X2_split[target2 - 1])[1]),
+                                transition_prob(high(Xij_u)[2], low(X2_split[target2 - 1])[1], high(X2_split[target2 - 1])[1])
                             )
                             probs2_lower[target2, 1] = min(
-                                transition_prob(low(Xij_u)[2], low(X1_split[target2 - 1])[1], high(X1_split[target2 - 1])[1]),
-                                transition_prob(high(Xij_u)[2], low(X1_split[target2 - 1])[1], high(X1_split[target2 - 1])[1])
+                                transition_prob(low(Xij_u)[2], low(X2_split[target2 - 1])[1], high(X2_split[target2 - 1])[1]),
+                                transition_prob(high(Xij_u)[2], low(X2_split[target2 - 1])[1], high(X2_split[target2 - 1])[1])
                             )
                         end
                     end
@@ -142,7 +145,7 @@ end
 
 pmdp, reach_set, avoid_set = IMDP_abstraction()
 
-prop = FiniteTimeReachAvoid(reach_set, avoid_set, 10)
+prop = FiniteTimeReachAvoid(reach_set, avoid_set, 1)
 spec = Specification(prop, Pessimistic, Maximize)
 prob = Problem(pmdp, spec)
 

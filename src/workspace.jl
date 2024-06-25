@@ -151,13 +151,6 @@ construct_workspace(mp::ParallelProduct) = _construct_workspace(mp)
 
 abstract type CompositeWorkspace end
 
-function state_index(workspace, j, idxs)
-    idxs = Tuple(idxs)
-    head, tail = Base.split_rest(idxs, length(idxs) - workspace.state_index + 1)
-    idx = CartesianIndex(head..., j, tail...)
-    return idx
-end
-
 # Dense - simple
 struct DenseParallelWorkspace{T <: Real} <: CompositeWorkspace
     permutation::Vector{Int32}

@@ -153,7 +153,7 @@ function bellman_dense!(actions, permutation, strategy_cache, Vres, V, Vₒ, pro
             actions[i] = dot(Vₒ, lowerⱼ) + gap_value(Vₒ, gapⱼ, used, permutation)
         end
 
-        Vres[sidx] = extract_strategy!(strategy_cache, actions, V, sidx, s₁, maximize)
+        Vres[sidx] = extract_strategy!(strategy_cache, actions, V, sidx, sidx, s₁, maximize)
     end
 end
 
@@ -232,7 +232,7 @@ function bellman_sparse!(workspace, strategy_cache, Vres, V, Vₒ, prob, statept
             action_values[i] = dot(Vₒ, lowerⱼ) + gap_value(Vp_workspace, used)
         end
 
-        Vres[sidx] = extract_strategy!(strategy_cache, action_values, V, sidx, s₁, maximize)
+        Vres[sidx] = extract_strategy!(strategy_cache, action_values, V, sidx, sidx, s₁, maximize)
     end
 end
 
@@ -264,17 +264,60 @@ function bellman!(
     upper_bound = false,
     maximize = true,
 )
+    println("Starting bellman!")
+
     @inbounds for other_index in eachotherindex(V, [workspace.state_index + i - 1 for i in 1:ndims(prob)])
         Vₒ = selectotherdims(V, workspace.state_index, ndims(prob), other_index)
-        perm = @view workspace.permutation[1:length(Vₒ)]
-        act = workspace.actions
 
-        # rev=true for maximization
-        sortperm!(perm, Vₒ; rev = upper_bound)
+        for (jₛ_cart, jₛ_linear) in zip(CartesianIndices(axes(Vₒ)), LinearIndices(axes(Vₒ)))
+            sidx_cart = state_index(workspace, jₛ_cart, other_index)
+            sidx_linear = state_index(workspace, jₛ_linear, other_index)
 
-        for jₛ in 1:(length(stateptr) - 1)
-            sidx = state_index(workspace, jₛ, other_index)
-            bellman_dense!(act, perm, strategy_cache, Vres, V, Vₒ, prob, stateptr, jₛ, sidx, maximize)
+            s₁, s₂ = stateptr[jₛ_linear], stateptr[jₛ_linear + 1]
+            actions = @view workspace.actions[1:(s₂ - s₁)]
+            for (i, jₐ) in enumerate(s₁:(s₂ - 1))
+                Vₑ = workspace.expectation_cache
+
+                for inner_other_index in eachotherindex(Vₒ, ndims(Vₒ))
+                    Vᵢ = @view Vₒ[inner_other_index, :]
+                    perm = @view workspace.permutation[1:length(Vᵢ)]
+
+                    # rev=true for maximization
+                    sortperm!(perm, Vᵢ; rev = upper_bound)
+
+                    lowerⱼ = @view lower(prob[end])[:, jₐ]
+                    gapⱼ = @view gap(prob[end])[:, jₐ]
+                    used = sum_lower(prob[end])[jₐ]
+
+                    Vₑ[inner_other_index] = dot(Vᵢ, lowerⱼ) + gap_value(Vᵢ, gapⱼ, used, perm)
+                end
+
+                for d in reverse(1:ndims(prob) - 1)
+                    Vₑ = @view Vₑ[(Colon() for _ in 1:d)..., 1]
+
+                    for inner_other_index in eachotherindex(Vₑ, ndims(Vₑ))
+                        Vᵢ = @view Vₑ[inner_other_index, :]
+                        perm = @view workspace.permutation[1:length(Vᵢ)]
+    
+                        # rev=true for maximization
+                        sortperm!(perm, Vᵢ; rev = upper_bound)
+    
+                        lowerⱼ = @view lower(prob[d])[:, jₐ]
+                        gapⱼ = @view gap(prob[d])[:, jₐ]
+                        used = sum_lower(prob[d])[jₐ]
+    
+                        Vₑ[inner_other_index, 1] = dot(Vᵢ, lowerⱼ) + gap_value(Vᵢ, gapⱼ, used, perm)
+                    end
+                end
+
+                actions[i] = Vₑ[1]
+            end
+
+            if jₛ_cart == CartesianIndex(2, 2)
+                display(actions)
+            end
+
+            Vres[sidx_cart] = extract_strategy!(strategy_cache, actions, V, sidx_cart, sidx_linear, s₁, maximize)
         end
     end
 
