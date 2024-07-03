@@ -1,3 +1,6 @@
+using Revise, Test
+using IntervalMDP
+
 # LTL
 prop = LTLFormula("G !avoid")
 @test !isfinitetime(prop)

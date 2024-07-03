@@ -1,3 +1,6 @@
+using Revise, Test
+using IntervalMDP
+
 using LazySets
 using SpecialFunctions: erf
 using LinearAlgebra: I

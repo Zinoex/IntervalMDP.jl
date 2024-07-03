@@ -1,3 +1,6 @@
+using Revise, Test
+using IntervalMDP, IntervalMDP.Data, SparseArrays
+
 # Read MDP
 mdp, tstates = read_bmdp_tool_file("data/multiObj_robotIMDP.txt")
 

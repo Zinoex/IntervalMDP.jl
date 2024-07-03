@@ -1,3 +1,6 @@
+using Revise, Test
+using IntervalMDP, IntervalMDP.Data, SparseArrays
+
 ## Read PRISM file
 problem = read_prism_file("data/multiObj_robotIMDP")
 

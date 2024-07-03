@@ -1,3 +1,6 @@
+using Revise, Test
+using IntervalMDP, SparseArrays
+
 #### Maximization
 @testset "maximization" begin
     prob = IntervalProbabilities(;

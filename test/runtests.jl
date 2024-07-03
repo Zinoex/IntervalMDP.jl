@@ -1,6 +1,4 @@
-using Test
-using Random, StatsBase
-using IntervalMDP, SparseArrays, CUDA
+using Test, CUDA
 
 @testset verbose = true "IntervalMDP.jl" begin
     @testset verbose = true "base" include("base/base.jl")

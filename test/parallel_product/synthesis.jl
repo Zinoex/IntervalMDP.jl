@@ -1,3 +1,5 @@
+using Revise, Test
+using IntervalMDP, SparseArrays
 
 prob1 = IntervalProbabilities(;
     lower = [

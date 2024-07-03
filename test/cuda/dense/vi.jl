@@ -1,4 +1,5 @@
-prob = IntervalProbabilities(;
+using Revise, Test
+using IntervalMDP, SparseArrays, CUDAprob = IntervalProbabilities(;
     lower = [
         0.0 0.5 0.0
         0.1 0.3 0.0
