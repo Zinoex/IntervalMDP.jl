@@ -168,13 +168,15 @@ function IMDP_direct_abstraction()
                     Complement(Interval(low(X, 2), high(X, 2)))
                 )
             elseif i == 1
+                x2 = X2_split[j - 1]
                 X_split[i, j] = CartesianProduct(
                     Complement(Interval(low(X, 1), high(X, 1))),
-                    Interval(low(X, 2), high(X, 2))
+                    Interval(low(x2, 1), high(x2, 1))
                 )
             elseif j == 1
+                x1 = X1_split[i - 1]
                 X_split[i, j] = CartesianProduct(
-                    Interval(low(X, 1), high(X, 1)),
+                    Interval(low(x1, 1), high(x1, 1)),
                     Complement(Interval(low(X, 2), high(X, 2)))
                 )
             else
@@ -229,9 +231,15 @@ function IMDP_direct_abstraction()
                                     1 - transition_prob(low(box_Xij_u)[2], low(X)[2], high(X)[2]),
                                     1 - transition_prob(high(box_Xij_u)[2], low(X)[2], high(X)[2])
                                 )
-                                prob_lower[target] = minimum(vertices_list(box_Xij_u)) do v
-                                    (1 - transition_prob(v[1], low(X)[1], high(X)[1])) * (1 - transition_prob(v[2], low(X)[2], high(X)[2]))
-                                end
+                                prob_lower[target] = min(
+                                    1 - transition_prob(center(box_Xij_u)[1], low(X)[1], high(X)[1]),
+                                    1 - transition_prob(low(box_Xij_u)[1], low(X)[1], high(X)[1]),
+                                    1 - transition_prob(high(box_Xij_u)[1], low(X)[1], high(X)[1])
+                                ) * min(
+                                    1 - transition_prob(center(box_Xij_u)[2], low(X)[2], high(X)[2]),
+                                    1 - transition_prob(low(box_Xij_u)[2], low(X)[2], high(X)[2]),
+                                    1 - transition_prob(high(box_Xij_u)[2], low(X)[2], high(X)[2])
+                                )
                             elseif target1 == 1
                                 prob_upper[target] = max(
                                     1 - transition_prob(low(box_Xij_u)[1], low(X)[1], high(X)[1]),
@@ -241,9 +249,14 @@ function IMDP_direct_abstraction()
                                     transition_prob(low(box_Xij_u)[2], low(Xij_target.Y)[1], high(Xij_target.Y)[1]),
                                     transition_prob(high(box_Xij_u)[2], low(Xij_target.Y)[1], high(Xij_target.Y)[1])
                                 )
-                                prob_lower[target] = minimum(vertices_list(box_Xij_u)) do v
-                                    (1 - transition_prob(v[1], low(X)[1], high(X)[1])) * transition_prob(v[2], low(Xij_target.Y)[1], high(Xij_target.Y)[1])
-                                end
+                                prob_lower[target] = min(
+                                    1 - transition_prob(center(box_Xij_u)[1], low(X)[1], high(X)[1]),
+                                    1 - transition_prob(low(box_Xij_u)[1], low(X)[1], high(X)[1]),
+                                    1 - transition_prob(high(box_Xij_u)[1], low(X)[1], high(X)[1])
+                                ) * min(
+                                    transition_prob(low(box_Xij_u)[2], low(Xij_target.Y)[1], high(Xij_target.Y)[1]),
+                                    transition_prob(high(box_Xij_u)[2], low(Xij_target.Y)[1], high(Xij_target.Y)[1])
+                                )
                             elseif target2 == 1
                                 prob_upper[target] = max(
                                     transition_prob(center(box_Xij_u)[1], low(Xij_target.X)[1], high(Xij_target.X)[1]),
@@ -253,9 +266,14 @@ function IMDP_direct_abstraction()
                                     1 - transition_prob(low(box_Xij_u)[2], low(X)[2], high(X)[2]),
                                     1 - transition_prob(high(box_Xij_u)[2], low(X)[2], high(X)[2])
                                 )
-                                prob_lower[target] = minimum(vertices_list(box_Xij_u)) do v
-                                    transition_prob(v[1], low(Xij_target.X)[1], high(Xij_target.X)[1]) * (1 - transition_prob(v[2], low(X)[2], high(X)[2]))
-                                end
+                                prob_lower[target] = min(
+                                    transition_prob(low(box_Xij_u)[1], low(Xij_target.X)[1], high(Xij_target.X)[1]),
+                                    transition_prob(high(box_Xij_u)[1], low(Xij_target.X)[1], high(Xij_target.X)[1])
+                                ) * min(
+                                    1 - transition_prob(center(box_Xij_u)[2], low(X)[1], high(X)[1]),
+                                    1 - transition_prob(low(box_Xij_u)[2], low(X)[1], high(X)[1]),
+                                    1 - transition_prob(high(box_Xij_u)[2], low(X)[1], high(X)[1])
+                                )
                             else
                                 prob_upper[target] = max(
                                     transition_prob(center(box_Xij_u)[1], low(Xij_target)[1], high(Xij_target)[1]),
@@ -266,16 +284,19 @@ function IMDP_direct_abstraction()
                                     transition_prob(low(box_Xij_u)[2], low(Xij_target)[2], high(Xij_target)[2]),
                                     transition_prob(high(box_Xij_u)[2], low(Xij_target)[2], high(Xij_target)[2])
                                 )
-                                prob_lower[target] = minimum(vertices_list(box_Xij_u)) do v
-                                    transition_prob(v[1], low(Xij_target)[1], high(Xij_target)[1]) * transition_prob(v[2], low(Xij_target)[2], high(Xij_target)[2])
-                                end
+                                prob_lower[target] = min(
+                                    transition_prob(low(box_Xij_u)[1], low(Xij_target)[1], high(Xij_target)[1]),
+                                    transition_prob(high(box_Xij_u)[1], low(Xij_target)[1], high(Xij_target)[1])
+                                ) * min(
+                                    transition_prob(low(box_Xij_u)[2], low(Xij_target)[2], high(Xij_target)[2]),
+                                    transition_prob(high(box_Xij_u)[2], low(Xij_target)[2], high(Xij_target)[2])
+                                )
                             end
                         end
                     end
 
                     push!(probs_lower, prob_lower)
                     push!(probs_upper, prob_upper)
-                    
                 end
             end
 
