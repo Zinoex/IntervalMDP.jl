@@ -107,7 +107,7 @@ function DenseProductWorkspace(p::ProductIntervalProbabilities{N, <:IntervalProb
     pns = num_target(p)
     n = maximum(pns)
 
-    pns = pns[1:end - 1]
+    pns = pns[2:end]
 
     perm = Vector{Int32}(undef, n)
     expectation_cache = zeros(R, pns)

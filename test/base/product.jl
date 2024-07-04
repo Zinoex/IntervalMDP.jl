@@ -333,18 +333,18 @@ pmdp, reach_set, avoid_set = IMDP_orthogonal_abstraction()
 
 prop = FiniteTimeReachAvoid(reach_set, avoid_set, 10)
 spec = Specification(prop, Pessimistic, Maximize)
-prob = Problem(pmdp, spec)
+prob_ortho = Problem(pmdp, spec)
 
-V_ortho, it_ortho, res_ortho = value_iteration(prob)
+V_ortho, it_ortho, res_ortho = value_iteration(prob_ortho)
 
 # Direct abstraction
 mdp, reach_set, avoid_set = IMDP_direct_abstraction()
 
 prop = FiniteTimeReachAvoid(reach_set, avoid_set, 10)
 spec = Specification(prop, Pessimistic, Maximize)
-prob = Problem(mdp, spec)
+prob_direct = Problem(mdp, spec)
 
-V_direct, it_direct, res_direct = value_iteration(prob)
+V_direct, it_direct, res_direct = value_iteration(prob_direct)
 
 @test it_ortho == it_direct
 @test all(V_ortho .≥ reshape(V_direct, 6, 6))

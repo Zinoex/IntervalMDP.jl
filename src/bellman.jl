@@ -276,36 +276,12 @@ function bellman!(
             for (i, jₐ) in enumerate(s₁:(s₂ - 1))
                 Vₑ = workspace.expectation_cache
 
-                for inner_other_index in eachotherindex(Vₒ, ndims(Vₒ))
-                    Vᵢ = @view Vₒ[inner_other_index, :]
-                    perm = @view workspace.permutation[1:length(Vᵢ)]
+                product_inner_bellman!(workspace, Vₒ, Vₑ, prob[1], jₐ, upper_bound)
 
-                    # rev=true for upper bound
-                    sortperm!(perm, Vᵢ; rev = upper_bound)
-
-                    lowerⱼ = @view lower(prob[end])[:, jₐ]
-                    gapⱼ = @view gap(prob[end])[:, jₐ]
-                    used = sum_lower(prob[end])[jₐ]
-
-                    Vₑ[inner_other_index] = dot(Vᵢ, lowerⱼ) + gap_value(Vᵢ, gapⱼ, used, perm)
-                end
-
-                for d in reverse(1:ndims(prob) - 1)
-                    Vₑ = @view Vₑ[(Colon() for _ in 1:d)..., 1]
-
-                    for inner_other_index in eachotherindex(Vₑ, ndims(Vₑ))
-                        Vᵢ = @view Vₑ[inner_other_index, :]
-                        perm = @view workspace.permutation[1:length(Vᵢ)]
-    
-                        # rev=true for upper bound
-                        sortperm!(perm, Vᵢ; rev = upper_bound)
-    
-                        lowerⱼ = @view lower(prob[d])[:, jₐ]
-                        gapⱼ = @view gap(prob[d])[:, jₐ]
-                        used = sum_lower(prob[d])[jₐ]
-    
-                        Vₑ[inner_other_index, 1] = dot(Vᵢ, lowerⱼ) + gap_value(Vᵢ, gapⱼ, used, perm)
-                    end
+                for d in 2:ndims(prob)
+                    Vᵣ = @view Vₑ[1, (Colon() for _ in 1:ndims(Vₑ) - 1)...]
+                    product_inner_bellman!(workspace, Vₑ, Vᵣ, prob[d], jₐ, upper_bound)
+                    Vₑ = @view Vₑ[1, (Colon() for _ in 1:ndims(Vₑ) - 1)...]
                 end
 
                 actions[i] = Vₑ[1]
@@ -316,6 +292,22 @@ function bellman!(
     end
 
     return Vres
+end
+
+function product_inner_bellman!(workspace::DenseProductWorkspace, Vₒ::VO, Vₑ::VE, prob::IntervalProbabilities{T}, jₐ::Integer, upper_bound::Bool) where {T, VO <: AbstractArray{T}, VE <: AbstractArray{T}}
+    @inbounds for inner_other_index in eachotherindex(Vₒ, 1)
+        Vᵢ = @view Vₒ[:, inner_other_index]
+        perm = @view workspace.permutation[1:length(Vᵢ)]
+
+        # rev=true for upper bound
+        sortperm!(perm, Vᵢ; rev = upper_bound)
+
+        lowerⱼ = @view lower(prob)[:, jₐ]
+        gapⱼ = @view gap(prob)[:, jₐ]
+        used = sum_lower(prob)[jₐ]
+
+        Vₑ[inner_other_index] = dot(Vᵢ, lowerⱼ) + gap_value(Vᵢ, gapⱼ, used, perm)
+    end
 end
 
 #############
