@@ -142,12 +142,14 @@ function checksize_imdp!(p::IntervalProbabilities, stateptr::AbstractVector{Int3
     num_states = length(stateptr) - 1
 
     min_actions = mindiff(stateptr)
-    @assert all(min_actions > 0) "The number of actions per state must be positive"
+    if any(min_actions <= 0)
+        throw(ArgumentError("The number of actions per state must be positive."))
+    end
 
     if num_target(p) != num_states
         throw(
             DimensionMismatch(
-                "The number of transition probabilities in the matrix is not equal to the number of states in the problem",
+                "The number of target states ($(num_target(p))) is not equal to the number of states in the stateptr $(num_states).",
             ),
         )
     end
