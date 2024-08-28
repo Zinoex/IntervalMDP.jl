@@ -255,11 +255,11 @@ end
 
 # Dense
 function bellman!(
-    workspace::DenseProductWorkspace,
+    workspace::DenseOrthogonalWorkspace,
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    prob::ProductIntervalProbabilities,
+    prob::OrthogonalIntervalProbabilities,
     stateptr;
     upper_bound = false,
     maximize = true,
@@ -294,7 +294,7 @@ function bellman!(
     return Vres
 end
 
-function product_inner_bellman!(workspace::DenseProductWorkspace, Vₒ::VO, Vₑ::VE, prob::IntervalProbabilities{T}, jₐ::Integer, upper_bound::Bool) where {T, VO <: AbstractArray{T}, VE <: AbstractArray{T}}
+function product_inner_bellman!(workspace::DenseOrthogonalWorkspace, Vₒ::VO, Vₑ::VE, prob::IntervalProbabilities{T}, jₐ::Integer, upper_bound::Bool) where {T, VO <: AbstractArray{T}, VE <: AbstractArray{T}}
     @inbounds for inner_other_index in eachotherindex(Vₒ, 1)
         Vᵢ = @view Vₒ[:, inner_other_index]
         perm = @view workspace.permutation[1:length(Vᵢ)]

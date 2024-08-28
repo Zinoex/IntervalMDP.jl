@@ -1,11 +1,11 @@
 """
-    ProductIntervalMarkovDecisionProcess{
+    OrthogonaIntervalMarkovDecisionProcess{
         P <: IntervalProbabilities,
         VT <: AbstractVector{Int32},
         VI <: Union{AllStates, AbstractVector}
     }
 
-A type representing (stationary) Product Interval Markov Decision Processes (PIMDP), which are IMDPs where the transition 
+A type representing (stationary) Orthogona Interval Markov Decision Processes (OIMDP), which are IMDPs where the transition 
 probabilities for each state can be represented as the product of the transition probabilities of individual processes.
 
 # TODO: Update theory section
@@ -92,8 +92,8 @@ mdp = IntervalMarkovDecisionProcess(transition_probs, initial_states)
 ```
 
 """
-struct ProductIntervalMarkovDecisionProcess{
-    P <: ProductIntervalProbabilities,
+struct OrthogonalIntervalMarkovDecisionProcess{
+    P <: OrthogonalIntervalProbabilities,
     VT <: AbstractVector{Int32},
     VI <: InitialStates,
 } <: StationaryIntervalMarkovProcess
@@ -103,14 +103,14 @@ struct ProductIntervalMarkovDecisionProcess{
     num_states::Int32
 end
 
-function ProductIntervalMarkovDecisionProcess(
-    transition_prob::ProductIntervalProbabilities,
+function OrthogonalIntervalMarkovDecisionProcess(
+    transition_prob::OrthogonalIntervalProbabilities,
     stateptr::AbstractVector{Int32},
     initial_states::InitialStates = AllStates(),
 )
     num_states = checksize_imdp!(transition_prob, stateptr)
 
-    return ProductIntervalMarkovDecisionProcess(
+    return OrthogonalIntervalMarkovDecisionProcess(
         transition_prob,
         stateptr,
         initial_states,
@@ -118,36 +118,36 @@ function ProductIntervalMarkovDecisionProcess(
     )
 end
 
-function ProductIntervalMarkovDecisionProcess(
-    transition_probs::Vector{<:ProductIntervalProbabilities},
+function OrthogonalIntervalMarkovDecisionProcess(
+    transition_probs::Vector{<:OrthogonalIntervalProbabilities},
     initial_states::InitialStates = AllStates(),
 )
     # TODO: Fix
     transition_prob, stateptr = interval_prob_hcat(transition_probs)
 
-    return ProductIntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
+    return OrthogonalIntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
 end
 
 """
-    ProductIntervalMarkovChain(transition_prob::ProductIntervalProbabilities, initial_states::InitialStates = AllStates())
+    OrthogonalIntervalMarkovChain(transition_prob::OrthogonalIntervalProbabilities, initial_states::InitialStates = AllStates())
 
 # TODO: Update docstring 
 
-Construct a Product Interval Markov Chain from a square matrix pair of interval transition probabilities. The initial states are optional and if not specified,
+Construct a Orthogonal Interval Markov Chain from a square matrix pair of interval transition probabilities. The initial states are optional and if not specified,
 all states are assumed to be initial states. The number of states is inferred from the size of the transition probability matrix.
 
 The returned type is an `IntervalMarkovDecisionProcess` with only one action per state (i.e. `stateptr[j + 1] - stateptr[j] == 1` for all `j`).
 This is done to unify the interface for value iteration.
 """
-function ProductIntervalMarkovChain(
+function OrthogonalIntervalMarkovChain(
     transition_prob::IntervalProbabilities,
     initial_states::InitialStates = AllStates(),
 )
     stateptr = UnitRange{Int32}(1, num_source(transition_prob) + 1)
-    return ProductIntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
+    return OrthogonalIntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
 end
 
-function checksize_imdp!(p::ProductIntervalProbabilities, stateptr::AbstractVector{Int32})
+function checksize_imdp!(p::OrthogonalIntervalProbabilities, stateptr::AbstractVector{Int32})
     num_states = length(stateptr) - 1
 
     min_actions = mindiff(stateptr)
@@ -167,26 +167,26 @@ function checksize_imdp!(p::ProductIntervalProbabilities, stateptr::AbstractVect
 end
 
 """
-    stateptr(mdp::ProductIntervalMarkovDecisionProcess)
+    stateptr(mdp::OrthogonalIntervalMarkovDecisionProcess)
 
 Return the state pointer of the Interval Markov Decision Process. The state pointer is a vector of integers where the `i`-th element
 is the index of the first element of the `i`-th state in the transition probability matrix. 
 I.e. `transition_prob[:, stateptr[j]:stateptr[j + 1] - 1]` is the transition probability matrix for source state `j`.
 """
-stateptr(mdp::ProductIntervalMarkovDecisionProcess) = mdp.stateptr
+stateptr(mdp::OrthogonalIntervalMarkovDecisionProcess) = mdp.stateptr
 
-max_actions(mdp::ProductIntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp))
-Base.ndims(::ProductIntervalMarkovDecisionProcess{N}) where {N} = Int32(N)
-product_num_states(mp::ProductIntervalMarkovDecisionProcess) = num_target(transition_prob(mp))
-transition_matrix_type(mp::ProductIntervalMarkovDecisionProcess) = typeof(gap(first(transition_prob(mp).probs)))
+max_actions(mdp::OrthogonalIntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp))
+Base.ndims(::OrthogonalIntervalMarkovDecisionProcess{N}) where {N} = Int32(N)
+product_num_states(mp::OrthogonalIntervalMarkovDecisionProcess) = num_target(transition_prob(mp))
+transition_matrix_type(mp::OrthogonalIntervalMarkovDecisionProcess) = typeof(gap(first(transition_prob(mp).probs)))
 
 """
-    tomarkovchain(mdp::ProductIntervalMarkovDecisionProcess, strategy::AbstractVector)
+    tomarkovchain(mdp::OrthogonalIntervalMarkovDecisionProcess, strategy::AbstractVector)
 
 Extract a Product Interval Markov Chain (IMC) from an Interval Markov Decision Process under a stationary strategy. The returned type remains
 an `IntervalMarkovDecisionProcess` with only one action per state. The extracted IMC is stationary.
 """
-function tomarkovchain(mdp::ProductIntervalMarkovDecisionProcess, strategy::AbstractVector)
+function tomarkovchain(mdp::OrthogonalIntervalMarkovDecisionProcess, strategy::AbstractVector)
     # TODO: Fix
 
     probs = transition_prob(mdp)
@@ -204,7 +204,7 @@ Extract a Product Interval Markov Chain (IMC) from an Interval Markov Decision P
 a `TimeVaryingIntervalMarkovDecisionProcess` with only one action per state per time-step. The extracted IMC is time-varying.
 """
 function tomarkovchain(
-    mdp::ProductIntervalMarkovDecisionProcess,
+    mdp::OrthogonalIntervalMarkovDecisionProcess,
     strategy::AbstractVector{<:AbstractVector},
 )
     # TODO: Fix

@@ -10,14 +10,14 @@ include("errors.jl")
 export InvalidStateError, StateDimensionMismatch
 
 include("interval_probabilities.jl")
-export IntervalProbabilities, ProductIntervalProbabilities
+export IntervalProbabilities, OrthogonalIntervalProbabilities
 export lower, upper, gap, sum_lower
 export num_source, axes_source, num_target, axes_target
 
 include("models/IntervalMarkovProcess.jl")
 include("models/IntervalMarkovDecisionProcess.jl")
 include("models/TimeVaryingIntervalMarkovDecisionProcess.jl")
-include("models/ProductIntervalMarkovDecisionProcess.jl")
+include("models/OrthogonalIntervalMarkovDecisionProcess.jl")
 include("models/ParallelProduct.jl")
 export IntervalMarkovProcess
 export SimpleIntervalMarkovProcess,
@@ -27,7 +27,7 @@ export CompositeIntervalMarkovProcess,
 export AllStates
 export IntervalMarkovDecisionProcess, TimeVaryingIntervalMarkovDecisionProcess
 export IntervalMarkovChain, TimeVaryingIntervalMarkovChain
-export ProductIntervalMarkovDecisionProcess, ProductIntervalMarkovChain
+export OrthogonalIntervalMarkovDecisionProcess, OrthogonalIntervalMarkovChain
 export ParallelProduct
 export transition_prob, num_states, initial_states, stateptr, tomarkovchain, time_length
 

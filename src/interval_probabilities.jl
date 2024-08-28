@@ -208,37 +208,37 @@ function Base.getindex(p::IntervalProbabilities, J)
 end
 
 ##################################
-# Product Interval Probabilities #
+# Orthogonal Interval Probabilities #
 ##################################
 
 """
-    ProductIntervalProbabilities{N, P <: IntervalProbabilities}
+    OrthogonalIntervalProbabilities{N, P <: IntervalProbabilities}
 
-A tuples of `IntervalProbabilities` transition probabilities from all source states or source/action pairs to the
-target states along each dimension. 
+A tuple of `IntervalProbabilities` transition probabilities from all source states or source/action pairs to the
+target states along each axis. 
 
 ### Fields
-- `probs::NTuple{N, P}`: A tuple of `IntervalProbabilities` transition probabilities along each dimension.
-- `dims::NTuple{N, Int32}`: Storing the dimensions of the product MDP.
+- `probs::NTuple{N, P}`: A tuple of `IntervalProbabilities` transition probabilities along each axis.
+- `dims::NTuple{N, Int32}`: The dimensions of the orthogonal probabilities.
 
 ### Examples
 # TODO: Update example
 ```jldoctest
 """
-struct ProductIntervalProbabilities{N, P <: IntervalProbabilities} <: AbstractIntervalProbabilities
+struct OrthogonalIntervalProbabilities{N, P <: IntervalProbabilities} <: AbstractIntervalProbabilities
     probs::NTuple{N, P}
     dims::NTuple{N, Int32}
 end
 
 """
-    lower(p::ProductIntervalProbabilities, i)
+    lower(p::OrthogonalIntervalProbabilities, i)
 
 Return the lower bound transition probabilities from a source state or source/action pair to a target state.
 """
-lower(p::ProductIntervalProbabilities, i) = p.probs[i].lower
+lower(p::OrthogonalIntervalProbabilities, i) = p.probs[i].lower
 
 """
-    upper(p::ProductIntervalProbabilities, i)
+    upper(p::OrthogonalIntervalProbabilities, i)
 
 Return the upper bound transition probabilities from a source state or source/action pair to a target state.
 
@@ -246,43 +246,43 @@ Return the upper bound transition probabilities from a source state or source/ac
     It is not recommended to use this function for the hot loop of O-maximization. Because the [`IntervalProbabilities`](@ref)
     stores the lower and gap transition probabilities, fetching the upper bound requires allocation and computation.
 """
-upper(p::ProductIntervalProbabilities, i) = p.probs[i].lower + p.probs[i].gap
+upper(p::OrthogonalIntervalProbabilities, i) = p.probs[i].lower + p.probs[i].gap
 
 """
-    gap(p::ProductIntervalProbabilities, i)
+    gap(p::OrthogonalIntervalProbabilities, i)
 
 Return the gap between upper and lower bound transition probabilities from a source state or source/action pair to a target state.
 """
-gap(p::ProductIntervalProbabilities, i) = p.probs[i].gap
+gap(p::OrthogonalIntervalProbabilities, i) = p.probs[i].gap
 
 """
-    sum_lower(p::ProductIntervalProbabilities, i) 
+    sum_lower(p::OrthogonalIntervalProbabilities, i) 
 
 Return the sum of lower bound transition probabilities from a source state or source/action pair to all target states.
 This is useful in efficiently implementing O-maximization, where we start with a lower bound probability assignment
 and iteratively, according to the ordering, adding the gap until the sum of probabilities is 1.
 """
-sum_lower(p::ProductIntervalProbabilities, i) = p.probs[i].sum_lower
+sum_lower(p::OrthogonalIntervalProbabilities, i) = p.probs[i].sum_lower
 
 """
-    num_source(p::ProductIntervalProbabilities)
+    num_source(p::OrthogonalIntervalProbabilities)
 
 Return the number of source states or source/action pairs.
 """
-num_source(p::ProductIntervalProbabilities) = num_source(first(p.probs))
+num_source(p::OrthogonalIntervalProbabilities) = num_source(first(p.probs))
 
 """
-    axes_source(p::ProductIntervalProbabilities)
+    axes_source(p::OrthogonalIntervalProbabilities)
 
 Return the valid range of indices for the source states or source/action pairs.
 """
-axes_source(p::ProductIntervalProbabilities) = axes_source(first(p.probs))
+axes_source(p::OrthogonalIntervalProbabilities) = axes_source(first(p.probs))
 
-num_target(p::ProductIntervalProbabilities) = Tuple(map(num_target, p.probs))
-stateptr(p::ProductIntervalProbabilities) = UnitRange{Int32}(1, num_source(p) + 1)
-Base.ndims(p::ProductIntervalProbabilities) = length(p.probs)
+num_target(p::OrthogonalIntervalProbabilities) = Tuple(map(num_target, p.probs))
+stateptr(p::OrthogonalIntervalProbabilities) = UnitRange{Int32}(1, num_source(p) + 1)
+Base.ndims(p::OrthogonalIntervalProbabilities) = length(p.probs)
 
-Base.getindex(p::ProductIntervalProbabilities, i) = p.probs[i]
-Base.lastindex(p::ProductIntervalProbabilities) = length(p.probs)
-Base.firstindex(p::ProductIntervalProbabilities) = 1
-Base.length(p::ProductIntervalProbabilities) = length(p.probs)
+Base.getindex(p::OrthogonalIntervalProbabilities, i) = p.probs[i]
+Base.lastindex(p::OrthogonalIntervalProbabilities) = length(p.probs)
+Base.firstindex(p::OrthogonalIntervalProbabilities) = 1
+Base.length(p::OrthogonalIntervalProbabilities) = length(p.probs)

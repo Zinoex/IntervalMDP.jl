@@ -96,14 +96,14 @@ function construct_workspace(p::AbstractSparseMatrix, max_actions; threshold = 1
 end
 
 # Product
-struct DenseProductWorkspace{T <: Real, AT <: Array{T}}
+struct DenseOrthogonalWorkspace{T <: Real, AT <: Array{T}}
     expectation_cache::AT
     permutation::Vector{Int32}
     actions::Vector{T}
     state_index::Int32
 end
 
-function DenseProductWorkspace(p::ProductIntervalProbabilities{N, <:IntervalProbabilities{R}}, max_actions) where {N, R}
+function DenseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R}}, max_actions) where {N, R}
     pns = num_target(p)
     n = maximum(pns)
 
@@ -112,24 +112,24 @@ function DenseProductWorkspace(p::ProductIntervalProbabilities{N, <:IntervalProb
     perm = Vector{Int32}(undef, n)
     expectation_cache = zeros(R, pns)
     actions = Vector{R}(undef, max_actions)
-    return DenseProductWorkspace(expectation_cache, perm, actions, one(Int32))
+    return DenseOrthogonalWorkspace(expectation_cache, perm, actions, one(Int32))
 end
 
-struct ThreadedDenseProductWorkspace{T, AT}
-    thread_workspaces::Vector{DenseProductWorkspace{T, AT}}
+struct ThreadedDenseOrthogonalWorkspace{T, AT}
+    thread_workspaces::Vector{DenseOrthogonalWorkspace{T, AT}}
 end
 
-function ThreadedDenseProductWorkspace(p::ProductIntervalProbabilities, max_actions)
+function ThreadedDenseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities, max_actions)
     nthreads = Threads.nthreads()
-    thread_workspaces = [DenseProductWorkspace(p, max_actions) for _ in 1:nthreads]
-    return ThreadedDenseProductWorkspace(thread_workspaces)
+    thread_workspaces = [DenseOrthogonalWorkspace(p, max_actions) for _ in 1:nthreads]
+    return ThreadedDenseOrthogonalWorkspace(thread_workspaces)
 end
 
-function construct_workspace(p::ProductIntervalProbabilities, max_actions)
+function construct_workspace(p::OrthogonalIntervalProbabilities, max_actions)
     if Threads.nthreads() == 1
-        return DenseProductWorkspace(p, max_actions)
+        return DenseOrthogonalWorkspace(p, max_actions)
     else
-        return ThreadedDenseProductWorkspace(p, max_actions)
+        return ThreadedDenseOrthogonalWorkspace(p, max_actions)
     end
 end
 

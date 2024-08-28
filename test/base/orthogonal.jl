@@ -127,8 +127,8 @@ function IMDP_orthogonal_abstraction()
 
     probs1, _ = IntervalMDP.interval_prob_hcat(probs1)
     probs2, _ = IntervalMDP.interval_prob_hcat(probs2)
-    probs = ProductIntervalProbabilities((probs1, probs2), (Int32(l[1] + 1), Int32(l[2] + 1)))
-    pmdp = ProductIntervalMarkovDecisionProcess(probs, stateptr)
+    probs = OrthogonalIntervalProbabilities((probs1, probs2), (Int32(l[1] + 1), Int32(l[2] + 1)))
+    pmdp = OrthogonalIntervalMarkovDecisionProcess(probs, stateptr)
 
     reach = Tuple{Int32, Int32}[]
     avoid = Tuple{Int32, Int32}[]
