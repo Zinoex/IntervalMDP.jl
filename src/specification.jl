@@ -38,12 +38,6 @@ function checktimehorizon!(prop, system::TimeVaryingIntervalMarkovProcess)
     end
 end
 
-function checktimehorizon!(prop, system::ParallelProduct)
-    for orthogonal_process in orthogonal_processes(system)
-        checktimehorizon!(prop, orthogonal_process)
-    end
-end
-
 function checkconvergence!(prop, ::StationaryIntervalMarkovProcess)
     if convergence_eps(prop) <= 0
         throw(
@@ -61,12 +55,6 @@ function checkconvergence!(prop, ::TimeVaryingIntervalMarkovProcess)
             "time-varying interval Markov processes are not supported for infinite time properties.",
         ),
     )
-end
-
-function checkconvergence!(prop, system::ParallelProduct)
-    for orthogonal_process in orthogonal_processes(system)
-        checkconvergence!(prop, orthogonal_process)
-    end
 end
 
 ## Temporal logics
@@ -446,21 +434,6 @@ function checkterminal!(terminal_states, system::SimpleIntervalMarkovProcess)
     end
 end
 
-function checkterminal!(terminal_states, system::ProductIntervalMarkovProcess)
-    pns = product_num_states(system) |> recursiveflatten |> collect
-    for j in terminal_states
-        j = Tuple(j)
-
-        if length(j) != length(pns)
-            throw(StateDimensionMismatch(j, length(pns)))
-        end
-
-        if any(j .< 1) || any(j .> pns)
-            throw(InvalidStateError(j, pns))
-        end
-    end
-end
-
 function checkdisjoint!(reach, avoid)
     if !isdisjoint(reach, avoid)
         throw(DomainError((reach, avoid), "reach and avoid sets are not disjoint"))
@@ -498,29 +471,6 @@ function checkreward!(prop::AbstractReward, system::SimpleIntervalMarkovProcess)
 
     if discount(prop) <= 0
         throw(DomainError(discount(prop), "the discount factor must be greater than 0"))
-    end
-end
-
-function checkreward!(prop::AbstractReward, system::ProductIntervalMarkovProcess)
-    checkdevice!(reward(prop), system)
-
-    pns = product_num_states(system) |> recursiveflatten |> collect
-    if length(reward(prop)) != prod(pns)
-        throw(
-            DimensionMismatch(
-                "the reward array must have the same dimensions $(size(reward(prop))) as the number of states along each axis $pns",
-            ),
-        )
-    end
-
-    if discount(prop) <= 0
-        throw(DomainError(discount(prop), "the discount factor must be greater than 0"))
-    end
-end
-
-function checkdevice!(v::AbstractArray, system::ProductIntervalMarkovProcess)
-    for orthogonal_process in orthogonal_processes(system)
-        checkdevice!(v, orthogonal_process)
     end
 end
 

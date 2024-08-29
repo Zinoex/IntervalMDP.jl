@@ -5,7 +5,6 @@ using IntervalMDP, SparseArrays, CUDA
 @testset verbose = true "IntervalMDP.jl" begin
     @testset verbose = true "base" include("base/base.jl")
     @testset verbose = true "sparse" include("sparse/sparse.jl")
-    @testset verbose = true "parallel" include("parallel/parallel.jl")
     @testset verbose = true "data" include("data/data.jl")
 
     if CUDA.functional()
