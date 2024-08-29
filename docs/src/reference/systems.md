@@ -29,14 +29,6 @@ stateptr(mdp::TimeVaryingIntervalMarkovDecisionProcess)
 tomarkovchain(mdp::TimeVaryingIntervalMarkovDecisionProcess, strategy::AbstractVector{<:AbstractVector})
 ```
 
-## Composite Markov Processes
-```@docs
-CompositeIntervalMarkovProcess
-ProductIntervalMarkovProcess
-ParallelProduct
-SequentialIntervalMarkovProcess
-```
-
 ## Probability representation
 ```@docs
 IntervalProbabilities

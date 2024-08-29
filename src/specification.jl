@@ -38,12 +38,6 @@ function checktimehorizon!(prop, system::TimeVaryingIntervalMarkovProcess)
     end
 end
 
-function checktimehorizon!(prop, system::ParallelProduct)
-    for orthogonal_process in orthogonal_processes(system)
-        checktimehorizon!(prop, orthogonal_process)
-    end
-end
-
 function checkconvergence!(prop, ::StationaryIntervalMarkovProcess)
     if convergence_eps(prop) <= 0
         throw(
@@ -61,12 +55,6 @@ function checkconvergence!(prop, ::TimeVaryingIntervalMarkovProcess)
             "time-varying interval Markov processes are not supported for infinite time properties.",
         ),
     )
-end
-
-function checkconvergence!(prop, system::ParallelProduct)
-    for orthogonal_process in orthogonal_processes(system)
-        checkconvergence!(prop, orthogonal_process)
-    end
 end
 
 ## Temporal logics
