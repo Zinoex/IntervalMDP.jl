@@ -88,7 +88,6 @@ spec = Specification(prop, Optimistic, Minimize)
     )
     mc = IntervalMarkovChain(prob)
     tv_mc = TimeVaryingIntervalMarkovChain([prob, prob, prob])
-    product_mc = ParallelProduct([mc, mc])
 
     # Time horizon must be a positive integer
     @testset "time horizon" begin
@@ -213,18 +212,6 @@ spec = Specification(prop, Optimistic, Minimize)
                 prop = FiniteTimeReachability([(3, 2)], 10) # incorrect dimension
                 spec = Specification(prop)
                 @test_throws StateDimensionMismatch Problem(mc, spec)
-
-                prop = FiniteTimeReachability([4], 10) # incorrect dimension
-                spec = Specification(prop)
-                @test_throws StateDimensionMismatch Problem(product_mc, spec)
-
-                prop = FiniteTimeReachability([(3, 4)], 10) # out-of-bounds
-                spec = Specification(prop)
-                @test_throws InvalidStateError Problem(product_mc, spec)
-
-                prop = FiniteTimeReachability([(3, 0)], 10) # out-of-bounds
-                spec = Specification(prop)
-                @test_throws InvalidStateError Problem(product_mc, spec)
             end
 
             @testset "reach/avoid" begin
@@ -251,26 +238,6 @@ spec = Specification(prop, Optimistic, Minimize)
                 prop = FiniteTimeReachAvoid([2], [2], 10) # not disjoint
                 spec = Specification(prop)
                 @test_throws DomainError Problem(mc, spec)
-
-                prop = FiniteTimeReachAvoid([2], [3], 10) # incorrect dimensions
-                spec = Specification(prop)
-                @test_throws StateDimensionMismatch Problem(product_mc, spec)
-
-                prop = FiniteTimeReachAvoid([(3, 4)], [(2, 3)], 10) # out-of-bounds
-                spec = Specification(prop)
-                @test_throws InvalidStateError Problem(product_mc, spec)
-
-                prop = FiniteTimeReachAvoid([(3, 0)], [(2, 3)], 10) # out-of-bounds
-                spec = Specification(prop)
-                @test_throws InvalidStateError Problem(product_mc, spec)
-
-                prop = FiniteTimeReachAvoid([(2, 3)], [(3, 4)], 10) # out-of-bounds
-                spec = Specification(prop)
-                @test_throws InvalidStateError Problem(product_mc, spec)
-
-                prop = FiniteTimeReachAvoid([(2, 3)], [(3, 0)], 10) # out-of-bounds
-                spec = Specification(prop)
-                @test_throws InvalidStateError Problem(product_mc, spec)
             end
         end
 
@@ -287,18 +254,6 @@ spec = Specification(prop, Optimistic, Minimize)
                 prop = InfiniteTimeReachability([(3, 2)], 1e-6) # incorrect dimension
                 spec = Specification(prop)
                 @test_throws StateDimensionMismatch Problem(mc, spec)
-
-                prop = InfiniteTimeReachability([4], 1e-6) # incorrect dimension
-                spec = Specification(prop)
-                @test_throws StateDimensionMismatch Problem(product_mc, spec)
-
-                prop = InfiniteTimeReachability([(3, 4)], 1e-6) # out-of-bounds
-                spec = Specification(prop)
-                @test_throws InvalidStateError Problem(product_mc, spec)
-
-                prop = InfiniteTimeReachability([(3, 0)], 1e-6) # out-of-bounds
-                spec = Specification(prop)
-                @test_throws InvalidStateError Problem(product_mc, spec)
             end
 
             @testset "reach/avoid" begin
@@ -325,26 +280,6 @@ spec = Specification(prop, Optimistic, Minimize)
                 prop = InfiniteTimeReachAvoid([2], [2], 1e-6) # not disjoint
                 spec = Specification(prop)
                 @test_throws DomainError Problem(mc, spec)
-
-                prop = InfiniteTimeReachAvoid([2], [3], 1e-6) # incorrect dimensions
-                spec = Specification(prop)
-                @test_throws StateDimensionMismatch Problem(product_mc, spec)
-
-                prop = InfiniteTimeReachAvoid([(3, 4)], [(2, 3)], 1e-6) # out-of-bounds
-                spec = Specification(prop)
-                @test_throws InvalidStateError Problem(product_mc, spec)
-
-                prop = InfiniteTimeReachAvoid([(3, 0)], [(2, 3)], 1e-6) # out-of-bounds
-                spec = Specification(prop)
-                @test_throws InvalidStateError Problem(product_mc, spec)
-
-                prop = InfiniteTimeReachAvoid([(2, 3)], [(3, 4)], 1e-6) # out-of-bounds
-                spec = Specification(prop)
-                @test_throws InvalidStateError Problem(product_mc, spec)
-
-                prop = InfiniteTimeReachAvoid([(2, 3)], [(3, 0)], 1e-6) # out-of-bounds
-                spec = Specification(prop)
-                @test_throws InvalidStateError Problem(product_mc, spec)
             end
         end
     end
@@ -375,16 +310,8 @@ spec = Specification(prop, Optimistic, Minimize)
         spec = Specification(prop)
         @test_throws DimensionMismatch Problem(mc, spec)
 
-        prop = FiniteTimeReward([1.0 2.0; 3.0 4.0], 0.9, 10)
-        spec = Specification(prop)
-        @test_throws DimensionMismatch Problem(product_mc, spec)
-
         prop = InfiniteTimeReward([1.0, 2.0], 0.9, 1e-6)
         spec = Specification(prop)
         @test_throws DimensionMismatch Problem(mc, spec)
-
-        prop = InfiniteTimeReward([1.0 2.0; 3.0 4.0], 0.9, 1e-6)
-        spec = Specification(prop)
-        @test_throws DimensionMismatch Problem(product_mc, spec)
     end
 end

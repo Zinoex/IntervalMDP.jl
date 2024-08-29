@@ -981,16 +981,3 @@ end
 
     return gap_value
 end
-
-function IntervalMDP.bellman!(
-    workspace::CuSparseProductWorkspace,
-    strategy_cache::IntervalMDP.AbstractStrategyCache,
-    Vres,
-    V,
-    prob::IntervalProbabilities{Tv},
-    stateptr;
-    upper_bound = false,
-    maximize = true,
-) where {Tv}
-    error("Not implemented")
-end

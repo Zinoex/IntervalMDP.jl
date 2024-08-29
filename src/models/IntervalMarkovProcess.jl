@@ -82,26 +82,3 @@ function transition_prob(mp::TimeVaryingIntervalMarkovProcess, t)
     return transition_probs(mp)[t]
 end
 
-##############################
-# Composite Markov processes #
-##############################
-"""
-ProductIntervalMarkovProcess
-
-An abstract type for composite interval Markov processes including [`SequentialIntervalMarkovProcess`](@ref) and [`ProductIntervalMarkovProcess`](@ref).
-"""
-abstract type CompositeIntervalMarkovProcess <: IntervalMarkovProcess end
-
-"""
-    SequentialIntervalMarkovProcess
-
-An abstract type for sequential interval Markov processes.
-"""
-abstract type SequentialIntervalMarkovProcess <: CompositeIntervalMarkovProcess end
-
-"""
-    ProductIntervalMarkovProcess
-
-An abstract type for product interval Markov processes including [`ParallelProduct`](@ref).
-"""
-abstract type ProductIntervalMarkovProcess <: CompositeIntervalMarkovProcess end
