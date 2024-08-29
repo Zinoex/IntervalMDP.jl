@@ -276,6 +276,13 @@ function bellman!(
             for (i, jₐ) in enumerate(s₁:(s₂ - 1))
                 Vₑ = workspace.expectation_cache
 
+                # TODO: Develop memory efficient version based on recursion
+                # - Recursion from the top: right to left axis for cache purposes.
+                # - Carry Vₒ through to the lowest level.
+                # - At the lowest level: load Vₒ to Vₑ[1], compute expectation, return.
+                # - For level i, i ≥ 2: load via lower computation until Vₑ[i] is full. Then compute expectation and store in Vₑ[i + 1]
+                # - At the top level: return expectation
+
                 product_inner_bellman!(workspace, Vₒ, Vₑ, prob[1], jₐ, upper_bound)
 
                 for d in 2:ndims(prob)
