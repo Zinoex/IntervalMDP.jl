@@ -14,9 +14,6 @@ test_files = [
     "sparse/vi.jl",
     "sparse/imdp.jl",
     "sparse/synthesis.jl",
-    # "parallel/bellman.jl",
-    # "parallel/vi.jl",
-    # "parallel/synthesis.jl",
 ]
 for f in test_files
     @testset "cuda/$f" include(f)

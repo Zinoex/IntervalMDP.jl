@@ -126,9 +126,8 @@ function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Pro
     return value_function.current, k, value_function.previous, strategy_cache
 end
 
-mutable struct ValueFunction{R, A <: AbstractArray{R}}
+struct ValueFunction{R, A <: AbstractArray{R}}
     previous::A
-    intermediate::A
     current::A
 end
 
@@ -139,10 +138,9 @@ function ValueFunction(problem::Problem)
     # Just need any one of the transition probabilities to dispatch
     # to the correct method (based on the type).
     previous = construct_value_function(transition_matrix_type(mp), pns)
-    intermediate = copy(previous)
     current = copy(previous)
 
-    return ValueFunction(previous, intermediate, current)
+    return ValueFunction(previous, current)
 end
 
 function construct_value_function(::Type{MR}, num_states) where {R, MR <: AbstractMatrix{R}}
@@ -160,7 +158,6 @@ end
 
 function nextiteration!(V)
     copyto!(V.previous, V.current)
-    copyto!(V.intermediate, V.current)
 
     return V
 end
@@ -179,7 +176,7 @@ function step!(
         workspace,
         strategy_cache,
         value_function.current,
-        value_function.intermediate,
+        value_function.previous,
         prob,
         stateptr(mp);
         upper_bound = upper_bound,
@@ -201,37 +198,10 @@ function step!(
         workspace,
         strategy_cache,
         value_function.current,
-        value_function.intermediate,
+        value_function.previous,
         prob,
         stateptr(mp);
         upper_bound = upper_bound,
         maximize = maximize,
     )
-end
-
-function step!(
-    workspace,
-    strategy_cache,
-    value_function,
-    k,
-    mp::ParallelProduct;
-    upper_bound,
-    maximize,
-)
-    for (ws, sc, orthogonal_process) in zip(
-        orthogonal_workspaces(workspace),
-        orthogonal_caches(strategy_cache),
-        orthogonal_processes(mp),
-    )
-        step!(
-            ws,
-            sc,
-            value_function,
-            k,
-            orthogonal_process;
-            upper_bound = upper_bound,
-            maximize = maximize,
-        )
-        copyto!(value_function.intermediate, value_function.current)
-    end
 end
