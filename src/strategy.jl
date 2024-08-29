@@ -175,4 +175,3 @@ function _extract_strategy!(cur_strategy, values, neutral, j, s₁, maximize)
     @inbounds cur_strategy[j] = opt_index
     return opt_val
 end
-

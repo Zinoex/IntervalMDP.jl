@@ -81,4 +81,3 @@ function transition_prob(mp::TimeVaryingIntervalMarkovProcess, t)
 
     return transition_probs(mp)[t]
 end
-
