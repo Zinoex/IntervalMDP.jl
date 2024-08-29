@@ -141,7 +141,6 @@ abstract type AbstractReachability <: Property end
 
 function initialize!(value_function, prop::AbstractReachability)
     @inbounds value_function.previous[reach(prop)] .= 1.0
-    @inbounds value_function.intermediate[reach(prop)] .= 1.0
 end
 
 function postprocess_value_function!(value_function, prop::AbstractReachability)
@@ -451,12 +450,11 @@ abstract type AbstractReward{R <: Real} <: Property end
 
 function initialize!(value_function, prop::AbstractReward)
     value_function.previous .= reward(prop)
-    value_function.intermediate .= reward(prop)
 end
 
 function postprocess_value_function!(value_function, prop::AbstractReward)
     rmul!(value_function.current, discount(prop))
-    value_function.current += reward(prop)
+    value_function.current .+= reward(prop)
 end
 
 function checkreward!(prop::AbstractReward, system)
@@ -473,12 +471,6 @@ function checkreward!(prop::AbstractReward, system)
 
     if discount(prop) <= 0
         throw(DomainError(discount(prop), "the discount factor must be greater than 0"))
-    end
-end
-
-function checkdevice!(v::AbstractArray, system::ParallelProduct)
-    for orthogonal_process in orthogonal_processes(system)
-        checkdevice!(v, orthogonal_process)
     end
 end
 
