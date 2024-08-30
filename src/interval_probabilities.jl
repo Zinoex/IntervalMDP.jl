@@ -280,9 +280,9 @@ axes_source(p::OrthogonalIntervalProbabilities) = axes_source(first(p.probs))
 
 num_target(p::OrthogonalIntervalProbabilities) = Tuple(map(num_target, p.probs))
 stateptr(p::OrthogonalIntervalProbabilities) = UnitRange{Int32}(1, num_source(p) + 1)
-Base.ndims(p::OrthogonalIntervalProbabilities) = length(p.probs)
+Base.ndims(p::OrthogonalIntervalProbabilities{N}) where {N} = N
 
 Base.getindex(p::OrthogonalIntervalProbabilities, i) = p.probs[i]
-Base.lastindex(p::OrthogonalIntervalProbabilities) = length(p.probs)
+Base.lastindex(p::OrthogonalIntervalProbabilities) = ndims(p)
 Base.firstindex(p::OrthogonalIntervalProbabilities) = 1
-Base.length(p::OrthogonalIntervalProbabilities) = length(p.probs)
+Base.length(p::OrthogonalIntervalProbabilities) = ndims(p)

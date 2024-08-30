@@ -30,14 +30,16 @@ construct_workspace(prob::IntervalProbabilities, max_actions = 1) =
 # Dense
 struct DenseWorkspace{T <: Real}
     permutation::Vector{Int32}
+    scratch::Vector{Int32}
     actions::Vector{T}
 end
 
 function DenseWorkspace(p::AbstractMatrix{T}, max_actions) where {T <: Real}
     n = size(p, 1)
     perm = Vector{Int32}(undef, n)
+    scratch = Vector{Int32}(undef, n)
     actions = Vector{T}(undef, max_actions)
-    return DenseWorkspace(perm, actions)
+    return DenseWorkspace(perm, scratch, actions)
 end
 
 struct ThreadedDenseWorkspace{T <: Real}
@@ -63,14 +65,16 @@ end
 # Sparse
 struct SparseWorkspace{T <: Real}
     values_gaps::Vector{Tuple{T, T}}
+    scratch::Vector{Tuple{T, T}}
     actions::Vector{T}
 end
 
 function SparseWorkspace(p::AbstractSparseMatrix{T}, max_actions) where {T <: Real}
     max_nonzeros = maximum(map(nnz, eachcol(p)))
     values_gaps = Vector{Tuple{T, T}}(undef, max_nonzeros)
+    scratch = Vector{Tuple{T, T}}(undef, max_nonzeros)
     actions = Vector{T}(undef, max_actions)
-    return SparseWorkspace(values_gaps, actions)
+    return SparseWorkspace(values_gaps, scratch, actions)
 end
 
 struct ThreadedSparseWorkspace{T}
@@ -95,8 +99,8 @@ end
 struct DenseOrthogonalWorkspace{N, T <: Real}
     expectation_cache::NTuple{N, Vector{T}}
     permutation::Vector{Int32}
+    scratch::Vector{Int32}
     actions::Vector{T}
-    state_index::Int32
 end
 
 function DenseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R}}, max_actions) where {N, R}
@@ -104,9 +108,10 @@ function DenseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities{N, <:Interv
     nmax = maximum(pns)
 
     perm = Vector{Int32}(undef, nmax)
-    expectation_cache = NTuple(Vector{R}(undef, n) for n in pns)
+    scratch = Vector{Int32}(undef, nmax)
+    expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in pns[2:end])
     actions = Vector{R}(undef, max_actions)
-    return DenseOrthogonalWorkspace(expectation_cache, perm, actions, one(Int32))
+    return DenseOrthogonalWorkspace(expectation_cache, perm, scratch, actions)
 end
 
 struct ThreadedDenseOrthogonalWorkspace{N, T}
