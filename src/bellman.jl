@@ -264,19 +264,29 @@ function bellman!(
     upper_bound = false,
     maximize = true,
 )
+    # Since sorting for the first level is shared among all higher levels, we can precompute it
+    product_nstates = num_target(prob)
+
+    # For each higher-level state in the product space
+    for I in CartesianIndices(product_nstates[2:end])
+        perm = @view workspace.permutation[axes(V, 1)]
+        sortperm!(perm, @view(V[:, I]); rev = upper_bound, scratch = workspace.scratch)
+
+        copyto!(@view(workspace.first_level_perm[:, I]), perm)
+    end
+
+    # For each source state
     @inbounds for (jₛ_cart, jₛ_linear) in zip(CartesianIndices(axes(V)), LinearIndices(axes(V)))
         s₁, s₂ = stateptr[jₛ_linear], stateptr[jₛ_linear + 1]
         actions = @view workspace.actions[1:(s₂ - s₁)]
         for (i, jₐ) in enumerate(s₁:(s₂ - 1))
             Vₑ = workspace.expectation_cache
-
-            product_nstates = num_target(prob)
             
-            # For each state in the product space
+            # For each higher-level state in the product space
             for I in CartesianIndices(product_nstates[2:end])
 
                 # For the first dimension, we need to copy the values from V
-                v = orthogonal_inner_bellman!(workspace, @view(V[:, I]), prob[1], jₐ, upper_bound)
+                v = orthogonal_inner_sorted_bellman!(@view(workspace.first_level_perm[:, I]), @view(V[:, I]), prob[1], jₐ)
                 Vₑ[1][I[1]] = v
 
                 # For the remaining dimensions, if "full", compute expectation and store in the next level
@@ -301,12 +311,16 @@ function bellman!(
     return Vres
 end
 
-Base.@propagate_inbounds function orthogonal_inner_bellman!(workspace::DenseOrthogonalWorkspace, V::VO, prob::IntervalProbabilities{T}, jₐ::Integer, upper_bound::Bool) where {T, VO <: AbstractArray{T}}
+Base.@propagate_inbounds function orthogonal_inner_bellman!(workspace::DenseOrthogonalWorkspace, V, prob, jₐ, upper_bound::Bool)
     perm = @view workspace.permutation[1:length(V)]
 
     # rev=true for upper bound
     sortperm!(perm, V; rev = upper_bound, scratch = workspace.scratch)
 
+    return orthogonal_inner_sorted_bellman!(perm, V, prob, jₐ)
+end
+
+Base.@propagate_inbounds function orthogonal_inner_sorted_bellman!(perm, V::VO, prob::IntervalProbabilities{T}, jₐ::Integer) where {T, VO <: AbstractArray{T}}
     lowerⱼ = @view lower(prob)[:, jₐ]
     gapⱼ = @view gap(prob)[:, jₐ]
     used = sum_lower(prob)[jₐ]

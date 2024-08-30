@@ -96,8 +96,9 @@ function construct_workspace(p::AbstractSparseMatrix, max_actions; threshold = 1
 end
 
 # Orthogonal
-struct DenseOrthogonalWorkspace{N, T <: Real}
+struct DenseOrthogonalWorkspace{N, M, T <: Real}
     expectation_cache::NTuple{N, Vector{T}}
+    first_level_perm::Array{Int32, M}
     permutation::Vector{Int32}
     scratch::Vector{Int32}
     actions::Vector{T}
@@ -107,11 +108,12 @@ function DenseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities{N, <:Interv
     pns = num_target(p)
     nmax = maximum(pns)
 
+    first_level_perm = Array{Int32}(undef, pns)
     perm = Vector{Int32}(undef, nmax)
     scratch = Vector{Int32}(undef, nmax)
     expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in pns[2:end])
     actions = Vector{R}(undef, max_actions)
-    return DenseOrthogonalWorkspace(expectation_cache, perm, scratch, actions)
+    return DenseOrthogonalWorkspace(expectation_cache, first_level_perm, perm, scratch, actions)
 end
 
 struct ThreadedDenseOrthogonalWorkspace{N, T}
