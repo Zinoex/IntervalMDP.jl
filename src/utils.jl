@@ -1,4 +1,5 @@
-@inline recursiveflatten(x::Tuple) = Tuple(collect(Iterators.flatten(map(recursiveflatten, x))))
+@inline recursiveflatten(x::Tuple) =
+    Tuple(collect(Iterators.flatten(map(recursiveflatten, x))))
 @inline recursiveflatten(x) = x
 
 @inline eachotherindex(A::AbstractArray, dim) = _eachotherindex(axes(A), dim)

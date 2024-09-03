@@ -125,7 +125,11 @@ function OrthogonalIntervalMarkovDecisionProcess(
     # TODO: Fix
     transition_prob, stateptr = interval_prob_hcat(transition_probs)
 
-    return OrthogonalIntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
+    return OrthogonalIntervalMarkovDecisionProcess(
+        transition_prob,
+        stateptr,
+        initial_states,
+    )
 end
 
 """
@@ -144,10 +148,17 @@ function OrthogonalIntervalMarkovChain(
     initial_states::InitialStates = AllStates(),
 )
     stateptr = UnitRange{Int32}(1, num_source(transition_prob) + 1)
-    return OrthogonalIntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
+    return OrthogonalIntervalMarkovDecisionProcess(
+        transition_prob,
+        stateptr,
+        initial_states,
+    )
 end
 
-function checksize_imdp!(p::OrthogonalIntervalProbabilities, stateptr::AbstractVector{Int32})
+function checksize_imdp!(
+    p::OrthogonalIntervalProbabilities,
+    stateptr::AbstractVector{Int32},
+)
     num_states = length(stateptr) - 1
 
     min_actions = mindiff(stateptr)
@@ -177,8 +188,10 @@ stateptr(mdp::OrthogonalIntervalMarkovDecisionProcess) = mdp.stateptr
 
 max_actions(mdp::OrthogonalIntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp))
 Base.ndims(::OrthogonalIntervalMarkovDecisionProcess{N}) where {N} = Int32(N)
-product_num_states(mp::OrthogonalIntervalMarkovDecisionProcess) = num_target(transition_prob(mp))
-transition_matrix_type(mp::OrthogonalIntervalMarkovDecisionProcess) = typeof(gap(first(transition_prob(mp).probs)))
+product_num_states(mp::OrthogonalIntervalMarkovDecisionProcess) =
+    num_target(transition_prob(mp))
+transition_matrix_type(mp::OrthogonalIntervalMarkovDecisionProcess) =
+    typeof(gap(first(transition_prob(mp).probs)))
 
 """
     tomarkovchain(mdp::OrthogonalIntervalMarkovDecisionProcess, strategy::AbstractVector)
@@ -186,7 +199,10 @@ transition_matrix_type(mp::OrthogonalIntervalMarkovDecisionProcess) = typeof(gap
 Extract a Product Interval Markov Chain (IMC) from an Interval Markov Decision Process under a stationary strategy. The returned type remains
 an `IntervalMarkovDecisionProcess` with only one action per state. The extracted IMC is stationary.
 """
-function tomarkovchain(mdp::OrthogonalIntervalMarkovDecisionProcess, strategy::AbstractVector)
+function tomarkovchain(
+    mdp::OrthogonalIntervalMarkovDecisionProcess,
+    strategy::AbstractVector,
+)
     # TODO: Fix
 
     probs = transition_prob(mdp)

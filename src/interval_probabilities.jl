@@ -40,7 +40,8 @@ sparse_prob = IntervalProbabilities(;
 [1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
 
 """
-struct IntervalProbabilities{R, VR <: AbstractVector{R}, MR <: AbstractMatrix{R}} <: AbstractIntervalProbabilities
+struct IntervalProbabilities{R, VR <: AbstractVector{R}, MR <: AbstractMatrix{R}} <:
+       AbstractIntervalProbabilities
     lower::MR
     gap::MR
 
@@ -225,7 +226,8 @@ target states along each axis.
 # TODO: Update example
 ```jldoctest
 """
-struct OrthogonalIntervalProbabilities{N, P <: IntervalProbabilities} <: AbstractIntervalProbabilities
+struct OrthogonalIntervalProbabilities{N, P <: IntervalProbabilities} <:
+       AbstractIntervalProbabilities
     probs::NTuple{N, P}
     dims::NTuple{N, Int32}
 end

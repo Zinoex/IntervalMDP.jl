@@ -104,7 +104,10 @@ struct DenseOrthogonalWorkspace{N, M, T <: Real}
     actions::Vector{T}
 end
 
-function DenseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R}}, max_actions) where {N, R}
+function DenseOrthogonalWorkspace(
+    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R}},
+    max_actions,
+) where {N, R}
     pns = num_target(p)
     nmax = maximum(pns)
 
@@ -113,7 +116,13 @@ function DenseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities{N, <:Interv
     scratch = Vector{Int32}(undef, nmax)
     expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in pns[2:end])
     actions = Vector{R}(undef, max_actions)
-    return DenseOrthogonalWorkspace(expectation_cache, first_level_perm, perm, scratch, actions)
+    return DenseOrthogonalWorkspace(
+        expectation_cache,
+        first_level_perm,
+        perm,
+        scratch,
+        actions,
+    )
 end
 
 struct ThreadedDenseOrthogonalWorkspace{N, T}
