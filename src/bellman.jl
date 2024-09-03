@@ -340,12 +340,12 @@ function bellman!(
                     if I[d - 1] == product_nstates[d]
                         v = orthogonal_inner_bellman!(
                             workspace,
-                            Vₑ[d],
+                            Vₑ[d - 1],
                             prob[d],
                             jₐ,
                             upper_bound,
                         )
-                        Vₑ[d][I[d - 1]] = v
+                        Vₑ[d][I[d]] = v
                     else
                         break
                     end
