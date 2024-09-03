@@ -37,7 +37,8 @@ using IntervalMDP
         U_split = split(U, [3, 3])
 
         transition_prob(x, v_lower, v_upper) =
-            0.5 * erf((x - v_upper) / (sigma * sqrt(2.0)), (x - v_lower) / (sigma * sqrt(2.0)))
+            0.5 *
+            erf((x - v_upper) / (sigma * sqrt(2.0)), (x - v_lower) / (sigma * sqrt(2.0)))
 
         probs1 = IntervalProbabilities{Float64, Vector{Float64}, Matrix{Float64}}[]
         probs2 = IntervalProbabilities{Float64, Vector{Float64}, Matrix{Float64}}[]
@@ -80,10 +81,16 @@ using IntervalMDP
                             if target1 == 1
                                 probs1_upper[target1, 1] =
                                     max(
-                                        1 -
-                                        transition_prob(low(Xij_u)[1], low(X)[1], high(X)[1]),
-                                        1 -
-                                        transition_prob(high(Xij_u)[1], low(X)[1], high(X)[1]),
+                                        1 - transition_prob(
+                                            low(Xij_u)[1],
+                                            low(X)[1],
+                                            high(X)[1],
+                                        ),
+                                        1 - transition_prob(
+                                            high(Xij_u)[1],
+                                            low(X)[1],
+                                            high(X)[1],
+                                        ),
                                     ) + eps(Float64)
                                 probs1_lower[target1, 1] = min(
                                     1 - transition_prob(
@@ -91,8 +98,16 @@ using IntervalMDP
                                         low(X)[1],
                                         high(X)[1],
                                     ),
-                                    1 - transition_prob(low(Xij_u)[1], low(X)[1], high(X)[1]),
-                                    1 - transition_prob(high(Xij_u)[1], low(X)[1], high(X)[1]),
+                                    1 - transition_prob(
+                                        low(Xij_u)[1],
+                                        low(X)[1],
+                                        high(X)[1],
+                                    ),
+                                    1 - transition_prob(
+                                        high(Xij_u)[1],
+                                        low(X)[1],
+                                        high(X)[1],
+                                    ),
                                 )
                             else
                                 probs1_upper[target1, 1] = max(
@@ -134,10 +149,16 @@ using IntervalMDP
                             if target2 == 1
                                 probs2_upper[target2, 1] =
                                     max(
-                                        1 -
-                                        transition_prob(low(Xij_u)[2], low(X)[2], high(X)[2]),
-                                        1 -
-                                        transition_prob(high(Xij_u)[2], low(X)[2], high(X)[2]),
+                                        1 - transition_prob(
+                                            low(Xij_u)[2],
+                                            low(X)[2],
+                                            high(X)[2],
+                                        ),
+                                        1 - transition_prob(
+                                            high(Xij_u)[2],
+                                            low(X)[2],
+                                            high(X)[2],
+                                        ),
                                     ) + eps(Float64)
                                 probs2_lower[target2, 1] = min(
                                     1 - transition_prob(
@@ -145,8 +166,16 @@ using IntervalMDP
                                         low(X)[2],
                                         high(X)[2],
                                     ),
-                                    1 - transition_prob(low(Xij_u)[2], low(X)[2], high(X)[2]),
-                                    1 - transition_prob(high(Xij_u)[2], low(X)[2], high(X)[2]),
+                                    1 - transition_prob(
+                                        low(Xij_u)[2],
+                                        low(X)[2],
+                                        high(X)[2],
+                                    ),
+                                    1 - transition_prob(
+                                        high(Xij_u)[2],
+                                        low(X)[2],
+                                        high(X)[2],
+                                    ),
                                 )
                             else
                                 probs2_upper[target2, 1] = max(
@@ -183,11 +212,17 @@ using IntervalMDP
 
                         push!(
                             probs1,
-                            IntervalProbabilities(; lower = probs1_lower, upper = probs1_upper),
+                            IntervalProbabilities(;
+                                lower = probs1_lower,
+                                upper = probs1_upper,
+                            ),
                         )
                         push!(
                             probs2,
-                            IntervalProbabilities(; lower = probs2_lower, upper = probs2_upper),
+                            IntervalProbabilities(;
+                                lower = probs2_lower,
+                                upper = probs2_upper,
+                            ),
                         )
                     end
                 end
@@ -270,7 +305,8 @@ using IntervalMDP
         U_split = split(U, [3, 3])
 
         transition_prob(x, v_lower, v_upper) =
-            0.5 * erf((x - v_upper) / (sigma * sqrt(2.0)), (x - v_lower) / (sigma * sqrt(2.0)))
+            0.5 *
+            erf((x - v_upper) / (sigma * sqrt(2.0)), (x - v_lower) / (sigma * sqrt(2.0)))
 
         probs = IntervalProbabilities{Float64, Vector{Float64}, Matrix{Float64}}[]
         for source2 in 1:(l[2] + 1)
@@ -599,14 +635,16 @@ using IntervalMDP
     @test all(V_ortho .≥ reshape(V_direct, 6, 6))
 end
 
-
 # 3-D abstraction
 @testset "3D abstraction" begin
     prob_lower = [rand(3, 27) ./ 3 for _ in 1:3]
     prob_upper = [(rand(3, 27) .+ 1) ./ 3 for _ in 1:3]
 
     probs = OrthogonalIntervalProbabilities(
-        ntuple(i -> IntervalProbabilities(; lower = prob_lower[i], upper = prob_upper[i]), 3),
+        ntuple(
+            i -> IntervalProbabilities(; lower = prob_lower[i], upper = prob_upper[i]),
+            3,
+        ),
         (Int32(3), Int32(3), Int32(3)),
     )
 

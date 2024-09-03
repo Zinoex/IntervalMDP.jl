@@ -19,7 +19,7 @@ test_files = [
 
 if CUDA.functional()
     @info "Running tests with CUDA"
-    
+
     for f in test_files
         @testset "cuda/$f" include(f)
     end
