@@ -1,5 +1,6 @@
 using Revise, Test
 using IntervalMDP
+using Random: MersenneTwister
 
 @testset "Orthogonal abstraction" begin
     using LazySets
@@ -637,8 +638,10 @@ end
 
 # 3-D abstraction
 @testset "3D abstraction" begin
-    prob_lower = [rand(3, 27) ./ 3 for _ in 1:3]
-    prob_upper = [(rand(3, 27) .+ 1) ./ 3 for _ in 1:3]
+    rng = MersenneTwister(995)
+
+    prob_lower = [rand(rng, Float64, 3, 27) ./ 3.0 for _ in 1:3]
+    prob_upper = [(rand(rng, Float64, 3, 27) .+ 1.0) ./ 3.0 for _ in 1:3]
 
     probs = OrthogonalIntervalProbabilities(
         ntuple(
@@ -648,14 +651,42 @@ end
         (Int32(3), Int32(3), Int32(3)),
     )
 
-    stateptr = Int32.(collect(1:28))
-    mdp = OrthogonalIntervalMarkovDecisionProcess(probs, stateptr)
+    mdp = OrthogonalIntervalMarkovChain(probs)
 
     prop = FiniteTimeReachability([(3, 3, 3)], 10)
     spec = Specification(prop, Pessimistic, Maximize)
     prob = Problem(mdp, spec)
 
-    V, it, res = value_iteration(prob)
-    @test V[3, 3, 3] ≈ 1.0
-    @test minimum(V) > 0.0
+    V_ortho, it_ortho, res_ortho = value_iteration(prob)
+
+    @test V_ortho[3, 3, 3] ≈ 1.0
+    @test minimum(V_ortho) > 0.0
+
+    # Test against the naive construction
+    prob_lower_simple = zeros(27, 27)
+    prob_upper_simple = zeros(27, 27)
+
+    for i in 1:27
+        for (j₁, j₂, j₃) in Iterators.product(1:3, 1:3, 1:3)
+            j = (j₃ - 1) * 9 + (j₂ - 1) * 3 + j₁
+
+            prob_lower_simple[j, i] =
+                prob_lower[1][j₁, i] * prob_lower[2][j₂, i] * prob_lower[3][j₃, i]
+            prob_upper_simple[j, i] =
+                prob_upper[1][j₁, i] * prob_upper[2][j₂, i] * prob_upper[3][j₃, i]
+        end
+    end
+
+    probs = IntervalProbabilities(; lower = prob_lower_simple, upper = prob_upper_simple)
+
+    mdp = IntervalMarkovChain(probs)
+
+    prop = FiniteTimeReachability([27], 10)
+    spec = Specification(prop, Pessimistic, Maximize)
+    prob = Problem(mdp, spec)
+
+    V_direct, it_direct, res_direct = value_iteration(prob)
+    @test V_direct[27] ≈ 1.0
+    @test minimum(V_direct) > 0.0
+    @test all(V_ortho .≥ reshape(V_direct, 3, 3, 3))
 end
