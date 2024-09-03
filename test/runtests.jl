@@ -1,12 +1,8 @@
-using Test, CUDA
+using Test
 
 @testset verbose = true "IntervalMDP.jl" begin
     @testset verbose = true "base" include("base/base.jl")
     @testset verbose = true "sparse" include("sparse/sparse.jl")
     @testset verbose = true "data" include("data/data.jl")
-
-    if CUDA.functional()
-        @info "Running tests with CUDA"
-        @testset verbose = true "cuda" include("cuda/cuda.jl")
-    end
+    @testset verbose = true "cuda" include("cuda/cuda.jl")
 end
