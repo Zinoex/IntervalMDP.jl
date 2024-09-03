@@ -16,6 +16,11 @@ IntervalMarkovDecisionProcess
 stateptr(mdp::IntervalMarkovDecisionProcess)
 tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector)
 tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector{<:AbstractVector})
+OrthogonalIntervalMarkovChain
+OrthogonalIntervalMarkovDecisionProcess
+stateptr(mdp::OrthogonalIntervalMarkovDecisionProcess)
+tomarkovchain(mdp::OrthogonalIntervalMarkovDecisionProcess, strategy::AbstractVector)
+tomarkovchain(mdp::OrthogonalIntervalMarkovDecisionProcess, strategy::AbstractVector{<:AbstractVector})
 ```
 
 ## Time-varying Markov Processes
@@ -32,11 +37,12 @@ tomarkovchain(mdp::TimeVaryingIntervalMarkovDecisionProcess, strategy::AbstractV
 ## Probability representation
 ```@docs
 IntervalProbabilities
-lower(p::IntervalProbabilities)
-upper(p::IntervalProbabilities)
-gap(p::IntervalProbabilities)
-sum_lower(p::IntervalProbabilities)
-num_source(p::IntervalProbabilities)
-num_target(p::IntervalProbabilities)
-axes_source(p::IntervalProbabilities)
+OrthogonalIntervalProbabilities
+lower
+upper
+gap
+sum_lower
+num_source
+num_target
+axes_source
 ```

@@ -1,3 +1,6 @@
+using Revise, Test
+using IntervalMDP, SparseArrays, CUDA
+
 #### Maximization
 @testset "maximization" begin
     prob = IntervalMDP.cu(

@@ -39,6 +39,9 @@ depends on the configuration and the device to store the strategy depends on the
 """
 function construct_strategy_cache end
 
+construct_strategy_cache(mp::IntervalMarkovProcess, config) =
+    construct_strategy_cache(mp, config, product_num_states(mp) |> recursiveflatten)
+
 # Strategy cache for not storing policies - useful for dispatching
 struct NoStrategyCache <: AbstractStrategyCache end
 
@@ -46,11 +49,7 @@ function construct_strategy_cache(::IntervalProbabilities, ::NoStrategyConfig)
     return NoStrategyCache()
 end
 
-function construct_strategy_cache(::SimpleIntervalMarkovProcess, ::NoStrategyConfig)
-    return NoStrategyCache()
-end
-
-function construct_strategy_cache(::SimpleIntervalMarkovProcess, ::NoStrategyConfig, dims)
+function construct_strategy_cache(mp::SimpleIntervalMarkovProcess, ::NoStrategyConfig, dims)
     return NoStrategyCache()
 end
 
@@ -72,14 +71,6 @@ end
 function construct_strategy_cache(
     mp::M,
     ::TimeVaryingStrategyConfig,
-) where {M <: SimpleIntervalMarkovProcess}
-    cur_strategy = construct_action_cache(transition_prob(mp, 1), num_states(mp))
-    return TimeVaryingStrategyCache(cur_strategy)
-end
-
-function construct_strategy_cache(
-    mp::M,
-    ::TimeVaryingStrategyConfig,
     dims,
 ) where {M <: SimpleIntervalMarkovProcess}
     cur_strategy = construct_action_cache(transition_prob(mp, 1), dims)
@@ -90,6 +81,13 @@ function construct_action_cache(
     ::IntervalProbabilities{R, VR},
     dims,
 ) where {R <: Real, VR <: AbstractVector{R}}
+    return zeros(Int32, dims)
+end
+
+function construct_action_cache(
+    ::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR}},
+    dims,
+) where {N, R <: Real, VR <: AbstractVector{R}}
     return zeros(Int32, dims)
 end
 
@@ -118,14 +116,6 @@ end
 # Strategy cache for storing stationary policies
 struct StationaryStrategyCache{A <: AbstractArray{Int32}} <: AbstractStrategyCache
     strategy::A
-end
-
-function construct_strategy_cache(
-    mp::M,
-    ::StationaryStrategyConfig,
-) where {M <: SimpleIntervalMarkovProcess}
-    strategy = construct_action_cache(transition_prob(mp), num_states(mp))
-    return StationaryStrategyCache(strategy)
 end
 
 function construct_strategy_cache(

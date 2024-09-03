@@ -1,3 +1,6 @@
+using Revise, Test
+using IntervalMDP
+
 prob = IntervalProbabilities(;
     lower = [
         0.0 0.5 0.0

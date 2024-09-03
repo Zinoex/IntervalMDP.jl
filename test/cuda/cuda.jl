@@ -1,3 +1,4 @@
+using CUDA
 
 @testset "cuda/adapt" begin
     adaptor = IntervalMDP.CuModelAdaptor{Float64}
@@ -14,10 +15,12 @@ test_files = [
     "sparse/vi.jl",
     "sparse/imdp.jl",
     "sparse/synthesis.jl",
-    # "parallel/bellman.jl",
-    # "parallel/vi.jl",
-    # "parallel/synthesis.jl",
 ]
-for f in test_files
-    @testset "cuda/$f" include(f)
+
+if CUDA.functional()
+    @info "Running tests with CUDA"
+
+    for f in test_files
+        @testset "cuda/$f" include(f)
+    end
 end

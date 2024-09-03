@@ -1,3 +1,6 @@
+using Revise, Test
+using IntervalMDP, IntervalMDP.Data, SparseArrays
+
 @testset "io model" begin
     # Read MDP
     mdp = read_intervalmdp_jl_model("data/multiObj_robotIMDP.nc")

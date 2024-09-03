@@ -1,3 +1,6 @@
+using Revise, Test
+using IntervalMDP
+
 #### Maximization
 @testset "maximization" begin
     prob = IntervalProbabilities(;

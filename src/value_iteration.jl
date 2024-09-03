@@ -126,22 +126,24 @@ function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Pro
     return value_function.current, k, value_function.previous, strategy_cache
 end
 
-mutable struct ValueFunction{R, A <: AbstractArray{R}}
+struct ValueFunction{R, A <: AbstractArray{R}}
     previous::A
-    intermediate::A
     current::A
 end
 
-function ValueFunction(problem::Problem{<:SimpleIntervalMarkovProcess})
+function ValueFunction(problem::Problem)
     mp = system(problem)
 
-    previous = construct_value_function(gap(transition_prob(mp, 1)), num_states(mp))
+    pns = product_num_states(mp) |> recursiveflatten
+    # Just need any one of the transition probabilities to dispatch
+    # to the correct method (based on the type).
+    previous = construct_value_function(transition_matrix_type(mp), pns)
     current = copy(previous)
 
-    return ValueFunction(previous, previous, current)
+    return ValueFunction(previous, current)
 end
 
-function construct_value_function(::MR, num_states) where {R, MR <: AbstractMatrix{R}}
+function construct_value_function(::Type{MR}, num_states) where {R, MR <: AbstractMatrix{R}}
     V = zeros(R, num_states)
     return V
 end
@@ -156,7 +158,6 @@ end
 
 function nextiteration!(V)
     copyto!(V.previous, V.current)
-    copyto!(V.intermediate, V.current)
 
     return V
 end
@@ -175,7 +176,7 @@ function step!(
         workspace,
         strategy_cache,
         value_function.current,
-        value_function.intermediate,
+        value_function.previous,
         prob,
         stateptr(mp);
         upper_bound = upper_bound,
@@ -197,7 +198,7 @@ function step!(
         workspace,
         strategy_cache,
         value_function.current,
-        value_function.intermediate,
+        value_function.previous,
         prob,
         stateptr(mp);
         upper_bound = upper_bound,

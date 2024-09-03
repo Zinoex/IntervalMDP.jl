@@ -141,7 +141,6 @@ abstract type AbstractReachability <: Property end
 
 function initialize!(value_function, prop::AbstractReachability)
     @inbounds value_function.previous[reach(prop)] .= 1.0
-    @inbounds value_function.intermediate[reach(prop)] .= 1.0
 end
 
 function postprocess_value_function!(value_function, prop::AbstractReachability)
@@ -420,16 +419,17 @@ Return the set of states to avoid.
 """
 avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
 
-function checkterminal!(terminal_states, system::SimpleIntervalMarkovProcess)
-    nstates = num_states(system)
+function checkterminal!(terminal_states, system)
+    pns = product_num_states(system) |> recursiveflatten
     for j in terminal_states
-        if length(j) != 1
-            throw(StateDimensionMismatch(j, 1))
+        j = Tuple(j)
+
+        if length(j) != length(pns)
+            throw(StateDimensionMismatch(j, length(pns)))
         end
 
-        j = j[1]
-        if j < 1 || j > nstates
-            throw(InvalidStateError(promote(j, nstates)...))
+        if any(j .< 1) || any(j .> pns)
+            throw(InvalidStateError(j, pns))
         end
     end
 end
@@ -450,21 +450,21 @@ abstract type AbstractReward{R <: Real} <: Property end
 
 function initialize!(value_function, prop::AbstractReward)
     value_function.previous .= reward(prop)
-    value_function.intermediate .= reward(prop)
 end
 
 function postprocess_value_function!(value_function, prop::AbstractReward)
     rmul!(value_function.current, discount(prop))
-    value_function.current += reward(prop)
+    value_function.current .+= reward(prop)
 end
 
-function checkreward!(prop::AbstractReward, system::SimpleIntervalMarkovProcess)
+function checkreward!(prop::AbstractReward, system)
     checkdevice!(reward(prop), system)
 
-    if length(reward(prop)) != num_states(system)
+    pns = product_num_states(system) |> recursiveflatten
+    if size(reward(prop)) != pns
         throw(
             DimensionMismatch(
-                "the reward vector must have the same length $(length(reward(prop))) as the number of states $(num_states(system))",
+                "the reward array must have the same dimensions $(size(reward(prop))) as the number of states along each axis $pns",
             ),
         )
     end
@@ -474,8 +474,12 @@ function checkreward!(prop::AbstractReward, system::SimpleIntervalMarkovProcess)
     end
 end
 
-function checkdevice!(v::AbstractArray, system::SimpleIntervalMarkovProcess)
+function checkdevice!(v::AbstractArray, system::TimeVaryingIntervalMarkovDecisionProcess)
     checkdevice!(v, transition_prob(system, 1))
+end
+
+function checkdevice!(v::AbstractArray, system::StationaryIntervalMarkovProcess)
+    checkdevice!(v, transition_prob(system))
 end
 
 function checkdevice!(v::AbstractArray, p::IntervalProbabilities)
