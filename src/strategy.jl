@@ -45,7 +45,7 @@ construct_strategy_cache(mp::IntervalMarkovProcess, config) =
 # Strategy cache for not storing policies - useful for dispatching
 struct NoStrategyCache <: AbstractStrategyCache end
 
-function construct_strategy_cache(::IntervalProbabilities, ::NoStrategyConfig)
+function construct_strategy_cache(::Union{IntervalProbabilities, OrthogonalIntervalProbabilities}, ::NoStrategyConfig)
     return NoStrategyCache()
 end
 

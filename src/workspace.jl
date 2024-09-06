@@ -14,19 +14,6 @@ as well as the number of threads available.
 construct_workspace(mp::SimpleIntervalMarkovProcess) =
     construct_workspace(transition_prob(mp, 1), max_actions(mp))
 
-"""
-    construct_workspace(prob::IntervalProbabilities)
-
-Construct a workspace for computing the Bellman update, given a value function.
-If the Bellman update is used in a hot-loop, it is more efficient to use this function
-to preallocate the workspace and reuse across iterations.
-
-The workspace type is determined by the type and size of the transition probability matrix,
-as well as the number of threads available.
-"""
-construct_workspace(prob::IntervalProbabilities, max_actions = 1) =
-    construct_workspace(gap(prob), max_actions)
-
 # Dense
 struct DenseWorkspace{T <: Real}
     scratch::Vector{Int32}
@@ -56,11 +43,21 @@ function ThreadedDenseWorkspace(p::AbstractMatrix{T}, max_actions) where {T <: R
     return ThreadedDenseWorkspace(scratch, perm, actions)
 end
 
-function construct_workspace(p::AbstractMatrix, max_actions; threshold = 10)
+"""
+    construct_workspace(prob::IntervalProbabilities)
+
+Construct a workspace for computing the Bellman update, given a value function.
+If the Bellman update is used in a hot-loop, it is more efficient to use this function
+to preallocate the workspace and reuse across iterations.
+
+The workspace type is determined by the type and size of the transition probability matrix,
+as well as the number of threads available.
+"""
+function construct_workspace(prob::IntervalProbabilities{R, VR, MR}, max_actions = 1; threshold = 10) where {R, VR, MR <: AbstractMatrix{R}}
     if Threads.nthreads() == 1 || size(p, 2) <= threshold
-        return DenseWorkspace(p, max_actions)
+        return DenseWorkspace(gap(prob), max_actions)
     else
-        return ThreadedDenseWorkspace(p, max_actions)
+        return ThreadedDenseWorkspace(gap(prob), max_actions)
     end
 end
 
@@ -89,11 +86,11 @@ function ThreadedSparseWorkspace(p::AbstractSparseMatrix, max_actions)
     return ThreadedSparseWorkspace(thread_workspaces)
 end
 
-function construct_workspace(p::AbstractSparseMatrix, max_actions; threshold = 10)
+function construct_workspace(prob::IntervalProbabilities{R, VR, MR}, max_actions = 1; threshold = 10) where {R, VR, MR <: AbstractSparseMatrix{R}}
     if Threads.nthreads() == 1 || size(p, 2) <= threshold
-        return SparseWorkspace(p, max_actions)
+        return SparseWorkspace(gap(prob), max_actions)
     else
-        return ThreadedSparseWorkspace(p, max_actions)
+        return ThreadedSparseWorkspace(gap(prob), max_actions)
     end
 end
 
@@ -137,7 +134,17 @@ function ThreadedDenseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities, ma
     return ThreadedDenseOrthogonalWorkspace(thread_workspaces)
 end
 
-function construct_workspace(p::OrthogonalIntervalProbabilities, max_actions)
+"""
+    construct_workspace(prob::OrthogonalIntervalProbabilities)
+
+Construct a workspace for computing the Bellman update, given a value function.
+If the Bellman update is used in a hot-loop, it is more efficient to use this function
+to preallocate the workspace and reuse across iterations.
+
+The workspace type is determined by the type and size of the transition probability matrix,
+as well as the number of threads available.
+"""
+function construct_workspace(p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}}, max_actions=1) where {N, R, VR, MR <: AbstractMatrix{R}}
     if Threads.nthreads() == 1
         return DenseOrthogonalWorkspace(p, max_actions)
     else

@@ -7,8 +7,7 @@ struct CuDenseWorkspace <: AbstractCuWorkspace
     max_actions::Int32
 end
 
-IntervalMDP.construct_workspace(::AbstractGPUMatrix, max_actions) =
-    CuDenseWorkspace(max_actions)
+IntervalMDP.construct_workspace(prob::IntervalProbabilities{R, VR, MR}, max_actions = 1) where {R, VR, MR <: AbstractGPUMatrix{R}} = CuDenseWorkspace(max_actions)
 
 ####################
 # Sparse workspace #
@@ -23,5 +22,4 @@ function CuSparseWorkspace(p::AbstractCuSparseMatrix, max_actions)
     return CuSparseWorkspace(max_nonzeros, max_actions)
 end
 
-IntervalMDP.construct_workspace(p::AbstractCuSparseMatrix, max_actions) =
-    CuSparseWorkspace(p, max_actions)
+IntervalMDP.construct_workspace(prob::IntervalProbabilities{R, VR, MR}, max_actions = 1) where {R, VR, MR <: AbstractCuSparseMatrix{R}} = CuSparseWorkspace(max_actions, max_actions)
