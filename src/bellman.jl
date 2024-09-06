@@ -32,7 +32,7 @@ Vcur = bellman(Vprev, prob; upper_bound = false)
 
 """
 function bellman(V, prob; upper_bound = false)
-    Vres = similar(V, num_source(prob))
+    Vres = similar(V, source_shape(prob))
     return bellman!(Vres, V, prob; upper_bound = upper_bound)
 end
 

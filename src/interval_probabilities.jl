@@ -167,6 +167,7 @@ sum_lower(p::IntervalProbabilities) = p.sum_lower
 Return the number of source states or source/action pairs.
 """
 num_source(p::IntervalProbabilities) = size(gap(p), 2)
+source_shape(p::IntervalProbabilities) = (num_source(p),)
 
 """
     axes_source(p::IntervalProbabilities)
@@ -220,7 +221,7 @@ target states along each axis.
 
 ### Fields
 - `probs::NTuple{N, P}`: A tuple of `IntervalProbabilities` transition probabilities along each axis.
-- `dims::NTuple{N, Int32}`: The dimensions of the orthogonal probabilities.
+- `source_dims::NTuple{N, Int32}`: The dimensions of the orthogonal probabilities for the source axis. This is flattened to a single dimension for indexing.
 
 ### Examples
 # TODO: Update example
@@ -229,7 +230,7 @@ target states along each axis.
 struct OrthogonalIntervalProbabilities{N, P <: IntervalProbabilities} <:
        AbstractIntervalProbabilities
     probs::NTuple{N, P}
-    dims::NTuple{N, Int32}
+    source_dims::NTuple{N, Int32}
 end
 
 """
@@ -272,6 +273,7 @@ sum_lower(p::OrthogonalIntervalProbabilities, i) = p.probs[i].sum_lower
 Return the number of source states or source/action pairs.
 """
 num_source(p::OrthogonalIntervalProbabilities) = num_source(first(p.probs))
+source_shape(p::OrthogonalIntervalProbabilities) = p.source_dims
 
 """
     axes_source(p::OrthogonalIntervalProbabilities)
