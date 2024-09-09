@@ -81,11 +81,13 @@ using Random: MersenneTwister
         @test Vres[2, 2, 2] ≈ V222_expected
         @test Vres[3, 3, 3] ≈ V333_expected
 
-        # ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
-        # strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
-        # Vres = similar(Vres)
-        # bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = true)
-        # @test Vres ≈ [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
+        ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = true)
+        @test Vres[1, 1, 1] ≈ V111_expected
+        @test Vres[2, 2, 2] ≈ V222_expected
+        @test Vres[3, 3, 3] ≈ V333_expected
     end
 
     #### Minimization
@@ -121,11 +123,13 @@ using Random: MersenneTwister
         @test Vres[2, 2, 2] ≈ V222_expected
         @test Vres[3, 3, 3] ≈ V333_expected
 
-        # ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
-        # strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
-        # Vres = similar(Vres)
-        # bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = false)
-        # @test Vres ≈ [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
+        ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = false)
+        @test Vres[1, 1, 1] ≈ V111_expected
+        @test Vres[2, 2, 2] ≈ V222_expected
+        @test Vres[3, 3, 3] ≈ V333_expected
     end
 end
 

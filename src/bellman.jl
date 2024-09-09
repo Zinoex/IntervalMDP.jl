@@ -293,7 +293,7 @@ function gap_value(Vp, sum_lower)
     return res
 end
 
-# Dense
+# Dense orthogonal
 function bellman!(
     workspace::DenseOrthogonalWorkspace,
     strategy_cache::AbstractStrategyCache,
@@ -309,15 +309,101 @@ function bellman!(
 
     # For each higher-level state in the product space
     for I in CartesianIndices(product_nstates[2:end])
-        perm = @view workspace.permutation[axes(V, 1)]
-        sortperm!(perm, @view(V[:, I]); rev = upper_bound, scratch = workspace.scratch)
-
-        copyto!(@view(workspace.first_level_perm[:, I]), perm)
+        sort_dense_orthogonal(workspace, workspace.first_level_perm, V, I, upper_bound)
     end
 
     # For each source state
     @inbounds for (jₛ_cart, jₛ_linear) in
                   zip(CartesianIndices(axes(V)), LinearIndices(axes(V)))
+        bellman_dense_orthogonal!(
+            workspace,
+            workspace.first_level_perm,
+            strategy_cache,
+            Vres,
+            V,
+            prob,
+            stateptr,
+            product_nstates,
+            jₛ_cart,
+            jₛ_linear;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
+    end
+
+    return Vres
+end
+
+function bellman!(
+    workspace::ThreadedDenseOrthogonalWorkspace,
+    strategy_cache::AbstractStrategyCache,
+    Vres,
+    V,
+    prob::OrthogonalIntervalProbabilities,
+    stateptr;
+    upper_bound = false,
+    maximize = true,
+)
+    # Since sorting for the first level is shared among all higher levels, we can precompute it
+    product_nstates = num_target(prob)
+
+    # For each higher-level state in the product space
+    @threadstid tid for I in CartesianIndices(product_nstates[2:end])
+        ws = workspace.thread_workspaces[tid]
+        sort_dense_orthogonal(ws, workspace.first_level_perm, V, I, upper_bound)
+    end
+
+    # For each source state
+    I_linear = LinearIndices(axes(V))
+    @threadstid tid for jₛ_cart in CartesianIndices(axes(V))
+        # We can't use @threadstid over a zip, so we need to manually index
+        jₛ_linear = I_linear[jₛ_cart]
+        
+        ws = workspace.thread_workspaces[tid]
+
+        bellman_dense_orthogonal!(
+            ws,
+            workspace.first_level_perm,
+            strategy_cache,
+            Vres,
+            V,
+            prob,
+            stateptr,
+            product_nstates,
+            jₛ_cart,
+            jₛ_linear;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
+    end
+
+    return Vres
+end
+
+function sort_dense_orthogonal(workspace, first_level_perm, V, I, upper_bound)
+    @inbounds begin
+        perm = @view workspace.permutation[axes(V, 1)]
+        sortperm!(perm, @view(V[:, I]); rev = upper_bound, scratch = workspace.scratch)
+
+        copyto!(@view(first_level_perm[:, I]), perm)
+    end
+end
+
+function bellman_dense_orthogonal!(
+    workspace,
+    first_level_perm,
+    strategy_cache::AbstractStrategyCache,
+    Vres,
+    V,
+    prob::OrthogonalIntervalProbabilities,
+    stateptr,
+    product_nstates,
+    jₛ_cart,
+    jₛ_linear;
+    upper_bound = false,
+    maximize = true
+)
+    @inbounds begin
         s₁, s₂ = stateptr[jₛ_linear], stateptr[jₛ_linear + 1]
         actions = @view workspace.actions[1:(s₂ - s₁)]
         for (i, jₐ) in enumerate(s₁:(s₂ - 1))
@@ -328,7 +414,8 @@ function bellman!(
 
                 # For the first dimension, we need to copy the values from V
                 v = orthogonal_inner_sorted_bellman!(
-                    @view(workspace.first_level_perm[:, I]),
+                    # Use shared first level permutation across threads
+                    @view(first_level_perm[:, I]),
                     @view(V[:, I]),
                     prob[1],
                     jₐ,
@@ -359,12 +446,10 @@ function bellman!(
 
         Vres[jₛ_cart] = extract_strategy!(strategy_cache, actions, V, jₛ_cart, s₁, maximize)
     end
-
-    return Vres
 end
 
 Base.@propagate_inbounds function orthogonal_inner_bellman!(
-    workspace::DenseOrthogonalWorkspace,
+    workspace::Union{DenseOrthogonalWorkspace, ThreadDenseOrthogonalWorkspace},
     V,
     prob,
     jₐ,
