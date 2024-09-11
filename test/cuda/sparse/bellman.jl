@@ -1,5 +1,6 @@
 using Revise, Test
 using IntervalMDP, SparseArrays, CUDA
+using StatsBase
 
 #### Maximization
 @testset "maximization" begin
