@@ -63,7 +63,6 @@ using Random: MersenneTwister
 
         Vres = bellman(V, sparse_prob; upper_bound = true)
         @test Vres ≈ Vres_dense
-        println((Vres_dense[1, 3, 1], Vres_dense[7], Vres[1, 3, 1], Vres[7]))
 
         Vres = similar(Vres)
         bellman!(Vres, V, sparse_prob; upper_bound = true)
@@ -81,11 +80,11 @@ using Random: MersenneTwister
         bellman!(ws, strategy_cache, Vres, V, sparse_prob; upper_bound = true)
         @test Vres ≈ Vres_dense
 
-        # ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(sparse_prob, 1)
-        # strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
-        # Vres = similar(Vres)
-        # bellman!(ws, strategy_cache, Vres, V, sparse_prob; upper_bound = true)
-        # @test Vres ≈ Vres_dense
+        ws = IntervalMDP.ThreadedSparseOrthogonalWorkspace(sparse_prob, 1)
+        strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, sparse_prob; upper_bound = true)
+        @test Vres ≈ Vres_dense
     end
 
     #### Minimization
@@ -111,10 +110,10 @@ using Random: MersenneTwister
         bellman!(ws, strategy_cache, Vres, V, sparse_prob; upper_bound = false)
         @test Vres ≈ Vres_dense
 
-        # ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(sparse_prob, 1)
-        # strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
-        # Vres = similar(Vres)
-        # bellman!(ws, strategy_cache, Vres, V, sparse_prob; upper_bound = false)
-        # @test Vres ≈ Vres_dense
+        ws = IntervalMDP.ThreadedSparseOrthogonalWorkspace(sparse_prob, 1)
+        strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, sparse_prob; upper_bound = false)
+        @test Vres ≈ Vres_dense
     end
 end

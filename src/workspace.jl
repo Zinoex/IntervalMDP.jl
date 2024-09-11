@@ -213,6 +213,17 @@ function SparseOrthogonalWorkspace(
     )
 end
 
+struct ThreadedSparseOrthogonalWorkspace{N, T}
+    thread_workspaces::Vector{SparseOrthogonalWorkspace{N, T}}
+end
+
+function ThreadedSparseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities, max_actions)
+    nthreads = Threads.nthreads()
+    thread_workspaces = [SparseOrthogonalWorkspace(p, max_actions) for _ in 1:nthreads]
+
+    return ThreadedSparseOrthogonalWorkspace(thread_workspaces)
+end
+
 """
     construct_workspace(prob::OrthogonalIntervalProbabilities)
 
@@ -225,9 +236,9 @@ as well as the number of threads available.
 """
 function construct_workspace(p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}}, max_actions=1) where {N, R, VR, MR <: AbstractSparseMatrix{R}}
     return SparseOrthogonalWorkspace(p, max_actions)
-    # if Threads.nthreads() == 1
-    #     return DenseOrthogonalWorkspace(p, max_actions)
-    # else
-    #     return ThreadedDenseOrthogonalWorkspace(p, max_actions)
-    # end
+    if Threads.nthreads() == 1
+        return SparseOrthogonalWorkspace(p, max_actions)
+    else
+        return ThreadedSparseOrthogonalWorkspace(p, max_actions)
+    end
 end

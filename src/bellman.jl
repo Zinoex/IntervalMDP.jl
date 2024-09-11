@@ -506,6 +506,40 @@ function bellman!(
 
     return Vres
 end
+function bellman!(
+    workspace::ThreadedSparseOrthogonalWorkspace,
+    strategy_cache::AbstractStrategyCache,
+    Vres,
+    V,
+    prob::OrthogonalIntervalProbabilities,
+    stateptr;
+    upper_bound = false,
+    maximize = true,
+)
+    # For each source state
+    I_linear = LinearIndices(axes(V))
+    @threadstid tid for jₛ_cart in CartesianIndices(axes(V))
+        # We can't use @threadstid over a zip, so we need to manually index
+        jₛ_linear = I_linear[jₛ_cart]
+        
+        ws = workspace.thread_workspaces[tid]
+
+        bellman_sparse_orthogonal!(
+            ws,
+            strategy_cache,
+            Vres,
+            V,
+            prob,
+            stateptr,
+            jₛ_cart,
+            jₛ_linear;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
+    end
+
+    return Vres
+end
 
 function bellman_sparse_orthogonal!(
     workspace,
