@@ -94,7 +94,9 @@ function construct_workspace(prob::IntervalProbabilities{R, VR, MR}, max_actions
     end
 end
 
-# Orthogonal
+## Orthogonal
+
+# Dense
 struct DenseOrthogonalWorkspace{N, M, T <: Real}
     expectation_cache::NTuple{N, Vector{T}}
     first_level_perm::Array{Int32, M}
@@ -181,4 +183,51 @@ function construct_workspace(p::OrthogonalIntervalProbabilities{N, <:IntervalPro
     else
         return ThreadedDenseOrthogonalWorkspace(p, max_actions)
     end
+end
+
+# Sparse
+struct SparseOrthogonalWorkspace{N, T <: Real}
+    expectation_cache::NTuple{N, Vector{T}}
+    values_gaps::Vector{Tuple{T, T}}
+    scratch::Vector{Tuple{T, T}}
+    actions::Vector{T}
+end
+
+function SparseOrthogonalWorkspace(
+    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}},
+    max_actions,
+) where {N, R, VR, MR <: AbstractSparseMatrix{R}}
+    max_nonzeros_per_prob = [maximum(map(nnz, eachcol(gap(pᵢ)))) for pᵢ in p]
+    max_nonzeros = maximum(max_nonzeros_per_prob)
+
+    scratch = Vector{Tuple{R, R}}(undef, max_nonzeros)
+    values_gaps = Vector{Tuple{R, R}}(undef, max_nonzeros)
+    expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in max_nonzeros_per_prob[2:end])
+    actions = Vector{R}(undef, max_actions)
+
+    return SparseOrthogonalWorkspace(
+        expectation_cache,
+        values_gaps,
+        scratch,
+        actions,
+    )
+end
+
+"""
+    construct_workspace(prob::OrthogonalIntervalProbabilities)
+
+Construct a workspace for computing the Bellman update, given a value function.
+If the Bellman update is used in a hot-loop, it is more efficient to use this function
+to preallocate the workspace and reuse across iterations.
+
+The workspace type is determined by the type and size of the transition probability matrix,
+as well as the number of threads available.
+"""
+function construct_workspace(p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}}, max_actions=1) where {N, R, VR, MR <: AbstractSparseMatrix{R}}
+    return SparseOrthogonalWorkspace(p, max_actions)
+    # if Threads.nthreads() == 1
+    #     return DenseOrthogonalWorkspace(p, max_actions)
+    # else
+    #     return ThreadedDenseOrthogonalWorkspace(p, max_actions)
+    # end
 end

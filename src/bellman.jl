@@ -475,3 +475,130 @@ Base.@propagate_inbounds function orthogonal_inner_sorted_bellman!(
 
     return dot(V, lowerⱼ) + gap_value(V, gapⱼ, used, perm)
 end
+
+# Sparse orthogonal
+function bellman!(
+    workspace::SparseOrthogonalWorkspace,
+    strategy_cache::AbstractStrategyCache,
+    Vres,
+    V,
+    prob::OrthogonalIntervalProbabilities,
+    stateptr;
+    upper_bound = false,
+    maximize = true,
+)
+    # For each source state
+    @inbounds for (jₛ_cart, jₛ_linear) in
+                  zip(CartesianIndices(axes(V)), LinearIndices(axes(V)))
+        bellman_sparse_orthogonal!(
+            workspace,
+            strategy_cache,
+            Vres,
+            V,
+            prob,
+            stateptr,
+            jₛ_cart,
+            jₛ_linear;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
+    end
+
+    return Vres
+end
+
+function bellman_sparse_orthogonal!(
+    workspace,
+    strategy_cache::AbstractStrategyCache,
+    Vres,
+    V,
+    prob::OrthogonalIntervalProbabilities,
+    stateptr,
+    jₛ_cart,
+    jₛ_linear;
+    upper_bound = false,
+    maximize = true
+)
+    @inbounds begin
+        s₁, s₂ = stateptr[jₛ_linear], stateptr[jₛ_linear + 1]
+        actions = @view workspace.actions[1:(s₂ - s₁)]
+        for (i, jₐ) in enumerate(s₁:(s₂ - 1))
+            nzinds_first = SparseArrays.nonzeroinds(@view(gap(prob[1])[:, jₐ]))
+            nzinds_per_prob = [SparseArrays.nonzeroinds(@view(gap(p)[:, jₐ])) for p in prob[2:end]]
+
+            lower_nzvals_per_prob = [nonzeros(@view(lower(p)[:, jₐ])) for p in prob]
+            gap_nzvals_per_prob = [nonzeros(@view(gap(p)[:, jₐ])) for p in prob]
+            sum_lower_per_prob = [sum_lower(p)[jₐ] for p in prob]
+
+            nnz_per_prob = Tuple(nnz(@view(gap(p)[:, jₐ])) for p in prob)
+            Vₑ = [@view(cache[1:nnz]) for (cache, nnz) in zip(workspace.expectation_cache, nnz_per_prob[2:end])]
+
+            # For each higher-level state in the product space
+            for I in CartesianIndices(nnz_per_prob[2:end])
+                Isparse = CartesianIndex(Tuple(map(enumerate(Tuple(I))) do (d, i)
+                    nzinds_per_prob[d][i]
+                end))
+
+                # For the first dimension, we need to copy the values from V
+                v = orthogonal_sparse_inner_bellman!(
+                    workspace,
+                    @view(V[nzinds_first, Isparse]),
+                    lower_nzvals_per_prob[1],
+                    gap_nzvals_per_prob[1],
+                    sum_lower_per_prob[1],
+                    upper_bound
+                )
+                Vₑ[1][I[1]] = v
+
+                # For the remaining dimensions, if "full", compute expectation and store in the next level
+                for d in 2:(ndims(prob) - 1)
+                    if I[d - 1] == nnz_per_prob[d]
+                        v = orthogonal_sparse_inner_bellman!(
+                            workspace,
+                            Vₑ[d - 1],
+                            lower_nzvals_per_prob[d],
+                            gap_nzvals_per_prob[d],
+                            sum_lower_per_prob[d],
+                            upper_bound,
+                        )
+                        Vₑ[d][I[d]] = v
+                    else
+                        break
+                    end
+                end
+            end
+
+            # Last dimension
+            v = orthogonal_sparse_inner_bellman!(
+                workspace,
+                Vₑ[end],
+                lower_nzvals_per_prob[end],
+                gap_nzvals_per_prob[end],
+                sum_lower_per_prob[end],
+                upper_bound
+            )
+            actions[i] = v
+        end
+
+        Vres[jₛ_cart] = extract_strategy!(strategy_cache, actions, V, jₛ_cart, s₁, maximize)
+    end
+end
+
+Base.@propagate_inbounds function orthogonal_sparse_inner_bellman!(
+    workspace::SparseOrthogonalWorkspace,
+    V,
+    lower,
+    gap,
+    sum_lower,
+    upper_bound::Bool,
+)
+    Vp_workspace = @view workspace.values_gaps[1:length(gap)]
+    for (i, (v, p)) in enumerate(zip(V, gap))
+        Vp_workspace[i] = (v, p)
+    end
+
+    # rev=true for upper bound
+    sort!(Vp_workspace; rev = upper_bound, scratch = workspace.scratch)
+
+    return dot(V, lower) + gap_value(Vp_workspace, sum_lower)
+end

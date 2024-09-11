@@ -290,3 +290,5 @@ Base.getindex(p::OrthogonalIntervalProbabilities, i) = p.probs[i]
 Base.lastindex(p::OrthogonalIntervalProbabilities) = ndims(p)
 Base.firstindex(p::OrthogonalIntervalProbabilities) = 1
 Base.length(p::OrthogonalIntervalProbabilities) = ndims(p)
+Base.iterate(p::OrthogonalIntervalProbabilities) = (p[1], 2)
+Base.iterate(p::OrthogonalIntervalProbabilities, i) = i > ndims(p) ? nothing : (p[i], i + 1)

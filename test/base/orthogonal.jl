@@ -21,19 +21,19 @@ using Random: MersenneTwister
     ]
 
     upper1 = [
-        7/15   17/30  13/30  3/5    17/30  17/30  17/30  13/30  3/5    2/3    11/30  7/15   13/30  1/2    17/30  13/30  7/15   13/30  17/30  13/30  2/5    2/5    2/3    2/5    17/30  2/5    19/30
-        8/15   1/2    3/5    7/15   8/15   17/30  2/3    17/30  11/30  7/15   19/30  19/30  13/30  1/2    17/30  13/30  3/5    11/30  8/15   7/15   7/15   13/30  8/15   2/5    8/15   17/30  3/5
+        7/15   17/30  13/30  3/5    17/30  17/30  17/30  13/30  3/5    2/3    11/30  7/15   0      1/2    17/30  13/30  7/15   13/30  17/30  13/30  2/5    2/5    2/3    2/5    17/30  2/5    19/30
+        8/15   1/2    3/5    7/15   8/15   17/30  2/3    17/30  11/30  7/15   19/30  19/30  13/15  1/2    17/30  13/30  3/5    11/30  8/15   7/15   7/15   13/30  8/15   2/5    8/15   17/30  3/5
         11/30  1/3    2/5    8/15   7/15   3/5    2/3    17/30  2/3    8/15   2/15   3/5    2/3    3/5    17/30  2/3    7/15   8/15   2/5    2/5    11/30  17/30  17/30  1/2    2/5    19/30  13/30
     ]
     upper2 = [
         2/5    17/30  3/5    11/30  3/5    7/15   19/30  2/5    3/5    2/3    2/3    8/15   8/15   19/30  8/15   8/15   13/30  13/30  13/30  17/30  17/30  13/30  11/30  19/30  8/15   2/5    8/15
-        1/3    13/30  11/30  2/5    2/3    2/3    1/3    13/30  1/2    17/30  17/30  1/3    2/5    1/3    13/30  11/30  8/15   1/3    1/2    8/15   8/15   8/15   8/15   2/5    3/5    2/3    13/30
+        1/3    13/30  11/30  2/5    2/3    2/3    0      13/30  1/2    17/30  17/30  1/3    2/5    1/3    13/30  11/30  8/15   1/3    1/2    8/15   8/15   8/15   8/15   2/5    3/5    2/3    13/30
         17/30  3/5    8/15   1/2    7/15   1/2    2/3    17/30  11/30  2/5    1/2    7/15   2/5    17/30  11/30  2/5    11/30  2/3    1/3    2/3    17/30  8/15   17/30  3/5    2/5    19/30  11/30
     ]
     upper3 = [
         3/5    17/30  1/2    3/5    19/30  2/5    8/15   1/3    11/30  2/5    17/30  13/30  2/5    3/5    3/5    11/30  1/2    11/30  2/3    17/30  3/5    7/15   19/30  1/2    3/5    1/3    19/30
         3/5    2/3    13/30  19/30  1/3    2/5    17/30  7/15   11/30  3/5    19/30  7/15   2/5    8/15   17/30  11/30  19/30  13/30  2/3    17/30  8/15   13/30  13/30  3/5    1/2    8/15   8/15
-        3/5    2/3    1/2    1/2    2/3    7/15   3/5    3/5    1/2    1/3    2/5    8/15   2/5    11/30  1/3    8/15   7/15   13/30  13/30  2/5    11/30  19/30  19/30  2/5    1/2    7/15   7/15
+        3/5    2/3    1/2    1/2    2/3    7/15   3/5    3/5    1/2    1/3    2/5    8/15   2/5    11/30  1/3    8/15   7/15   13/30  0      2/5    11/30  19/30  19/30  2/5    1/2    7/15   7/15
     ]
 
     prob = OrthogonalIntervalProbabilities(
@@ -53,41 +53,39 @@ using Random: MersenneTwister
         V111_expected = 17.276
         V222_expected = 18.838037037037
         V333_expected = 17.3777407407407
+        V131_expected = 18.8653703703704
+        V122_expected = 20.52
+        V113_expected = 19.5096296296296
 
-        Vres = bellman(V, prob; upper_bound = true)
-        @test Vres[1, 1, 1] ≈ V111_expected
-        @test Vres[2, 2, 2] ≈ V222_expected
-        @test Vres[3, 3, 3] ≈ V333_expected
+        Vres_first = bellman(V, prob; upper_bound = true)
+        @test Vres_first[1, 1, 1] ≈ V111_expected
+        @test Vres_first[2, 2, 2] ≈ V222_expected
+        @test Vres_first[3, 3, 3] ≈ V333_expected
+        @test Vres_first[1, 3, 1] ≈ V131_expected
+        @test Vres_first[1, 2, 2] ≈ V122_expected
+        @test Vres_first[1, 1, 3] ≈ V113_expected
 
-        Vres = similar(Vres)
+        Vres = similar(Vres_first)
         bellman!(Vres, V, prob; upper_bound = true)
-        @test Vres[1, 1, 1] ≈ V111_expected
-        @test Vres[2, 2, 2] ≈ V222_expected
-        @test Vres[3, 3, 3] ≈ V333_expected
+        @test Vres ≈ Vres_first
 
         ws = construct_workspace(prob)
         strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
-        Vres = similar(Vres)
+        Vres = similar(Vres_first)
         bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = true)
-        @test Vres[1, 1, 1] ≈ V111_expected
-        @test Vres[2, 2, 2] ≈ V222_expected
-        @test Vres[3, 3, 3] ≈ V333_expected
+        @test Vres ≈ Vres_first
 
         ws = IntervalMDP.DenseOrthogonalWorkspace(prob, 1)
         strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
-        Vres = similar(Vres)
+        Vres = similar(Vres_first)
         bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = true)
-        @test Vres[1, 1, 1] ≈ V111_expected
-        @test Vres[2, 2, 2] ≈ V222_expected
-        @test Vres[3, 3, 3] ≈ V333_expected
+        @test Vres ≈ Vres_first
 
         ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
         strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
-        Vres = similar(Vres)
+        Vres = similar(Vres_first)
         bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = true)
-        @test Vres[1, 1, 1] ≈ V111_expected
-        @test Vres[2, 2, 2] ≈ V222_expected
-        @test Vres[3, 3, 3] ≈ V333_expected
+        @test Vres ≈ Vres_first
     end
 
     #### Minimization
@@ -95,41 +93,39 @@ using Random: MersenneTwister
         V111_expected = 10.1567407407407
         V222_expected = 10.4691111111111
         V333_expected = 11.4640740740741
+        V131_expected = 7.8724444444445
+        V122_expected = 10.3088888888889
+        V113_expected = 11.5774074074074
 
-        Vres = bellman(V, prob; upper_bound = false)
-        @test Vres[1, 1, 1] ≈ V111_expected
-        @test Vres[2, 2, 2] ≈ V222_expected
-        @test Vres[3, 3, 3] ≈ V333_expected
+        Vres_first = bellman(V, prob; upper_bound = false)
+        @test Vres_first[1, 1, 1] ≈ V111_expected
+        @test Vres_first[2, 2, 2] ≈ V222_expected
+        @test Vres_first[3, 3, 3] ≈ V333_expected
+        @test Vres_first[1, 3, 1] ≈ V131_expected
+        @test Vres_first[1, 2, 2] ≈ V122_expected
+        @test Vres_first[1, 1, 3] ≈ V113_expected
 
-        Vres = similar(Vres)
+        Vres = similar(Vres_first)
         bellman!(Vres, V, prob; upper_bound = false)
-        @test Vres[1, 1, 1] ≈ V111_expected
-        @test Vres[2, 2, 2] ≈ V222_expected
-        @test Vres[3, 3, 3] ≈ V333_expected
-
+        @test Vres ≈ Vres_first
+        
         ws = construct_workspace(prob)
         strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
-        Vres = similar(Vres)
+        Vres = similar(Vres_first)
         bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = false)
-        @test Vres[1, 1, 1] ≈ V111_expected
-        @test Vres[2, 2, 2] ≈ V222_expected
-        @test Vres[3, 3, 3] ≈ V333_expected
+        @test Vres ≈ Vres_first
 
         ws = IntervalMDP.DenseOrthogonalWorkspace(prob, 1)
         strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
         Vres = similar(Vres)
         bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = false)
-        @test Vres[1, 1, 1] ≈ V111_expected
-        @test Vres[2, 2, 2] ≈ V222_expected
-        @test Vres[3, 3, 3] ≈ V333_expected
+        @test Vres ≈ Vres_first
 
         ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
         strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
-        Vres = similar(Vres)
+        Vres = similar(Vres_first)
         bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = false)
-        @test Vres[1, 1, 1] ≈ V111_expected
-        @test Vres[2, 2, 2] ≈ V222_expected
-        @test Vres[3, 3, 3] ≈ V333_expected
+        @test Vres ≈ Vres_first
     end
 end
 
