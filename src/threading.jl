@@ -64,20 +64,20 @@ macro threadstid(args...)
             sched = nothing
         end
         if sched !== :static && sched !== :dynamic
-            throw(ArgumentError("unsupported schedule argument in @threads"))
+            throw(ArgumentError("unsupported schedule argument in @threadstid"))
         end
     elseif na == 2
         extid = args[1]
         sched = :default
         ex = args[2]
     else
-        throw(ArgumentError("wrong number of arguments in @threads"))
+        throw(ArgumentError("wrong number of arguments in @threadstid"))
     end
     if !(isa(ex, Expr) && ex.head === :for)
-        throw(ArgumentError("@threads requires a `for` loop expression"))
+        throw(ArgumentError("@threadsid requires a `for` loop expression"))
     end
     if !(ex.args[1] isa Expr && ex.args[1].head === :(=))
-        throw(ArgumentError("nested outer loops are not currently supported by @threads"))
+        throw(ArgumentError("nested outer loops are not currently supported by @threadsid"))
     end
     return _threadsfortid(extid, ex.args[1], ex.args[2], sched)
 end
