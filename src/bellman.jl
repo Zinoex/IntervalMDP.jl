@@ -358,7 +358,7 @@ function bellman!(
     @threadstid tid for jₛ_cart in CartesianIndices(axes(V))
         # We can't use @threadstid over a zip, so we need to manually index
         jₛ_linear = I_linear[jₛ_cart]
-        
+
         ws = workspace.thread_workspaces[tid]
 
         bellman_dense_orthogonal!(
@@ -401,7 +401,7 @@ function bellman_dense_orthogonal!(
     jₛ_cart,
     jₛ_linear;
     upper_bound = false,
-    maximize = true
+    maximize = true,
 )
     @inbounds begin
         s₁, s₂ = stateptr[jₛ_linear], stateptr[jₛ_linear + 1]
@@ -521,7 +521,7 @@ function bellman!(
     @threadstid tid for jₛ_cart in CartesianIndices(axes(V))
         # We can't use @threadstid over a zip, so we need to manually index
         jₛ_linear = I_linear[jₛ_cart]
-        
+
         ws = workspace.thread_workspaces[tid]
 
         bellman_sparse_orthogonal!(
@@ -551,21 +551,25 @@ function bellman_sparse_orthogonal!(
     jₛ_cart,
     jₛ_linear;
     upper_bound = false,
-    maximize = true
+    maximize = true,
 )
     @inbounds begin
         s₁, s₂ = stateptr[jₛ_linear], stateptr[jₛ_linear + 1]
         actions = @view workspace.actions[1:(s₂ - s₁)]
         for (i, jₐ) in enumerate(s₁:(s₂ - 1))
             nzinds_first = SparseArrays.nonzeroinds(@view(gap(prob[1])[:, jₐ]))
-            nzinds_per_prob = [SparseArrays.nonzeroinds(@view(gap(p)[:, jₐ])) for p in prob[2:end]]
+            nzinds_per_prob =
+                [SparseArrays.nonzeroinds(@view(gap(p)[:, jₐ])) for p in prob[2:end]]
 
             lower_nzvals_per_prob = [nonzeros(@view(lower(p)[:, jₐ])) for p in prob]
             gap_nzvals_per_prob = [nonzeros(@view(gap(p)[:, jₐ])) for p in prob]
             sum_lower_per_prob = [sum_lower(p)[jₐ] for p in prob]
 
             nnz_per_prob = Tuple(nnz(@view(gap(p)[:, jₐ])) for p in prob)
-            Vₑ = [@view(cache[1:nnz]) for (cache, nnz) in zip(workspace.expectation_cache, nnz_per_prob[2:end])]
+            Vₑ = [
+                @view(cache[1:nnz]) for
+                (cache, nnz) in zip(workspace.expectation_cache, nnz_per_prob[2:end])
+            ]
 
             # For each higher-level state in the product space
             for I in CartesianIndices(nnz_per_prob[2:end])
@@ -580,7 +584,7 @@ function bellman_sparse_orthogonal!(
                     lower_nzvals_per_prob[1],
                     gap_nzvals_per_prob[1],
                     sum_lower_per_prob[1],
-                    upper_bound
+                    upper_bound,
                 )
                 Vₑ[1][I[1]] = v
 
@@ -609,7 +613,7 @@ function bellman_sparse_orthogonal!(
                 lower_nzvals_per_prob[end],
                 gap_nzvals_per_prob[end],
                 sum_lower_per_prob[end],
-                upper_bound
+                upper_bound,
             )
             actions[i] = v
         end

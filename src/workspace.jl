@@ -53,7 +53,11 @@ to preallocate the workspace and reuse across iterations.
 The workspace type is determined by the type and size of the transition probability matrix,
 as well as the number of threads available.
 """
-function construct_workspace(prob::IntervalProbabilities{R, VR, MR}, max_actions = 1; threshold = 10) where {R, VR, MR <: AbstractMatrix{R}}
+function construct_workspace(
+    prob::IntervalProbabilities{R, VR, MR},
+    max_actions = 1;
+    threshold = 10,
+) where {R, VR, MR <: AbstractMatrix{R}}
     if Threads.nthreads() == 1 || size(p, 2) <= threshold
         return DenseWorkspace(gap(prob), max_actions)
     else
@@ -86,7 +90,11 @@ function ThreadedSparseWorkspace(p::AbstractSparseMatrix, max_actions)
     return ThreadedSparseWorkspace(thread_workspaces)
 end
 
-function construct_workspace(prob::IntervalProbabilities{R, VR, MR}, max_actions = 1; threshold = 10) where {R, VR, MR <: AbstractSparseMatrix{R}}
+function construct_workspace(
+    prob::IntervalProbabilities{R, VR, MR},
+    max_actions = 1;
+    threshold = 10,
+) where {R, VR, MR <: AbstractSparseMatrix{R}}
     if Threads.nthreads() == 1 || size(p, 2) <= threshold
         return SparseWorkspace(gap(prob), max_actions)
     else
@@ -144,12 +152,7 @@ function ThreadDenseOrthogonalWorkspace(
     scratch = Vector{Int32}(undef, nmax)
     expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in pns[2:end])
     actions = Vector{R}(undef, max_actions)
-    return ThreadDenseOrthogonalWorkspace(
-        expectation_cache,
-        perm,
-        scratch,
-        actions,
-    )
+    return ThreadDenseOrthogonalWorkspace(expectation_cache, perm, scratch, actions)
 end
 
 struct ThreadedDenseOrthogonalWorkspace{N, M, T}
@@ -177,7 +180,10 @@ to preallocate the workspace and reuse across iterations.
 The workspace type is determined by the type and size of the transition probability matrix,
 as well as the number of threads available.
 """
-function construct_workspace(p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}}, max_actions=1) where {N, R, VR, MR <: AbstractMatrix{R}}
+function construct_workspace(
+    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}},
+    max_actions = 1,
+) where {N, R, VR, MR <: AbstractMatrix{R}}
     if Threads.nthreads() == 1
         return DenseOrthogonalWorkspace(p, max_actions)
     else
@@ -202,15 +208,11 @@ function SparseOrthogonalWorkspace(
 
     scratch = Vector{Tuple{R, R}}(undef, max_nonzeros)
     values_gaps = Vector{Tuple{R, R}}(undef, max_nonzeros)
-    expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in max_nonzeros_per_prob[2:end])
+    expectation_cache =
+        NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in max_nonzeros_per_prob[2:end])
     actions = Vector{R}(undef, max_actions)
 
-    return SparseOrthogonalWorkspace(
-        expectation_cache,
-        values_gaps,
-        scratch,
-        actions,
-    )
+    return SparseOrthogonalWorkspace(expectation_cache, values_gaps, scratch, actions)
 end
 
 struct ThreadedSparseOrthogonalWorkspace{N, T}
@@ -234,7 +236,10 @@ to preallocate the workspace and reuse across iterations.
 The workspace type is determined by the type and size of the transition probability matrix,
 as well as the number of threads available.
 """
-function construct_workspace(p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}}, max_actions=1) where {N, R, VR, MR <: AbstractSparseMatrix{R}}
+function construct_workspace(
+    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}},
+    max_actions = 1,
+) where {N, R, VR, MR <: AbstractSparseMatrix{R}}
     return SparseOrthogonalWorkspace(p, max_actions)
     if Threads.nthreads() == 1
         return SparseOrthogonalWorkspace(p, max_actions)
