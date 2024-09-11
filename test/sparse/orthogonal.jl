@@ -2,7 +2,22 @@ using Revise, Test
 using IntervalMDP, SparseArrays
 using Random: MersenneTwister
 
-@testset "bellman" begin
+@testset "bellman 1d" begin
+    prob = OrthogonalIntervalProbabilities((IntervalProbabilities(;
+        lower = sparse([0.0 0.5; 0.1 0.3; 0.2 0.1]),
+        upper = sparse([0.5 0.7; 0.6 0.5; 0.7 0.3]),
+    ),), (Int32(2),))
+
+    V = [1.0, 2.0, 3.0]
+
+    Vres = bellman(V, prob; upper_bound = true)
+    @test Vres ≈ [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
+
+    Vres = bellman(V, prob; upper_bound = false)
+    @test Vres ≈ [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
+end
+
+@testset "bellman 3d" begin
     lower1 = [
         1/15 3/10 1/15 3/10 1/30 1/3 7/30 4/15 1/6 1/5 1/10 1/5 0 7/30 7/30 1/5 2/15 1/6 1/10 1/30 1/10 1/15 1/10 1/15 4/15 4/15 1/3
         1/5 4/15 1/10 1/5 3/10 3/10 1/10 1/15 3/10 3/10 7/30 1/5 1/10 1/5 1/5 1/30 1/5 3/10 1/5 1/5 1/10 1/30 4/15 1/10 1/5 1/6 7/30

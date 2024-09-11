@@ -314,7 +314,7 @@ function bellman!(
 
     # For each source state
     @inbounds for (jₛ_cart, jₛ_linear) in
-                  zip(CartesianIndices(axes(V)), LinearIndices(axes(V)))
+                  zip(CartesianIndices(source_shape(prob)), LinearIndices(source_shape(prob)))
         bellman_dense_orthogonal!(
             workspace,
             workspace.first_level_perm,
@@ -354,8 +354,8 @@ function bellman!(
     end
 
     # For each source state
-    I_linear = LinearIndices(axes(V))
-    @threadstid tid for jₛ_cart in CartesianIndices(axes(V))
+    I_linear = LinearIndices(source_shape(prob))
+    @threadstid tid for jₛ_cart in CartesianIndices(source_shape(prob))
         # We can't use @threadstid over a zip, so we need to manually index
         jₛ_linear = I_linear[jₛ_cart]
 
@@ -409,39 +409,45 @@ function bellman_dense_orthogonal!(
         for (i, jₐ) in enumerate(s₁:(s₂ - 1))
             Vₑ = workspace.expectation_cache
 
-            # For each higher-level state in the product space
-            for I in CartesianIndices(product_nstates[2:end])
+            if ndims(prob) == 1
+                # The only dimension
+                v = orthogonal_inner_sorted_bellman!(first_level_perm, V, prob[1], jₐ)
+                actions[i] = v
+            else
+                # For each higher-level state in the product space
+                for I in CartesianIndices(product_nstates[2:end])
 
-                # For the first dimension, we need to copy the values from V
-                v = orthogonal_inner_sorted_bellman!(
-                    # Use shared first level permutation across threads
-                    @view(first_level_perm[:, I]),
-                    @view(V[:, I]),
-                    prob[1],
-                    jₐ,
-                )
-                Vₑ[1][I[1]] = v
+                    # For the first dimension, we need to copy the values from V
+                    v = orthogonal_inner_sorted_bellman!(
+                        # Use shared first level permutation across threads
+                        @view(first_level_perm[:, I]),
+                        @view(V[:, I]),
+                        prob[1],
+                        jₐ,
+                    )
+                    Vₑ[1][I[1]] = v
 
-                # For the remaining dimensions, if "full", compute expectation and store in the next level
-                for d in 2:(ndims(prob) - 1)
-                    if I[d - 1] == product_nstates[d]
-                        v = orthogonal_inner_bellman!(
-                            workspace,
-                            Vₑ[d - 1],
-                            prob[d],
-                            jₐ,
-                            upper_bound,
-                        )
-                        Vₑ[d][I[d]] = v
-                    else
-                        break
+                    # For the remaining dimensions, if "full", compute expectation and store in the next level
+                    for d in 2:(ndims(prob) - 1)
+                        if I[d - 1] == product_nstates[d]
+                            v = orthogonal_inner_bellman!(
+                                workspace,
+                                Vₑ[d - 1],
+                                prob[d],
+                                jₐ,
+                                upper_bound,
+                            )
+                            Vₑ[d][I[d]] = v
+                        else
+                            break
+                        end
                     end
                 end
-            end
 
-            # Last dimension
-            v = orthogonal_inner_bellman!(workspace, Vₑ[end], prob[end], jₐ, upper_bound)
-            actions[i] = v
+                # Last dimension
+                v = orthogonal_inner_bellman!(workspace, Vₑ[end], prob[end], jₐ, upper_bound)
+                actions[i] = v
+            end
         end
 
         Vres[jₛ_cart] = extract_strategy!(strategy_cache, actions, V, jₛ_cart, s₁, maximize)
@@ -489,7 +495,7 @@ function bellman!(
 )
     # For each source state
     @inbounds for (jₛ_cart, jₛ_linear) in
-                  zip(CartesianIndices(axes(V)), LinearIndices(axes(V)))
+                  zip(CartesianIndices(source_shape(prob)), LinearIndices(source_shape(prob)))
         bellman_sparse_orthogonal!(
             workspace,
             strategy_cache,
@@ -517,8 +523,8 @@ function bellman!(
     maximize = true,
 )
     # For each source state
-    I_linear = LinearIndices(axes(V))
-    @threadstid tid for jₛ_cart in CartesianIndices(axes(V))
+    I_linear = LinearIndices(source_shape(prob))
+    @threadstid tid for jₛ_cart in CartesianIndices(source_shape(prob))
         # We can't use @threadstid over a zip, so we need to manually index
         jₛ_linear = I_linear[jₛ_cart]
 
@@ -571,51 +577,64 @@ function bellman_sparse_orthogonal!(
                 (cache, nnz) in zip(workspace.expectation_cache, nnz_per_prob[2:end])
             ]
 
-            # For each higher-level state in the product space
-            for I in CartesianIndices(nnz_per_prob[2:end])
-                Isparse = CartesianIndex(Tuple(map(enumerate(Tuple(I))) do (d, i)
-                    nzinds_per_prob[d][i]
-                end))
-
-                # For the first dimension, we need to copy the values from V
+            if ndims(prob) == 1
+                # The only dimension
                 v = orthogonal_sparse_inner_bellman!(
                     workspace,
-                    @view(V[nzinds_first, Isparse]),
-                    lower_nzvals_per_prob[1],
-                    gap_nzvals_per_prob[1],
-                    sum_lower_per_prob[1],
+                    @view(V[nzinds_first]),
+                    lower_nzvals_per_prob[end],
+                    gap_nzvals_per_prob[end],
+                    sum_lower_per_prob[end],
                     upper_bound,
                 )
-                Vₑ[1][I[1]] = v
+                actions[i] = v
+            else
+                # For each higher-level state in the product space
+                for I in CartesianIndices(nnz_per_prob[2:end])
+                    Isparse = CartesianIndex(Tuple(map(enumerate(Tuple(I))) do (d, i)
+                        nzinds_per_prob[d][i]
+                    end))
 
-                # For the remaining dimensions, if "full", compute expectation and store in the next level
-                for d in 2:(ndims(prob) - 1)
-                    if I[d - 1] == nnz_per_prob[d]
-                        v = orthogonal_sparse_inner_bellman!(
-                            workspace,
-                            Vₑ[d - 1],
-                            lower_nzvals_per_prob[d],
-                            gap_nzvals_per_prob[d],
-                            sum_lower_per_prob[d],
-                            upper_bound,
-                        )
-                        Vₑ[d][I[d]] = v
-                    else
-                        break
+                    # For the first dimension, we need to copy the values from V
+                    v = orthogonal_sparse_inner_bellman!(
+                        workspace,
+                        @view(V[nzinds_first, Isparse]),
+                        lower_nzvals_per_prob[1],
+                        gap_nzvals_per_prob[1],
+                        sum_lower_per_prob[1],
+                        upper_bound,
+                    )
+                    Vₑ[1][I[1]] = v
+
+                    # For the remaining dimensions, if "full", compute expectation and store in the next level
+                    for d in 2:(ndims(prob) - 1)
+                        if I[d - 1] == nnz_per_prob[d]
+                            v = orthogonal_sparse_inner_bellman!(
+                                workspace,
+                                Vₑ[d - 1],
+                                lower_nzvals_per_prob[d],
+                                gap_nzvals_per_prob[d],
+                                sum_lower_per_prob[d],
+                                upper_bound,
+                            )
+                            Vₑ[d][I[d]] = v
+                        else
+                            break
+                        end
                     end
                 end
-            end
 
-            # Last dimension
-            v = orthogonal_sparse_inner_bellman!(
-                workspace,
-                Vₑ[end],
-                lower_nzvals_per_prob[end],
-                gap_nzvals_per_prob[end],
-                sum_lower_per_prob[end],
-                upper_bound,
-            )
-            actions[i] = v
+                # Last dimension
+                v = orthogonal_sparse_inner_bellman!(
+                    workspace,
+                    Vₑ[end],
+                    lower_nzvals_per_prob[end],
+                    gap_nzvals_per_prob[end],
+                    sum_lower_per_prob[end],
+                    upper_bound,
+                )
+                actions[i] = v
+            end
         end
 
         Vres[jₛ_cart] = extract_strategy!(strategy_cache, actions, V, jₛ_cart, s₁, maximize)
