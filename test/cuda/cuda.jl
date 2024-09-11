@@ -1,4 +1,4 @@
-using CUDA
+using IntervalMDP, CUDA
 
 @testset "cuda/adapt" begin
     adaptor = IntervalMDP.CuModelAdaptor{Float64}

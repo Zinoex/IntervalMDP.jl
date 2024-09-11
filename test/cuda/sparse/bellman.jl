@@ -1,6 +1,7 @@
 using Revise, Test
 using IntervalMDP, SparseArrays, CUDA
 using StatsBase
+using Random: MersenneTwister
 
 #### Maximization
 @testset "maximization" begin
