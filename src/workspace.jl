@@ -58,7 +58,7 @@ function construct_workspace(
     max_actions = 1;
     threshold = 10,
 ) where {R, VR, MR <: AbstractMatrix{R}}
-    if Threads.nthreads() == 1 || size(p, 2) <= threshold
+    if Threads.nthreads() == 1 || size(gap(prob), 2) <= threshold
         return DenseWorkspace(gap(prob), max_actions)
     else
         return ThreadedDenseWorkspace(gap(prob), max_actions)
@@ -95,7 +95,7 @@ function construct_workspace(
     max_actions = 1;
     threshold = 10,
 ) where {R, VR, MR <: AbstractSparseMatrix{R}}
-    if Threads.nthreads() == 1 || size(p, 2) <= threshold
+    if Threads.nthreads() == 1 || size(gap(prob), 2) <= threshold
         return SparseWorkspace(gap(prob), max_actions)
     else
         return ThreadedSparseWorkspace(gap(prob), max_actions)
