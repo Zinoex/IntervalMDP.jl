@@ -40,7 +40,7 @@ depends on the configuration and the device to store the strategy depends on the
 function construct_strategy_cache end
 
 construct_strategy_cache(mp::IntervalMarkovProcess, config) =
-    construct_strategy_cache(mp, config, product_num_states(mp) |> recursiveflatten)
+    construct_strategy_cache(mp, config, product_num_states(mp))
 
 # Strategy cache for not storing policies - useful for dispatching
 struct NoStrategyCache <: AbstractStrategyCache end

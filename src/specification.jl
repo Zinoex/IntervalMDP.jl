@@ -420,7 +420,7 @@ Return the set of states to avoid.
 avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
 
 function checkterminal!(terminal_states, system)
-    pns = product_num_states(system) |> recursiveflatten
+    pns = product_num_states(system)
     for j in terminal_states
         j = Tuple(j)
 
@@ -460,7 +460,7 @@ end
 function checkreward!(prop::AbstractReward, system)
     checkdevice!(reward(prop), system)
 
-    pns = product_num_states(system) |> recursiveflatten
+    pns = product_num_states(system)
     if size(reward(prop)) != pns
         throw(
             DimensionMismatch(
@@ -485,6 +485,12 @@ end
 function checkdevice!(v::AbstractArray, p::IntervalProbabilities)
     # Lower and gap are required to be the same type.
     checkdevice!(v, lower(p))
+end
+
+function checkdevice!(v::AbstractArray, p::OrthogonalIntervalProbabilities)
+    for pᵢ in p
+        checkdevice!(v, pᵢ)
+    end
 end
 
 function checkdevice!(::AbstractArray, ::AbstractMatrix)

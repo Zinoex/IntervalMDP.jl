@@ -188,8 +188,6 @@ max_actions(mdp::OrthogonalIntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp
 Base.ndims(::OrthogonalIntervalMarkovDecisionProcess{N}) where {N} = Int32(N)
 product_num_states(mp::OrthogonalIntervalMarkovDecisionProcess) =
     num_target(transition_prob(mp))
-transition_matrix_type(mp::OrthogonalIntervalMarkovDecisionProcess) =
-    typeof(gap(first(transition_prob(mp).probs)))
 
 """
     tomarkovchain(mdp::OrthogonalIntervalMarkovDecisionProcess, strategy::AbstractVector)

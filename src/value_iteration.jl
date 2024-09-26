@@ -131,22 +131,22 @@ struct ValueFunction{R, A <: AbstractArray{R}}
     current::A
 end
 
+function ValueFunction(previous::A) where {R, A <: AbstractArray{R}}
+    current = copy(previous)
+    return ValueFunction{R, A}(previous, current)
+end
+
 function ValueFunction(problem::Problem)
     mp = system(problem)
+    pns = product_num_states(mp)
 
-    pns = product_num_states(mp) |> recursiveflatten
-    # Just need any one of the transition probabilities to dispatch
-    # to the correct method (based on the type).
-    previous = construct_value_function(transition_matrix_type(mp), pns)
-    current = copy(previous)
-
-    return ValueFunction(previous, current)
+    return ValueFunction(mp, pns)
 end
 
-function construct_value_function(::Type{MR}, num_states) where {R, MR <: AbstractMatrix{R}}
-    V = zeros(R, num_states)
-    return V
-end
+ValueFunction(mp::IntervalMarkovProcess, num_states) = ValueFunction(transition_prob(mp, 1), num_states)
+ValueFunction(prob::OrthogonalIntervalProbabilities, num_states) = ValueFunction(first(prob), num_states)
+ValueFunction(prob::IntervalProbabilities, num_states) = ValueFunction(gap(prob), num_states)
+ValueFunction(::MR, num_states) where {R, MR <: AbstractMatrix{R}} = ValueFunction(zeros(R, num_states))
 
 function lastdiff!(V)
     # Reuse prev to store the latest difference
