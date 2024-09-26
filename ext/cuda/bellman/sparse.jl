@@ -247,7 +247,6 @@ end
         action_values,
         Vres,
         jₛ,
-        s₁,
         action_reduce,
         lane,
     )
@@ -548,7 +547,6 @@ end
             action_values,
             Vres,
             jₛ,
-            s₁,
             action_reduce,
             lane,
         )

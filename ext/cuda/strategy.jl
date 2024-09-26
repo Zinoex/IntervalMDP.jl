@@ -41,7 +41,6 @@ end
     values::AbstractVector{Tv},
     V,
     j,
-    s₁,
     action_reduce,
     lane,
 ) where {Tv}
@@ -72,7 +71,6 @@ end
     values::AbstractVector{Tv},
     V,
     j,
-    s₁,
     action_reduce,
     lane,
 ) where {Tv}
@@ -80,14 +78,14 @@ end
     action_lt, action_neutral = action_reduce[2], action_reduce[3]
 
     warp_aligned_length = kernel_nextwarp(length(values))
-    opt_val, opt_idx = action_neutral, s₁
+    opt_val, opt_idx = action_neutral, 1
 
     s = lane
     @inbounds while s <= warp_aligned_length
         new_val, new_idx = if s <= length(values)
-            values[s], s₁ + s - 1
+            values[s], s
         else
-            action_neutral, s₁
+            action_neutral, 1
         end
         opt_val, opt_idx = argop(action_lt, opt_val, opt_idx, new_val, new_idx)
 
@@ -108,7 +106,6 @@ end
     values::AbstractVector{Tv},
     V,
     j,
-    s₁,
     action_reduce,
     lane,
 ) where {Tv}
@@ -117,7 +114,7 @@ end
 
     warp_aligned_length = kernel_nextwarp(length(values))
     opt_val, opt_idx = if iszero(cache.strategy[j])
-        action_neutral, s₁
+        action_neutral, 1
     else
         V[j], cache.strategy[j]
     end
@@ -125,9 +122,9 @@ end
     s = lane
     @inbounds while s <= warp_aligned_length
         new_val, new_idx = if s <= length(values)
-            values[s], s₁ + s - 1
+            values[s], s
         else
-            action_neutral, s₁
+            action_neutral, 1
         end
         opt_val, opt_idx = argop(action_lt, opt_val, opt_idx, new_val, new_idx)
 

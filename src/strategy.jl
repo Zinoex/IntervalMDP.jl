@@ -56,7 +56,7 @@ function construct_strategy_cache(mp::SimpleIntervalMarkovProcess, ::NoStrategyC
     return NoStrategyCache()
 end
 
-function extract_strategy!(::NoStrategyCache, values, V, j, s₁, maximize)
+function extract_strategy!(::NoStrategyCache, values, V, j, maximize)
     return maximize ? maximum(values) : minimum(values)
 end
 postprocess_strategy_cache!(::NoStrategyCache) = nothing
@@ -103,14 +103,13 @@ function extract_strategy!(
     values::AbstractArray{R},
     V,
     j,
-    s₁,
     maximize,
 ) where {R <: Real}
     opt_val = maximize ? typemin(R) : typemax(R)
-    opt_index = s₁
+    opt_index = 1
     neutral = (opt_val, opt_index)
 
-    return _extract_strategy!(strategy_cache.cur_strategy, values, neutral, j, s₁, maximize)
+    return _extract_strategy!(strategy_cache.cur_strategy, values, neutral, j, maximize)
 end
 function postprocess_strategy_cache!(strategy_cache::TimeVaryingStrategyCache)
     push!(strategy_cache.strategy, copy(strategy_cache.cur_strategy))
@@ -139,21 +138,20 @@ function extract_strategy!(
     values::AbstractArray{R},
     V,
     j,
-    s₁,
     maximize,
 ) where {R <: Real}
     neutral = if iszero(strategy_cache.strategy[j])
-        maximize ? typemin(R) : typemax(R), s₁
+        maximize ? typemin(R) : typemax(R), 1
     else
         V[j], strategy_cache.strategy[j]
     end
 
-    return _extract_strategy!(strategy_cache.strategy, values, neutral, j, s₁, maximize)
+    return _extract_strategy!(strategy_cache.strategy, values, neutral, j, maximize)
 end
 postprocess_strategy_cache!(::StationaryStrategyCache) = nothing
 
 # Shared between stationary and time-varying strategies
-function _extract_strategy!(cur_strategy, values, neutral, j, s₁, maximize)
+function _extract_strategy!(cur_strategy, values, neutral, j, maximize)
     gt = maximize ? (>) : (<)
 
     opt_val, opt_index = neutral
@@ -161,7 +159,7 @@ function _extract_strategy!(cur_strategy, values, neutral, j, s₁, maximize)
     for (i, v) in enumerate(values)
         if gt(v, opt_val)
             opt_val = v
-            opt_index = s₁ + i - 1
+            opt_index = i
         end
     end
 

@@ -161,7 +161,7 @@ function bellman_dense!(
             actions[i] = dot(V, lowerⱼ) + gap_value(V, gapⱼ, used, permutation)
         end
 
-        Vres[jₛ] = extract_strategy!(strategy_cache, actions, V, jₛ, s₁, maximize)
+        Vres[jₛ] = extract_strategy!(strategy_cache, actions, V, jₛ, maximize)
     end
 end
 
@@ -272,7 +272,7 @@ function bellman_sparse!(
             action_values[i] = dot(V, lowerⱼ) + gap_value(Vp_workspace, used)
         end
 
-        Vres[jₛ] = extract_strategy!(strategy_cache, action_values, V, jₛ, s₁, maximize)
+        Vres[jₛ] = extract_strategy!(strategy_cache, action_values, V, jₛ, maximize)
     end
 end
 
@@ -450,7 +450,7 @@ function bellman_dense_orthogonal!(
             end
         end
 
-        Vres[jₛ_cart] = extract_strategy!(strategy_cache, actions, V, jₛ_cart, s₁, maximize)
+        Vres[jₛ_cart] = extract_strategy!(strategy_cache, actions, V, jₛ_cart, maximize)
     end
 end
 
@@ -637,7 +637,7 @@ function bellman_sparse_orthogonal!(
             end
         end
 
-        Vres[jₛ_cart] = extract_strategy!(strategy_cache, actions, V, jₛ_cart, s₁, maximize)
+        Vres[jₛ_cart] = extract_strategy!(strategy_cache, actions, V, jₛ_cart, maximize)
     end
 end
 

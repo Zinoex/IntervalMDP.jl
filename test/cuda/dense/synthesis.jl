@@ -51,7 +51,7 @@ policy, V, k, res = control_synthesis(problem)
 
 @test length(policy) == 10
 for row in policy
-    @test row == [1, 4, 5]
+    @test row == [1, 2, 1]
 end
 
 prop = FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10)
@@ -63,7 +63,7 @@ policy, V, k, res = control_synthesis(problem)
 @test length(policy) == 10
 
 for row in policy
-    @test row == [2, 4, 5]
+    @test row == [2, 2, 1]
 end
 
 prop = InfiniteTimeReachability([3], 1e-6)
@@ -72,4 +72,4 @@ problem = Problem(mdp, spec)
 problem = IntervalMDP.cu(problem)
 
 policy, V, k, res = control_synthesis(problem)
-@test policy == [1, 4, 5]
+@test policy == [1, 2, 1]

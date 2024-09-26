@@ -177,7 +177,9 @@ an `IntervalMarkovDecisionProcess` with only one action per state. The extracted
 """
 function tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector)
     probs = transition_prob(mdp)
-    new_probs = probs[strategy]
+    sptr = stateptr(mdp) .- 1
+
+    new_probs = probs[strategy .+ sptr[1:end-1]]
 
     istates = initial_states(mdp)
 
@@ -197,8 +199,10 @@ function tomarkovchain(
     probs = transition_prob(mdp)
     new_probs = Vector{typeof(probs)}(undef, length(strategy))
 
+    sptr = stateptr(mdp) .- 1
+
     for (t, strategy_step) in enumerate(strategy)
-        new_probs[t] = probs[strategy_step]
+        new_probs[t] = probs[strategy_step .+ sptr[1:end-1]]
     end
 
     istates = initial_states(mdp)
