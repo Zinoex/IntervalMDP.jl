@@ -571,7 +571,7 @@ function bellman_sparse_orthogonal!(
             gap_nzvals_per_prob = [nonzeros(@view(gap(p)[:, jₐ])) for p in prob]
             sum_lower_per_prob = [sum_lower(p)[jₐ] for p in prob]
 
-            nnz_per_prob = Tuple(nnz(@view(gap(p)[:, jₐ])) for p in prob)
+            nnz_per_prob = ntuple(i -> nnz(@view(gap(prob[i])[:, jₐ])), ndims(prob))
             Vₑ = [
                 @view(cache[1:nnz]) for
                 (cache, nnz) in zip(workspace.expectation_cache, nnz_per_prob[2:end])
@@ -591,9 +591,7 @@ function bellman_sparse_orthogonal!(
             else
                 # For each higher-level state in the product space
                 for I in CartesianIndices(nnz_per_prob[2:end])
-                    Isparse = CartesianIndex(Tuple(map(enumerate(Tuple(I))) do (d, i)
-                        nzinds_per_prob[d][i]
-                    end))
+                    Isparse = CartesianIndex(ntuple(d -> nzinds_per_prob[d][I[d]], ndims(prob) - 1))
 
                     # For the first dimension, we need to copy the values from V
                     v = orthogonal_sparse_inner_bellman!(
