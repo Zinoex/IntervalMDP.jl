@@ -563,19 +563,17 @@ function bellman_sparse_orthogonal!(
         s₁, s₂ = stateptr[jₛ_linear], stateptr[jₛ_linear + 1]
         actions = @view workspace.actions[1:(s₂ - s₁)]
         for (i, jₐ) in enumerate(s₁:(s₂ - 1))
-            nzinds_first = SparseArrays.nonzeroinds(@view(gap(prob[1])[:, jₐ]))
-            nzinds_per_prob =
-                [SparseArrays.nonzeroinds(@view(gap(p)[:, jₐ])) for p in prob[2:end]]
+            # This function uses ntuple excessively to avoid allocations (list comprehension requires allocation)
 
-            lower_nzvals_per_prob = [nonzeros(@view(lower(p)[:, jₐ])) for p in prob]
-            gap_nzvals_per_prob = [nonzeros(@view(gap(p)[:, jₐ])) for p in prob]
-            sum_lower_per_prob = [sum_lower(p)[jₐ] for p in prob]
+            nzinds_first = SparseArrays.nonzeroinds(@view(gap(prob[1])[:, jₐ]))
+            nzinds_per_prob = ntuple(i -> SparseArrays.nonzeroinds(@view(gap(prob[i + 1])[:, jₐ])), ndims(prob) - 1)
+
+            lower_nzvals_per_prob = ntuple(i -> nonzeros(@view(lower(prob[i])[:, jₐ])), ndims(prob))
+            gap_nzvals_per_prob = ntuple(i -> nonzeros(@view(gap(prob[i])[:, jₐ])), ndims(prob))
+            sum_lower_per_prob = ntuple(i -> sum_lower(prob[i])[jₐ], ndims(prob))
 
             nnz_per_prob = ntuple(i -> nnz(@view(gap(prob[i])[:, jₐ])), ndims(prob))
-            Vₑ = [
-                @view(cache[1:nnz]) for
-                (cache, nnz) in zip(workspace.expectation_cache, nnz_per_prob[2:end])
-            ]
+            Vₑ = ntuple(i -> @view(workspace.expectation_cache[i][1:nnz_per_prob[i + 1]]), ndims(prob) - 1)
 
             if ndims(prob) == 1
                 # The only dimension
