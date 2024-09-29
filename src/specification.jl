@@ -148,7 +148,7 @@ function postprocess_value_function!(value_function, prop::AbstractReachability)
 end
 
 """
-    FiniteTimeReachability{VT <: Vector{<:CartesianIndex}}
+    FiniteTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer}
 
 Finite time reachability specified by a set of target/terminal states and a time horizon. 
 That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states and ``H`` is the time horizon,
@@ -157,9 +157,9 @@ the property is
     \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T).
 ```
 """
-struct FiniteTimeReachability{VT <: Vector{<:CartesianIndex}} <: AbstractReachability
+struct FiniteTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer} <: AbstractReachability
     terminal_states::VT
-    time_horizon::Any
+    time_horizon::T
 end
 
 function FiniteTimeReachability(terminal_states::Vector{<:UnionIndex}, time_horizon)
@@ -280,7 +280,7 @@ function postprocess_value_function!(value_function, prop::AbstractReachAvoid)
 end
 
 """
-    FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}}}
+    FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}}, T <: Integer}
 
 Finite time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
 That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states, ``A`` is the set of states to avoid,
@@ -289,10 +289,10 @@ and ``H`` is the time horizon, the property is
     \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T, \\text{ and } \\forall k' = \\{0, \\ldots, k\\}, s_k' \\notin A).
 ```
 """
-struct FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}} <: AbstractReachAvoid
+struct FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}, T <: Integer} <: AbstractReachAvoid
     reach::VT
     avoid::VT
-    time_horizon::Any
+    time_horizon::T
 end
 
 function FiniteTimeReachAvoid(
@@ -499,7 +499,7 @@ function checkdevice!(::AbstractArray, ::AbstractMatrix)
 end
 
 """
-    FiniteTimeReward{R <: Real, T <: Integer, AR <: AbstractArray{R}}
+    FiniteTimeReward{R <: Real, AR <: AbstractArray{R}, T <: Integer}
 
 `FiniteTimeReward` is a property of rewards ``R : S \\to \\mathbb{R}`` assigned to each state at each iteration
 and a discount factor ``\\gamma``. The time horizon ``H`` is finite, so the discount factor is optional and 
@@ -508,7 +508,7 @@ the optimal policy will be time-varying. Given a strategy ``\\pi : S \\to A``, t
     V(s_0) = \\mathbb{E}\\left[\\sum_{k=0}^{H} \\gamma^k R(s_k) \\mid s_0, \\pi\\right].
 ```
 """
-struct FiniteTimeReward{R <: Real, T <: Integer, AR <: AbstractArray{R}} <:
+struct FiniteTimeReward{R <: Real, AR <: AbstractArray{R}, T <: Integer} <:
        AbstractReward{R}
     reward::AR
     discount::R
