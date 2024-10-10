@@ -178,7 +178,6 @@ function ThreadedDenseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities{N, 
 end
 
 Base.getindex(ws::ThreadedDenseOrthogonalWorkspace, i) = ws.thread_workspaces[i]
-first_level_perm(ws::ThreadedDenseOrthogonalWorkspace) = first_level_perm(first(ws.thread_workspaces))
 
 """
     construct_workspace(prob::OrthogonalIntervalProbabilities)
@@ -254,7 +253,6 @@ function construct_workspace(
     p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}},
     max_actions = 1,
 ) where {N, R, VR, MR <: AbstractSparseMatrix{R}}
-    return SparseOrthogonalWorkspace(p, max_actions)
     if Threads.nthreads() == 1
         return SparseOrthogonalWorkspace(p, max_actions)
     else
