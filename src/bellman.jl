@@ -161,7 +161,7 @@ function bellman_dense!(
             actions[i] = dot(V, lowerⱼ) + gap_value(V, gapⱼ, used, permutation)
         end
 
-        Vres[jₛ] = extract_strategy!(strategy_cache, actions, V, jₛ, s₁, maximize)
+        Vres[jₛ] = extract_strategy!(strategy_cache, actions, V, jₛ, maximize)
     end
 end
 
@@ -272,7 +272,7 @@ function bellman_sparse!(
             action_values[i] = dot(V, lowerⱼ) + gap_value(Vp_workspace, used)
         end
 
-        Vres[jₛ] = extract_strategy!(strategy_cache, action_values, V, jₛ, s₁, maximize)
+        Vres[jₛ] = extract_strategy!(strategy_cache, action_values, V, jₛ, maximize)
     end
 end
 
@@ -313,8 +313,10 @@ function bellman!(
     end
 
     # For each source state
-    @inbounds for (jₛ_cart, jₛ_linear) in
-                  zip(CartesianIndices(source_shape(prob)), LinearIndices(source_shape(prob)))
+    @inbounds for (jₛ_cart, jₛ_linear) in zip(
+        CartesianIndices(source_shape(prob)),
+        LinearIndices(source_shape(prob)),
+    )
         bellman_dense_orthogonal!(
             workspace,
             workspace.first_level_perm,
@@ -445,12 +447,18 @@ function bellman_dense_orthogonal!(
                 end
 
                 # Last dimension
-                v = orthogonal_inner_bellman!(workspace, Vₑ[end], prob[end], jₐ, upper_bound)
+                v = orthogonal_inner_bellman!(
+                    workspace,
+                    Vₑ[end],
+                    prob[end],
+                    jₐ,
+                    upper_bound,
+                )
                 actions[i] = v
             end
         end
 
-        Vres[jₛ_cart] = extract_strategy!(strategy_cache, actions, V, jₛ_cart, s₁, maximize)
+        Vres[jₛ_cart] = extract_strategy!(strategy_cache, actions, V, jₛ_cart, maximize)
     end
 end
 
@@ -494,8 +502,10 @@ function bellman!(
     maximize = true,
 )
     # For each source state
-    @inbounds for (jₛ_cart, jₛ_linear) in
-                  zip(CartesianIndices(source_shape(prob)), LinearIndices(source_shape(prob)))
+    @inbounds for (jₛ_cart, jₛ_linear) in zip(
+        CartesianIndices(source_shape(prob)),
+        LinearIndices(source_shape(prob)),
+    )
         bellman_sparse_orthogonal!(
             workspace,
             strategy_cache,
@@ -633,7 +643,7 @@ function bellman_sparse_orthogonal!(
             end
         end
 
-        Vres[jₛ_cart] = extract_strategy!(strategy_cache, actions, V, jₛ_cart, s₁, maximize)
+        Vres[jₛ_cart] = extract_strategy!(strategy_cache, actions, V, jₛ_cart, maximize)
     end
 end
 

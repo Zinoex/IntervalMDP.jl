@@ -50,7 +50,7 @@ policy, V, k, res = control_synthesis(problem)
 
 @test length(policy) == 10
 for row in policy
-    @test row == [1, 4, 5]
+    @test row == [1, 2, 1]
 end
 
 # Extract IMC from IMDP and policy from control_synthesis
@@ -74,14 +74,14 @@ policy, V, k, res = control_synthesis(problem)
 @test length(policy) == 10
 
 for row in policy
-    @test row == [2, 4, 5]
+    @test row == [2, 2, 1]
 end
 
 prop = InfiniteTimeReachability([3], 1e-6)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(mdp, spec)
 policy, V, k, res = control_synthesis(problem)
-@test policy == [1, 4, 5]
+@test policy == [1, 2, 1]
 
 # Extract IMC from IMDP and policy from control_synthesis
 mc = tomarkovchain(mdp, policy)

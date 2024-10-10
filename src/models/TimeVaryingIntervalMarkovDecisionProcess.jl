@@ -140,10 +140,12 @@ function tomarkovchain(
         )
     end
 
+    sptr = stateptr(mdp) .- 1
+
     new_probs = Vector{typeof(probs)}(undef, length(strategy))
 
     for (t, strategy_step) in enumerate(strategy)
-        new_probs[t] = transition_prob(mdp, t)[strategy_step]
+        new_probs[t] = transition_prob(mdp, t)[strategy_step .+ sptr]
     end
 
     istates = initial_states(mdp)
