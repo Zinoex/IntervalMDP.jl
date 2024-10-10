@@ -29,19 +29,27 @@ function DenseWorkspace(p::AbstractMatrix{T}, max_actions) where {T <: Real}
     return DenseWorkspace(scratch, perm, actions)
 end
 
+permutation(ws::DenseWorkspace) = ws.permutation
+scratch(ws::DenseWorkspace) = ws.scratch
+
 struct ThreadedDenseWorkspace{T <: Real}
-    scratch::Vector{Int32}
-    permutation::Vector{Int32}
-    actions::Vector{Vector{T}}
+    thread_workspaces::Vector{DenseWorkspace{T}}
 end
 
 function ThreadedDenseWorkspace(p::AbstractMatrix{T}, max_actions) where {T <: Real}
     n = size(p, 1)
     scratch = Vector{Int32}(undef, n)
     perm = Vector{Int32}(undef, n)
-    actions = [Vector{T}(undef, max_actions) for _ in 1:Threads.nthreads()]
-    return ThreadedDenseWorkspace(scratch, perm, actions)
+
+    workspaces = [DenseWorkspace(scratch, perm, Vector{T}(undef, max_actions)) for _ in 1:Threads.nthreads()]
+    return ThreadedDenseWorkspace(workspaces)
 end
+
+Base.getindex(ws::ThreadedDenseWorkspace, i) = ws.thread_workspaces[i]
+
+## permutation and scratch space is shared across threads
+permutation(ws::ThreadedDenseWorkspace) = permutation(first(ws.thread_workspaces))
+scratch(ws::ThreadedDenseWorkspace) = scratch(first(ws.thread_workspaces))
 
 """
     construct_workspace(prob::IntervalProbabilities)
@@ -80,6 +88,8 @@ function SparseWorkspace(p::AbstractSparseMatrix{T}, max_actions) where {T <: Re
     return SparseWorkspace(scratch, values_gaps, actions)
 end
 
+scratch(ws::SparseWorkspace) = ws.scratch
+
 struct ThreadedSparseWorkspace{T}
     thread_workspaces::Vector{SparseWorkspace{T}}
 end
@@ -89,6 +99,8 @@ function ThreadedSparseWorkspace(p::AbstractSparseMatrix, max_actions)
     thread_workspaces = [SparseWorkspace(p, max_actions) for _ in 1:nthreads]
     return ThreadedSparseWorkspace(thread_workspaces)
 end
+
+Base.getindex(ws::ThreadedSparseWorkspace, i) = ws.thread_workspaces[i]
 
 function construct_workspace(
     prob::IntervalProbabilities{R, VR, MR},
