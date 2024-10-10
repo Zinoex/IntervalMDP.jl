@@ -146,41 +146,39 @@ function DenseOrthogonalWorkspace(
     )
 end
 
-struct ThreadDenseOrthogonalWorkspace{N, T <: Real}
-    expectation_cache::NTuple{N, Vector{T}}
-    permutation::Vector{Int32}
-    scratch::Vector{Int32}
-    actions::Vector{T}
+permutation(ws::DenseOrthogonalWorkspace) = ws.permutation
+scratch(ws::DenseOrthogonalWorkspace) = ws.scratch
+first_level_perm(ws::DenseOrthogonalWorkspace) = ws.first_level_perm
+
+struct ThreadedDenseOrthogonalWorkspace{N, M, T}
+    thread_workspaces::Vector{DenseOrthogonalWorkspace{N, M, T}}
 end
 
-function ThreadDenseOrthogonalWorkspace(
-    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R}},
-    max_actions,
-) where {N, R}
+function ThreadedDenseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R}}, max_actions) where {N, R}
+    nthreads = Threads.nthreads()
     pns = num_target(p)
     nmax = maximum(pns)
 
-    perm = Vector{Int32}(undef, nmax)
-    scratch = Vector{Int32}(undef, nmax)
-    expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in pns[2:end])
-    actions = Vector{R}(undef, max_actions)
-    return ThreadDenseOrthogonalWorkspace(expectation_cache, perm, scratch, actions)
-end
-
-struct ThreadedDenseOrthogonalWorkspace{N, M, T}
-    first_level_perm::Array{Int32, M}
-    thread_workspaces::Vector{ThreadDenseOrthogonalWorkspace{N, T}}
-end
-
-function ThreadedDenseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities, max_actions)
-    nthreads = Threads.nthreads()
-    thread_workspaces = [ThreadDenseOrthogonalWorkspace(p, max_actions) for _ in 1:nthreads]
-
-    pns = num_target(p)
     first_level_perm = Array{Int32}(undef, pns)
 
-    return ThreadedDenseOrthogonalWorkspace(first_level_perm, thread_workspaces)
+    workspaces = map(1:nthreads) do _
+        perm = Vector{Int32}(undef, nmax)
+        scratch = Vector{Int32}(undef, nmax)
+        expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in pns[2:end])
+        actions = Vector{R}(undef, max_actions)
+        return DenseOrthogonalWorkspace(expectation_cache,
+            first_level_perm,
+            perm,
+            scratch,
+            actions,
+        )
+    end
+
+    return ThreadedDenseOrthogonalWorkspace(workspaces)
 end
+
+Base.getindex(ws::ThreadedDenseOrthogonalWorkspace, i) = ws.thread_workspaces[i]
+first_level_perm(ws::ThreadedDenseOrthogonalWorkspace) = first_level_perm(first(ws.thread_workspaces))
 
 """
     construct_workspace(prob::OrthogonalIntervalProbabilities)
@@ -211,6 +209,8 @@ struct SparseOrthogonalWorkspace{N, T <: Real}
     actions::Vector{T}
 end
 
+scratch(ws::SparseOrthogonalWorkspace) = ws.scratch
+
 function SparseOrthogonalWorkspace(
     p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}},
     max_actions,
@@ -237,6 +237,8 @@ function ThreadedSparseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities, m
 
     return ThreadedSparseOrthogonalWorkspace(thread_workspaces)
 end
+
+Base.getindex(ws::ThreadedSparseOrthogonalWorkspace, i) = ws.thread_workspaces[i]
 
 """
     construct_workspace(prob::OrthogonalIntervalProbabilities)
