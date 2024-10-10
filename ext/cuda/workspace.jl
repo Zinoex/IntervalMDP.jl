@@ -28,5 +28,4 @@ end
 IntervalMDP.construct_workspace(
     prob::IntervalProbabilities{R, VR, MR},
     max_actions = 1,
-) where {R, VR, MR <: AbstractCuSparseMatrix{R}} =
-    CuSparseWorkspace(gap(prob), max_actions)
+) where {R, VR, MR <: AbstractCuSparseMatrix{R}} = CuSparseWorkspace(gap(prob), max_actions)

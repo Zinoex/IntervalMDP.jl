@@ -179,7 +179,7 @@ function tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVec
     probs = transition_prob(mdp)
     sptr = stateptr(mdp) .- 1
 
-    new_probs = probs[strategy .+ sptr[1:end-1]]
+    new_probs = probs[strategy .+ sptr[1:(end - 1)]]
 
     istates = initial_states(mdp)
 
@@ -202,7 +202,7 @@ function tomarkovchain(
     sptr = stateptr(mdp) .- 1
 
     for (t, strategy_step) in enumerate(strategy)
-        new_probs[t] = probs[strategy_step .+ sptr[1:end-1]]
+        new_probs[t] = probs[strategy_step .+ sptr[1:(end - 1)]]
     end
 
     istates = initial_states(mdp)

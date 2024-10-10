@@ -3,10 +3,15 @@ using IntervalMDP, SparseArrays
 using Random: MersenneTwister
 
 @testset "bellman 1d" begin
-    prob = OrthogonalIntervalProbabilities((IntervalProbabilities(;
-        lower = sparse([0.0 0.5; 0.1 0.3; 0.2 0.1]),
-        upper = sparse([0.5 0.7; 0.6 0.5; 0.7 0.3]),
-    ),), (Int32(2),))
+    prob = OrthogonalIntervalProbabilities(
+        (
+            IntervalProbabilities(;
+                lower = sparse([0.0 0.5; 0.1 0.3; 0.2 0.1]),
+                upper = sparse([0.5 0.7; 0.6 0.5; 0.7 0.3]),
+            ),
+        ),
+        (Int32(2),),
+    )
 
     V = [1.0, 2.0, 3.0]
 

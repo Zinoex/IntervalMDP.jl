@@ -313,8 +313,10 @@ function bellman!(
     end
 
     # For each source state
-    @inbounds for (jₛ_cart, jₛ_linear) in
-                  zip(CartesianIndices(source_shape(prob)), LinearIndices(source_shape(prob)))
+    @inbounds for (jₛ_cart, jₛ_linear) in zip(
+        CartesianIndices(source_shape(prob)),
+        LinearIndices(source_shape(prob)),
+    )
         bellman_dense_orthogonal!(
             workspace,
             workspace.first_level_perm,
@@ -445,7 +447,13 @@ function bellman_dense_orthogonal!(
                 end
 
                 # Last dimension
-                v = orthogonal_inner_bellman!(workspace, Vₑ[end], prob[end], jₐ, upper_bound)
+                v = orthogonal_inner_bellman!(
+                    workspace,
+                    Vₑ[end],
+                    prob[end],
+                    jₐ,
+                    upper_bound,
+                )
                 actions[i] = v
             end
         end
@@ -494,8 +502,10 @@ function bellman!(
     maximize = true,
 )
     # For each source state
-    @inbounds for (jₛ_cart, jₛ_linear) in
-                  zip(CartesianIndices(source_shape(prob)), LinearIndices(source_shape(prob)))
+    @inbounds for (jₛ_cart, jₛ_linear) in zip(
+        CartesianIndices(source_shape(prob)),
+        LinearIndices(source_shape(prob)),
+    )
         bellman_sparse_orthogonal!(
             workspace,
             strategy_cache,
