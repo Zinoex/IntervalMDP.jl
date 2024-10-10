@@ -289,7 +289,7 @@ function bellman!(
         # We can't use @threadstid over a zip, so we need to manually index
         jₛ_linear = I_linear[jₛ_cart]
 
-        ws = workspace.thread_workspaces[tid]
+        ws = workspace[tid]
 
         state_bellman!(
             ws,
