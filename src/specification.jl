@@ -52,7 +52,7 @@ end
 function checkconvergence!(prop, ::TimeVaryingStrategy)
     throw(
         ArgumentError(
-            "time-varying interval Markov processes are not supported for infinite time properties.",
+            "time-varying strategies are not supported for infinite time properties.",
         ),
     )
 end
@@ -227,14 +227,6 @@ function checkproperty!(prop::InfiniteTimeReachability, system, strategy)
     checkterminal!(terminal_states(prop), system)
 end
 
-function checkproperty!(::InfiniteTimeReachability, _, ::TimeVaryingStrategy)
-    throw(
-        ArgumentError(
-            "time-varying strategies are not supported for infinite time properties.",
-        ),
-    )
-end
-
 """
     isfinitetime(prop::InfiniteTimeReachability)
 
@@ -375,14 +367,6 @@ function checkproperty!(prop::InfiniteTimeReachAvoid, system, strategy)
     checkconvergence!(prop, strategy)
     checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
-end
-
-function checkproperty!(::InfiniteTimeReachAvoid, _, ::TimeVaryingStrategy)
-    throw(
-        ArgumentError(
-            "time-varying strategies are not supported for infinite time properties.",
-        ),
-    )
 end
 
 """
@@ -571,14 +555,6 @@ function checkproperty!(prop::InfiniteTimeReward, system, strategy)
             ),
         )
     end
-end
-
-function checkproperty!(::InfiniteTimeReward, _, ::TimeVaryingStrategy)
-    throw(
-        ArgumentError(
-            "time-varying strategies are not supported for infinite time properties.",
-        ),
-    )
 end
 
 """
