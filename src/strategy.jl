@@ -118,7 +118,7 @@ struct GivenStrategyCache{S <: AbstractStrategy} <: NonOptimizingStrategyCache
     strategy::S
 end
 
-construct_strategy_cache(::IntervalMarkovProcess, ::GivenStrategyCache, strategy, dims) =
+construct_strategy_cache(::IntervalMarkovProcess, ::GivenStrategyConfig, strategy, dims) =
     GivenStrategyCache(strategy)
 
 struct ActiveGivenStrategyCache{A <: AbstractArray{Int32}} <: NonOptimizingStrategyCache
