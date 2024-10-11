@@ -24,7 +24,8 @@ export OrthogonalIntervalMarkovDecisionProcess, OrthogonalIntervalMarkovChain
 export transition_prob, num_states, initial_states, stateptr, tomarkovchain, time_length
 
 include("strategy.jl")
-export GivenStrategyConfig, NoStrategyConfig, TimeVaryingStrategyConfig, StationaryStrategyConfig
+export GivenStrategyConfig,
+    NoStrategyConfig, TimeVaryingStrategyConfig, StationaryStrategyConfig
 export StationaryStrategy, TimeVaryingStrategy
 export construct_strategy_cache
 

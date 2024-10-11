@@ -282,7 +282,8 @@ Return the valid range of indices for the source states or source/action pairs.
 """
 axes_source(p::OrthogonalIntervalProbabilities) = axes_source(first(p.probs))
 
-num_target(p::OrthogonalIntervalProbabilities{N}) where {N} = ntuple(i -> num_target(p[i]), N)
+num_target(p::OrthogonalIntervalProbabilities{N}) where {N} =
+    ntuple(i -> num_target(p[i]), N)
 stateptr(p::OrthogonalIntervalProbabilities) = UnitRange{Int32}(1, num_source(p) + 1)
 Base.ndims(p::OrthogonalIntervalProbabilities{N}) where {N} = N
 

@@ -15,8 +15,6 @@
 # dispatching on the returned strategy type and (ii) to allow to specifcying the cache type without 
 # specifying the size of and the device to store the cache manually.
 
-
-
 ############
 # Strategy #
 ############
@@ -35,9 +33,13 @@ function checkstrategy!(strategy::StationaryStrategy, system)
 end
 
 function checkstrategy!(strategy::AbstractArray, system)
-    num_actions = stateptr(system)[2:end] .- stateptr(system)[1:end - 1]
+    num_actions = stateptr(system)[2:end] .- stateptr(system)[1:(end - 1)]
     if !all(1 .<= vec(strategy) .<= num_actions)
-        throw(DomainError("The strategy includes at least one invalid action (less than 1 or greater than num_actions for the state)."))
+        throw(
+            DomainError(
+                "The strategy includes at least one invalid action (less than 1 or greater than num_actions for the state).",
+            ),
+        )
     end
 end
 
@@ -108,14 +110,16 @@ depends on the configuration and the device to store the strategy depends on the
 """
 function construct_strategy_cache end
 
-construct_strategy_cache(mp::IntervalMarkovProcess, config, strategy=NoStrategy()) = construct_strategy_cache(mp, config, strategy, product_num_states(mp))
+construct_strategy_cache(mp::IntervalMarkovProcess, config, strategy = NoStrategy()) =
+    construct_strategy_cache(mp, config, strategy, product_num_states(mp))
 
 # Strategy cache for applying given policies - useful for dispatching
 struct GivenStrategyCache{S <: AbstractStrategy} <: NonOptimizingStrategyCache
     strategy::S
 end
 
-construct_strategy_cache(::IntervalMarkovProcess, ::GivenStrategyCache, strategy, dims) = GivenStrategyCache(strategy)
+construct_strategy_cache(::IntervalMarkovProcess, ::GivenStrategyCache, strategy, dims) =
+    GivenStrategyCache(strategy)
 
 struct ActiveGivenStrategyCache{A <: AbstractArray{Int32}} <: NonOptimizingStrategyCache
     strategy::A
@@ -142,7 +146,8 @@ function construct_strategy_cache(
     return NoStrategyCache()
 end
 
-construct_strategy_cache(::IntervalMarkovProcess, ::NoStrategyConfig, strategy, dims) = NoStrategyCache()
+construct_strategy_cache(::IntervalMarkovProcess, ::NoStrategyConfig, strategy, dims) =
+    NoStrategyCache()
 
 function extract_strategy!(::NoStrategyCache, values, V, j, maximize)
     return maximize ? maximum(values) : minimum(values)
@@ -183,7 +188,8 @@ function construct_action_cache(
     return zeros(Int32, dims)
 end
 
-cachetostrategy(strategy_cache::TimeVaryingStrategyCache) = TimeVaryingStrategy([indices for indices in reverse(strategy_cache.strategy)])
+cachetostrategy(strategy_cache::TimeVaryingStrategyCache) =
+    TimeVaryingStrategy([indices for indices in reverse(strategy_cache.strategy)])
 
 function extract_strategy!(
     strategy_cache::TimeVaryingStrategyCache,
@@ -217,7 +223,8 @@ function construct_strategy_cache(
     return StationaryStrategyCache(strategy)
 end
 
-cachetostrategy(strategy_cache::StationaryStrategyCache) = StationaryStrategy(strategy_cache.strategy)
+cachetostrategy(strategy_cache::StationaryStrategyCache) =
+    StationaryStrategy(strategy_cache.strategy)
 
 function extract_strategy!(
     strategy_cache::StationaryStrategyCache,

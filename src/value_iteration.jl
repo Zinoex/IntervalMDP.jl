@@ -79,7 +79,6 @@ end
 whichstrategyconfig(::Problem{S, F, <:NoStrategy}) where {S, F} = NoStrategyConfig()
 whichstrategyconfig(::Problem{S, F, <:AbstractStrategy}) where {S, F} = NoStrategyConfig()
 
-
 function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Problem)
     mp = system(problem)
     spec = specification(problem)
@@ -146,10 +145,14 @@ function ValueFunction(problem::Problem)
     return ValueFunction(mp, pns)
 end
 
-ValueFunction(mp::IntervalMarkovProcess, num_states) = ValueFunction(transition_prob(mp), num_states)
-ValueFunction(prob::OrthogonalIntervalProbabilities, num_states) = ValueFunction(first(prob), num_states)
-ValueFunction(prob::IntervalProbabilities, num_states) = ValueFunction(gap(prob), num_states)
-ValueFunction(::MR, num_states) where {R, MR <: AbstractMatrix{R}} = ValueFunction(zeros(R, num_states))
+ValueFunction(mp::IntervalMarkovProcess, num_states) =
+    ValueFunction(transition_prob(mp), num_states)
+ValueFunction(prob::OrthogonalIntervalProbabilities, num_states) =
+    ValueFunction(first(prob), num_states)
+ValueFunction(prob::IntervalProbabilities, num_states) =
+    ValueFunction(gap(prob), num_states)
+ValueFunction(::MR, num_states) where {R, MR <: AbstractMatrix{R}} =
+    ValueFunction(zeros(R, num_states))
 
 function lastdiff!(V)
     # Reuse prev to store the latest difference

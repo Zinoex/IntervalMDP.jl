@@ -157,7 +157,8 @@ the property is
     \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T).
 ```
 """
-struct FiniteTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer} <: AbstractReachability
+struct FiniteTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer} <:
+       AbstractReachability
     terminal_states::VT
     time_horizon::T
 end
@@ -289,7 +290,8 @@ and ``H`` is the time horizon, the property is
     \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T, \\text{ and } \\forall k' = \\{0, \\ldots, k\\}, s_k' \\notin A).
 ```
 """
-struct FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}, T <: Integer} <: AbstractReachAvoid
+struct FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}, T <: Integer} <:
+       AbstractReachAvoid
     reach::VT
     avoid::VT
     time_horizon::T
