@@ -34,9 +34,9 @@ function checkstrategy!(strategy::StationaryStrategy, system)
     checkstrategy!(strategy.strategy, system)
 end
 
-function checkstrategy!(strategy::AbstractVector, system)
+function checkstrategy!(strategy::AbstractArray, system)
     num_actions = stateptr(system)[2:end] .- stateptr(system)[1:end - 1]
-    if !all(1 .<= strategy .<= num_actions)
+    if !all(1 .<= vec(strategy) .<= num_actions)
         throw(DomainError("The strategy includes at least one invalid action (less than 1 or greater than num_actions for the state)."))
     end
 end
