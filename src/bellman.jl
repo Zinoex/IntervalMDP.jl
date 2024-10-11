@@ -210,7 +210,7 @@ function state_bellman!(
 )
     @inbounds begin
         s₁ = stateptr[jₛ]
-        jₐ = s₁ + strategy_cache[s₁] - 1
+        jₐ = s₁ + strategy_cache[jₛ] - 1
         Vres[jₛ] = state_action_bellman(workspace, V, prob, jₐ, upper_bound)
     end
 end

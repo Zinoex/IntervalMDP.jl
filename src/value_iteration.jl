@@ -77,7 +77,7 @@ function value_iteration(problem::Problem)
     return V, k, res
 end
 whichstrategyconfig(::Problem{S, F, <:NoStrategy}) where {S, F} = NoStrategyConfig()
-whichstrategyconfig(::Problem{S, F, <:AbstractStrategy}) where {S, F} = NoStrategyConfig()
+whichstrategyconfig(::Problem{S, F, <:AbstractStrategy}) where {S, F} = GivenStrategyConfig()
 
 function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Problem)
     mp = system(problem)

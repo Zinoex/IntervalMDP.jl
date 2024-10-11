@@ -32,6 +32,7 @@ struct StationaryStrategy{A <: AbstractArray{Int32}} <: AbstractStrategy
     strategy::A
 end
 Base.getindex(strategy::StationaryStrategy, k) = strategy.strategy
+time_length(::StationaryStrategy) = typemax(Int64)
 
 function checkstrategy!(strategy::StationaryStrategy, system)
     checkstrategy!(strategy.strategy, system)
@@ -131,6 +132,7 @@ end
 
 construct_strategy_cache(::IntervalMarkovProcess, ::GivenStrategyConfig, strategy, dims) =
     GivenStrategyCache(strategy)
+time_length(cache::GivenStrategyCache) = time_length(cache.strategy)
 
 struct ActiveGivenStrategyCache{A <: AbstractArray{Int32}} <: NonOptimizingStrategyCache
     strategy::A
