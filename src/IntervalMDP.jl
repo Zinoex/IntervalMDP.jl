@@ -42,7 +42,7 @@ export reach, avoid, terminal_states, time_horizon, convergence_eps, reward, dis
 export SatisfactionMode, Pessimistic, Optimistic
 export StrategyMode, Maximize, Minimize
 export Specification, Problem
-export system, specification, system_property, stategy, satisfaction_mode, strategy_mode
+export system, specification, system_property, strategy, satisfaction_mode, strategy_mode
 
 include("workspace.jl")
 export construct_workspace
