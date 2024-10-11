@@ -864,3 +864,32 @@ end
     @test minimum(V_direct) > 0.0
     @test all(V_ortho .≥ reshape(V_direct, 3, 3, 3))
 end
+
+@testset "synthesis" begin
+    rng = MersenneTwister(3286)
+
+    prob_lower = [rand(rng, Float64, 3, 27 * 2) ./ 3.0 for _ in 1:3]
+    prob_upper = [(rand(rng, Float64, 3, 27 * 2) .+ 1.0) ./ 3.0 for _ in 1:3]
+
+    probs = OrthogonalIntervalProbabilities(
+        ntuple(
+            i -> IntervalProbabilities(; lower = prob_lower[i], upper = prob_upper[i]),
+            3,
+        ),
+        (Int32(3), Int32(3), Int32(3)),
+    )
+
+    stateptr = [Int32[1]; convert.(Int32, 1 .+ collect(1:27) .* 2)]
+    mdp = OrthogonalIntervalMarkovDecisionProcess(probs, stateptr)
+
+    prop = FiniteTimeReachability([(3, 3, 3)], 10)
+    spec = Specification(prop, Pessimistic, Maximize)
+    prob = Problem(mdp, spec)
+
+    policy, V, it, res = control_synthesis(prob)
+
+    # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
+    prob = Problem(mdp, spec, policy)
+    V_mc, k, res = value_iteration(prob)
+    @test V ≈ V_mc
+end
