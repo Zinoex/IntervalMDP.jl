@@ -27,4 +27,9 @@ Return the number of states.
 """
 num_states(mp::IntervalMarkovProcess) = mp.num_states
 
+"""
+    transition_prob(mp::IntervalMarkovProcess)
+
+Return the interval on transition probabilities.
+"""
 transition_prob(mp::IntervalMarkovProcess) = mp.transition_prob
