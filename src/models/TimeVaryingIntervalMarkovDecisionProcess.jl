@@ -120,6 +120,8 @@ I.e. `transition_prob[:, stateptr[j]:stateptr[j + 1] - 1]` is the transition pro
 stateptr(mdp::TimeVaryingIntervalMarkovDecisionProcess) = mdp.stateptr
 
 max_actions(mdp::TimeVaryingIntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp))
+Base.ndims(::TimeVaryingIntervalMarkovDecisionProcess) = one(Int32)
+product_num_states(mp::TimeVaryingIntervalMarkovDecisionProcess) = (num_states(mp),)
 
 """
     tomarkovchain(mdp::TimeVaryingIntervalMarkovDecisionProcess, strategy::AbstractVector{<:AbstractVector})
