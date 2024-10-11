@@ -4,6 +4,7 @@
 Problem
 system
 specification
+strategy
 Specification
 system_property
 Property

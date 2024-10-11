@@ -90,7 +90,7 @@ spec = Specification(prop, Optimistic, Minimize)
         ],
     )
     mc = IntervalMarkovChain(prob)
-    tv_mc = TimeVaryingIntervalMarkovChain([prob, prob, prob])
+    tv_strat = TimeVaryingStrategy([Int32[1, 1, 1]])
 
     # Time horizon must be a positive integer
     @testset "time horizon" begin
@@ -104,7 +104,7 @@ spec = Specification(prop, Optimistic, Minimize)
 
         prop = FiniteTimeReachability([3], 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(tv_mc, spec)
+        @test_throws DomainError Problem(mc, spec, tv_strat)
 
         prop = FiniteTimeReachAvoid([3], [2], 0)
         spec = Specification(prop)
@@ -116,7 +116,7 @@ spec = Specification(prop, Optimistic, Minimize)
 
         prop = FiniteTimeReachAvoid([3], [2], 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(tv_mc, spec)
+        @test_throws DomainError Problem(mc, spec, tv_strat)
 
         prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 0)
         spec = Specification(prop)
@@ -128,34 +128,34 @@ spec = Specification(prop, Optimistic, Minimize)
 
         prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(tv_mc, spec)
+        @test_throws DomainError Problem(mc, spec, tv_strat)
     end
 
     # Time horizon must be equal to the time length of the time-varying interval Markov process
-    @testset "time horizon/time-varying system" begin
+    @testset "time horizon/time-varying strategy" begin
         prop = FiniteTimeReachability([3], 2)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(tv_mc, spec)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
 
         prop = FiniteTimeReachability([3], 4)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(tv_mc, spec)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
 
         prop = FiniteTimeReachAvoid([3], [2], 2)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(tv_mc, spec)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
 
         prop = FiniteTimeReachAvoid([3], [2], 4)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(tv_mc, spec)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
 
         prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 2)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(tv_mc, spec)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
 
         prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 4)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(tv_mc, spec)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
     end
 
     # Convergence epsilon must be a positive number
@@ -186,18 +186,18 @@ spec = Specification(prop, Optimistic, Minimize)
     end
 
     # Infinite time properties are not supported for time-varying interval Markov processes
-    @testset "infinite time property/time-varying system" begin
+    @testset "infinite time property/time-varying controller" begin
         prop = InfiniteTimeReachability([3], 1e-6)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(tv_mc, spec)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
 
         prop = InfiniteTimeReachAvoid([3], [2], 1e-6)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(tv_mc, spec)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
 
         prop = InfiniteTimeReward([1.0, 2.0, 3.0], 0.9, 1e-6)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(tv_mc, spec)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
     end
 
     # Specification state errors

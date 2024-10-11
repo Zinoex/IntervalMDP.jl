@@ -7,7 +7,7 @@ Super type for all system Property
 """
 abstract type Property end
 
-function checktimehorizon!(prop, ::StationaryIntervalMarkovProcess)
+function checktimehorizon!(prop, ::AbstractStrategy)
     if time_horizon(prop) < 1
         throw(
             DomainError(
@@ -18,7 +18,7 @@ function checktimehorizon!(prop, ::StationaryIntervalMarkovProcess)
     end
 end
 
-function checktimehorizon!(prop, system::TimeVaryingIntervalMarkovProcess)
+function checktimehorizon!(prop, strategy::TimeVaryingStrategy)
     if time_horizon(prop) < 1
         throw(
             DomainError(
@@ -29,16 +29,16 @@ function checktimehorizon!(prop, system::TimeVaryingIntervalMarkovProcess)
     end
 
     # It is not meaningful to check a property with a different time horizon.
-    if time_horizon(prop) != time_length(system)
+    if time_horizon(prop) != time_length(strategy)
         throw(
             ArgumentError(
-                "the time horizon of the property ($(time_horizon(prop))) does not match the time length of the system ($(time_length(system)))",
+                "the time horizon of the property ($(time_horizon(prop))) does not match the time length of the strategy ($(time_length(strategy)))",
             ),
         )
     end
 end
 
-function checkconvergence!(prop, ::StationaryIntervalMarkovProcess)
+function checkconvergence!(prop, ::AbstractStrategy)
     if convergence_eps(prop) <= 0
         throw(
             DomainError(
@@ -49,10 +49,10 @@ function checkconvergence!(prop, ::StationaryIntervalMarkovProcess)
     end
 end
 
-function checkconvergence!(prop, ::TimeVaryingIntervalMarkovProcess)
+function checkconvergence!(prop, ::TimeVaryingStrategy)
     throw(
         ArgumentError(
-            "time-varying interval Markov processes are not supported for infinite time properties.",
+            "time-varying strategies are not supported for infinite time properties.",
         ),
     )
 end
@@ -157,7 +157,8 @@ the property is
     \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T).
 ```
 """
-struct FiniteTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer} <: AbstractReachability
+struct FiniteTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer} <:
+       AbstractReachability
     terminal_states::VT
     time_horizon::T
 end
@@ -167,8 +168,8 @@ function FiniteTimeReachability(terminal_states::Vector{<:UnionIndex}, time_hori
     return FiniteTimeReachability(terminal_states, time_horizon)
 end
 
-function checkproperty!(prop::FiniteTimeReachability, system)
-    checktimehorizon!(prop, system)
+function checkproperty!(prop::FiniteTimeReachability, system, strategy)
+    checktimehorizon!(prop, strategy)
     checkterminal!(terminal_states(prop), system)
 end
 
@@ -221,17 +222,9 @@ function InfiniteTimeReachability(terminal_states::Vector{<:UnionIndex}, converg
     return InfiniteTimeReachability(terminal_states, convergence_eps)
 end
 
-function checkproperty!(prop::InfiniteTimeReachability, system)
-    checkconvergence!(prop, system)
+function checkproperty!(prop::InfiniteTimeReachability, system, strategy)
+    checkconvergence!(prop, strategy)
     checkterminal!(terminal_states(prop), system)
-end
-
-function checkproperty!(::InfiniteTimeReachability, ::TimeVaryingIntervalMarkovProcess)
-    throw(
-        ArgumentError(
-            "time-varying interval Markov processes are not supported for infinite time properties.",
-        ),
-    )
 end
 
 """
@@ -289,7 +282,8 @@ and ``H`` is the time horizon, the property is
     \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T, \\text{ and } \\forall k' = \\{0, \\ldots, k\\}, s_k' \\notin A).
 ```
 """
-struct FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}, T <: Integer} <: AbstractReachAvoid
+struct FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}, T <: Integer} <:
+       AbstractReachAvoid
     reach::VT
     avoid::VT
     time_horizon::T
@@ -305,8 +299,8 @@ function FiniteTimeReachAvoid(
     return FiniteTimeReachAvoid(reach, avoid, time_horizon)
 end
 
-function checkproperty!(prop::FiniteTimeReachAvoid, system)
-    checktimehorizon!(prop, system)
+function checkproperty!(prop::FiniteTimeReachAvoid, system, strategy)
+    checktimehorizon!(prop, strategy)
     checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
 end
@@ -369,18 +363,10 @@ function InfiniteTimeReachAvoid(
     return InfiniteTimeReachAvoid(reach, avoid, convergence_eps)
 end
 
-function checkproperty!(prop::InfiniteTimeReachAvoid, system)
-    checkconvergence!(prop, system)
+function checkproperty!(prop::InfiniteTimeReachAvoid, system, strategy)
+    checkconvergence!(prop, strategy)
     checkterminal!(terminal_states(prop), system)
     checkdisjoint!(reach(prop), avoid(prop))
-end
-
-function checkproperty!(::InfiniteTimeReachAvoid, ::TimeVaryingIntervalMarkovProcess)
-    throw(
-        ArgumentError(
-            "time-varying interval Markov processes are not supported for infinite time properties.",
-        ),
-    )
 end
 
 """
@@ -474,11 +460,7 @@ function checkreward!(prop::AbstractReward, system)
     end
 end
 
-function checkdevice!(v::AbstractArray, system::TimeVaryingIntervalMarkovDecisionProcess)
-    checkdevice!(v, transition_prob(system, 1))
-end
-
-function checkdevice!(v::AbstractArray, system::StationaryIntervalMarkovProcess)
+function checkdevice!(v::AbstractArray, system::IntervalMarkovProcess)
     checkdevice!(v, transition_prob(system))
 end
 
@@ -515,8 +497,8 @@ struct FiniteTimeReward{R <: Real, AR <: AbstractArray{R}, T <: Integer} <:
     time_horizon::T
 end
 
-function checkproperty!(prop::FiniteTimeReward, system)
-    checktimehorizon!(prop, system)
+function checkproperty!(prop::FiniteTimeReward, system, strategy)
+    checktimehorizon!(prop, strategy)
     checkreward!(prop, system)
 end
 
@@ -561,8 +543,8 @@ struct InfiniteTimeReward{R <: Real, AR <: AbstractArray{R}} <: AbstractReward{R
     convergence_eps::R
 end
 
-function checkproperty!(prop::InfiniteTimeReward, system)
-    checkconvergence!(prop, system)
+function checkproperty!(prop::InfiniteTimeReward, system, strategy)
+    checkconvergence!(prop, strategy)
     checkreward!(prop, system)
 
     if discount(prop) >= 1
@@ -573,14 +555,6 @@ function checkproperty!(prop::InfiniteTimeReward, system)
             ),
         )
     end
-end
-
-function checkproperty!(::InfiniteTimeReward, ::TimeVaryingIntervalMarkovProcess)
-    throw(
-        ArgumentError(
-            "time-varying interval Markov processes are not supported for infinite time properties.",
-        ),
-    )
 end
 
 """
@@ -658,8 +632,8 @@ initialize!(value_function, spec::Specification) =
 postprocess_value_function!(value_function, spec::Specification) =
     postprocess_value_function!(value_function, system_property(spec))
 
-function checkspecification!(spec::Specification, system)
-    return checkproperty!(system_property(spec), system)
+function checkspecification!(spec::Specification, system, strategy)
+    return checkproperty!(system_property(spec), system, strategy)
 end
 
 """
@@ -690,18 +664,25 @@ A problem is a tuple of an interval Markov process and a specification.
 - `system::S`: interval Markov process.
 - `spec::F`: specification (either temporal logic or reachability-like).
 """
-struct Problem{S <: IntervalMarkovProcess, F <: Specification}
+struct Problem{S <: IntervalMarkovProcess, F <: Specification, C <: AbstractStrategy}
     system::S
     spec::F
+    strategy::C
 
     function Problem(
         system::S,
         spec::F,
-    ) where {S <: IntervalMarkovProcess, F <: Specification}
-        checkspecification!(spec, system)
-        return new{S, F}(system, spec)
+        strategy::C,
+    ) where {S <: IntervalMarkovProcess, F <: Specification, C <: AbstractStrategy}
+        checkspecification!(spec, system, strategy)
+        checkstrategy!(strategy, system)
+        return new{S, F, C}(system, spec, strategy)
     end
 end
+
+Problem(system::IntervalMarkovProcess, spec::Specification) =
+    Problem(system, spec, NoStrategy())
+
 """
     system(prob::Problem)
 
@@ -715,3 +696,10 @@ system(prob::Problem) = prob.system
 Return the specification of a problem.
 """
 specification(prob::Problem) = prob.spec
+
+"""
+    strategy(prob::Problem)
+
+Return the strategy of a problem, if provided.
+"""
+strategy(prob::Problem) = prob.strategy

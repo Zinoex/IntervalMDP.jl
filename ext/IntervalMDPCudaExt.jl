@@ -10,6 +10,8 @@ using IntervalMDP, LinearAlgebra
 
 Adapt.@adapt_structure IntervalProbabilities
 Adapt.@adapt_structure OrthogonalIntervalProbabilities
+Adapt.@adapt_structure StationaryStrategy
+Adapt.@adapt_structure TimeVaryingStrategy
 
 # Opinionated conversion to GPU with Float64 values and Int32 indices
 IntervalMDP.cu(model) = adapt(IntervalMDP.CuModelAdaptor{Float64}, model)
@@ -20,18 +22,6 @@ function Adapt.adapt_structure(
 )
     return IntervalMarkovDecisionProcess(
         adapt(T, transition_prob(mdp)),
-        adapt(CuArray{Int32}, IntervalMDP.stateptr(mdp)),
-        adapt(CuArray{Int32}, initial_states(mdp)),
-        num_states(mdp),
-    )
-end
-
-function Adapt.adapt_structure(
-    T::Type{<:IntervalMDP.CuModelAdaptor},
-    mdp::TimeVaryingIntervalMarkovDecisionProcess,
-)
-    return TimeVaryingIntervalMarkovDecisionProcess(
-        adapt.(T, IntervalMDP.transition_probs(mdp)),
         adapt(CuArray{Int32}, IntervalMDP.stateptr(mdp)),
         adapt(CuArray{Int32}, initial_states(mdp)),
         num_states(mdp),

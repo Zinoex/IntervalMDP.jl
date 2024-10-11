@@ -112,7 +112,17 @@ function bellman!(
     bellman_precomputation!(workspace, V, upper_bound)
 
     for jₛ in 1:(length(stateptr) - 1)
-        state_bellman!(workspace, strategy_cache, Vres, V, prob, stateptr, jₛ, upper_bound, maximize)
+        state_bellman!(
+            workspace,
+            strategy_cache,
+            Vres,
+            V,
+            prob,
+            stateptr,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
     end
 
     return Vres
@@ -133,22 +143,40 @@ function bellman!(
 
     @threadstid tid for jₛ in 1:(length(stateptr) - 1)
         @inbounds ws = workspace[tid]
-        state_bellman!(ws, strategy_cache, Vres, V, prob, stateptr, jₛ, upper_bound, maximize)
+        state_bellman!(
+            ws,
+            strategy_cache,
+            Vres,
+            V,
+            prob,
+            stateptr,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
     end
 
     return Vres
 end
 
-function bellman_precomputation!(workspace::Union{DenseWorkspace, ThreadedDenseWorkspace}, V, upper_bound)
+function bellman_precomputation!(
+    workspace::Union{DenseWorkspace, ThreadedDenseWorkspace},
+    V,
+    upper_bound,
+)
     # rev=true for upper bound
     sortperm!(permutation(workspace), V; rev = upper_bound, scratch = scratch(workspace))
 end
 
-bellman_precomputation!(workspace::Union{SparseWorkspace, ThreadedSparseWorkspace}, V, upper_bound) = nothing
+bellman_precomputation!(
+    workspace::Union{SparseWorkspace, ThreadedSparseWorkspace},
+    V,
+    upper_bound,
+) = nothing
 
 function state_bellman!(
     workspace,
-    strategy_cache,
+    strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
     prob,
@@ -169,7 +197,31 @@ function state_bellman!(
     end
 end
 
-Base.@propagate_inbounds function state_action_bellman(workspace::DenseWorkspace, V, prob, jₐ, upper_bound)
+function state_bellman!(
+    workspace,
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    prob,
+    stateptr,
+    jₛ,
+    upper_bound,
+    maximize,
+)
+    @inbounds begin
+        s₁ = stateptr[jₛ]
+        jₐ = s₁ + strategy_cache[jₛ] - 1
+        Vres[jₛ] = state_action_bellman(workspace, V, prob, jₐ, upper_bound)
+    end
+end
+
+Base.@propagate_inbounds function state_action_bellman(
+    workspace::DenseWorkspace,
+    V,
+    prob,
+    jₐ,
+    upper_bound,
+)
     return dense_sorted_state_action_bellman(V, prob, jₐ, permutation(workspace))
 end
 
@@ -181,7 +233,12 @@ Base.@propagate_inbounds function dense_sorted_state_action_bellman(V, prob, j�
     return dot(V, lowerⱼ) + gap_value(V, gapⱼ, used, perm)
 end
 
-Base.@propagate_inbounds function gap_value(V, gap::VR, sum_lower, perm) where {VR <: AbstractVector}
+Base.@propagate_inbounds function gap_value(
+    V,
+    gap::VR,
+    sum_lower,
+    perm,
+) where {VR <: AbstractVector}
     remaining = 1.0 - sum_lower
     res = 0.0
 
@@ -198,7 +255,13 @@ Base.@propagate_inbounds function gap_value(V, gap::VR, sum_lower, perm) where {
     return res
 end
 
-Base.@propagate_inbounds function state_action_bellman(workspace::SparseWorkspace, V, prob, jₐ, upper_bound)
+Base.@propagate_inbounds function state_action_bellman(
+    workspace::SparseWorkspace,
+    V,
+    prob,
+    jₐ,
+    upper_bound,
+)
     lowerⱼ = @view lower(prob)[:, jₐ]
     gapⱼ = @view gap(prob)[:, jₐ]
     used = sum_lower(prob)[jₐ]
@@ -318,7 +381,12 @@ function bellman_precomputation!(workspace::DenseOrthogonalWorkspace, V, prob, u
     end
 end
 
-function bellman_precomputation!(workspace::ThreadedDenseOrthogonalWorkspace, V, prob, upper_bound)
+function bellman_precomputation!(
+    workspace::ThreadedDenseOrthogonalWorkspace,
+    V,
+    prob,
+    upper_bound,
+)
     # Since sorting for the first level is shared among all higher levels, we can precompute it
     product_nstates = num_target(prob)
 
@@ -329,7 +397,12 @@ function bellman_precomputation!(workspace::ThreadedDenseOrthogonalWorkspace, V,
     end
 end
 
-bellman_precomputation!(workspace::Union{SparseOrthogonalWorkspace, ThreadedSparseOrthogonalWorkspace}, V, prob, upper_bound) = nothing
+bellman_precomputation!(
+    workspace::Union{SparseOrthogonalWorkspace, ThreadedSparseOrthogonalWorkspace},
+    V,
+    prob,
+    upper_bound,
+) = nothing
 
 function sort_dense_orthogonal(workspace, V, I, upper_bound)
     @inbounds begin
@@ -342,15 +415,15 @@ end
 
 function state_bellman!(
     workspace,
-    strategy_cache::AbstractStrategyCache,
+    strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
     prob::OrthogonalIntervalProbabilities,
     stateptr,
     jₛ_cart,
     jₛ_linear;
-    upper_bound = false,
-    maximize = true,
+    upper_bound,
+    maximize,
 )
     @inbounds begin
         s₁, s₂ = stateptr[jₛ_linear], stateptr[jₛ_linear + 1]
@@ -364,10 +437,40 @@ function state_bellman!(
     end
 end
 
-Base.@propagate_inbounds function state_action_bellman(workspace::DenseOrthogonalWorkspace, V, prob, jₐ, upper_bound)
+function state_bellman!(
+    workspace,
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    prob::OrthogonalIntervalProbabilities,
+    stateptr,
+    jₛ_cart,
+    jₛ_linear;
+    upper_bound,
+    maximize,
+)
+    @inbounds begin
+        s₁ = stateptr[jₛ_linear]
+        jₐ = s₁ + strategy_cache[jₛ_cart] - 1
+        Vres[jₛ_cart] = state_action_bellman(workspace, V, prob, jₐ, upper_bound)
+    end
+end
+
+Base.@propagate_inbounds function state_action_bellman(
+    workspace::DenseOrthogonalWorkspace,
+    V,
+    prob,
+    jₐ,
+    upper_bound,
+)
     # The only dimension
     if ndims(prob) == 1
-        return dense_sorted_state_action_bellman(V, prob[1], jₐ, first_level_perm(workspace))
+        return dense_sorted_state_action_bellman(
+            V,
+            prob[1],
+            jₐ,
+            first_level_perm(workspace),
+        )
     end
 
     Vₑ = workspace.expectation_cache
@@ -404,14 +507,8 @@ Base.@propagate_inbounds function state_action_bellman(workspace::DenseOrthogona
     end
 
     # Last dimension
-    v = orthogonal_inner_bellman!(
-        workspace,
-        Vₑ[end],
-        prob[end],
-        jₐ,
-        upper_bound,
-    )
-    
+    v = orthogonal_inner_bellman!(workspace, Vₑ[end], prob[end], jₐ, upper_bound)
+
     return v
 end
 
@@ -427,20 +524,32 @@ Base.@propagate_inbounds function orthogonal_inner_bellman!(
     # rev=true for upper bound
     sortperm!(perm, V; rev = upper_bound, scratch = scratch(workspace))
 
-    return dense_sorted_state_action_bellman(V, prob, jₐ, perm) 
+    return dense_sorted_state_action_bellman(V, prob, jₐ, perm)
 end
 
-Base.@propagate_inbounds function state_action_bellman(workspace::SparseOrthogonalWorkspace, V, prob, jₐ, upper_bound)
+Base.@propagate_inbounds function state_action_bellman(
+    workspace::SparseOrthogonalWorkspace,
+    V,
+    prob,
+    jₐ,
+    upper_bound,
+)
     # This function uses ntuple excessively to avoid allocations (list comprehension requires allocation, while ntuple does not)
     nzinds_first = SparseArrays.nonzeroinds(@view(gap(prob[1])[:, jₐ]))
-    nzinds_per_prob = ntuple(i -> SparseArrays.nonzeroinds(@view(gap(prob[i + 1])[:, jₐ])), ndims(prob) - 1)
+    nzinds_per_prob = ntuple(
+        i -> SparseArrays.nonzeroinds(@view(gap(prob[i + 1])[:, jₐ])),
+        ndims(prob) - 1,
+    )
 
     lower_nzvals_per_prob = ntuple(i -> nonzeros(@view(lower(prob[i])[:, jₐ])), ndims(prob))
     gap_nzvals_per_prob = ntuple(i -> nonzeros(@view(gap(prob[i])[:, jₐ])), ndims(prob))
     sum_lower_per_prob = ntuple(i -> sum_lower(prob[i])[jₐ], ndims(prob))
 
     nnz_per_prob = ntuple(i -> nnz(@view(gap(prob[i])[:, jₐ])), ndims(prob))
-    Vₑ = ntuple(i -> @view(workspace.expectation_cache[i][1:nnz_per_prob[i + 1]]), ndims(prob) - 1)
+    Vₑ = ntuple(
+        i -> @view(workspace.expectation_cache[i][1:nnz_per_prob[i + 1]]),
+        ndims(prob) - 1,
+    )
 
     if ndims(prob) == 1
         # The only dimension
@@ -496,7 +605,7 @@ Base.@propagate_inbounds function state_action_bellman(workspace::SparseOrthogon
         sum_lower_per_prob[end],
         upper_bound,
     )
-    
+
     return v
 end
 

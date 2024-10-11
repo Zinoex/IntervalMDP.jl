@@ -2,7 +2,7 @@
 function construct_workspace end
 
 """
-    construct_workspace(mp::SimpleIntervalMarkovProcess)
+    construct_workspace(mp::IntervalMarkovProcess)
 
 Construct a workspace for computing the Bellman update, given a value function.
 If the Bellman update is used in a hot-loop, it is more efficient to use this function
@@ -11,8 +11,8 @@ to preallocate the workspace and reuse across iterations.
 The workspace type is determined by the type and size of the transition probability matrix,
 as well as the number of threads available.
 """
-construct_workspace(mp::SimpleIntervalMarkovProcess) =
-    construct_workspace(transition_prob(mp, 1), max_actions(mp))
+construct_workspace(mp::IntervalMarkovProcess) =
+    construct_workspace(transition_prob(mp), max_actions(mp))
 
 # Dense
 struct DenseWorkspace{T <: Real}
@@ -41,7 +41,10 @@ function ThreadedDenseWorkspace(p::AbstractMatrix{T}, max_actions) where {T <: R
     scratch = Vector{Int32}(undef, n)
     perm = Vector{Int32}(undef, n)
 
-    workspaces = [DenseWorkspace(scratch, perm, Vector{T}(undef, max_actions)) for _ in 1:Threads.nthreads()]
+    workspaces = [
+        DenseWorkspace(scratch, perm, Vector{T}(undef, max_actions)) for
+        _ in 1:Threads.nthreads()
+    ]
     return ThreadedDenseWorkspace(workspaces)
 end
 
@@ -154,7 +157,10 @@ struct ThreadedDenseOrthogonalWorkspace{N, M, T}
     thread_workspaces::Vector{DenseOrthogonalWorkspace{N, M, T}}
 end
 
-function ThreadedDenseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R}}, max_actions) where {N, R}
+function ThreadedDenseOrthogonalWorkspace(
+    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R}},
+    max_actions,
+) where {N, R}
     nthreads = Threads.nthreads()
     pns = num_target(p)
     nmax = maximum(pns)
@@ -164,9 +170,11 @@ function ThreadedDenseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities{N, 
     workspaces = map(1:nthreads) do _
         perm = Vector{Int32}(undef, nmax)
         scratch = Vector{Int32}(undef, nmax)
-        expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in pns[2:end])
+        expectation_cache =
+            NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in pns[2:end])
         actions = Vector{R}(undef, max_actions)
-        return DenseOrthogonalWorkspace(expectation_cache,
+        return DenseOrthogonalWorkspace(
+            expectation_cache,
             first_level_perm,
             perm,
             scratch,

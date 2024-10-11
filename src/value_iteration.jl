@@ -71,11 +71,13 @@ V, k, residual = value_iteration(problem)
 
 """
 function value_iteration(problem::Problem)
-    strategy_config = NoStrategyConfig()
+    strategy_config = whichstrategyconfig(problem)
     V, k, res, _ = _value_iteration!(strategy_config, problem)
 
     return V, k, res
 end
+whichstrategyconfig(::Problem{S, F, <:NoStrategy}) where {S, F} = NoStrategyConfig()
+whichstrategyconfig(::Problem{S, F, <:AbstractStrategy}) where {S, F} = GivenStrategyConfig()
 
 function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Problem)
     mp = system(problem)
@@ -86,7 +88,7 @@ function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Pro
 
     # It is more efficient to use allocate first and reuse across iterations
     workspace = construct_workspace(mp)
-    strategy_cache = construct_strategy_cache(mp, strategy_config)
+    strategy_cache = construct_strategy_cache(mp, strategy_config, strategy(problem))
 
     value_function = ValueFunction(problem)
     initialize!(value_function, spec)
@@ -143,10 +145,14 @@ function ValueFunction(problem::Problem)
     return ValueFunction(mp, pns)
 end
 
-ValueFunction(mp::IntervalMarkovProcess, num_states) = ValueFunction(transition_prob(mp, 1), num_states)
-ValueFunction(prob::OrthogonalIntervalProbabilities, num_states) = ValueFunction(first(prob), num_states)
-ValueFunction(prob::IntervalProbabilities, num_states) = ValueFunction(gap(prob), num_states)
-ValueFunction(::MR, num_states) where {R, MR <: AbstractMatrix{R}} = ValueFunction(zeros(R, num_states))
+ValueFunction(mp::IntervalMarkovProcess, num_states) =
+    ValueFunction(transition_prob(mp), num_states)
+ValueFunction(prob::OrthogonalIntervalProbabilities, num_states) =
+    ValueFunction(first(prob), num_states)
+ValueFunction(prob::IntervalProbabilities, num_states) =
+    ValueFunction(gap(prob), num_states)
+ValueFunction(::MR, num_states) where {R, MR <: AbstractMatrix{R}} =
+    ValueFunction(zeros(R, num_states))
 
 function lastdiff!(V)
     # Reuse prev to store the latest difference
@@ -164,20 +170,19 @@ end
 
 function step!(
     workspace,
-    strategy_cache,
+    strategy_cache::OptimizingStrategyCache,
     value_function,
     k,
-    mp::StationaryIntervalMarkovProcess;
+    mp::IntervalMarkovProcess;
     upper_bound,
     maximize,
 )
-    prob = transition_prob(mp)
     bellman!(
         workspace,
         strategy_cache,
         value_function.current,
         value_function.previous,
-        prob,
+        transition_prob(mp),
         stateptr(mp);
         upper_bound = upper_bound,
         maximize = maximize,
@@ -186,20 +191,19 @@ end
 
 function step!(
     workspace,
-    strategy_cache,
+    strategy_cache::NonOptimizingStrategyCache,
     value_function,
     k,
-    mp::TimeVaryingIntervalMarkovProcess;
+    mp::IntervalMarkovProcess;
     upper_bound,
     maximize,
 )
-    prob = transition_prob(mp, time_length(mp) - k)
     bellman!(
         workspace,
-        strategy_cache,
+        strategy_cache[time_length(strategy_cache) - k],
         value_function.current,
         value_function.previous,
-        prob,
+        transition_prob(mp),
         stateptr(mp);
         upper_bound = upper_bound,
         maximize = maximize,

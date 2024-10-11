@@ -96,7 +96,7 @@ struct OrthogonalIntervalMarkovDecisionProcess{
     P <: OrthogonalIntervalProbabilities,
     VT <: AbstractVector{Int32},
     VI <: InitialStates,
-} <: StationaryIntervalMarkovProcess
+} <: IntervalMarkovProcess
     transition_prob::P
     stateptr::VT
     initial_states::VI
@@ -188,47 +188,3 @@ max_actions(mdp::OrthogonalIntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp
 Base.ndims(::OrthogonalIntervalMarkovDecisionProcess{N}) where {N} = Int32(N)
 product_num_states(mp::OrthogonalIntervalMarkovDecisionProcess) =
     num_target(transition_prob(mp))
-
-"""
-    tomarkovchain(mdp::OrthogonalIntervalMarkovDecisionProcess, strategy::AbstractVector)
-
-Extract a Product Interval Markov Chain (IMC) from an Interval Markov Decision Process under a stationary strategy. The returned type remains
-an `IntervalMarkovDecisionProcess` with only one action per state. The extracted IMC is stationary.
-"""
-function tomarkovchain(
-    mdp::OrthogonalIntervalMarkovDecisionProcess,
-    strategy::AbstractVector,
-)
-    # TODO: Fix
-
-    probs = transition_prob(mdp)
-    new_probs = probs[strategy]
-
-    istates = initial_states(mdp)
-
-    return IntervalMarkovChain(new_probs, istates)
-end
-
-"""
-    tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector{<:AbstractVector})
-
-Extract a Product Interval Markov Chain (IMC) from an Interval Markov Decision Process under a time-varying strategy. The returned type is
-a `TimeVaryingIntervalMarkovDecisionProcess` with only one action per state per time-step. The extracted IMC is time-varying.
-"""
-function tomarkovchain(
-    mdp::OrthogonalIntervalMarkovDecisionProcess,
-    strategy::AbstractVector{<:AbstractVector},
-)
-    # TODO: Fix
-
-    probs = transition_prob(mdp)
-    new_probs = Vector{typeof(probs)}(undef, length(strategy))
-
-    for (t, strategy_step) in enumerate(strategy)
-        new_probs[t] = probs[strategy_step]
-    end
-
-    istates = initial_states(mdp)
-
-    return TimeVaryingIntervalMarkovChain(new_probs, istates)
-end

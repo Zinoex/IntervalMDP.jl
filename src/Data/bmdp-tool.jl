@@ -122,26 +122,23 @@ write_bmdp_tool_file(path, problem::Problem) =
     write_bmdp_tool_file(path, system(problem), specification(problem))
 
 """
-    write_bmdp_tool_file(path, mdp::StationaryIntervalMarkovProcess, spec::Specification)
+    write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, spec::Specification)
 """
-write_bmdp_tool_file(path, mdp::StationaryIntervalMarkovProcess, spec::Specification) =
+write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, spec::Specification) =
     write_bmdp_tool_file(path, mdp, system_property(spec))
 
 """
-    write_bmdp_tool_file(path, mdp::StationaryIntervalMarkovProcess, prop::AbstractReachability)
+    write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, prop::AbstractReachability)
 """
-write_bmdp_tool_file(
-    path,
-    mdp::StationaryIntervalMarkovProcess,
-    prop::AbstractReachability,
-) = write_bmdp_tool_file(path, mdp, reach(prop))
+write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, prop::AbstractReachability) =
+    write_bmdp_tool_file(path, mdp, reach(prop))
 
 """
-    write_bmdp_tool_file(path, mdp::StationaryIntervalMarkovProcess, terminal_states::Vector{T})
+    write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, terminal_states::Vector{T})
 """
 write_bmdp_tool_file(
     path,
-    mdp::StationaryIntervalMarkovProcess,
+    mdp::IntervalMarkovProcess,
     terminal_states::Vector{T},
 ) where {T} = write_bmdp_tool_file(path, mdp, CartesianIndex.(terminal_states))
 
