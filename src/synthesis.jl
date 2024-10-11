@@ -9,6 +9,10 @@ function control_synthesis(problem::Problem)
     spec = specification(problem)
     prop = system_property(spec)
 
+    if !(strategy(problem) isa NoStrategy)
+        @warn "The strategy is given to `control_synthesis`. Ignoring the strategy and synthesizing a new one."
+    end
+
     strategy_config =
         isfinitetime(prop) ? TimeVaryingStrategyConfig() : StationaryStrategyConfig()
     V, k, res, strategy_cache = _value_iteration!(strategy_config, problem)

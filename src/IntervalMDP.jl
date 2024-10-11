@@ -16,16 +16,17 @@ export num_source, axes_source, num_target, axes_target
 
 include("models/IntervalMarkovProcess.jl")
 include("models/IntervalMarkovDecisionProcess.jl")
-include("models/TimeVaryingIntervalMarkovDecisionProcess.jl")
 include("models/OrthogonalIntervalMarkovDecisionProcess.jl")
 export IntervalMarkovProcess
-export SimpleIntervalMarkovProcess,
-    StationaryIntervalMarkovProcess, TimeVaryingIntervalMarkovProcess
 export AllStates
-export IntervalMarkovDecisionProcess, TimeVaryingIntervalMarkovDecisionProcess
-export IntervalMarkovChain, TimeVaryingIntervalMarkovChain
+export IntervalMarkovDecisionProcess, IntervalMarkovChain
 export OrthogonalIntervalMarkovDecisionProcess, OrthogonalIntervalMarkovChain
 export transition_prob, num_states, initial_states, stateptr, tomarkovchain, time_length
+
+include("strategy.jl")
+export GivenStrategyConfig, NoStrategyConfig, TimeVaryingStrategyConfig, StationaryStrategyConfig
+export StationaryStrategy, TimeVaryingStrategy
+export construct_strategy_cache
 
 include("specification.jl")
 export Property, LTLFormula, LTLfFormula, PCTLFormula
@@ -40,12 +41,7 @@ export reach, avoid, terminal_states, time_horizon, convergence_eps, reward, dis
 export SatisfactionMode, Pessimistic, Optimistic
 export StrategyMode, Maximize, Minimize
 export Specification, Problem
-export system, specification, system_property, satisfaction_mode, strategy_mode
-
-include("strategy.jl")
-export AbstractStrategyConfig,
-    NoStrategyConfig, TimeVaryingStrategyConfig, StationaryStrategyConfig
-export construct_strategy_cache
+export system, specification, system_property, stategy, satisfaction_mode, strategy_mode
 
 include("workspace.jl")
 export construct_workspace

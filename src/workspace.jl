@@ -2,7 +2,7 @@
 function construct_workspace end
 
 """
-    construct_workspace(mp::SimpleIntervalMarkovProcess)
+    construct_workspace(mp::IntervalMarkovProcess)
 
 Construct a workspace for computing the Bellman update, given a value function.
 If the Bellman update is used in a hot-loop, it is more efficient to use this function
@@ -11,8 +11,8 @@ to preallocate the workspace and reuse across iterations.
 The workspace type is determined by the type and size of the transition probability matrix,
 as well as the number of threads available.
 """
-construct_workspace(mp::SimpleIntervalMarkovProcess) =
-    construct_workspace(transition_prob(mp, 1), max_actions(mp))
+construct_workspace(mp::IntervalMarkovProcess) =
+    construct_workspace(transition_prob(mp), max_actions(mp))
 
 # Dense
 struct DenseWorkspace{T <: Real}

@@ -148,7 +148,7 @@ bellman_precomputation!(workspace::Union{SparseWorkspace, ThreadedSparseWorkspac
 
 function state_bellman!(
     workspace,
-    strategy_cache,
+    strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
     prob,
@@ -166,6 +166,24 @@ function state_bellman!(
         end
 
         Vres[jₛ] = extract_strategy!(strategy_cache, actions, V, jₛ, maximize)
+    end
+end
+
+function state_bellman!(
+    workspace,
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    prob,
+    stateptr,
+    jₛ,
+    upper_bound,
+    maximize,
+)
+    @inbounds begin
+        s₁ = stateptr[jₛ]
+        jₐ = s₁ + strategy_cache[s₁] - 1
+        Vres[jₛ] = state_action_bellman(workspace, V, prob, jₐ, upper_bound)
     end
 end
 
@@ -342,15 +360,15 @@ end
 
 function state_bellman!(
     workspace,
-    strategy_cache::AbstractStrategyCache,
+    strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
     prob::OrthogonalIntervalProbabilities,
     stateptr,
     jₛ_cart,
     jₛ_linear;
-    upper_bound = false,
-    maximize = true,
+    upper_bound,
+    maximize,
 )
     @inbounds begin
         s₁, s₂ = stateptr[jₛ_linear], stateptr[jₛ_linear + 1]
@@ -361,6 +379,25 @@ function state_bellman!(
         end
 
         Vres[jₛ_cart] = extract_strategy!(strategy_cache, actions, V, jₛ_cart, maximize)
+    end
+end
+
+function state_bellman!(
+    workspace,
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    prob::OrthogonalIntervalProbabilities,
+    stateptr,
+    jₛ_cart,
+    jₛ_linear;
+    upper_bound,
+    maximize,
+)
+    @inbounds begin
+        s₁ = stateptr[jₛ_linear]
+        jₐ = s₁ + strategy_cache[s₁] - 1
+        Vres[jₛ_cart] = state_action_bellman(workspace, V, prob, jₐ, upper_bound)
     end
 end
 
