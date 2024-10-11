@@ -3,6 +3,8 @@
 ```@docs
 value_iteration
 control_synthesis
+StationaryStrategy
+TimeVaryingStrategy
 ```
 
 ## Bellman update
@@ -12,6 +14,7 @@ bellman
 bellman!
 construct_workspace
 construct_strategy_cache
+GivenStrategyConfig
 NoStrategyConfig
 StationaryStrategyConfig
 TimeVaryingStrategyConfig
