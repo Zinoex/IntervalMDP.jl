@@ -23,6 +23,11 @@ abstract type AbstractStrategy end
 struct NoStrategy <: AbstractStrategy end
 checkstrategy!(::NoStrategy, system) = nothing
 
+"""
+    StationaryStrategy
+
+A stationary strategy is a strategy that is the same for all time steps.
+"""
 struct StationaryStrategy{A <: AbstractArray{Int32}} <: AbstractStrategy
     strategy::A
 end
@@ -43,6 +48,12 @@ function checkstrategy!(strategy::AbstractArray, system)
     end
 end
 
+"""
+    TimeVaryingStrategy
+
+A time-varying strategy is a strategy that _may_ vary over time. Since we need to store the strategy for each time step, 
+the strategy is finite, and thus only applies to finite time specifications, of the same length as the strategy.
+"""
 struct TimeVaryingStrategy{A <: AbstractArray{Int32}} <: AbstractStrategy
     strategy::Vector{A}
 end
