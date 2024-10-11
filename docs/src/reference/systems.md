@@ -5,9 +5,7 @@ IntervalMarkovProcess
 num_states(s::IntervalMarkovProcess)
 initial_states(s::IntervalMarkovProcess)
 AllStates
-
-StationaryIntervalMarkovProcess
-transition_prob(mp::StationaryIntervalMarkovProcess)
+transition_prob(mp::IntervalMarkovProcess)
 IntervalMarkovChain
 IntervalMarkovDecisionProcess
 stateptr(mdp::IntervalMarkovDecisionProcess)
