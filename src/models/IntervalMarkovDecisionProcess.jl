@@ -167,6 +167,8 @@ I.e. `transition_prob[:, stateptr[j]:stateptr[j + 1] - 1]` is the transition pro
 stateptr(mdp::IntervalMarkovDecisionProcess) = mdp.stateptr
 
 max_actions(mdp::IntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp))
+Base.ndims(::IntervalMarkovDecisionProcess) = one(Int32)
+product_num_states(mp::IntervalMarkovDecisionProcess) = (num_states(mp),)
 
 """
     tomarkovchain(mdp::IntervalMarkovDecisionProcess, strategy::AbstractVector)

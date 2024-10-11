@@ -28,8 +28,6 @@ Return the number of states.
 num_states(mp::IntervalMarkovProcess) = mp.num_states
 
 abstract type SimpleIntervalMarkovProcess <: IntervalMarkovProcess end
-Base.ndims(::SimpleIntervalMarkovProcess) = one(Int32)
-product_num_states(mp::SimpleIntervalMarkovProcess) = (num_states(mp),)
 
 ##############
 # Stationary #
