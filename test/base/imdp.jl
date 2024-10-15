@@ -54,6 +54,7 @@ mdp = IntervalMarkovDecisionProcess(transition_probs)
     problem = Problem(mdp, spec)
     V_fixed_it1, k, _ = value_iteration(problem)
     @test k == 10
+    @test all(V_fixed_it1 .>= 0.0)
 
     spec = Specification(prop, Optimistic, Maximize)
     problem = Problem(mdp, spec)
@@ -65,6 +66,7 @@ mdp = IntervalMarkovDecisionProcess(transition_probs)
     problem = Problem(mdp, spec)
     V_fixed_it1, k, _ = value_iteration(problem)
     @test k == 10
+    @test all(V_fixed_it1 .>= 0.0)
 
     spec = Specification(prop, Optimistic, Minimize)
     problem = Problem(mdp, spec)
@@ -80,6 +82,7 @@ end
     problem = Problem(mdp, spec)
     V_conv, _, u = value_iteration(problem)
     @test maximum(u) <= 1e-6
+    @test all(V_conv .>= 0.0)
 end
 
 # Finite time reach avoid
@@ -89,6 +92,7 @@ end
     problem = Problem(mdp, spec)
     V_fixed_it1, k, _ = value_iteration(problem)
     @test k == 10
+    @test all(V_fixed_it1 .>= 0.0)
 
     spec = Specification(prop, Optimistic, Maximize)
     problem = Problem(mdp, spec)
@@ -100,6 +104,7 @@ end
     problem = Problem(mdp, spec)
     V_fixed_it1, k, _ = value_iteration(problem)
     @test k == 10
+    @test all(V_fixed_it1 .>= 0.0)
 
     spec = Specification(prop, Optimistic, Minimize)
     problem = Problem(mdp, spec)
@@ -115,6 +120,7 @@ end
     problem = Problem(mdp, spec)
     V_conv, _, u = value_iteration(problem)
     @test maximum(u) <= 1e-6
+    @test all(V_conv .>= 0.0)
 end
 
 # Finite time reward
@@ -124,6 +130,7 @@ end
     problem = Problem(mdp, spec)
     V_fixed_it1, k, _ = value_iteration(problem)
     @test k == 10
+    @test all(V_fixed_it1 .>= 0.0)
 
     spec = Specification(prop, Optimistic, Maximize)
     problem = Problem(mdp, spec)
@@ -135,6 +142,7 @@ end
     problem = Problem(mdp, spec)
     V_fixed_it1, k, _ = value_iteration(problem)
     @test k == 10
+    @test all(V_fixed_it1 .>= 0.0)
 
     spec = Specification(prop, Optimistic, Minimize)
     problem = Problem(mdp, spec)

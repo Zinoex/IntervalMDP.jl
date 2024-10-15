@@ -34,6 +34,7 @@ export Property, LTLFormula, LTLfFormula, PCTLFormula
 
 export AbstractReachability, FiniteTimeReachability, InfiniteTimeReachability
 export AbstractReachAvoid, FiniteTimeReachAvoid, InfiniteTimeReachAvoid
+export AbstractSafety, FiniteTimeSafety, InfiniteTimeSafety
 export AbstractReward, FiniteTimeReward, InfiniteTimeReward
 
 export isfinitetime

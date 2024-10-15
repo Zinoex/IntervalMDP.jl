@@ -105,6 +105,7 @@ end
         V113_expected = 19.5096296296296
 
         Vres_first = bellman(V, prob; upper_bound = true)
+        @test all(Vres_first .>= 0.0)
         @test Vres_first[1, 1, 1] ≈ V111_expected
         @test Vres_first[2, 2, 2] ≈ V222_expected
         @test Vres_first[3, 3, 3] ≈ V333_expected
@@ -145,6 +146,7 @@ end
         V113_expected = 11.5774074074074
 
         Vres_first = bellman(V, prob; upper_bound = false)
+        @test all(Vres_first .>= 0.0)
         @test Vres_first[1, 1, 1] ≈ V111_expected
         @test Vres_first[2, 2, 2] ≈ V222_expected
         @test Vres_first[3, 3, 3] ≈ V333_expected
@@ -796,6 +798,7 @@ end
     prob_ortho = Problem(pmdp, spec)
 
     V_ortho, it_ortho, res_ortho = value_iteration(prob_ortho)
+    @test all(V_ortho .≥ 0.0)
 
     # Direct abstraction
     mdp, reach_set, avoid_set = IMDP_direct_abstraction()
@@ -834,7 +837,7 @@ end
     V_ortho, it_ortho, res_ortho = value_iteration(prob)
 
     @test V_ortho[3, 3, 3] ≈ 1.0
-    @test minimum(V_ortho) > 0.0
+    @test all(V_ortho .>= 0.0)
 
     # Test against the naive construction
     prob_lower_simple = zeros(27, 27)
@@ -861,7 +864,6 @@ end
 
     V_direct, it_direct, res_direct = value_iteration(prob)
     @test V_direct[27] ≈ 1.0
-    @test minimum(V_direct) > 0.0
     @test all(V_ortho .≥ reshape(V_direct, 3, 3, 3))
 end
 

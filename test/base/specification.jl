@@ -135,6 +135,18 @@ spec = Specification(prop, Optimistic, Minimize)
         spec = Specification(prop)
         @test_throws DomainError Problem(mc, spec, tv_strat)
 
+        prop = FiniteTimeSafety([3], 0)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(mc, spec)
+
+        prop = FiniteTimeSafety([3], -1)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(mc, spec)
+
+        prop = FiniteTimeSafety([3], 0)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(mc, spec, tv_strat)
+
         prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 0)
         spec = Specification(prop)
         @test_throws DomainError Problem(mc, spec)
@@ -166,6 +178,14 @@ spec = Specification(prop, Optimistic, Minimize)
         spec = Specification(prop)
         @test_throws ArgumentError Problem(mc, spec, tv_strat)
 
+        prop = FiniteTimeSafety([3], 2)
+        spec = Specification(prop)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+
+        prop = FiniteTimeSafety([3], 4)
+        spec = Specification(prop)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+
         prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 2)
         spec = Specification(prop)
         @test_throws ArgumentError Problem(mc, spec, tv_strat)
@@ -193,6 +213,14 @@ spec = Specification(prop, Optimistic, Minimize)
         spec = Specification(prop)
         @test_throws DomainError Problem(mc, spec)
 
+        prop = InfiniteTimeSafety([3], 0.0)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(mc, spec)
+
+        prop = InfiniteTimeSafety([3], -1e-3)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(mc, spec)
+
         prop = InfiniteTimeReward([1.0, 2.0, 3.0], 0.9, 0.0)
         spec = Specification(prop)
         @test_throws DomainError Problem(mc, spec)
@@ -209,6 +237,10 @@ spec = Specification(prop, Optimistic, Minimize)
         @test_throws ArgumentError Problem(mc, spec, tv_strat)
 
         prop = InfiniteTimeReachAvoid([3], [2], 1e-6)
+        spec = Specification(prop)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+
+        prop = InfiniteTimeSafety([3], 1e-6)
         spec = Specification(prop)
         @test_throws ArgumentError Problem(mc, spec, tv_strat)
 
@@ -259,6 +291,20 @@ spec = Specification(prop, Optimistic, Minimize)
                 spec = Specification(prop)
                 @test_throws DomainError Problem(mc, spec)
             end
+
+            @testset "safety" begin
+                prop = FiniteTimeSafety([4], 10) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(mc, spec)
+
+                prop = FiniteTimeSafety([0], 10) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(mc, spec)
+
+                prop = FiniteTimeSafety([(3, 2)], 10) # incorrect dimension
+                spec = Specification(prop)
+                @test_throws StateDimensionMismatch Problem(mc, spec)
+            end
         end
 
         @testset "infinite time" begin
@@ -300,6 +346,20 @@ spec = Specification(prop, Optimistic, Minimize)
                 prop = InfiniteTimeReachAvoid([2], [2], 1e-6) # not disjoint
                 spec = Specification(prop)
                 @test_throws DomainError Problem(mc, spec)
+            end
+
+            @testset "safety" begin
+                prop = InfiniteTimeSafety([4], 1e-6) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(mc, spec)
+
+                prop = InfiniteTimeSafety([0], 1e-6) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(mc, spec)
+
+                prop = InfiniteTimeSafety([(3, 2)], 1e-6) # incorrect dimension
+                spec = Specification(prop)
+                @test_throws StateDimensionMismatch Problem(mc, spec)
             end
         end
     end
