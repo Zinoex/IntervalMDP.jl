@@ -146,8 +146,8 @@ end
 function extract_strategy!(::ActiveGivenStrategyCache, values, V, j, maximize)
     throw(ArgumentError("The strategy is given and not supposed to optimize over actions."))
 end
-postprocess_strategy_cache!(::GivenStrategyCache) = nothing
-postprocess_strategy_cache!(::ActiveGivenStrategyCache) = nothing
+step_postprocess_strategy_cache!(::GivenStrategyCache) = nothing
+step_postprocess_strategy_cache!(::ActiveGivenStrategyCache) = nothing
 
 # Strategy cache for not storing policies - useful for dispatching
 struct NoStrategyCache <: OptimizingStrategyCache end
@@ -165,7 +165,7 @@ construct_strategy_cache(::IntervalMarkovProcess, ::NoStrategyConfig, strategy, 
 function extract_strategy!(::NoStrategyCache, values, V, j, maximize)
     return maximize ? maximum(values) : minimum(values)
 end
-postprocess_strategy_cache!(::NoStrategyCache) = nothing
+step_postprocess_strategy_cache!(::NoStrategyCache) = nothing
 
 # Strategy cache for storing time-varying policies
 struct TimeVaryingStrategyCache{A <: AbstractArray{Int32}} <: OptimizingStrategyCache
@@ -217,7 +217,7 @@ function extract_strategy!(
 
     return _extract_strategy!(strategy_cache.cur_strategy, values, neutral, j, maximize)
 end
-function postprocess_strategy_cache!(strategy_cache::TimeVaryingStrategyCache)
+function step_postprocess_strategy_cache!(strategy_cache::TimeVaryingStrategyCache)
     push!(strategy_cache.strategy, copy(strategy_cache.cur_strategy))
 end
 
@@ -254,7 +254,7 @@ function extract_strategy!(
 
     return _extract_strategy!(strategy_cache.strategy, values, neutral, j, maximize)
 end
-postprocess_strategy_cache!(::StationaryStrategyCache) = nothing
+step_postprocess_strategy_cache!(::StationaryStrategyCache) = nothing
 
 # Shared between stationary and time-varying strategies
 function _extract_strategy!(cur_strategy, values, neutral, j, maximize)

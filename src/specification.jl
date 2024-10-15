@@ -135,7 +135,7 @@ end
 """
     AbstractReachability
 
-Super type for all reachability-like property.
+Super type for all reachability-like properties.
 """
 abstract type AbstractReachability <: Property end
 
@@ -143,9 +143,11 @@ function initialize!(value_function, prop::AbstractReachability)
     @inbounds value_function.previous[reach(prop)] .= 1.0
 end
 
-function postprocess_value_function!(value_function, prop::AbstractReachability)
+function step_postprocess_value_function!(value_function, prop::AbstractReachability)
     @inbounds value_function.current[reach(prop)] .= 1.0
 end
+
+postprocess_value_function!(value_function, ::AbstractReachability) = nothing
 
 """
     FiniteTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer}
@@ -195,7 +197,7 @@ Return the set of terminal states of a finite time reachability property.
 terminal_states(prop::FiniteTimeReachability) = prop.terminal_states
 
 """
-    terminal_states(prop::FiniteTimeReachability)
+    reach(prop::FiniteTimeReachability)
 
 Return the set of states with which to compute reachbility for a finite time reachability prop.
 This is equivalent for [`terminal_states(prop::FiniteTimeReachability)`](@ref) for a regular reachability
@@ -267,7 +269,7 @@ A property of reachability that includes a set of states to avoid.
 """
 abstract type AbstractReachAvoid <: AbstractReachability end
 
-function postprocess_value_function!(value_function, prop::AbstractReachAvoid)
+function step_postprocess_value_function!(value_function, prop::AbstractReachAvoid)
     @inbounds value_function.current[reach(prop)] .= 1.0
     @inbounds value_function.current[avoid(prop)] .= 0.0
 end
@@ -426,11 +428,137 @@ function checkdisjoint!(reach, avoid)
     end
 end
 
+## Safety
+
+"""
+    AbstractSafety
+
+Super type for all safety properties.
+"""
+abstract type AbstractSafety <: Property end
+
+function initialize!(value_function, prop::AbstractSafety)
+    @inbounds value_function.previous[avoid(prop)] .= -1.0
+end
+
+function step_postprocess_value_function!(value_function, prop::AbstractSafety)
+    @inbounds value_function.current[avoid(prop)] .= -1.0
+end
+
+function postprocess_value_function!(value_function, ::AbstractSafety)
+    value_function.current .+= 1.0
+end
+
+"""
+    FiniteTimeSafety{VT <: Vector{<:CartesianIndex}, T <: Integer}
+
+Finite time safety specified by a set of avoid states and a time horizon. 
+That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``A`` is the set of avoid states and ``H`` is the time horizon,
+the property is 
+```math
+    \\mathbb{P}(\\forall k = \\{0, \\ldots, H\\}, s_k \\notin A).
+```
+"""
+struct FiniteTimeSafety{VT <: Vector{<:CartesianIndex}, T <: Integer} <: AbstractSafety
+    avoid_states::VT
+    time_horizon::T
+end
+
+function FiniteTimeSafety(avoid_states::Vector{<:UnionIndex}, time_horizon)
+    avoid_states = CartesianIndex.(avoid_states)
+    return FiniteTimeSafety(avoid_states, time_horizon)
+end
+
+function checkproperty!(prop::FiniteTimeSafety, system, strategy)
+    checktimehorizon!(prop, strategy)
+    checkterminal!(terminal_states(prop), system)
+end
+
+"""
+    isfinitetime(prop::FiniteTimeSafety)
+
+Return `true` for FiniteTimeSafety.
+"""
+isfinitetime(prop::FiniteTimeSafety) = true
+
+"""
+    time_horizon(prop::FiniteTimeSafety)
+
+Return the time horizon of a finite time safety property.
+"""
+time_horizon(prop::FiniteTimeSafety) = prop.time_horizon
+
+"""
+    terminal_states(spec::FiniteTimeSafety)
+
+Return the set of terminal states of a finite time safety property.
+"""
+terminal_states(prop::FiniteTimeSafety) = prop.avoid_states
+
+"""
+    avoid(prop::FiniteTimeSafety)
+
+Return the set of states with which to compute reachbility for a finite time reachability prop.
+This is equivalent for [`terminal_states(prop::FiniteTimeSafety)`](@ref).
+"""
+avoid(prop::FiniteTimeSafety) = prop.avoid_states
+
+"""
+    InfiniteTimeSafety{R <: Real, VT <: Vector{<:CartesianIndex}} 
+ 
+`InfiniteTimeSafety` is similar to [`FiniteTimeSafety`](@ref) except that the time horizon is infinite, i.e., ``H = \\infty``.
+In practice it means, performing the value iteration until the value function has converged, defined by some threshold `convergence_eps`.
+The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
+"""
+struct InfiniteTimeSafety{R <: Real, VT <: Vector{<:CartesianIndex}} <: AbstractSafety
+    avoid_states::VT
+    convergence_eps::R
+end
+
+function InfiniteTimeSafety(avoid_states::Vector{<:UnionIndex}, convergence_eps)
+    avoid_states = CartesianIndex.(avoid_states)
+    return InfiniteTimeSafety(avoid_states, convergence_eps)
+end
+
+function checkproperty!(prop::InfiniteTimeSafety, system, strategy)
+    checkconvergence!(prop, strategy)
+    checkterminal!(terminal_states(prop), system)
+end
+
+"""
+    isfinitetime(prop::InfiniteTimeSafety)
+
+Return `false` for InfiniteTimeSafety.
+"""
+isfinitetime(prop::InfiniteTimeSafety) = false
+
+"""
+    convergence_eps(prop::InfiniteTimeSafety)
+
+Return the convergence threshold of an infinite time safety property.
+"""
+convergence_eps(prop::InfiniteTimeSafety) = prop.convergence_eps
+
+"""
+    terminal_states(prop::InfiniteTimeSafety)
+
+Return the set of terminal states of an infinite time safety property.
+"""
+terminal_states(prop::InfiniteTimeSafety) = prop.avoid_states
+
+"""
+    avoid(prop::InfiniteTimeSafety)
+
+Return the set of states with which to compute safety for a infinite time safety property.
+This is equivalent for [`terminal_states(prop::InfiniteTimeSafety)`](@ref).
+"""
+avoid(prop::InfiniteTimeSafety) = prop.avoid_states
+
 ## Reward
 """
     AbstractReward{R <: Real}
 
-Super type for all reward specifications.
+Super type for all reward properties.
 """
 abstract type AbstractReward{R <: Real} <: Property end
 
@@ -438,10 +566,11 @@ function initialize!(value_function, prop::AbstractReward)
     value_function.previous .= reward(prop)
 end
 
-function postprocess_value_function!(value_function, prop::AbstractReward)
+function step_postprocess_value_function!(value_function, prop::AbstractReward)
     rmul!(value_function.current, discount(prop))
     value_function.current .+= reward(prop)
 end
+postprocess_value_function!(value_function, ::AbstractReward) = value_function
 
 function checkreward!(prop::AbstractReward, system)
     checkdevice!(reward(prop), system)
@@ -637,6 +766,8 @@ Specification(prop::Property, satisfaction::SatisfactionMode) =
 
 initialize!(value_function, spec::Specification) =
     initialize!(value_function, system_property(spec))
+step_postprocess_value_function!(value_function, spec::Specification) =
+    step_postprocess_value_function!(value_function, system_property(spec))
 postprocess_value_function!(value_function, spec::Specification) =
     postprocess_value_function!(value_function, system_property(spec))
 

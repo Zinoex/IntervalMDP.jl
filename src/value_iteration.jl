@@ -77,7 +77,8 @@ function value_iteration(problem::Problem)
     return V, k, res
 end
 whichstrategyconfig(::Problem{S, F, <:NoStrategy}) where {S, F} = NoStrategyConfig()
-whichstrategyconfig(::Problem{S, F, <:AbstractStrategy}) where {S, F} = GivenStrategyConfig()
+whichstrategyconfig(::Problem{S, F, <:AbstractStrategy}) where {S, F} =
+    GivenStrategyConfig()
 
 function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Problem)
     mp = system(problem)
@@ -102,8 +103,8 @@ function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Pro
         upper_bound = upper_bound,
         maximize = maximize,
     )
-    postprocess_value_function!(value_function, spec)
-    postprocess_strategy_cache!(strategy_cache)
+    step_postprocess_value_function!(value_function, spec)
+    step_postprocess_strategy_cache!(strategy_cache)
     k = 1
 
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
@@ -118,10 +119,12 @@ function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Pro
             upper_bound = upper_bound,
             maximize = maximize,
         )
-        postprocess_value_function!(value_function, spec)
-        postprocess_strategy_cache!(strategy_cache)
+        step_postprocess_value_function!(value_function, spec)
+        step_postprocess_strategy_cache!(strategy_cache)
         k += 1
     end
+
+    postprocess_value_function!(value_function, spec)
 
     # lastdiff! uses previous to store the latest difference
     # and it is already computed from the condition in the loop

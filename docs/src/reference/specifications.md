@@ -63,6 +63,24 @@ avoid(spec::InfiniteTimeReachAvoid)
 convergence_eps(spec::InfiniteTimeReachAvoid)
 ```
 
+## Safety
+
+```@docs
+AbstractSafety
+
+FiniteTimeSafety
+isfinitetime(spec::FiniteTimeSafety)
+terminal_states(spec::FiniteTimeSafety)
+avoid(spec::FiniteTimeSafety)
+time_horizon(spec::FiniteTimeSafety)
+
+InfiniteTimeSafety
+isfinitetime(spec::InfiniteTimeSafety)
+terminal_states(spec::InfiniteTimeSafety)
+avoid(spec::InfiniteTimeSafety)
+convergence_eps(spec::InfiniteTimeSafety)
+```
+
 ## Reward specification
 
 ```@docs
