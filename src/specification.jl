@@ -596,6 +596,10 @@ be it IMC or IMDP, the desired satisfaction probability to verify can either be 
 the probability uncertainty.
 """
 @enum SatisfactionMode Pessimistic Optimistic
+ispessimistic(mode::SatisfactionMode) = mode == Pessimistic
+isoptimistic(mode::SatisfactionMode) = mode == Optimistic
+
+Base.:!(mode::SatisfactionMode) = ispessimistic(mode) ? Optimistic : Pessimistic
 
 """
     StrategyMode
@@ -604,6 +608,10 @@ When computing the satisfaction probability of a property over an IMDP, the stra
 can either maximize or minimize the satisfaction probability (wrt. the satisfaction mode).
 """
 @enum StrategyMode Maximize Minimize
+ismaximize(mode::StrategyMode) = mode == Maximize
+isminimize(mode::StrategyMode) = mode == Minimize
+
+Base.:!(mode::StrategyMode) = ismaximize(mode) ? Minimize : Maximize
 
 """
     Specification{F <: Property}

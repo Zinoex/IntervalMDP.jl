@@ -83,8 +83,8 @@ function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Pro
     mp = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(spec)
-    upper_bound = satisfaction_mode(spec) == Optimistic
-    maximize = strategy_mode(spec) == Maximize
+    upper_bound = isoptimistic(satisfaction_mode(spec))
+    maximize = ismaximize(strategy_mode(spec))
 
     # It is more efficient to use allocate first and reuse across iterations
     workspace = construct_workspace(mp)
