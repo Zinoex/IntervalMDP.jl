@@ -39,8 +39,8 @@ export AbstractReward, FiniteTimeReward, InfiniteTimeReward
 export isfinitetime
 export reach, avoid, terminal_states, time_horizon, convergence_eps, reward, discount
 
-export SatisfactionMode, Pessimistic, Optimistic
-export StrategyMode, Maximize, Minimize
+export SatisfactionMode, Pessimistic, Optimistic, ispessimistic, isoptimistic
+export StrategyMode, Maximize, Minimize, ismaximize, isminimize
 export Specification, Problem
 export system, specification, system_property, strategy, satisfaction_mode, strategy_mode
 

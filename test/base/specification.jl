@@ -62,6 +62,23 @@ spec = Specification(prop)
 @test strategy_mode(spec) == Maximize
 @test system_property(spec) == prop
 
+# Convenience
+@test !isoptimistic(Pessimistic)
+@test isoptimistic(Optimistic)
+@test ispessimistic(Pessimistic)
+@test !ispessimistic(Optimistic)
+
+@test isoptimistic(!Pessimistic)
+@test ispessimistic(!Optimistic)
+
+@test ismaximize(Maximize)
+@test !ismaximize(Minimize)
+@test !isminimize(Maximize)
+@test isminimize(Minimize)
+
+@test isminimize(!Maximize)
+@test ismaximize(!Minimize)
+
 # IMC
 spec = Specification(prop, Optimistic)
 @test satisfaction_mode(spec) == Optimistic
