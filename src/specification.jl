@@ -786,6 +786,8 @@ system_property(spec::Specification) = spec.prop
 Return the satisfaction mode of a specification.
 """
 satisfaction_mode(spec::Specification) = spec.satisfaction
+ispessimistic(spec::Specification) = ispessimistic(satisfaction_mode(spec))
+isoptimistic(spec::Specification) = isoptimistic(satisfaction_mode(spec))
 
 """
     strategy_mode(spec::Specification)
@@ -793,6 +795,8 @@ satisfaction_mode(spec::Specification) = spec.satisfaction
 Return the strategy mode of a specification.
 """
 strategy_mode(spec::Specification) = spec.strategy
+ismaximize(spec::Specification) = ismaximize(strategy_mode(spec))
+isminimize(spec::Specification) = isminimize(strategy_mode(spec))
 
 """
     Problem{S <: IntervalMarkovProcess, F <: Specification}
