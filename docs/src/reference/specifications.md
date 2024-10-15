@@ -71,13 +71,13 @@ AbstractSafety
 FiniteTimeSafety
 isfinitetime(spec::FiniteTimeSafety)
 terminal_states(spec::FiniteTimeSafety)
-reach(spec::FiniteTimeSafety)
+avoid(spec::FiniteTimeSafety)
 time_horizon(spec::FiniteTimeSafety)
 
 InfiniteTimeSafety
 isfinitetime(spec::InfiniteTimeSafety)
 terminal_states(spec::InfiniteTimeSafety)
-reach(spec::InfiniteTimeSafety)
+avoid(spec::InfiniteTimeSafety)
 convergence_eps(spec::InfiniteTimeSafety)
 ```
 
