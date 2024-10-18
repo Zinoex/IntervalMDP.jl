@@ -294,10 +294,8 @@ end
 ################################################################
 # Bellman operator for OrthogonalIntervalMarkovDecisionProcess #
 ################################################################
-
-# Dense orthogonal
 function bellman!(
-    workspace::Union{DenseOrthogonalWorkspace, SparseOrthogonalWorkspace},
+    workspace::Union{DenseOrthogonalWorkspace, SparseOrthogonalWorkspace, MixtureWorkspace},
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
@@ -331,7 +329,7 @@ function bellman!(
 end
 
 function bellman!(
-    workspace::Union{ThreadedDenseOrthogonalWorkspace, ThreadedSparseOrthogonalWorkspace},
+    workspace::Union{ThreadedDenseOrthogonalWorkspace, ThreadedSparseOrthogonalWorkspace, ThreadedMixtureWorkspace},
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
@@ -410,11 +408,11 @@ function sort_dense_orthogonal(workspace, V, I, upper_bound)
 end
 
 function state_bellman!(
-    workspace,
+    workspace::Union{DenseOrthogonalWorkspace, SparseOrthogonalWorkspace, MixtureWorkspace},
     strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
-    prob::OrthogonalIntervalProbabilities,
+    prob,
     stateptr,
     jₛ_cart,
     jₛ_linear;
@@ -434,7 +432,7 @@ function state_bellman!(
 end
 
 function state_bellman!(
-    workspace,
+    workspace::Union{DenseOrthogonalWorkspace, SparseOrthogonalWorkspace, MixtureWorkspace},
     strategy_cache::NonOptimizingStrategyCache,
     Vres,
     V,
@@ -509,7 +507,7 @@ Base.@propagate_inbounds function state_action_bellman(
 end
 
 Base.@propagate_inbounds function orthogonal_inner_bellman!(
-    workspace::DenseOrthogonalWorkspace,
+    workspace,
     V,
     prob,
     jₐ,
@@ -622,4 +620,52 @@ Base.@propagate_inbounds function orthogonal_sparse_inner_bellman!(
     sort!(Vp_workspace; rev = upper_bound, scratch = scratch(workspace))
 
     return dot(V, lower) + gap_value(Vp_workspace, sum_lower)
+end
+
+
+################################################################
+# Bellman operator for MixturelIntervalMarkovDecisionProcess #
+################################################################
+bellman_precomputation!(workspace::MixtureWorkspace, V, prob, upper_bound) = bellman_precomputation!(workspace.orthogonal_workspace, V, prob, upper_bound)
+
+function bellman_precomputation!(
+    workspace::ThreadedMixtureWorkspace{<:DenseOrthogonalWorkspace},
+    V,
+    prob,
+    upper_bound,
+)
+    # Since sorting for the first level is shared among all higher levels, we can precompute it
+    product_nstates = num_target(prob)
+
+    # For each higher-level state in the product space
+    @threadstid tid for I in CartesianIndices(product_nstates[2:end])
+        ws = workspace[tid]
+        sort_dense_orthogonal(ws.orthogonal_workspace, V, I, upper_bound)
+    end
+end
+
+bellman_precomputation!(
+    workspace::ThreadedMixtureWorkspace{<:SparseOrthogonalWorkspace},
+    V,
+    prob,
+    upper_bound,
+) = nothing
+
+Base.@propagate_inbounds function state_action_bellman(
+    workspace::MixtureWorkspace,
+    V,
+    prob,
+    jₐ,
+    upper_bound,
+)
+    # Value iteration for each model in the mixture (for source-action pair jₐ)
+    for (k, p) in enumerate(prob)
+        v = state_action_bellman(workspace.orthogonal_workspace, V, p, jₐ, upper_bound)
+        workspace.mixture_cache[k] = v
+    end
+
+    # Combine mixture with weighting probabilities
+    v = orthogonal_inner_bellman!(workspace, workspace.mixture_cache, weigthing_probs(prob), jₐ, upper_bound)
+
+    return v
 end

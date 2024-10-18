@@ -118,9 +118,10 @@ function construct_workspace(
 end
 
 ## Orthogonal
+abstract type SimpleOrthogonalWorkspace end
 
 # Dense
-struct DenseOrthogonalWorkspace{N, M, T <: Real}
+struct DenseOrthogonalWorkspace{N, M, T <: Real} <: SimpleOrthogonalWorkspace
     expectation_cache::NTuple{N, Vector{T}}
     first_level_perm::Array{Int32, M}
     permutation::Vector{Int32}
@@ -209,7 +210,7 @@ function construct_workspace(
 end
 
 # Sparse
-struct SparseOrthogonalWorkspace{N, T <: Real}
+struct SparseOrthogonalWorkspace{N, T <: Real} <: SimpleOrthogonalWorkspace
     expectation_cache::NTuple{N, Vector{T}}
     values_gaps::Vector{Tuple{T, T}}
     scratch::Vector{Tuple{T, T}}
@@ -265,5 +266,136 @@ function construct_workspace(
         return SparseOrthogonalWorkspace(p, max_actions)
     else
         return ThreadedSparseOrthogonalWorkspace(p, max_actions)
+    end
+end
+
+## Mixture
+
+# Sequential
+struct MixtureWorkspace{W <: SimpleOrthogonalWorkspace, R}
+    orthogonal_workspace::W
+    mixture_cache::Vector{R}
+    scratch::Vector{Int32}
+    permutation::Vector{Int32}
+end
+permutation(ws::MixtureWorkspace) = permutation(ws.permutation)
+scratch(ws::MixtureWorkspace) = scratch(ws.scratch)
+
+function MixtureWorkspace(
+    p::MixtureIntervalProbabilities{N, OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}}},
+    max_actions,
+) where {N, M, R, VR, MR <: AbstractMatrix{R}}
+    mixture_cache = Vector{R}(undef, N)
+    scratch = Vector{Int32}(undef, N)
+    permutation = Vector{Int32}(undef, N)
+    return MixtureWorkspace(DenseOrthogonalWorkspace(first(p), max_actions), mixture_cache, scratch, permutation)
+end
+
+function MixtureWorkspace(
+    p::MixtureIntervalProbabilities{N, OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}}},
+    max_actions,
+) where {N, M, R, VR, MR <: AbstractSparseMatrix{R}}
+    mixture_cache = Vector{R}(undef, N)
+
+    max_nonzeros_per_prob = map(1:M) do l
+        return maximum(1:N) do k
+            return maximum(map(nnz, eachcol(gap(p[k], l))))
+        end
+    end
+    max_nonzeros = maximum(max_nonzeros_per_prob)
+
+    scratch = Vector{Tuple{R, R}}(undef, max_nonzeros)
+    values_gaps = Vector{Tuple{R, R}}(undef, max_nonzeros)
+    expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in max_nonzeros_per_prob[2:end])
+    actions = Vector{R}(undef, max_actions)
+
+    return MixtureWorkspace(SparseOrthogonalWorkspace(expectation_cache, values_gaps, scratch, actions), mixture_cache)
+end
+
+# Threaded
+struct ThreadedMixtureWorkspace{W <: SimpleOrthogonalWorkspace}
+    thread_workspaces::Vector{MixtureWorkspace{W}}
+end
+
+function ThreadedMixtureWorkspace(
+    p::MixtureIntervalProbabilities{N, OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}}},
+    max_actions,
+) where {N, M, R, VR, MR <: AbstractMatrix{R}}
+    nthreads = Threads.nthreads()
+    pns = num_target(p)
+    nmax = maximum(pns)
+
+    first_level_perm = Array{Int32}(undef, pns)
+
+    workspaces = map(1:nthreads) do _
+        mixture_cache = Vector{R}(undef, N)
+        mixture_scratch = Vector{Int32}(undef, N)
+        mixture_permutation = Vector{Int32}(undef, N)
+
+        perm = Vector{Int32}(undef, nmax)
+        scratch = Vector{Int32}(undef, nmax)
+        expectation_cache =
+            NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in pns[2:end])
+        actions = Vector{R}(undef, max_actions)
+        return MixtureWorkspace(DenseOrthogonalWorkspace(
+            expectation_cache,
+            first_level_perm,
+            perm,
+            scratch,
+            actions,
+        ), mixture_cache, mixture_scratch, mixture_permutation)
+    end
+
+    return ThreadedMixtureWorkspace(workspaces)
+end
+
+function ThreadedMixtureWorkspace(
+    p::MixtureIntervalProbabilities{N, OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}}},
+    max_actions,
+) where {N, M, R, VR, MR <: AbstractSparseMatrix{R}}
+    nthreads = Threads.nthreads()
+
+    max_nonzeros_per_prob = map(1:M) do l
+        return maximum(1:N) do k
+            return maximum(map(nnz, eachcol(gap(p[k], l))))
+        end
+    end
+    max_nonzeros = maximum(max_nonzeros_per_prob)
+
+    workspaces = map(1:nthreads) do _
+        mixture_cache = Vector{R}(undef, N)
+        mixture_scratch = Vector{Int32}(undef, N)
+        mixture_permutation = Vector{Int32}(undef, N)
+
+        scratch = Vector{Tuple{R, R}}(undef, max_nonzeros)
+        values_gaps = Vector{Tuple{R, R}}(undef, max_nonzeros)
+        expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in max_nonzeros_per_prob[2:end])
+        actions = Vector{R}(undef, max_actions)
+        return MixtureWorkspace(SparseOrthogonalWorkspace(expectation_cache, values_gaps, scratch, actions), mixture_cache, mixture_scratch, mixture_permutation)
+    end
+
+    return ThreadedMixtureWorkspace(workspaces)
+end
+
+Base.getindex(ws::ThreadedMixtureWorkspace, i) = ws.thread_workspaces[i]
+
+"""
+    construct_workspace(prob::MixtureIntervalProbabilities)
+
+Construct a workspace for computing the Bellman update, given a value function.
+If the Bellman update is used in a hot-loop, it is more efficient to use this function
+to preallocate the workspace and reuse across iterations.
+
+The workspace type is determined by the type and size of the transition probability matrix,
+as well as the number of threads available.
+"""
+function construct_workspace(
+    p::MixtureIntervalProbabilities{N, OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}}},
+    max_actions = 1,
+) where {N, M, R, VR, MR <: Union{AbstractMatrix{R}, AbstractSparseMatrix{R}}}
+    if Threads.nthreads() == 1
+        return MixtureWorkspace(p, max_actions)
+    else
+        return ThreadedMixtureWorkspace(p, max_actions)
     end
 end

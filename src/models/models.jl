@@ -7,3 +7,6 @@ export IntervalMarkovDecisionProcess, IntervalMarkovChain
 
 include("OrthogonalIntervalMarkovDecisionProcess.jl")
 export OrthogonalIntervalMarkovDecisionProcess, OrthogonalIntervalMarkovChain
+
+include("MixtureIntervalMarkovDecisionProcess.jl")
+export MixtureIntervalMarkovDecisionProcess, MixtureIntervalMarkovChain

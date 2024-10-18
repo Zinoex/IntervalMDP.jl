@@ -1,11 +1,11 @@
 """
-    OrthogonalIntervalMarkovDecisionProcess{
-        P <: OrthogonalIntervalProbabilities,
+    MixtureIntervalMarkovDecisionProcess{
+        P <: IntervalProbabilities,
         VT <: AbstractVector{Int32},
         VI <: Union{AllStates, AbstractVector}
     }
 
-A type representing (stationary) Orthogonal Interval Markov Decision Processes (OIMDP), which are IMDPs where the transition 
+A type representing (stationary) Mixture Interval Markov Decision Processes (OIMDP), which are IMDPs where the transition 
 probabilities for each state can be represented as the product of the transition probabilities of individual processes.
 
 # TODO: Update theory section
@@ -28,19 +28,20 @@ and `initial_states` is the set of initial states ``S_0``. If no initial states 
 
 ### Examples
 
-# TODO: Update example
+# TODO: Update examples
+
 ```jldoctest
 ```
 
-There is also a constructor for `OrthogonalIntervalMarkovDecisionProcess` where the transition probabilities are given as a list of 
+There is also a constructor for `MixtureIntervalMarkovDecisionProcess` where the transition probabilities are given as a list of 
 transition probabilities for each source state.
 
 ```jldoctest
 ```
 
 """
-struct OrthogonalIntervalMarkovDecisionProcess{
-    P <: OrthogonalIntervalProbabilities,
+struct MixtureIntervalMarkovDecisionProcess{
+    P <: MixtureIntervalProbabilities,
     VT <: AbstractVector{Int32},
     VI <: InitialStates,
 } <: IntervalMarkovProcess
@@ -50,14 +51,14 @@ struct OrthogonalIntervalMarkovDecisionProcess{
     num_states::Int32
 end
 
-function OrthogonalIntervalMarkovDecisionProcess(
-    transition_prob::OrthogonalIntervalProbabilities,
+function MixtureIntervalMarkovDecisionProcess(
+    transition_prob::MixtureIntervalProbabilities,
     stateptr::AbstractVector{Int32},
     initial_states::InitialStates = AllStates(),
 )
     num_states = checksize_imdp!(transition_prob, stateptr)
 
-    return OrthogonalIntervalMarkovDecisionProcess(
+    return MixtureIntervalMarkovDecisionProcess(
         transition_prob,
         stateptr,
         initial_states,
@@ -65,14 +66,14 @@ function OrthogonalIntervalMarkovDecisionProcess(
     )
 end
 
-function OrthogonalIntervalMarkovDecisionProcess(
-    transition_probs::Vector{<:OrthogonalIntervalProbabilities},
+function MixtureIntervalMarkovDecisionProcess(
+    transition_probs::Vector{<:MixtureIntervalProbabilities},
     initial_states::InitialStates = AllStates(),
 )
     # TODO: Fix
     transition_prob, stateptr = interval_prob_hcat(transition_probs)
 
-    return OrthogonalIntervalMarkovDecisionProcess(
+    return MixtureIntervalMarkovDecisionProcess(
         transition_prob,
         stateptr,
         initial_states,
@@ -80,20 +81,20 @@ function OrthogonalIntervalMarkovDecisionProcess(
 end
 
 """
-    OrthogonalIntervalMarkovChain(transition_prob::OrthogonalIntervalProbabilities, initial_states::InitialStates = AllStates())
+    MixtureIntervalMarkovChain(transition_prob::MixtureIntervalProbabilities, initial_states::InitialStates = AllStates())
 
-Construct a Orthogonal Interval Markov Chain from orthogonal interval transition probabilities. The initial states are optional and if not specified,
+Construct a Mixture Interval Markov Chain from mixture interval transition probabilities. The initial states are optional and if not specified,
 all states are assumed to be initial states. The number of states is inferred from the size of the transition probability matrix.
 
 The returned type is an `OrthogonalIntervalMarkovDecisionProcess` with only one action per state (i.e. `stateptr[j + 1] - stateptr[j] == 1` for all `j`).
 This is done to unify the interface for value iteration.
 """
-function OrthogonalIntervalMarkovChain(
-    transition_prob::OrthogonalIntervalProbabilities,
+function MixtureIntervalMarkovChain(
+    transition_prob::MixtureIntervalProbabilities,
     initial_states::InitialStates = AllStates(),
 )
     stateptr = UnitRange{Int32}(1, num_source(transition_prob) + 1)
-    return OrthogonalIntervalMarkovDecisionProcess(
+    return MixtureIntervalMarkovDecisionProcess(
         transition_prob,
         stateptr,
         initial_states,
@@ -101,7 +102,7 @@ function OrthogonalIntervalMarkovChain(
 end
 
 function checksize_imdp!(
-    p::OrthogonalIntervalProbabilities,
+    p::MixtureIntervalProbabilities,
     stateptr::AbstractVector{Int32},
 )
     num_states = length(stateptr) - 1
@@ -111,10 +112,10 @@ function checksize_imdp!(
         throw(ArgumentError("The number of actions per state must be positive."))
     end
 
-    if prod(num_target, p.probs) != num_states
+    if prod(num_target, first(p)) != num_states
         throw(
             DimensionMismatch(
-                "The number of target states ($(prod(num_target, p.probs)) = $(map(num_target, p.probs))) is not equal to the number of states in the problem $(num_states).",
+                "The number of target states ($(prod(num_target, first(p))) = $(map(num_target, first(p)))) is not equal to the number of states in the problem $(num_states).",
             ),
         )
     end
@@ -123,15 +124,15 @@ function checksize_imdp!(
 end
 
 """
-    stateptr(mdp::OrthogonalIntervalMarkovDecisionProcess)
+    stateptr(mdp::MixtureIntervalMarkovDecisionProcess)
 
 Return the state pointer of the Interval Markov Decision Process. The state pointer is a vector of integers where the `i`-th element
 is the index of the first element of the `i`-th state in the transition probability matrix. 
 I.e. `transition_prob[:, stateptr[j]:stateptr[j + 1] - 1]` is the transition probability matrix for source state `j`.
 """
-stateptr(mdp::OrthogonalIntervalMarkovDecisionProcess) = mdp.stateptr
+stateptr(mdp::MixtureIntervalMarkovDecisionProcess) = mdp.stateptr
 
-max_actions(mdp::OrthogonalIntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp))
-Base.ndims(::OrthogonalIntervalMarkovDecisionProcess{N}) where {N} = Int32(N)
-product_num_states(mp::OrthogonalIntervalMarkovDecisionProcess) =
+max_actions(mdp::MixtureIntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp))
+Base.ndims(::MixtureIntervalMarkovDecisionProcess{N}) where {N} = Int32(N)
+product_num_states(mp::MixtureIntervalMarkovDecisionProcess) =
     num_target(transition_prob(mp))
