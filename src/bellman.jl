@@ -226,11 +226,7 @@ Base.@propagate_inbounds function state_action_bellman(
 end
 
 Base.@propagate_inbounds function dense_sorted_state_action_bellman(V, prob, jₐ, perm)
-    lowerⱼ = @view lower(prob)[:, jₐ]
-    gapⱼ = @view gap(prob)[:, jₐ]
-    used = sum_lower(prob)[jₐ]
-
-    return dot(V, lowerⱼ) + gap_value(V, gapⱼ, used, perm)
+    return dot(V, lower(prob, :, jₐ)) + gap_value(V, gap(prob, :, jₐ), sum_lower(prob, jₐ), perm)
 end
 
 Base.@propagate_inbounds function gap_value(
@@ -262,8 +258,8 @@ Base.@propagate_inbounds function state_action_bellman(
     jₐ,
     upper_bound,
 )
-    lowerⱼ = @view lower(prob)[:, jₐ]
-    gapⱼ = @view gap(prob)[:, jₐ]
+    lowerⱼ = lower(prob, :, jₐ)
+    gapⱼ = gap(prob, :, jₐ)
     used = sum_lower(prob)[jₐ]
 
     Vp_workspace = @view workspace.values_gaps[1:nnz(gapⱼ)]
@@ -535,17 +531,17 @@ Base.@propagate_inbounds function state_action_bellman(
     upper_bound,
 )
     # This function uses ntuple excessively to avoid allocations (list comprehension requires allocation, while ntuple does not)
-    nzinds_first = SparseArrays.nonzeroinds(@view(gap(prob[1])[:, jₐ]))
+    nzinds_first = SparseArrays.nonzeroinds(gap(prob, 1, :, jₐ))
     nzinds_per_prob = ntuple(
-        i -> SparseArrays.nonzeroinds(@view(gap(prob[i + 1])[:, jₐ])),
+        i -> SparseArrays.nonzeroinds(gap(prob, i + 1, :, jₐ)),
         ndims(prob) - 1,
     )
 
-    lower_nzvals_per_prob = ntuple(i -> nonzeros(@view(lower(prob[i])[:, jₐ])), ndims(prob))
-    gap_nzvals_per_prob = ntuple(i -> nonzeros(@view(gap(prob[i])[:, jₐ])), ndims(prob))
-    sum_lower_per_prob = ntuple(i -> sum_lower(prob[i])[jₐ], ndims(prob))
+    lower_nzvals_per_prob = ntuple(i -> nonzeros(lower(prob, i, :, jₐ)), ndims(prob))
+    gap_nzvals_per_prob = ntuple(i -> nonzeros(gap(prob, i, :, jₐ)), ndims(prob))
+    sum_lower_per_prob = ntuple(i -> sum_lower(prob, i, jₐ), ndims(prob))
 
-    nnz_per_prob = ntuple(i -> nnz(@view(gap(prob[i])[:, jₐ])), ndims(prob))
+    nnz_per_prob = ntuple(i -> nnz(gap(prob, i, :, jₐ)), ndims(prob))
     Vₑ = ntuple(
         i -> @view(workspace.expectation_cache[i][1:nnz_per_prob[i + 1]]),
         ndims(prob) - 1,

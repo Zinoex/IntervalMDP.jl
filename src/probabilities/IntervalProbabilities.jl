@@ -133,6 +133,14 @@ Return the lower bound transition probabilities from a source state or source/ac
 lower(p::IntervalProbabilities) = p.lower
 
 """
+    lower(p::IntervalProbabilities, i, j)
+
+Return the lower bound transition probabilities from a source state or source/action pair to a target state.
+"""
+lower(p::IntervalProbabilities, i, j) = p.lower[i, j]
+lower(p::IntervalProbabilities, ::Colon, j) = @view(p.lower[:, j])
+
+"""
     upper(p::IntervalProbabilities)
 
 Return the upper bound transition probabilities from a source state or source/action pair to a target state.
@@ -144,11 +152,30 @@ Return the upper bound transition probabilities from a source state or source/ac
 upper(p::IntervalProbabilities) = p.lower + p.gap
 
 """
+    upper(p::IntervalProbabilities, i, j)
+
+Return the upper bound transition probabilities from a source state or source/action pair to a target state.
+
+!!! note
+    It is not recommended to use this function for the hot loop of O-maximization. Because the [`IntervalProbabilities`](@ref)
+    stores the lower and gap transition probabilities, fetching the upper bound requires allocation and computation.
+"""
+upper(p::IntervalProbabilities, i, j) = p.lower[i, j] + p.gap[i, j]
+
+"""
     gap(p::IntervalProbabilities)
 
 Return the gap between upper and lower bound transition probabilities from a source state or source/action pair to a target state.
 """
 gap(p::IntervalProbabilities) = p.gap
+
+"""
+    gap(p::IntervalProbabilities, i, j)
+
+Return the gap between upper and lower bound transition probabilities from a source state or source/action pair to a target state.
+"""
+gap(p::IntervalProbabilities, i, j) = p.gap[i, j]
+gap(p::IntervalProbabilities, ::Colon, j) = @view(p.gap[:, j])
 
 """
     sum_lower(p::IntervalProbabilities) 
@@ -158,6 +185,15 @@ This is useful in efficiently implementing O-maximization, where we start with a
 and iteratively, according to the ordering, adding the gap until the sum of probabilities is 1.
 """
 sum_lower(p::IntervalProbabilities) = p.sum_lower
+
+"""
+    sum_lower(p::IntervalProbabilities, j) 
+
+Return the sum of lower bound transition probabilities from a source state or source/action pair to all target states.
+This is useful in efficiently implementing O-maximization, where we start with a lower bound probability assignment
+and iteratively, according to the ordering, adding the gap until the sum of probabilities is 1.
+"""
+sum_lower(p::IntervalProbabilities, j) = p.sum_lower[j]
 
 """
     num_source(p::IntervalProbabilities)

@@ -11,22 +11,42 @@ target states along each axis.
 ### Examples
 # TODO: Update example
 ```jldoctest
+```
 """
 struct OrthogonalIntervalProbabilities{N, P <: IntervalProbabilities} <:
        AbstractIntervalProbabilities
     probs::NTuple{N, P}
     source_dims::NTuple{N, Int32}
+
+    function OrthogonalIntervalProbabilities(probs::NTuple{N, P}, source_dims::NTuple{N, Int32}) where {N, P}
+        source_action_pairs = num_source(first(probs))
+
+        for i in 2:N
+            if num_source(probs[i]) != source_action_pairs
+                throw(DimensionMismatch("The number of source states or source/action pairs must be the same for all axes."))
+            end
+        end
+
+        new{N, P}(probs, source_dims)
+    end
 end
 
 """
-    lower(p::OrthogonalIntervalProbabilities, i)
+    lower(p::OrthogonalIntervalProbabilities, l)
 
 Return the lower bound transition probabilities from a source state or source/action pair to a target state.
 """
-lower(p::OrthogonalIntervalProbabilities, i) = p.probs[i].lower
+lower(p::OrthogonalIntervalProbabilities, l) = lower(p.probs[l])
 
 """
-    upper(p::OrthogonalIntervalProbabilities, i)
+    lower(p::OrthogonalIntervalProbabilities, l, i, j)
+
+Return the lower bound transition probabilities from a source state or source/action pair to a target state.
+"""
+lower(p::OrthogonalIntervalProbabilities, l, i, j) = lower(p.probs[l], i, j)
+
+"""
+    upper(p::OrthogonalIntervalProbabilities, l)
 
 Return the upper bound transition probabilities from a source state or source/action pair to a target state.
 
@@ -34,23 +54,50 @@ Return the upper bound transition probabilities from a source state or source/ac
     It is not recommended to use this function for the hot loop of O-maximization. Because the [`IntervalProbabilities`](@ref)
     stores the lower and gap transition probabilities, fetching the upper bound requires allocation and computation.
 """
-upper(p::OrthogonalIntervalProbabilities, i) = p.probs[i].lower + p.probs[i].gap
+upper(p::OrthogonalIntervalProbabilities, l) = upper(p.probs[l])
 
 """
-    gap(p::OrthogonalIntervalProbabilities, i)
+    upper(p::OrthogonalIntervalProbabilities, l, i, j)
+
+Return the upper bound transition probabilities from a source state or source/action pair to a target state.
+
+!!! note
+    It is not recommended to use this function for the hot loop of O-maximization. Because the [`IntervalProbabilities`](@ref)
+    stores the lower and gap transition probabilities, fetching the upper bound requires allocation and computation.
+"""
+upper(p::OrthogonalIntervalProbabilities, l, i, j) = upper(p.probs[l], i, j)
+
+"""
+    gap(p::OrthogonalIntervalProbabilities, l)
 
 Return the gap between upper and lower bound transition probabilities from a source state or source/action pair to a target state.
 """
-gap(p::OrthogonalIntervalProbabilities, i) = p.probs[i].gap
+gap(p::OrthogonalIntervalProbabilities, l) = gap(p.probs[j])
 
 """
-    sum_lower(p::OrthogonalIntervalProbabilities, i) 
+    gap(p::OrthogonalIntervalProbabilities, l, i, j)
+
+Return the gap between upper and lower bound transition probabilities from a source state or source/action pair to a target state.
+"""
+gap(p::OrthogonalIntervalProbabilities, l, i, j) = gap(p.probs[l], i, j)
+
+"""
+    sum_lower(p::OrthogonalIntervalProbabilities, l) 
 
 Return the sum of lower bound transition probabilities from a source state or source/action pair to all target states.
 This is useful in efficiently implementing O-maximization, where we start with a lower bound probability assignment
 and iteratively, according to the ordering, adding the gap until the sum of probabilities is 1.
 """
-sum_lower(p::OrthogonalIntervalProbabilities, i) = p.probs[i].sum_lower
+sum_lower(p::OrthogonalIntervalProbabilities, l) = sum_lower(p.probs[l])
+
+"""
+    sum_lower(p::OrthogonalIntervalProbabilities, l, j) 
+
+Return the sum of lower bound transition probabilities from a source state or source/action pair to all target states.
+This is useful in efficiently implementing O-maximization, where we start with a lower bound probability assignment
+and iteratively, according to the ordering, adding the gap until the sum of probabilities is 1.
+"""
+sum_lower(p::OrthogonalIntervalProbabilities, l, j) = sum_lower(p.probs[l], j)
 
 """
     num_source(p::OrthogonalIntervalProbabilities)
