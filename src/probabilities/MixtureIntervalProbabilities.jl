@@ -18,11 +18,11 @@ struct MixtureIntervalProbabilities{
     Q <: IntervalProbabilities,
 } <: AbstractIntervalProbabilities
     mixture_probs::NTuple{N, P}
-    weigthing_probs::Q
+    weighting_probs::Q
 
     function MixtureIntervalProbabilities(
         mixture_probs::NTuple{N, P},
-        weigthing_probs::Q,
+        weighting_probs::Q,
     ) where {N, P <: OrthogonalIntervalProbabilities, Q <: IntervalProbabilities}
         _source_shape, _num_source =
             source_shape(first(mixture_probs)), num_source(first(mixture_probs))
@@ -48,23 +48,23 @@ struct MixtureIntervalProbabilities{
             end
         end
 
-        if num_target(weigthing_probs) != N
+        if num_target(weighting_probs) != N
             throw(
                 DimensionMismatch(
-                    "The dimensionality of the weigthing ambiguity set must be equal to the number of mixture probabilities",
+                    "The dimensionality of the weighting ambiguity set must be equal to the number of mixture probabilities",
                 ),
             )
         end
 
-        if num_source(weigthing_probs) != _num_source
+        if num_source(weighting_probs) != _num_source
             throw(
                 DimensionMismatch(
-                    "The number of source/action pairs in the weigthing ambiguity set must be equal to the number of source/action pairs in the mixture probabilities",
+                    "The number of source/action pairs in the weighting ambiguity set must be equal to the number of source/action pairs in the mixture probabilities",
                 ),
             )
         end
 
-        new{N, P, Q}(mixture_probs, weigthing_probs)
+        new{N, P, Q}(mixture_probs, weighting_probs)
     end
 end
 
@@ -91,11 +91,11 @@ Return the tuple of `OrthogonalIntervalProbabilities` transition probabilities.
 mixture_probs(p::MixtureIntervalProbabilities, k) = p.mixture_probs[k]
 
 """
-    weigthing_probs(p::MixtureIntervalProbabilities)
+    weighting_probs(p::MixtureIntervalProbabilities)
 
-Return the `IntervalProbabilities` weigthing ambiguity set.
+Return the `IntervalProbabilities` weighting ambiguity set.
 """
-weigthing_probs(p::MixtureIntervalProbabilities) = p.weigthing_probs
+weighting_probs(p::MixtureIntervalProbabilities) = p.weighting_probs
 
 """
     axes_source(p::MixtureIntervalProbabilities)

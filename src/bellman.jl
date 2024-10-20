@@ -671,7 +671,7 @@ Base.@propagate_inbounds function state_action_bellman(
     v = orthogonal_inner_bellman!(
         workspace,
         workspace.mixture_cache,
-        weigthing_probs(prob),
+        weighting_probs(prob),
         jₐ,
         upper_bound,
     )

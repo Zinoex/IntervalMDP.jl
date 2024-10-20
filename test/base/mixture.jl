@@ -37,14 +37,14 @@ using Random: MersenneTwister
         ),
         (Int32(2),),
     )
-    weigthing_probs = IntervalProbabilities(; lower = [
+    weighting_probs = IntervalProbabilities(; lower = [
         0.3 0.5
         0.4 0.3
     ], upper = [
         0.8 0.7
         0.7 0.5
     ])
-    mixture_prob = MixtureIntervalProbabilities((prob1, prob2), weigthing_probs)
+    mixture_prob = MixtureIntervalProbabilities((prob1, prob2), weighting_probs)
 
     V = [1.0, 2.0, 3.0]
 

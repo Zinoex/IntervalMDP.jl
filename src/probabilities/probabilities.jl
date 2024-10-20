@@ -9,4 +9,4 @@ include("OrthogonalIntervalProbabilities.jl")
 export OrthogonalIntervalProbabilities
 
 include("MixtureIntervalProbabilities.jl")
-export MixtureIntervalProbabilities, mixture_probs, weigthing_probs
+export MixtureIntervalProbabilities, mixture_probs, weighting_probs
