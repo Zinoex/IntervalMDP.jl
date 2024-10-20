@@ -15,11 +15,63 @@ using Random: MersenneTwister
 
     V = [1.0, 2.0, 3.0]
 
-    Vres = bellman(V, prob; upper_bound = true)
-    @test Vres ≈ [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
+    @testset "maximization" begin
+        Vexpected = [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
 
-    Vres = bellman(V, prob; upper_bound = false)
-    @test Vres ≈ [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
+        Vres = bellman(V, prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        Vres = similar(Vres)
+        bellman!(Vres, V, prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        ws = construct_workspace(prob)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.DenseOrthogonalWorkspace(prob, 1)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+    end
+
+    @testset "minimization" begin
+        Vexpected = [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
+
+        Vres = bellman(V, prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        Vres = similar(Vres)
+        bellman!(Vres, V, prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        ws = construct_workspace(prob)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.DenseOrthogonalWorkspace(prob, 1)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+    end
 end
 
 @testset "bellman 3d" begin

@@ -48,17 +48,69 @@ using Random: MersenneTwister
 
     V = [1.0, 2.0, 3.0]
 
-    Vres = bellman(V, mixture_prob; upper_bound = true)
-    @test Vres ≈ [
-        (0.0 * 1 + 0.3 * 2 + 0.7 * 3) * 0.6 + (0.1 * 1 + 0.3 * 2 + 0.6 * 3) * 0.4,
-        (0.5 * 1 + 0.3 * 2 + 0.2 * 3) * 0.5 + (0.4 * 1 + 0.4 * 2 + 0.2 * 3) * 0.5,
-    ]
+    @testset "maximization" begin
+        Vexpected = [
+            (0.0 * 1 + 0.3 * 2 + 0.7 * 3) * 0.6 + (0.1 * 1 + 0.3 * 2 + 0.6 * 3) * 0.4,
+            (0.5 * 1 + 0.3 * 2 + 0.2 * 3) * 0.5 + (0.4 * 1 + 0.4 * 2 + 0.2 * 3) * 0.5,
+        ]
 
-    Vres = bellman(V, mixture_prob; upper_bound = false)
-    @test Vres ≈ [
-        (0.5 * 1 + 0.3 * 2 + 0.2 * 3) * 0.6 + (0.4 * 1 + 0.3 * 2 + 0.3 * 3) * 0.4,
-        (0.6 * 1 + 0.3 * 2 + 0.1 * 3) * 0.5 + (0.6 * 1 + 0.4 * 2 + 0.0 * 3) * 0.5,
-    ]
+        Vres = bellman(V, mixture_prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        Vres = similar(Vres)
+        bellman!(Vres, V, mixture_prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        ws = construct_workspace(mixture_prob)
+        strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, mixture_prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
+        strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, mixture_prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
+        strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, mixture_prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+    end
+
+    @testset "minimization" begin
+        Vexpected = [
+            (0.5 * 1 + 0.3 * 2 + 0.2 * 3) * 0.6 + (0.4 * 1 + 0.3 * 2 + 0.3 * 3) * 0.4,
+            (0.6 * 1 + 0.3 * 2 + 0.1 * 3) * 0.5 + (0.6 * 1 + 0.4 * 2 + 0.0 * 3) * 0.5,
+        ]
+
+        Vres = bellman(V, mixture_prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        Vres = similar(Vres)
+        bellman!(Vres, V, mixture_prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        ws = construct_workspace(mixture_prob)
+        strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, mixture_prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
+        strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, mixture_prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
+        strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, mixture_prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+    end
 end
 
 @testset "synthesis" begin

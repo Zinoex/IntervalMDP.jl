@@ -319,7 +319,7 @@ function MixtureWorkspace(
     scratch = Vector{Tuple{R, R}}(undef, max_nonzeros)
     values_gaps = Vector{Tuple{R, R}}(undef, max_nonzeros)
     expectation_cache =
-        NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in max_nonzeros_per_prob[2:end])
+        NTuple{M - 1, Vector{R}}(Vector{R}(undef, n) for n in max_nonzeros_per_prob[2:end])
     actions = Vector{R}(undef, max_actions)
 
     return MixtureWorkspace(
@@ -329,8 +329,8 @@ function MixtureWorkspace(
 end
 
 # Threaded
-struct ThreadedMixtureWorkspace{W <: SimpleOrthogonalWorkspace}
-    thread_workspaces::Vector{MixtureWorkspace{W}}
+struct ThreadedMixtureWorkspace{W <: SimpleOrthogonalWorkspace, V <: MixtureWorkspace{W}}
+    thread_workspaces::Vector{V}
 end
 
 function ThreadedMixtureWorkspace(
@@ -354,7 +354,7 @@ function ThreadedMixtureWorkspace(
         perm = Vector{Int32}(undef, nmax)
         scratch = Vector{Int32}(undef, nmax)
         expectation_cache =
-            NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in pns[2:end])
+            NTuple{M - 1, Vector{R}}(Vector{R}(undef, n) for n in pns[2:end])
         actions = Vector{R}(undef, max_actions)
         return MixtureWorkspace(
             DenseOrthogonalWorkspace(
@@ -396,7 +396,7 @@ function ThreadedMixtureWorkspace(
 
         scratch = Vector{Tuple{R, R}}(undef, max_nonzeros)
         values_gaps = Vector{Tuple{R, R}}(undef, max_nonzeros)
-        expectation_cache = NTuple{N - 1, Vector{R}}(
+        expectation_cache = NTuple{M - 1, Vector{R}}(
             Vector{R}(undef, n) for n in max_nonzeros_per_prob[2:end]
         )
         actions = Vector{R}(undef, max_actions)

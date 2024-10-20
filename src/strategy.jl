@@ -153,7 +153,7 @@ step_postprocess_strategy_cache!(::ActiveGivenStrategyCache) = nothing
 struct NoStrategyCache <: OptimizingStrategyCache end
 
 function construct_strategy_cache(
-    ::Union{IntervalProbabilities, OrthogonalIntervalProbabilities},
+    ::Union{IntervalProbabilities, OrthogonalIntervalProbabilities, MixtureIntervalProbabilities},
     ::NoStrategyConfig,
 )
     return NoStrategyCache()
