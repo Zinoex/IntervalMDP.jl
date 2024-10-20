@@ -15,11 +15,63 @@ using Random: MersenneTwister
 
     V = [1.0, 2.0, 3.0]
 
-    Vres = bellman(V, prob; upper_bound = true)
-    @test Vres ≈ [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
+    @testset "maximization" begin
+        Vexpected = [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
 
-    Vres = bellman(V, prob; upper_bound = false)
-    @test Vres ≈ [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
+        Vres = bellman(V, prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        Vres = similar(Vres)
+        bellman!(Vres, V, prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        ws = construct_workspace(prob)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.DenseOrthogonalWorkspace(prob, 1)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+    end
+
+    @testset "minimization" begin
+        Vexpected = [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
+
+        Vres = bellman(V, prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        Vres = similar(Vres)
+        bellman!(Vres, V, prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        ws = construct_workspace(prob)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.DenseOrthogonalWorkspace(prob, 1)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+    end
 end
 
 @testset "bellman 3d" begin
@@ -870,25 +922,46 @@ end
 @testset "synthesis" begin
     rng = MersenneTwister(3286)
 
-    prob_lower = [rand(rng, Float64, 3, 27 * 2) ./ 3.0 for _ in 1:3]
-    prob_upper = [(rand(rng, Float64, 3, 27 * 2) .+ 1.0) ./ 3.0 for _ in 1:3]
+    num_states_per_axis = 3
+    num_axis = 3
+    num_states = num_states_per_axis^num_axis
+    num_actions = 2
+    num_choices = num_states * num_actions
+
+    prob_lower = [
+        rand(rng, Float64, num_states_per_axis, num_choices) ./ num_states_per_axis for
+        _ in 1:num_axis
+    ]
+    prob_upper = [
+        (rand(rng, Float64, num_states_per_axis, num_choices) .+ 1.0) ./
+        num_states_per_axis for _ in 1:num_axis
+    ]
 
     probs = OrthogonalIntervalProbabilities(
         ntuple(
             i -> IntervalProbabilities(; lower = prob_lower[i], upper = prob_upper[i]),
-            3,
+            num_axis,
         ),
-        (Int32(3), Int32(3), Int32(3)),
+        (
+            Int32(num_states_per_axis),
+            Int32(num_states_per_axis),
+            Int32(num_states_per_axis),
+        ),
     )
 
-    stateptr = [Int32[1]; convert.(Int32, 1 .+ collect(1:27) .* 2)]
+    stateptr = [Int32[1]; convert.(Int32, 1 .+ collect(1:num_states) .* 2)]
     mdp = OrthogonalIntervalMarkovDecisionProcess(probs, stateptr)
 
-    prop = FiniteTimeReachability([(3, 3, 3)], 10)
+    prop = FiniteTimeReachability(
+        [(num_states_per_axis, num_states_per_axis, num_states_per_axis)],
+        10,
+    )
     spec = Specification(prop, Pessimistic, Maximize)
     prob = Problem(mdp, spec)
 
     policy, V, it, res = control_synthesis(prob)
+    @test it == 10
+    @test all(V .≥ 0.0)
 
     # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
     prob = Problem(mdp, spec, policy)

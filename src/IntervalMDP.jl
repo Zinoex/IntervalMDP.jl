@@ -9,25 +9,14 @@ include("utils.jl")
 include("errors.jl")
 export InvalidStateError, StateDimensionMismatch
 
-include("interval_probabilities.jl")
-export IntervalProbabilities, OrthogonalIntervalProbabilities
-export lower, upper, gap, sum_lower
-export num_source, axes_source, num_target, axes_target
-
-include("models/IntervalMarkovProcess.jl")
-include("models/IntervalMarkovDecisionProcess.jl")
-include("models/OrthogonalIntervalMarkovDecisionProcess.jl")
-export IntervalMarkovProcess
-export AllStates
-export IntervalMarkovDecisionProcess, IntervalMarkovChain
-export OrthogonalIntervalMarkovDecisionProcess, OrthogonalIntervalMarkovChain
-export transition_prob, num_states, initial_states, stateptr, tomarkovchain, time_length
+include("probabilities/probabilities.jl")
+include("models/models.jl")
 
 include("strategy.jl")
 export GivenStrategyConfig,
     NoStrategyConfig, TimeVaryingStrategyConfig, StationaryStrategyConfig
 export StationaryStrategy, TimeVaryingStrategy
-export construct_strategy_cache
+export construct_strategy_cache, time_length
 
 include("specification.jl")
 export Property, LTLFormula, LTLfFormula, PCTLFormula

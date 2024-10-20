@@ -52,9 +52,9 @@ problem = IntervalMDP.cu(problem)
 
 policy, V, k, res = control_synthesis(problem)
 
-@test length(policy) == 10
-for row in policy
-    @test row == [1, 2, 1]
+@test time_length(policy) == 10
+for k in 1:time_length(policy)
+    @test Vector(policy[k]) == [1, 2, 1]
 end
 
 prop = FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10)
@@ -63,14 +63,16 @@ problem = Problem(mdp, spec)
 problem = IntervalMDP.cu(problem)
 
 policy, V, k, res = control_synthesis(problem)
-@test length(policy) == 10
 
-for row in policy
-    @test row == [2, 2, 1]
+@test time_length(policy) == 10
+for k in 1:time_length(policy)
+    @test Vector(policy[k]) == [2, 2, 1]
 end
 
 prop = InfiniteTimeReachability([3], 1e-6)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(mdp, spec)
+problem = IntervalMDP.cu(problem)
+
 policy, V, k, res = control_synthesis(problem)
-@test policy == [1, 2, 1]
+@test Vector(policy[1]) == [1, 2, 1]

@@ -153,7 +153,11 @@ step_postprocess_strategy_cache!(::ActiveGivenStrategyCache) = nothing
 struct NoStrategyCache <: OptimizingStrategyCache end
 
 function construct_strategy_cache(
-    ::Union{IntervalProbabilities, OrthogonalIntervalProbabilities},
+    ::Union{
+        IntervalProbabilities,
+        OrthogonalIntervalProbabilities,
+        MixtureIntervalProbabilities,
+    },
     ::NoStrategyConfig,
 )
     return NoStrategyCache()
@@ -194,12 +198,10 @@ function construct_action_cache(
     return zeros(Int32, dims)
 end
 
-function construct_action_cache(
-    ::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR}},
-    dims,
-) where {N, R <: Real, VR <: AbstractVector{R}}
-    return zeros(Int32, dims)
-end
+construct_action_cache(p::OrthogonalIntervalProbabilities, dims) =
+    construct_action_cache(first(p), dims)
+construct_action_cache(p::MixtureIntervalProbabilities, dims) =
+    construct_action_cache(first(p), dims)
 
 cachetostrategy(strategy_cache::TimeVaryingStrategyCache) =
     TimeVaryingStrategy([indices for indices in reverse(strategy_cache.strategy)])

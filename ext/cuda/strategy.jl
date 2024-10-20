@@ -5,13 +5,6 @@ function IntervalMDP.construct_action_cache(
     return CUDA.zeros(Int32, dims)
 end
 
-function IntervalMDP.construct_action_cache(
-    ::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR}},
-    dims,
-) where {N, R <: Real, VR <: AbstractGPUVector{R}}
-    return CUDA.zeros(Int32, dims)
-end
-
 abstract type ActiveCache end
 
 struct NoStrategyActiveCache <: ActiveCache end
