@@ -1,5 +1,5 @@
 using Revise, Test
-using IntervalMDP
+using IntervalMDP, SparseArrays
 using Random: MersenneTwister
 
 @testset "bellman 1d" begin
@@ -37,6 +37,121 @@ using Random: MersenneTwister
         ),
         (Int32(2),),
     )
+    weighting_probs = IntervalProbabilities(; lower = [
+        0.3 0.5
+        0.4 0.3
+    ], upper = [
+        0.8 0.7
+        0.7 0.5
+    ])
+    mixture_prob = MixtureIntervalProbabilities((prob1, prob2), weighting_probs)
+
+    V = [1.0, 2.0, 3.0]
+
+    @testset "maximization" begin
+        Vexpected = [
+            (0.0 * 1 + 0.3 * 2 + 0.7 * 3) * 0.6 + (0.1 * 1 + 0.3 * 2 + 0.6 * 3) * 0.4,
+            (0.5 * 1 + 0.3 * 2 + 0.2 * 3) * 0.5 + (0.4 * 1 + 0.4 * 2 + 0.2 * 3) * 0.5,
+        ]
+
+        Vres = bellman(V, mixture_prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        Vres = similar(Vres)
+        bellman!(Vres, V, mixture_prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        ws = construct_workspace(mixture_prob)
+        strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, mixture_prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
+        strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, mixture_prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
+        strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, mixture_prob; upper_bound = true)
+        @test Vres ≈ Vexpected
+    end
+
+    @testset "minimization" begin
+        Vexpected = [
+            (0.5 * 1 + 0.3 * 2 + 0.2 * 3) * 0.6 + (0.4 * 1 + 0.3 * 2 + 0.3 * 3) * 0.4,
+            (0.6 * 1 + 0.3 * 2 + 0.1 * 3) * 0.5 + (0.6 * 1 + 0.4 * 2 + 0.0 * 3) * 0.5,
+        ]
+
+        Vres = bellman(V, mixture_prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        Vres = similar(Vres)
+        bellman!(Vres, V, mixture_prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        ws = construct_workspace(mixture_prob)
+        strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, mixture_prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
+        strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, mixture_prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+
+        ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
+        strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+        Vres = similar(Vres)
+        bellman!(ws, strategy_cache, Vres, V, mixture_prob; upper_bound = false)
+        @test Vres ≈ Vexpected
+    end
+end
+
+@testset "sparse bellman 1d" begin
+    prob1 = OrthogonalIntervalProbabilities(
+        (
+            IntervalProbabilities(;
+                lower = sparse([
+                    0.0 0.5
+                    0.1 0.3
+                    0.2 0.1
+                ]),
+                upper = sparse([
+                    0.5 0.7
+                    0.6 0.5
+                    0.7 0.3
+                ]),
+            ),
+        ),
+        (Int32(2),),
+    )
+    prob2 = OrthogonalIntervalProbabilities(
+        (
+            IntervalProbabilities(;
+                lower = sparse([
+                    0.1 0.4
+                    0.2 0.2
+                    0.3 0.0
+                ]),
+                upper = sparse([
+                    0.4 0.6
+                    0.5 0.4
+                    0.6 0.2
+                ]),
+            ),
+        ),
+        (Int32(2),),
+    )
+
+    # Weighting probabilities are treated the same way for sparse and dense matrices.
+    # This choice is made to simplify the implementation and since the number of
+    # mixtures is typically small, with few non-zero entries.
     weighting_probs = IntervalProbabilities(; lower = [
         0.3 0.5
         0.4 0.3

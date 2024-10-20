@@ -308,6 +308,8 @@ function MixtureWorkspace(
     max_actions,
 ) where {N, M, R, VR, MR <: AbstractSparseMatrix{R}}
     mixture_cache = Vector{R}(undef, N)
+    mixture_scratch = Vector{Int32}(undef, N)
+    mixture_permutation = Vector{Int32}(undef, N)
 
     max_nonzeros_per_prob = map(1:M) do l
         return maximum(1:N) do k
@@ -325,6 +327,8 @@ function MixtureWorkspace(
     return MixtureWorkspace(
         SparseOrthogonalWorkspace(expectation_cache, values_gaps, scratch, actions),
         mixture_cache,
+        mixture_scratch,
+        mixture_permutation,
     )
 end
 

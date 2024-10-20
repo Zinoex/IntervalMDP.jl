@@ -79,7 +79,7 @@ upper(p::OrthogonalIntervalProbabilities, l, i, j) = upper(p.probs[l], i, j)
 
 Return the gap between upper and lower bound transition probabilities from a source state or source/action pair to a target state.
 """
-gap(p::OrthogonalIntervalProbabilities, l) = gap(p.probs[j])
+gap(p::OrthogonalIntervalProbabilities, l) = gap(p.probs[l])
 
 """
     gap(p::OrthogonalIntervalProbabilities, l, i, j)
