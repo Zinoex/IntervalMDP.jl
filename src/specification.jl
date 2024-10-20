@@ -599,9 +599,13 @@ function checkdevice!(v::AbstractArray, p::IntervalProbabilities)
 end
 
 function checkdevice!(v::AbstractArray, p::OrthogonalIntervalProbabilities)
-    for pᵢ in p
-        checkdevice!(v, pᵢ)
-    end
+    # All axes of p are required to be the same type.
+    checkdevice!(v, first(pᵢ))
+end
+
+function checkdevice!(v::AbstractArray, p::MixtureIntervalProbabilities)
+    # All mixtures (and weighting_probs) of p are required to be the same type.
+    checkdevice!(v, first(pᵢ))
 end
 
 function checkdevice!(::AbstractArray, ::AbstractMatrix)

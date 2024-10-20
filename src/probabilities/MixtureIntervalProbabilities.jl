@@ -12,31 +12,56 @@ A tuple of `OrthogonalIntervalProbabilities` transition probabilities that all s
 ```jldoctest
 ```
 """
-struct MixtureIntervalProbabilities{N, P <: OrthogonalIntervalProbabilities, Q <: IntervalProbabilities} <: AbstractIntervalProbabilities
+struct MixtureIntervalProbabilities{
+    N,
+    P <: OrthogonalIntervalProbabilities,
+    Q <: IntervalProbabilities,
+} <: AbstractIntervalProbabilities
     mixture_probs::NTuple{N, P}
     weigthing_probs::Q
 
-    function MixtureIntervalProbabilities(mixture_probs::NTuple{N, P}, weigthing_probs::Q) where {N, P <: OrthogonalIntervalProbabilities, Q <: IntervalProbabilities}
-        _source_shape, _num_source = source_shape(first(mixture_probs)), num_source(first(mixture_probs))
-        
+    function MixtureIntervalProbabilities(
+        mixture_probs::NTuple{N, P},
+        weigthing_probs::Q,
+    ) where {N, P <: OrthogonalIntervalProbabilities, Q <: IntervalProbabilities}
+        _source_shape, _num_source =
+            source_shape(first(mixture_probs)), num_source(first(mixture_probs))
+
         for i in 2:N
-            source_shape_i, num_source_i = source_shape(mixture_probs[i]), num_source(mixture_probs[i])
+            source_shape_i, num_source_i =
+                source_shape(mixture_probs[i]), num_source(mixture_probs[i])
 
             if source_shape_i != _source_shape
-                throw(DimensionMismatch("All mixture probabilities must have the same source shape"))
+                throw(
+                    DimensionMismatch(
+                        "All mixture probabilities must have the same source shape",
+                    ),
+                )
             end
 
             if num_source_i != _num_source
-                throw(DimensionMismatch("All mixture probabilities must have the same number of source/action pairs"))
+                throw(
+                    DimensionMismatch(
+                        "All mixture probabilities must have the same number of source/action pairs",
+                    ),
+                )
             end
         end
 
         if num_target(weigthing_probs) != N
-            throw(DimensionMismatch("The dimensionality of the weigthing ambiguity set must be equal to the number of mixture probabilities"))
+            throw(
+                DimensionMismatch(
+                    "The dimensionality of the weigthing ambiguity set must be equal to the number of mixture probabilities",
+                ),
+            )
         end
 
         if num_source(weigthing_probs) != _num_source
-            throw(DimensionMismatch("The number of source/action pairs in the weigthing ambiguity set must be equal to the number of source/action pairs in the mixture probabilities"))
+            throw(
+                DimensionMismatch(
+                    "The number of source/action pairs in the weigthing ambiguity set must be equal to the number of source/action pairs in the mixture probabilities",
+                ),
+            )
         end
 
         new{N, P, Q}(mixture_probs, weigthing_probs)

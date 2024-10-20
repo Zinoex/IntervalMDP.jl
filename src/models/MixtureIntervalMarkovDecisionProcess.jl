@@ -73,11 +73,7 @@ function MixtureIntervalMarkovDecisionProcess(
     # TODO: Fix
     transition_prob, stateptr = interval_prob_hcat(transition_probs)
 
-    return MixtureIntervalMarkovDecisionProcess(
-        transition_prob,
-        stateptr,
-        initial_states,
-    )
+    return MixtureIntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
 end
 
 """
@@ -94,17 +90,10 @@ function MixtureIntervalMarkovChain(
     initial_states::InitialStates = AllStates(),
 )
     stateptr = UnitRange{Int32}(1, num_source(transition_prob) + 1)
-    return MixtureIntervalMarkovDecisionProcess(
-        transition_prob,
-        stateptr,
-        initial_states,
-    )
+    return MixtureIntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
 end
 
-function checksize_imdp!(
-    p::MixtureIntervalProbabilities,
-    stateptr::AbstractVector{Int32},
-)
+function checksize_imdp!(p::MixtureIntervalProbabilities, stateptr::AbstractVector{Int32})
     num_states = length(stateptr) - 1
 
     min_actions = mindiff(stateptr)

@@ -150,6 +150,8 @@ end
 
 ValueFunction(mp::IntervalMarkovProcess, num_states) =
     ValueFunction(transition_prob(mp), num_states)
+ValueFunction(prob::MixtureIntervalProbabilities, num_states) =
+    ValueFunction(first(prob), num_states)
 ValueFunction(prob::OrthogonalIntervalProbabilities, num_states) =
     ValueFunction(first(prob), num_states)
 ValueFunction(prob::IntervalProbabilities, num_states) =

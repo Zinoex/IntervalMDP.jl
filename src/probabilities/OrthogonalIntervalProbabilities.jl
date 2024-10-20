@@ -18,12 +18,19 @@ struct OrthogonalIntervalProbabilities{N, P <: IntervalProbabilities} <:
     probs::NTuple{N, P}
     source_dims::NTuple{N, Int32}
 
-    function OrthogonalIntervalProbabilities(probs::NTuple{N, P}, source_dims::NTuple{N, Int32}) where {N, P}
+    function OrthogonalIntervalProbabilities(
+        probs::NTuple{N, P},
+        source_dims::NTuple{N, Int32},
+    ) where {N, P}
         source_action_pairs = num_source(first(probs))
 
         for i in 2:N
             if num_source(probs[i]) != source_action_pairs
-                throw(DimensionMismatch("The number of source states or source/action pairs must be the same for all axes."))
+                throw(
+                    DimensionMismatch(
+                        "The number of source states or source/action pairs must be the same for all axes.",
+                    ),
+                )
             end
         end
 

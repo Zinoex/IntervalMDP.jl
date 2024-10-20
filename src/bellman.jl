@@ -175,7 +175,7 @@ bellman_precomputation!(
 ) = nothing
 
 function state_bellman!(
-    workspace,
+    workspace::Union{DenseWorkspace, SparseWorkspace},
     strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
@@ -198,7 +198,7 @@ function state_bellman!(
 end
 
 function state_bellman!(
-    workspace,
+    workspace::Union{DenseWorkspace, SparseWorkspace},
     strategy_cache::NonOptimizingStrategyCache,
     Vres,
     V,
@@ -226,7 +226,8 @@ Base.@propagate_inbounds function state_action_bellman(
 end
 
 Base.@propagate_inbounds function dense_sorted_state_action_bellman(V, prob, jₐ, perm)
-    return dot(V, lower(prob, :, jₐ)) + gap_value(V, gap(prob, :, jₐ), sum_lower(prob, jₐ), perm)
+    return dot(V, lower(prob, :, jₐ)) +
+           gap_value(V, gap(prob, :, jₐ), sum_lower(prob, jₐ), perm)
 end
 
 Base.@propagate_inbounds function gap_value(
@@ -299,7 +300,7 @@ function bellman!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    prob::OrthogonalIntervalProbabilities,
+    prob,
     stateptr;
     upper_bound = false,
     maximize = true,
@@ -329,11 +330,15 @@ function bellman!(
 end
 
 function bellman!(
-    workspace::Union{ThreadedDenseOrthogonalWorkspace, ThreadedSparseOrthogonalWorkspace, ThreadedMixtureWorkspace},
+    workspace::Union{
+        ThreadedDenseOrthogonalWorkspace,
+        ThreadedSparseOrthogonalWorkspace,
+        ThreadedMixtureWorkspace,
+    },
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    prob::OrthogonalIntervalProbabilities,
+    prob,
     stateptr;
     upper_bound = false,
     maximize = true,
@@ -421,13 +426,13 @@ function state_bellman!(
 )
     @inbounds begin
         s₁, s₂ = stateptr[jₛ_linear], stateptr[jₛ_linear + 1]
-        actions = @view workspace.actions[1:(s₂ - s₁)]
+        act_vals = @view actions(workspace)[1:(s₂ - s₁)]
 
         for (i, jₐ) in enumerate(s₁:(s₂ - 1))
-            actions[i] = state_action_bellman(workspace, V, prob, jₐ, upper_bound)
+            act_vals[i] = state_action_bellman(workspace, V, prob, jₐ, upper_bound)
         end
 
-        Vres[jₛ_cart] = extract_strategy!(strategy_cache, actions, V, jₛ_cart, maximize)
+        Vres[jₛ_cart] = extract_strategy!(strategy_cache, act_vals, V, jₛ_cart, maximize)
     end
 end
 
@@ -436,7 +441,7 @@ function state_bellman!(
     strategy_cache::NonOptimizingStrategyCache,
     Vres,
     V,
-    prob::OrthogonalIntervalProbabilities,
+    prob,
     stateptr,
     jₛ_cart,
     jₛ_linear;
@@ -530,10 +535,8 @@ Base.@propagate_inbounds function state_action_bellman(
 )
     # This function uses ntuple excessively to avoid allocations (list comprehension requires allocation, while ntuple does not)
     nzinds_first = SparseArrays.nonzeroinds(gap(prob, 1, :, jₐ))
-    nzinds_per_prob = ntuple(
-        i -> SparseArrays.nonzeroinds(gap(prob, i + 1, :, jₐ)),
-        ndims(prob) - 1,
-    )
+    nzinds_per_prob =
+        ntuple(i -> SparseArrays.nonzeroinds(gap(prob, i + 1, :, jₐ)), ndims(prob) - 1)
 
     lower_nzvals_per_prob = ntuple(i -> nonzeros(lower(prob, i, :, jₐ)), ndims(prob))
     gap_nzvals_per_prob = ntuple(i -> nonzeros(gap(prob, i, :, jₐ)), ndims(prob))
@@ -622,11 +625,11 @@ Base.@propagate_inbounds function orthogonal_sparse_inner_bellman!(
     return dot(V, lower) + gap_value(Vp_workspace, sum_lower)
 end
 
-
 ################################################################
 # Bellman operator for MixturelIntervalMarkovDecisionProcess #
 ################################################################
-bellman_precomputation!(workspace::MixtureWorkspace, V, prob, upper_bound) = bellman_precomputation!(workspace.orthogonal_workspace, V, prob, upper_bound)
+bellman_precomputation!(workspace::MixtureWorkspace, V, prob, upper_bound) =
+    bellman_precomputation!(workspace.orthogonal_workspace, V, prob, upper_bound)
 
 function bellman_precomputation!(
     workspace::ThreadedMixtureWorkspace{<:DenseOrthogonalWorkspace},
@@ -665,7 +668,13 @@ Base.@propagate_inbounds function state_action_bellman(
     end
 
     # Combine mixture with weighting probabilities
-    v = orthogonal_inner_bellman!(workspace, workspace.mixture_cache, weigthing_probs(prob), jₐ, upper_bound)
+    v = orthogonal_inner_bellman!(
+        workspace,
+        workspace.mixture_cache,
+        weigthing_probs(prob),
+        jₐ,
+        upper_bound,
+    )
 
     return v
 end

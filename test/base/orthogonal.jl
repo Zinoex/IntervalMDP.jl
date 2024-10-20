@@ -870,25 +870,46 @@ end
 @testset "synthesis" begin
     rng = MersenneTwister(3286)
 
-    prob_lower = [rand(rng, Float64, 3, 27 * 2) ./ 3.0 for _ in 1:3]
-    prob_upper = [(rand(rng, Float64, 3, 27 * 2) .+ 1.0) ./ 3.0 for _ in 1:3]
+    num_states_per_axis = 3
+    num_axis = 3
+    num_states = num_states_per_axis^num_axis
+    num_actions = 2
+    num_choices = num_states * num_actions
+
+    prob_lower = [
+        rand(rng, Float64, num_states_per_axis, num_choices) ./ num_states_per_axis for
+        _ in 1:num_axis
+    ]
+    prob_upper = [
+        (rand(rng, Float64, num_states_per_axis, num_choices) .+ 1.0) ./
+        num_states_per_axis for _ in 1:num_axis
+    ]
 
     probs = OrthogonalIntervalProbabilities(
         ntuple(
             i -> IntervalProbabilities(; lower = prob_lower[i], upper = prob_upper[i]),
-            3,
+            num_axis,
         ),
-        (Int32(3), Int32(3), Int32(3)),
+        (
+            Int32(num_states_per_axis),
+            Int32(num_states_per_axis),
+            Int32(num_states_per_axis),
+        ),
     )
 
-    stateptr = [Int32[1]; convert.(Int32, 1 .+ collect(1:27) .* 2)]
+    stateptr = [Int32[1]; convert.(Int32, 1 .+ collect(1:num_states) .* 2)]
     mdp = OrthogonalIntervalMarkovDecisionProcess(probs, stateptr)
 
-    prop = FiniteTimeReachability([(3, 3, 3)], 10)
+    prop = FiniteTimeReachability(
+        [(num_states_per_axis, num_states_per_axis, num_states_per_axis)],
+        10,
+    )
     spec = Specification(prop, Pessimistic, Maximize)
     prob = Problem(mdp, spec)
 
     policy, V, it, res = control_synthesis(prob)
+    @test it == 10
+    @test all(V .≥ 0.0)
 
     # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
     prob = Problem(mdp, spec, policy)

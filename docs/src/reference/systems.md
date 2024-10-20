@@ -12,12 +12,16 @@ stateptr(mdp::IntervalMarkovDecisionProcess)
 OrthogonalIntervalMarkovChain
 OrthogonalIntervalMarkovDecisionProcess
 stateptr(mdp::OrthogonalIntervalMarkovDecisionProcess)
+MixtureIntervalMarkovChain
+MixtureIntervalMarkovDecisionProcess
+stateptr(mdp::MixtureIntervalMarkovDecisionProcess)
 ```
 
 ## Probability representation
 ```@docs
 IntervalProbabilities
 OrthogonalIntervalProbabilities
+MixtureIntervalProbabilities
 lower
 upper
 gap
@@ -25,4 +29,6 @@ sum_lower
 num_source
 num_target
 axes_source
+mixture_probs
+weighting_probs
 ```
