@@ -19,9 +19,12 @@ termination_criteria(prop, finitetime::Val{false}) =
     CovergenceCriteria(convergence_eps(prop))
 
 """
-    value_iteration(problem::Problem)
+    value_iteration(problem::Problem; callback=nothing)
 
 Solve minimizes/mazimizes optimistic/pessimistic specification problems using value iteration for interval Markov processes. 
+
+It is possible to provide a callback function that will be called at each iteration with the current value function and
+iteration count (starting from zero). The callback function should have the signature `callback(V::AbstractArray, k::Int)`.
 
 ### Examples
 
@@ -70,9 +73,9 @@ V, k, residual = value_iteration(problem)
 ```
 
 """
-function value_iteration(problem::Problem)
+function value_iteration(problem::Problem; callback=nothing)
     strategy_config = whichstrategyconfig(problem)
-    V, k, res, _ = _value_iteration!(strategy_config, problem)
+    V, k, res, _ = _value_iteration!(strategy_config, problem; callback=callback)
 
     return V, k, res
 end
@@ -80,7 +83,7 @@ whichstrategyconfig(::Problem{S, F, <:NoStrategy}) where {S, F} = NoStrategyConf
 whichstrategyconfig(::Problem{S, F, <:AbstractStrategy}) where {S, F} =
     GivenStrategyConfig()
 
-function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Problem)
+function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Problem; callback=nothing)
     mp = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(spec)
@@ -105,6 +108,11 @@ function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Pro
     )
     step_postprocess_value_function!(value_function, spec)
     step_postprocess_strategy_cache!(strategy_cache)
+
+    if !isnothing(callback)
+        callback(value_function.current, 0)
+    end
+
     k = 1
 
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
@@ -121,6 +129,11 @@ function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Pro
         )
         step_postprocess_value_function!(value_function, spec)
         step_postprocess_strategy_cache!(strategy_cache)
+
+        if !isnothing(callback)
+            callback(value_function.current, 0)
+        end
+
         k += 1
     end
 
@@ -168,7 +181,7 @@ function lastdiff!(V)
 end
 
 function nextiteration!(V)
-    copyto!(V.previous, V.current)
+    copy!(V.previous, V.current)
 
     return V
 end
