@@ -6,7 +6,7 @@ with the returned strategy being in step order (i.e., the first element of the r
 If the specification is infinite time, then the strategy is stationary and only a single vector of length `num_states(system)` is returned.
 
 It is possible to provide a callback function that will be called at each iteration with the current value function and
-iteration count (starting from zero). The callback function should have the signature `callback(V::AbstractArray, k::Int)`.
+iteration count. The callback function should have the signature `callback(V::AbstractArray, k::Int)`.
 """
 function control_synthesis(problem::Problem; callback=nothing)
     spec = specification(problem)

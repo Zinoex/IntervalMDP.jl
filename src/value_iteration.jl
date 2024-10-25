@@ -24,7 +24,7 @@ termination_criteria(prop, finitetime::Val{false}) =
 Solve minimizes/mazimizes optimistic/pessimistic specification problems using value iteration for interval Markov processes. 
 
 It is possible to provide a callback function that will be called at each iteration with the current value function and
-iteration count (starting from zero). The callback function should have the signature `callback(V::AbstractArray, k::Int)`.
+iteration count. The callback function should have the signature `callback(V::AbstractArray, k::Int)`.
 
 ### Examples
 
