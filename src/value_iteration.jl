@@ -108,12 +108,11 @@ function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Pro
     )
     step_postprocess_value_function!(value_function, spec)
     step_postprocess_strategy_cache!(strategy_cache)
+    k = 1
 
     if !isnothing(callback)
-        callback(value_function.current, 0)
+        callback(value_function.current, k)
     end
-
-    k = 1
 
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
@@ -129,12 +128,11 @@ function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Pro
         )
         step_postprocess_value_function!(value_function, spec)
         step_postprocess_strategy_cache!(strategy_cache)
+        k += 1
 
         if !isnothing(callback)
-            callback(value_function.current, 0)
+            callback(value_function.current, k)
         end
-
-        k += 1
     end
 
     postprocess_value_function!(value_function, spec)
