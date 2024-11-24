@@ -14,7 +14,7 @@ termination_criteria(prop, finitetime::Val{true}) =
 struct CovergenceCriteria{T <: AbstractFloat} <: TerminationCriteria
     tol::T
 end
-(f::CovergenceCriteria)(V, k, u) = maximum(u) < f.tol
+(f::CovergenceCriteria)(V, k, u) = maximum(abs,u) < f.tol
 termination_criteria(prop, finitetime::Val{false}) =
     CovergenceCriteria(convergence_eps(prop))
 
