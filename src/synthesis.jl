@@ -8,7 +8,7 @@ If the specification is infinite time, then the strategy is stationary and only 
 It is possible to provide a callback function that will be called at each iteration with the current value function and
 iteration count. The callback function should have the signature `callback(V::AbstractArray, k::Int)`.
 """
-function control_synthesis(problem::Problem; callback=nothing)
+function control_synthesis(problem::Problem; callback = nothing)
     spec = specification(problem)
     prop = system_property(spec)
 
@@ -18,7 +18,8 @@ function control_synthesis(problem::Problem; callback=nothing)
 
     strategy_config =
         isfinitetime(prop) ? TimeVaryingStrategyConfig() : StationaryStrategyConfig()
-    V, k, res, strategy_cache = _value_iteration!(strategy_config, problem; callback=callback)
+    V, k, res, strategy_cache =
+        _value_iteration!(strategy_config, problem; callback = callback)
 
     return cachetostrategy(strategy_cache), V, k, res
 end
