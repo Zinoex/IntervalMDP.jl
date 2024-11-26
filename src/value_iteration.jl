@@ -14,7 +14,7 @@ termination_criteria(prop, finitetime::Val{true}) =
 struct CovergenceCriteria{T <: AbstractFloat} <: TerminationCriteria
     tol::T
 end
-(f::CovergenceCriteria)(V, k, u) = maximum(abs,u) < f.tol
+(f::CovergenceCriteria)(V, k, u) = maximum(abs, u) < f.tol
 termination_criteria(prop, finitetime::Val{false}) =
     CovergenceCriteria(convergence_eps(prop))
 
@@ -73,9 +73,9 @@ V, k, residual = value_iteration(problem)
 ```
 
 """
-function value_iteration(problem::Problem; callback=nothing)
+function value_iteration(problem::Problem; callback = nothing)
     strategy_config = whichstrategyconfig(problem)
-    V, k, res, _ = _value_iteration!(strategy_config, problem; callback=callback)
+    V, k, res, _ = _value_iteration!(strategy_config, problem; callback = callback)
 
     return V, k, res
 end
@@ -83,7 +83,11 @@ whichstrategyconfig(::Problem{S, F, <:NoStrategy}) where {S, F} = NoStrategyConf
 whichstrategyconfig(::Problem{S, F, <:AbstractStrategy}) where {S, F} =
     GivenStrategyConfig()
 
-function _value_iteration!(strategy_config::AbstractStrategyConfig, problem::Problem; callback=nothing)
+function _value_iteration!(
+    strategy_config::AbstractStrategyConfig,
+    problem::Problem;
+    callback = nothing,
+)
     mp = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(spec)
