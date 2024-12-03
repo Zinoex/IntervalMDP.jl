@@ -2,10 +2,13 @@
 # included to allow the CUDA extension to define the necessary functions and types.
 
 struct CuModelAdaptor{Tv} end
+struct CpuModelAdaptor{Tv} end
 
 valtype(::Type{CuModelAdaptor{Tv}}) where {Tv} = Tv
+valtype(::Type{CpuModelAdaptor{Tv}}) where {Tv} = Tv
 
 function cu end
+function cpu end
 
 struct OutOfSharedMemory <: Exception
     min_shared_memory::Int

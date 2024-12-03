@@ -6,14 +6,15 @@ function IntervalMDP.construct_action_cache(
 end
 
 abstract type ActiveCache end
+abstract type OptimizingActiveCache <: ActiveCache end
 
-struct NoStrategyActiveCache <: ActiveCache end
+struct NoStrategyActiveCache <: OptimizingActiveCache end
 Adapt.@adapt_structure NoStrategyActiveCache
 @inline function active_cache(::IntervalMDP.NoStrategyCache)
     return NoStrategyActiveCache()
 end
 
-struct TimeVaryingStrategyActiveCache{V <: AbstractVector{Int32}} <: ActiveCache
+struct TimeVaryingStrategyActiveCache{V <: AbstractVector{Int32}} <: OptimizingActiveCache
     cur_strategy::V
 end
 Adapt.@adapt_structure TimeVaryingStrategyActiveCache
@@ -21,13 +22,25 @@ Adapt.@adapt_structure TimeVaryingStrategyActiveCache
     return TimeVaryingStrategyActiveCache(strategy_cache.cur_strategy)
 end
 
-struct StationaryStrategyActiveCache{V <: AbstractVector{Int32}} <: ActiveCache
+struct StationaryStrategyActiveCache{V <: AbstractVector{Int32}} <: OptimizingActiveCache
     strategy::V
 end
 Adapt.@adapt_structure StationaryStrategyActiveCache
 @inline function active_cache(strategy_cache::IntervalMDP.StationaryStrategyCache)
     return StationaryStrategyActiveCache(strategy_cache.strategy)
 end
+
+abstract type NonOptimizingActiveCache <: ActiveCache end
+
+struct GivenStrategyActiveCache{V <: AbstractVector{Int32}} <: NonOptimizingActiveCache
+    strategy::V
+end
+Adapt.@adapt_structure GivenStrategyActiveCache
+@inline function active_cache(strategy_cache::IntervalMDP.ActiveGivenStrategyCache)
+    return GivenStrategyActiveCache(strategy_cache.strategy)
+end
+Base.@propagate_inbounds Base.getindex(cache::GivenStrategyActiveCache, j) =
+    cache.strategy[j]
 
 @inline function extract_strategy_warp!(
     ::NoStrategyActiveCache,

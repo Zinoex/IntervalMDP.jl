@@ -83,3 +83,14 @@ Adapt.adapt_storage(::Type{IntervalMDP.CuModelAdaptor{Tv}}, M::SparseMatrixCSC) 
 
 Adapt.adapt_storage(::Type{IntervalMDP.CuModelAdaptor{Tv}}, x::AbstractArray) where {Tv} =
     adapt(CuArray{Tv}, x)
+
+Adapt.adapt_storage(
+    ::Type{IntervalMDP.CpuModelAdaptor{Tv}},
+    M::CuSparseMatrixCSC,
+) where {Tv} = SparseMatrixCSC{Tv, Int32}(M)
+
+Adapt.adapt_storage(::Type{IntervalMDP.CpuModelAdaptor{Tv}}, x::CuArray{Tv}) where {Tv} =
+    adapt(Array{Tv}, x)
+
+Adapt.adapt_storage(::Type{IntervalMDP.CpuModelAdaptor{Tv}}, x::CuArray{Int32}) where {Tv} =
+    adapt(Array{Int32}, x)

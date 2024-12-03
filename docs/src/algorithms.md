@@ -17,7 +17,7 @@ Computing the solution to the above problem can be reframed in terms of value it
     V_{k}(s) &= \mathbf{1}_{G}(s) + \mathbf{1}_{S\setminus G}(s) \max_{a \in A} \min_{p_{s,a}\in \Gamma_{s,a}} \sum_{s' \in S} V_{k-1}(s') p_{s,a}(s'),
 \end{aligned}
 ```
-where ``\mathbf{1}_{G}(s) = 1``  if ``s \in G`` and ``0`` otherwise is the indicator function for set ``G``. This Bellman update is repeated until ``k = K``, or if ``K = \infty``, the value function converges, i.e. ``V_k = V_{k-1}`` for some ``k``. The value function is then the solution to the problem.
+where ``\mathbf{1}_{G}(s) = 1``  if ``s \in G`` and ``0`` otherwise is the indicator function for set ``G``. This Bellman update is repeated until ``k = K``, or if ``K = \infty``, until the value function converges, i.e. ``V_k = V_{k-1}`` for some ``k``. The value function is then the solution to the problem.
 Exact convergence is virtually impossible to achieve in a finite number of iterations due to the finite precision of floating point numbers. Hence, we instead use a residual tolerance ``\epsilon`` and stop when Bellman residual ``V_k - V_{k-1}`` is less than the threshold, ``\|V_k - V_{k-1}\|_\infty < \epsilon``.
 
 In a more programmatic formulation, the algorithm (for ``K = \infty``) can be summarized as follows:

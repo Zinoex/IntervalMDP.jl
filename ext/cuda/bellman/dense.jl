@@ -152,7 +152,7 @@ end
 
 @inline function state_dense_omaximization!(
     action_workspace,
-    strategy_cache,
+    strategy_cache::OptimizingActiveCache,
     Vres,
     value,
     perm,
@@ -192,6 +192,36 @@ end
         Vres[jₛ] = v
     end
     sync_warp()
+end
+
+@inline function state_dense_omaximization!(
+    action_workspace,
+    strategy_cache::NonOptimizingActiveCache,
+    Vres,
+    value,
+    perm,
+    prob::IntervalProbabilities{Tv},
+    stateptr,
+    action_reduce,
+    jₛ,
+) where {Tv}
+    lane = mod1(threadIdx().x, warpsize())
+
+    @inbounds begin
+        s₁ = stateptr[jₛ]
+        jₐ = s₁ + strategy_cache[jₛ] - one(Int32)
+        lowerⱼ = @view lower(prob)[:, jₐ]
+        gapⱼ = @view gap(prob)[:, jₐ]
+        sum_lowerⱼ = sum_lower(prob)[jₐ]
+
+        # Use O-maxmization to find the value for the action
+        v = state_action_dense_omaximization!(value, perm, lowerⱼ, gapⱼ, sum_lowerⱼ, lane)
+
+        if lane == one(Int32)
+            Vres[jₛ] = v
+        end
+        sync_warp()
+    end
 end
 
 @inline function state_action_dense_omaximization!(

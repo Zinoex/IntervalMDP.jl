@@ -71,6 +71,12 @@ for k in 1:time_length(policy)
     @test policy[k] == [2, 2, 1]
 end
 
+# Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
+problem = Problem(mdp, spec, policy)
+V_mc, k, res = value_iteration(problem)
+@test V ≈ V_mc
+
+# Infinite time reachability
 prop = InfiniteTimeReachability([3], 1e-6)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = Problem(mdp, spec)
@@ -98,5 +104,6 @@ policy, V, k, res = control_synthesis(problem)
 for k in 1:(time_length(policy) - 1)
     @test policy[k] == [2, 2, 1]
 end
+
 # The last time step (aka. the first value iteration step) has a different strategy.
 @test policy[time_length(policy)] == [2, 1, 1]
