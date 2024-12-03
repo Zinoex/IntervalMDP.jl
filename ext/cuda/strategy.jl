@@ -39,7 +39,8 @@ Adapt.@adapt_structure GivenStrategyActiveCache
 @inline function active_cache(strategy_cache::IntervalMDP.ActiveGivenStrategyCache)
     return GivenStrategyActiveCache(strategy_cache.strategy)
 end
-Base.@propagate_inbounds Base.getindex(cache::GivenStrategyActiveCache, j) = cache.strategy[j]
+Base.@propagate_inbounds Base.getindex(cache::GivenStrategyActiveCache, j) =
+    cache.strategy[j]
 
 @inline function extract_strategy_warp!(
     ::NoStrategyActiveCache,
