@@ -66,5 +66,7 @@ Discounted reward is similar to reachability but instead of a target set, we hav
 ```
 
 [1] Givan, Robert, Sonia Leach, and Thomas Dean. "Bounded-parameter Markov decision processes." Artificial Intelligence 122.1-2 (2000): 71-109.
+
 [2] Suilen, M., Badings, T., Bovy, E. M., Parker, D., & Jansen, N. (2024). Robust Markov Decision Processes: A Place Where AI and Formal Methods Meet. In Principles of Verification: Cycling the Probabilistic Landscape: Essays Dedicated to Joost-Pieter Katoen on the Occasion of His 60th Birthday, Part III (pp. 126-154). Cham: Springer Nature Switzerland.
+
 [3] Mathiesen, F. B., Haesaert, S., & Laurenti, L. (2024). Scalable control synthesis for stochastic systems via structural IMDP abstractions. arXiv preprint arXiv:2411.11803.
