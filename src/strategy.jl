@@ -39,7 +39,7 @@ function checkstrategy!(strategy::StationaryStrategy, system)
 end
 
 function checkstrategy!(strategy::AbstractArray, system)
-    num_actions = stateptr(system)[2:end] .- stateptr(system)[1:(end - 1)]
+    num_actions = maxdiff(stateptr(system))
     if !all(1 .<= vec(strategy) .<= num_actions)
         throw(
             DomainError(
