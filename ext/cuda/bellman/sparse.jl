@@ -250,6 +250,55 @@ end
     sync_warp()
 end
 
+@inline function state_small_sparse_omaximization!(
+    action_workspace,
+    value_ws,
+    gap_ws,
+    strategy_cache::NonOptimizingActiveCache,
+    Vres,
+    V,
+    prob,
+    stateptr,
+    value_lt,
+    action_reduce,
+    jₛ,
+)
+    lane = mod1(threadIdx().x, warpsize())
+
+    @inbounds begin
+        s₁ = stateptr[jₛ]
+        jₐ = s₁ + strategy_cache[jₛ] - one(Int32)
+        sum_lowerⱼ = sum_lower(prob)[jₐ]
+
+        r = lower(prob).colPtr[jₐ]:(lower(prob).colPtr[jₐ + one(Int32)] - one(Int32))
+        lindsⱼ = @view lower(prob).rowVal[r]
+        lvalsⱼ = @view lower(prob).nzVal[r]
+
+        r = gap(prob).colPtr[jₐ]:(gap(prob).colPtr[jₐ + one(Int32)] - one(Int32))
+        gindsⱼ = @view gap(prob).rowVal[r]
+        gvalsⱼ = @view gap(prob).nzVal[r]
+
+        # Use O-maxmization to find the value for the action
+        v = state_action_small_sparse_omaximization!(
+            value_ws,
+            gap_ws,
+            V,
+            lindsⱼ,
+            lvalsⱼ,
+            gindsⱼ,
+            gvalsⱼ,
+            sum_lowerⱼ,
+            value_lt,
+            lane,
+        )
+
+        if lane == one(Int32)
+            Vres[jₛ] = v
+        end
+        sync_warp()
+    end
+end
+
 @inline function state_action_small_sparse_omaximization!(
     value_ws,
     gap_ws,
@@ -549,6 +598,56 @@ end
         end
     end
     sync_threads()
+end
+
+@inline function state_sparse_omaximization!(
+    action_workspace,
+    value_ws,
+    gap_ws,
+    strategy_cache::NonOptimizingActiveCache,
+    Vres,
+    V,
+    prob,
+    stateptr,
+    value_lt,
+    action_reduce,
+    jₛ,
+)
+    wid, lane = fldmod1(threadIdx().x, warpsize())
+
+    @inbounds begin
+        s₁ = stateptr[jₛ]
+        jₐ = s₁ + strategy_cache[jₛ] - one(Int32)
+        sum_lowerⱼ = sum_lower(prob)[jₐ]
+
+        r = lower(prob).colPtr[jₐ]:(lower(prob).colPtr[jₐ + one(Int32)] - one(Int32))
+        lindsⱼ = @view lower(prob).rowVal[r]
+        lvalsⱼ = @view lower(prob).nzVal[r]
+
+        r = gap(prob).colPtr[jₐ]:(gap(prob).colPtr[jₐ + one(Int32)] - one(Int32))
+        gindsⱼ = @view gap(prob).rowVal[r]
+        gvalsⱼ = @view gap(prob).nzVal[r]
+
+        # Use O-maxmization to find the value for the action
+        v = state_action_sparse_omaximization!(
+            value_ws,
+            gap_ws,
+            V,
+            lindsⱼ,
+            lvalsⱼ,
+            gindsⱼ,
+            gvalsⱼ,
+            sum_lowerⱼ,
+            value_lt,
+            wid,
+            lane,
+        )
+
+        if threadIdx().x == one(Int32)
+            Vres[jₛ] = v
+        end
+        sync_threads()
+    end
 end
 
 @inline function state_action_sparse_omaximization!(
