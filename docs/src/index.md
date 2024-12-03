@@ -16,8 +16,10 @@ with great efficiency. Furthermore, it provides methods for accelerating the com
 certificate using CUDA hardware. See [Algorithms](@ref) for algorithmic advances that this package
 introduces for enabling better use of the available hardware and higher performance.
 
+In addition, the package supports two new subclasses of robust MDPs, namely Orthogonally Decoupled IMDPs (OD-IMDPs), or just Orthogonal IMDPs, and mixtures of Orthogonal IMDPs. These models are designed to be more memory-efficient and computationally efficient than the general IMDP model and in many cases have smaller ambiguity sets, while still being able to represent a wide range of uncertainty. See [Theory](@ref) for more information on these models.
+
 #### Features
-- O-maximization and value iteration
+- O-maximization and value iteration over IMDPs, OD-IMDPs and mixtures of OD-IMDPs
 - Dense and sparse matrix support
 - Parametric probability types for customizable precision
 - Multithreaded CPU and CUDA-accelerated value iteration
@@ -25,7 +27,7 @@ introduces for enabling better use of the available hardware and higher performa
 
 !!! info
     Until now, all state-of-the-art tools for IMDPs have been standalone programs. 
-    This is explicitly a package, enabling better integration with other tools and libraries.
+    We choose to develop this as a a package to enable better integration with other tools and libraries and improving the extensibility. 
 
 ## Installation
 
