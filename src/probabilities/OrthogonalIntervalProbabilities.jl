@@ -173,9 +173,8 @@ axes_source(p::OrthogonalIntervalProbabilities) = axes_source(first(p.probs))
 
 Return the number of target states along each marginal.
 """
-num_target(p::OrthogonalIntervalProbabilities) =
-    ntuple(i -> num_target(p[i]), ndims(p))
-    
+num_target(p::OrthogonalIntervalProbabilities) = ntuple(i -> num_target(p[i]), ndims(p))
+
 stateptr(p::OrthogonalIntervalProbabilities) = UnitRange{Int32}(1, num_source(p) + 1)
 Base.ndims(p::OrthogonalIntervalProbabilities{N}) where {N} = N
 
