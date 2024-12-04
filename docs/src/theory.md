@@ -13,7 +13,7 @@ where ``s = (s_1, \ldots, s_n)\in S``. We will denote the product ambiguity set 
 
 ## IMDPs
 Interval Markov Decision Processes (IMDPs), also called bounded-parameter MDPs [1], are a generalization of MDPs, where the transition probabilities, given source state and action, are not known exactly, but they are constrained to be in some probability interval. 
-Formally, an IMDP ``M`` is a tuple ``M = (S, S_0`, A, \overline{P}, \underline{P})``, where
+Formally, an IMDP ``M`` is a tuple ``M = (S, S_0`, A, \Gamma)``, where
 
 - ``S`` is a finite set of states,
 - ``S_0 \subseteq S`` is a set of initial states,
@@ -38,14 +38,14 @@ Paths, strategies, and adversaries are defined similarly to IMDPs. See [3] for m
 ## Mixtures of OD-IMDPs
 Mixtures of OD-IMDPs are included to address the issue the OD-IMDPs may not be able to represent all uncertainty in the transition probabilities. The mixture model is a convex combination of OD-IMDPs, where each OD-IMDP has its own set of ambiguity sets. Furthermore, the weights of the mixture are also interval-valued.
 
-Formally, a mixture of OD-IMDPs ``M`` with ``K`` OD-IMDPs and ``n`` marginals is a tuple ``M = (S, S_0, A, \Gamma, \Gamma_\alpha)``, where
+Formally, a mixture of OD-IMDPs ``M`` with ``K`` OD-IMDPs and ``n`` marginals is a tuple ``M = (S, S_0, A, \Gamma, \Gamma^\alpha)``, where
 - ``S = S_1 \times \cdots \times S_n`` is a finite set of joint states with ``S_i`` being a finite set of states for the ``i``-th marginal,
 - ``S_0 \subseteq S`` is a set of initial states,
 - ``A`` is a finite set of actions,
 - ``\Gamma = \{\Gamma_{r,s,a}\}_{r \in K, s\in S,a \in A}`` is a set of ambiguity sets for source-action pair ``(s, a)`` and OD-IMDP ``R``, where each ``\Gamma_{r,s,a} = \bigotimes_{i=1}^n \Gamma^i_{r,s,a}`` with ``\Gamma^i_{r,s,a}`` is an interval ambiguity set over the ``i``-th marginal, i.e. over ``S_i``.
-- ``\Gamma_\alpha`` is a set of interval ambiguity sets for the weights of the mixture, i.e. over ``\{1, \ldots, K\}``.
+- ``\Gamma^\alpha = \{\Gamma^\alpha_{s,a}\}_{s \in S, a \in A}`` is a set of interval ambiguity sets for the weights of the mixture, i.e. over ``\{1, \ldots, K\}``.
 
-A feasible distribution for a mixture of OD-IMDPs is ``\sum_{r \in K} \alpha_r \prod_{i = 1}^n \gamma_{r,s,a}`` where ``\alpha \in \Gamma_\alpha`` and ``\gamma_{r,s,a} \in \Gamma_{r,s,a}``. See [3] for more details on mixtures of OD-IMDPs.
+A feasible distribution for a mixture of OD-IMDPs is ``\sum_{r \in K} \alpha_{s,a}(r) \prod_{i = 1}^n \gamma_{r,s,a}`` where ``\alpha_{s,a} \in \Gamma^\alpha_{s,a}`` and ``\gamma_{r,s,a} \in \Gamma_{r,s,a}`` for each source-action pair ``(s, a)``. See [3] for more details on mixtures of OD-IMDPs.
 
 ### Reachability
 In this formal framework, we can describe computing reachability given a target set ``G`` and a horizon ``K \in \mathbb{N} \cup \{\infty\}`` as the following objective 

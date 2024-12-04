@@ -6,11 +6,9 @@ with target states/marginals on the rows and source states or source/action pair
 a column-major order, i.e., the first axis of source states is the fastest, similar to the ordering of a multi-dimensional array in Julia. 
 E.g. for an `OrthogonalIntervalProbabilities` with `source_dims == (3, 3, 3)` and 2 actions for each source state ``\\{a_1, a_2\\}``, 
 the columns in order represent the collowing:
-
 ```math
     ((1, 1, 1), a_1), ((1, 1, 1), a_2), (2, 1, 1), a_1), ((2, 1, 1), a_2), ..., ((3, 3, 3), a_1), ((3, 3, 3), a_2).
 ```
-
 The number of target states correspond to the number of rows in the transition probabilities of each axis.
 
 
@@ -175,8 +173,8 @@ axes_source(p::OrthogonalIntervalProbabilities) = axes_source(first(p.probs))
 
 Return the number of target states along each marginal.
 """
-num_target(p::OrthogonalIntervalProbabilities{N}) where {N} =
-    ntuple(i -> num_target(p[i]), N)
+num_target(p::OrthogonalIntervalProbabilities) =
+    ntuple(i -> num_target(p[i]), ndims(p))
     
 stateptr(p::OrthogonalIntervalProbabilities) = UnitRange{Int32}(1, num_source(p) + 1)
 Base.ndims(p::OrthogonalIntervalProbabilities{N}) where {N} = N

@@ -6,14 +6,14 @@ num_states(s::IntervalMarkovProcess)
 initial_states(s::IntervalMarkovProcess)
 AllStates
 transition_prob(mp::IntervalMarkovProcess)
-IntervalMarkovChain
 IntervalMarkovDecisionProcess
+IntervalMarkovChain
 stateptr(mdp::IntervalMarkovDecisionProcess)
-OrthogonalIntervalMarkovChain
 OrthogonalIntervalMarkovDecisionProcess
+OrthogonalIntervalMarkovChain
 stateptr(mdp::OrthogonalIntervalMarkovDecisionProcess)
-MixtureIntervalMarkovChain
 MixtureIntervalMarkovDecisionProcess
+MixtureIntervalMarkovChain
 stateptr(mdp::MixtureIntervalMarkovDecisionProcess)
 ```
 
@@ -47,7 +47,7 @@ gap(p::OrthogonalIntervalProbabilities, l, i, j)
 sum_lower(p::OrthogonalIntervalProbabilities, l)
 sum_lower(p::OrthogonalIntervalProbabilities, l, j)
 num_source(p::OrthogonalIntervalProbabilities)
-num_target(p::OrthogonalIntervalProbabilities{1})
+num_target(p::OrthogonalIntervalProbabilities)
 axes_source(p::OrthogonalIntervalProbabilities)
 ```
 
