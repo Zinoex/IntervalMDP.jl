@@ -1,15 +1,60 @@
 """
     MixtureIntervalProbabilities{N, P <: OrthogonalIntervalProbabilities, Q <: IntervalProbabilities}
 
-A tuple of `OrthogonalIntervalProbabilities` transition probabilities that all share the same source states, or source/action pairs, and target states.
+A tuple of `OrthogonalIntervalProbabilities` for independent transition probabilities in a mixture that all share
+the same source/action pairs, and target states. See [OrthogonalIntervalProbabilities](@ref) for more information on the structure of the transition probabilities
+for each model in the mixture. The mixture is weighted by an `IntervalProbabilities` ambiguity set, called `weighting_probs`.
 
 ### Fields
-- `probs::NTuple{N, P}`: A tuple of `IntervalProbabilities` transition probabilities along each axis.
-- `source_dims::NTuple{N, Int32}`: The dimensions of the orthogonal probabilities for the source axis. This is flattened to a single dimension for indexing.
+- `mixture_probs::NTuple{N, P}`: A tuple of `OrthogonalIntervalProbabilities` transition probabilities along each axis.
+- `weighting_probs::Q`: The weighting ambiguity set for the mixture.
 
 ### Examples
-# TODO: Update example
+Below is a simple example of a mixture of two `OrthogonalIntervalProbabilities` with one dimension and the same source/action pairs and target states,
+and a weighting ambiguity set.
 ```jldoctest
+prob1 = OrthogonalIntervalProbabilities(
+    (
+        IntervalProbabilities(;
+            lower = [
+                0.0 0.5
+                0.1 0.3
+                0.2 0.1
+            ],
+            upper = [
+                0.5 0.7
+                0.6 0.5
+                0.7 0.3
+            ],
+        ),
+    ),
+    (Int32(2),),
+)
+prob2 = OrthogonalIntervalProbabilities(
+    (
+        IntervalProbabilities(;
+            lower = [
+                0.1 0.4
+                0.2 0.2
+                0.3 0.0
+            ],
+            upper = [
+                0.4 0.6
+                0.5 0.4
+                0.6 0.2
+            ],
+        ),
+    ),
+    (Int32(2),),
+)
+weighting_probs = IntervalProbabilities(; lower = [
+    0.3 0.5
+    0.4 0.3
+], upper = [
+    0.8 0.7
+    0.7 0.5
+])
+mixture_prob = MixtureIntervalProbabilities((prob1, prob2), weighting_probs)
 ```
 """
 struct MixtureIntervalProbabilities{
@@ -86,7 +131,7 @@ mixture_probs(p::MixtureIntervalProbabilities) = p.mixture_probs
 """
     mixture_probs(p::MixtureIntervalProbabilities, k)
 
-Return the tuple of `OrthogonalIntervalProbabilities` transition probabilities.
+Return ``k``-th `OrthogonalIntervalProbabilities` transition probabilities.
 """
 mixture_probs(p::MixtureIntervalProbabilities, k) = p.mixture_probs[k]
 
@@ -104,7 +149,13 @@ Return the valid range of indices for the source states or source/action pairs.
 """
 axes_source(p::MixtureIntervalProbabilities) = axes_source(first(p.mixture_probs))
 
+"""
+    num_target(p::MixtureIntervalProbabilities)
+
+Return the number of target states along each marginal.
+"""
 num_target(p::MixtureIntervalProbabilities) = num_target(first(p.mixture_probs))
+
 stateptr(p::MixtureIntervalProbabilities) = stateptr(first(p.mixture_probs))
 Base.ndims(p::MixtureIntervalProbabilities{N}) where {N} = N
 
