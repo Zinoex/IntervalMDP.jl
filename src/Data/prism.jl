@@ -350,11 +350,23 @@ function read_prism_transitions_file(tra_path, num_states)
 
         probs_lower_rowval = mapreduce(lower -> lower.nzind, vcat, probs_lower)
         probs_lower_nzval = mapreduce(lower -> lower.nzval, vcat, probs_lower)
-        probs_lower = SparseMatrixCSC(num_states, num_col, colptr, probs_lower_rowval, probs_lower_nzval)
+        probs_lower = SparseMatrixCSC(
+            num_states,
+            num_col,
+            colptr,
+            probs_lower_rowval,
+            probs_lower_nzval,
+        )
 
         probs_upper_rowval = mapreduce(upper -> upper.nzind, vcat, probs_upper)
         probs_upper_nzval = mapreduce(upper -> upper.nzval, vcat, probs_upper)
-        probs_upper = SparseMatrixCSC(num_states, num_col, colptr, probs_upper_rowval, probs_upper_nzval)
+        probs_upper = SparseMatrixCSC(
+            num_states,
+            num_col,
+            colptr,
+            probs_upper_rowval,
+            probs_upper_nzval,
+        )
 
         # probs_lower = sparse_hcat(probs_lower...)
         # probs_upper = sparse_hcat(probs_upper...)
