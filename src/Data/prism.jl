@@ -368,9 +368,6 @@ function read_prism_transitions_file(tra_path, num_states)
             probs_upper_nzval,
         )
 
-        # probs_lower = sparse_hcat(probs_lower...)
-        # probs_upper = sparse_hcat(probs_upper...)
-
         probs = IntervalProbabilities(; lower = probs_lower, upper = probs_upper)
 
         return probs, stateptr
