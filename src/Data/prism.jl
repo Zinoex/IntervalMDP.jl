@@ -338,8 +338,38 @@ function read_prism_transitions_file(tra_path, num_states)
             probs_upper[j] = state_action_probs_upper
         end
 
-        probs_lower = sparse_hcat(probs_lower...)
-        probs_upper = sparse_hcat(probs_upper...)
+        # Colptr is the same for both lower and upper
+        num_col = mapreduce(x -> size(x, 2), +, probs_lower)
+        colptr = zeros(Int32, num_col + 1)
+        nnz_sofar = 0
+        @inbounds for i in eachindex(probs_lower)
+            colptr[i] = nnz_sofar + 1
+            nnz_sofar += nnz(probs_lower[i])
+        end
+        colptr[end] = nnz_sofar + 1
+
+        probs_lower_rowval = mapreduce(lower -> lower.nzind, vcat, probs_lower)
+        probs_lower_nzval = mapreduce(lower -> lower.nzval, vcat, probs_lower)
+        probs_lower = SparseMatrixCSC(
+            num_states,
+            num_col,
+            colptr,
+            probs_lower_rowval,
+            probs_lower_nzval,
+        )
+
+        probs_upper_rowval = mapreduce(upper -> upper.nzind, vcat, probs_upper)
+        probs_upper_nzval = mapreduce(upper -> upper.nzval, vcat, probs_upper)
+        probs_upper = SparseMatrixCSC(
+            num_states,
+            num_col,
+            colptr,
+            probs_upper_rowval,
+            probs_upper_nzval,
+        )
+
+        # probs_lower = sparse_hcat(probs_lower...)
+        # probs_upper = sparse_hcat(probs_upper...)
 
         probs = IntervalProbabilities(; lower = probs_lower, upper = probs_upper)
 
