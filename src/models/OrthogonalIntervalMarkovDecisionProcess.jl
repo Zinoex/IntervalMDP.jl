@@ -116,15 +116,17 @@ function checksize_imdp!(
         throw(ArgumentError("The number of actions per state must be positive."))
     end
 
-    if prod(num_target, p.probs) != num_states
+    if num_states > prod(num_target, p.probs)
         throw(
             DimensionMismatch(
-                "The number of target states ($(prod(num_target, p.probs)) = $(map(num_target, p.probs))) is not equal to the number of states in the problem $(num_states).",
+                "The number of target states ($(prod(num_target, p.probs)) = $(map(num_target, p.probs))) is less than the number of states in the problem $(num_states).",
             ),
         )
     end
 
-    return Int32(num_states)
+    # TODO:: Check that source_dims match stateptr
+
+    return Int32(prod(num_target, p.probs))
 end
 
 """
