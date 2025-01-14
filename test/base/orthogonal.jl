@@ -1061,10 +1061,7 @@ end
         stateptr = [Int32[1]; convert.(Int32, 1 .+ collect(1:num_states))]
         implicit_mdp = OrthogonalIntervalMarkovDecisionProcess(prob, stateptr)
 
-        prop = FiniteTimeSafety(
-            [(3, i, j) for i = 1:3 for j = 1:3],
-            10,
-        )
+        prop = FiniteTimeSafety([(3, i, j) for i in 1:3 for j in 1:3], 10)
         spec = Specification(prop, Pessimistic, Maximize)
         prob = Problem(mdp, spec)
         implicit_prob = Problem(implicit_mdp, spec)
@@ -1076,7 +1073,7 @@ end
         @test k == k_implicit
         @test res ≈ res_implicit
     end
-    
+
     @testset "second dimension" begin
         lower1 = [
             1/15 3/10 1/15 3/10 1/30 1/3 1 0 0 7/30 4/15 1/6 1/5 1/10 1/5 1 0 0 0 7/30 7/30 1/5 2/15 1/6 1 0 0
@@ -1168,10 +1165,7 @@ end
         stateptr = [Int32[1]; convert.(Int32, 1 .+ collect(1:num_states))]
         implicit_mdp = OrthogonalIntervalMarkovDecisionProcess(prob, stateptr)
 
-        prop = FiniteTimeSafety(
-            [(i, 3, j) for i = 1:3 for j = 1:3],
-            10,
-        )
+        prop = FiniteTimeSafety([(i, 3, j) for i in 1:3 for j in 1:3], 10)
         spec = Specification(prop, Pessimistic, Maximize)
         prob = Problem(mdp, spec)
         implicit_prob = Problem(implicit_mdp, spec)
@@ -1275,10 +1269,7 @@ end
         stateptr = [Int32[1]; convert.(Int32, 1 .+ collect(1:num_states))]
         implicit_mdp = OrthogonalIntervalMarkovDecisionProcess(prob, stateptr)
 
-        prop = FiniteTimeSafety(
-            [(i, j, 3) for i = 1:3 for j = 1:3],
-            10,
-        )
+        prop = FiniteTimeSafety([(i, j, 3) for i in 1:3 for j in 1:3], 10)
         spec = Specification(prop, Pessimistic, Maximize)
         prob = Problem(mdp, spec)
         implicit_prob = Problem(implicit_mdp, spec)

@@ -1,7 +1,6 @@
 using Revise, Test
 using IntervalMDP
 
-
 prob1 = IntervalProbabilities(;
     lower = sparse([
         0.0 0.5
@@ -28,15 +27,18 @@ prob2 = IntervalProbabilities(;
     ]),
 )
 
-prob3 = IntervalProbabilities(; lower = sparse([
-    0.0
-    0.0
-    1.0
-][:, :]), upper = sparse([
-    0.0
-    0.0
-    1.0
-][:, :]))
+prob3 = IntervalProbabilities(;
+    lower = sparse([
+        0.0
+        0.0
+        1.0
+    ][:, :]),
+    upper = sparse([
+        0.0
+        0.0
+        1.0
+    ][:, :]),
+)
 
 transition_probs = [prob1, prob2, prob3]
 istates = [Int32(1)]
