@@ -32,11 +32,11 @@ function IntervalMDP.bellman!(
     # - squeeze as many states as possible in a block
     # - use shared memory to store the values and permutation
     # - use bitonic sort to sort the values for all states in a block
-    wanted_threads = min(1024, 32 * length(Vres))
+    wanted_threads = min(1024, 32 * num_source(prob))
 
     threads = min(max_threads, wanted_threads)
     warps = div(threads, 32)
-    blocks = min(2^16 - 1, cld(length(Vres), warps))
+    blocks = min(2^16 - 1, cld(num_source(prob), warps))
     shmem =
         length(V) * (sizeof(Int32) + sizeof(Tv)) +
         warps * workspace.max_actions * sizeof(Tv)
@@ -132,7 +132,7 @@ end
     wid = fld1(threadIdx().x, warpsize())
 
     j = wid + (blockIdx().x - one(Int32)) * warps
-    @inbounds while j <= length(Vres)
+    @inbounds while j <= num_source(prob)
         state_dense_omaximization!(
             action_workspace,
             strategy_cache,

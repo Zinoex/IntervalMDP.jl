@@ -151,15 +151,23 @@ function checksize_imdp!(p::IntervalProbabilities, stateptr::AbstractVector{Int3
         throw(ArgumentError("The number of actions per state must be positive."))
     end
 
-    if num_target(p) != num_states
+    if num_states > num_target(p)
         throw(
             DimensionMismatch(
-                "The number of target states ($(num_target(p))) is not equal to the number of states in the stateptr $(num_states).",
+                "The number of target states ($(num_target(p))) is less than the number of states in the stateptr $(num_states).",
             ),
         )
     end
 
-    return Int32(num_states)
+    if stateptr[end] - 1 != num_source(p)
+        throw(
+            DimensionMismatch(
+                "The number of source states ($(num_source(p))) must be equal to the number of states in the stateptr $(num_states).",
+            ),
+        )
+    end
+
+    return Int32(num_target(p))
 end
 
 """
