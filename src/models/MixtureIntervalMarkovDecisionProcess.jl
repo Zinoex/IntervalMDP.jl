@@ -165,3 +165,4 @@ max_actions(mdp::MixtureIntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp))
 Base.ndims(::MixtureIntervalMarkovDecisionProcess{N}) where {N} = Int32(N)
 product_num_states(mp::MixtureIntervalMarkovDecisionProcess) =
     num_target(transition_prob(mp))
+source_shape(mp::MixtureIntervalMarkovDecisionProcess) = source_shape(transition_prob(mp))

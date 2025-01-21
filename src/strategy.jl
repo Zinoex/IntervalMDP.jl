@@ -123,7 +123,7 @@ depends on the configuration and the device to store the strategy depends on the
 function construct_strategy_cache end
 
 construct_strategy_cache(mp::IntervalMarkovProcess, config, strategy = NoStrategy()) =
-    construct_strategy_cache(mp, config, strategy, product_num_states(mp))
+    construct_strategy_cache(mp, config, strategy, source_shape(mp))
 
 # Strategy cache for applying given policies - useful for dispatching
 struct GivenStrategyCache{S <: AbstractStrategy} <: NonOptimizingStrategyCache

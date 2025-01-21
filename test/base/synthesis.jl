@@ -107,3 +107,46 @@ end
 
 # The last time step (aka. the first value iteration step) has a different strategy.
 @test policy[time_length(policy)] == [2, 1, 1]
+
+@testset "implicit sink state" begin
+    prob1 = IntervalProbabilities(;
+        lower = [
+            0.0 0.5
+            0.1 0.3
+            0.2 0.1
+        ],
+        upper = [
+            0.5 0.7
+            0.6 0.5
+            0.7 0.3
+        ],
+    )
+
+    prob2 = IntervalProbabilities(;
+        lower = [
+            0.1 0.2
+            0.2 0.3
+            0.3 0.4
+        ],
+        upper = [
+            0.6 0.6
+            0.5 0.5
+            0.4 0.4
+        ],
+    )
+
+    transition_probs = [prob1, prob2]
+    mdp = IntervalMarkovDecisionProcess(transition_probs)
+
+    # Finite time reachability
+    prop = FiniteTimeReachability([3], 10)
+    spec = Specification(prop, Pessimistic, Maximize)
+    problem = Problem(mdp, spec)
+    policy, V, k, res = control_synthesis(problem)
+
+    @test policy isa TimeVaryingStrategy
+    @test time_length(policy) == 10
+    for k in 1:time_length(policy)
+        @test policy[k] == [1, 2]
+    end
+end

@@ -182,3 +182,4 @@ stateptr(mdp::IntervalMarkovDecisionProcess) = mdp.stateptr
 max_actions(mdp::IntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp))
 Base.ndims(::IntervalMarkovDecisionProcess) = one(Int32)
 product_num_states(mp::IntervalMarkovDecisionProcess) = (num_states(mp),)
+source_shape(mp::IntervalMarkovDecisionProcess) = (length(stateptr(mp)) - 1,)
