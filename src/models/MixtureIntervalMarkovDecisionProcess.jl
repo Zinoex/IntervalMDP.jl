@@ -140,10 +140,10 @@ function checksize_imdp!(p::MixtureIntervalProbabilities, stateptr::AbstractVect
         throw(ArgumentError("The number of actions per state must be positive."))
     end
 
-    if prod(num_target, first(p)) != num_states
+    if prod(num_target, first(p)) > num_states
         throw(
             DimensionMismatch(
-                "The number of target states ($(prod(num_target, first(p))) = $(map(num_target, first(p)))) is not equal to the number of states in the problem $(num_states).",
+                "The number of target states ($(prod(num_target, first(p))) = $(map(num_target, first(p)))) is less than the number of states in the problem $(num_states).",
             ),
         )
     end
