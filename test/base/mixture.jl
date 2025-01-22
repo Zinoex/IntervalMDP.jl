@@ -239,8 +239,8 @@ end
     num_choices = num_states * num_actions
 
     prob_lower1 = [
-        rand(rng, Float64, num_extended_states_per_axis, num_choices) ./ num_extended_states_per_axis for
-        _ in 1:num_axis
+        rand(rng, Float64, num_extended_states_per_axis, num_choices) ./
+        num_extended_states_per_axis for _ in 1:num_axis
     ]
     prob_upper1 = [
         (rand(rng, Float64, num_extended_states_per_axis, num_choices) .+ 1.0) ./
@@ -260,11 +260,13 @@ end
         ),
     )
 
-    prob_lower2 =
-        [rand(rng, Float64, num_extended_states_per_axis, num_choices) ./ num_extended_states_per_axis for _ in 1:num_axis]
+    prob_lower2 = [
+        rand(rng, Float64, num_extended_states_per_axis, num_choices) ./
+        num_extended_states_per_axis for _ in 1:num_axis
+    ]
     prob_upper2 = [
-        (rand(rng, Float64, num_extended_states_per_axis, num_choices) .+ 1.0) ./ num_extended_states_per_axis for
-        _ in 1:num_axis
+        (rand(rng, Float64, num_extended_states_per_axis, num_choices) .+ 1.0) ./
+        num_extended_states_per_axis for _ in 1:num_axis
     ]
 
     probs2 = OrthogonalIntervalProbabilities(
@@ -292,7 +294,11 @@ end
     mdp = MixtureIntervalMarkovDecisionProcess(mixture_probs, stateptr)
 
     prop = FiniteTimeReachability(
-        [(num_extended_states_per_axis, num_extended_states_per_axis, num_extended_states_per_axis)],
+        [(
+            num_extended_states_per_axis,
+            num_extended_states_per_axis,
+            num_extended_states_per_axis,
+        )],
         10,
     )
     spec = Specification(prop, Pessimistic, Maximize)

@@ -1,7 +1,7 @@
 name = "IntervalMDP"
 uuid = "051c988a-e73c-45a4-90ec-875cac0402c7"
 authors = ["Frederik Baymler Mathiesen <frederik@baymler.com> and contributors"]
-version = "0.4.3"
+version = "0.4.4"
 
 [deps]
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
