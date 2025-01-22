@@ -232,18 +232,19 @@ end
     rng = MersenneTwister(3286)
 
     num_states_per_axis = 3
+    num_extended_states_per_axis = num_states_per_axis + 1
     num_axis = 3
     num_states = num_states_per_axis^num_axis
     num_actions = 2
     num_choices = num_states * num_actions
 
     prob_lower1 = [
-        rand(rng, Float64, num_states_per_axis, num_choices) ./ num_states_per_axis for
+        rand(rng, Float64, num_extended_states_per_axis, num_choices) ./ num_extended_states_per_axis for
         _ in 1:num_axis
     ]
     prob_upper1 = [
-        (rand(rng, Float64, num_states_per_axis, num_choices) .+ 1.0) ./
-        num_states_per_axis for _ in 1:num_axis
+        (rand(rng, Float64, num_extended_states_per_axis, num_choices) .+ 1.0) ./
+        num_extended_states_per_axis for _ in 1:num_axis
     ]
 
     probs1 = OrthogonalIntervalProbabilities(
@@ -260,9 +261,9 @@ end
     )
 
     prob_lower2 =
-        [rand(rng, Float64, 3, num_choices) ./ num_states_per_axis for _ in 1:num_axis]
+        [rand(rng, Float64, num_extended_states_per_axis, num_choices) ./ num_extended_states_per_axis for _ in 1:num_axis]
     prob_upper2 = [
-        (rand(rng, Float64, 3, num_choices) .+ 1.0) ./ num_states_per_axis for
+        (rand(rng, Float64, num_extended_states_per_axis, num_choices) .+ 1.0) ./ num_extended_states_per_axis for
         _ in 1:num_axis
     ]
 
@@ -291,7 +292,7 @@ end
     mdp = MixtureIntervalMarkovDecisionProcess(mixture_probs, stateptr)
 
     prop = FiniteTimeReachability(
-        [(num_states_per_axis, num_states_per_axis, num_states_per_axis)],
+        [(num_extended_states_per_axis, num_extended_states_per_axis, num_extended_states_per_axis)],
         10,
     )
     spec = Specification(prop, Pessimistic, Maximize)

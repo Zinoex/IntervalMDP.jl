@@ -625,9 +625,9 @@ Base.@propagate_inbounds function orthogonal_sparse_inner_bellman!(
     return dot(V, lower) + gap_value(Vp_workspace, sum_lower)
 end
 
-################################################################
-# Bellman operator for MixturelIntervalMarkovDecisionProcess #
-################################################################
+#############################################################
+# Bellman operator for MixtureIntervalMarkovDecisionProcess #
+#############################################################
 bellman_precomputation!(workspace::MixtureWorkspace, V, prob, upper_bound) =
     bellman_precomputation!(workspace.orthogonal_workspace, V, prob, upper_bound)
 
