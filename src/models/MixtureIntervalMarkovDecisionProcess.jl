@@ -148,7 +148,7 @@ function checksize_imdp!(p::MixtureIntervalProbabilities, stateptr::AbstractVect
         )
     end
 
-    return Int32(num_states)
+    return Int32(prod(num_target, first(p)))
 end
 
 """
