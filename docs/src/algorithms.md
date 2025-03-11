@@ -68,7 +68,7 @@ function minimize_feasible_dist(V, system, s)
 
     # Initialize distribution to lower bounds
     p = lower_bounds(system, s)
-    rem = sum(p)
+    rem = 1 - sum(p)
 
     # Assign upper bounds to states with smallest values
     # until remaining mass is zero
