@@ -1,22 +1,48 @@
+"""
+    DFA{
+        T <: TransitionFunction,  
+        VT <: AbstractVector{Int32},
+        DA <: AbstractDict{String, Int32}
+    }
 
+A type representing Deterministic Finite Automata (DFA) which are finite automata with deterministic transitions.
+
+Formally, let ``(Z, 2^{AP}, \\tau, z_0, Z_{ac})`` be an DFA, where 
+- ``Z`` is the set of states,
+- ``Z_{ac} \\subseteq Z`` is the set of accepting states,
+- ``z_0`` is the initial state,
+- ``2^{AP}`` is the power set of automic propositions, and
+- ``\\tau : |Z| \\times |2^{AP}| => |Z|`` is the deterministic transition function, for each state-input pair.
+
+Then the ```DFA``` type is defined as follows: indices `1:num_states` are the states in ``Z``, 
+`transition` represents ``\\tau``, inputs are implicitly defined by indices enumerating the alphabet, and `initial_states` is the set of initial states ``z_0``. 
+See [TransitionFunction](@ref) for more information on the structure of the transition function.
+
+### Fields
+- `transition::T`: transition function where columns represent inputs and rows source states.
+- `initial_state::Int32`: initial states.
+- `accepting_states::VT`: vector of accepting states
+- `alphabetptr::DA`: mapping from input to index.
+
+"""
 
 struct DFA{
     T <: TransitionFunction,  
     VT <: AbstractVector{Int32},
     DA <: AbstractDict{String, Int32}
 } <: DeterministicAutomata
-    transition::T # Z x 2^Y => Z   
+    transition::T # : |Z| x |2^{AP}| => |Z|   
     initial_state::Int32 #z0
-    accepting_state::VT #Z_ac
+    accepting_states::VT #Z_ac
     alphabetptr::DA
 end
 
-
+                              
 
 function DFA(
     transition::TransitionFunction,
     initial_state::Int32,
-    accepting_state::AbstractVector{Int32}
+    accepting_states::AbstractVector{Int32}
     alphabet::AbstractVector{String},
 )
     checkdfa!(transition, initial_state, accepting_state, alphabet) 
@@ -39,17 +65,14 @@ end
 function letters2alphabet(
     letters::AbstractVector{String},
 )   
-    N = length(letters);
+
     alphabet = [""]; #already add empty set
 
     for letter in letters
-        alphabet = vcat(alphabet, [string(word, letter) for word in alphabet])
+        append!(alphabet, string.(alphabet, letter))
     end 
 
-    idxs = collect(1:2^N); # powerset cardinality 2^n 
-    
-    alphabet_idx = Dict{String, Int32}(zip(alphabet, idxs)); 
-    return alphabet_idx
+    return alphabet2index(alphabet)
 end
 
 """
@@ -80,3 +103,5 @@ function checkdfa!(transition::TransitionFunction,
     @assert initial_state .>= 1 "initial state exists"
     @assert initial_state .<= size(transition.transition, 2) "initial state exists"
 end
+
+#TODO add accessor methods 
