@@ -5,7 +5,7 @@
         DA <: AbstractDict{String, Int32}
     }
 
-A type representing Deterministic Finite Automata (DFA) which are finite automata with deterministic transitions.
+A type representing Deterministic Finite Automaton (DFA) which are finite automata with deterministic transitions.
 
 Formally, let ``(Z, 2^{AP}, \\tau, z_0, Z_{ac})`` be an DFA, where 
 - ``Z`` is the set of states,
@@ -27,10 +27,10 @@ See [TransitionFunction](@ref) for more information on the structure of the tran
 """
 
 struct DFA{
-    T <: TransitionFunction,  
+    T <: TransitionFunction,
     VT <: AbstractVector{Int32},
-    DA <: AbstractDict{String, Int32}
-} <: DeterministicAutomata
+    DA <: AbstractDict{String, Int32},
+} <: DeterministicAutomaton
     transition::T # : |Z| x |2^{AP}| => |Z|   
     initial_state::Int32 #z0
     accepting_states::VT #Z_ac
@@ -39,15 +39,13 @@ struct DFA{
     num_alphabet::Int32
 end
 
-                              
-
 function DFA(
     transition::TransitionFunction,
     initial_state::Int32,
-    accepting_states::AbstractVector{Int32}
+    accepting_states::AbstractVector{Int32},
     alphabet::AbstractVector{String},
 )
-    checkdfa!(transition, initial_state, accepting_state, alphabet) 
+    checkdfa!(transition, initial_state, accepting_states, alphabet)
 
     alphabetptr, num_alphabet = alphabet2index(alphabet)
 
@@ -55,28 +53,24 @@ function DFA(
 
     return DFA(
         transition,
-        initial_states,
-        accepting_state,
+        initial_state,
+        accepting_states,
         alphabetptr,
         num_states,
         num_alphabet,
     )
 end
 
-
 """
     Given vector of letters L, compute power set 2^L 
     Returns the alphabet (powerset) and corresponding index as Dictionary
 """
-function letters2alphabet(
-    letters::AbstractVector{String},
-)   
-
-    alphabet = [""]; #already add empty set
+function letters2alphabet(letters::AbstractVector{String})
+    alphabet = [""] #already add empty set
 
     for letter in letters
         append!(alphabet, string.(alphabet, letter))
-    end 
+    end
 
     return alphabet2index(alphabet)
 end
@@ -86,22 +80,22 @@ end
     Returns dictionary, assume same indices used in Transition function.
 """
 function alphabet2index(alphabet::AbstractVector{String})
-    N = length(alphabet);
-    idxs = collect(1:N);
+    N = length(alphabet)
+    idxs = collect(1:N)
 
-    alphabet_idx = Dict{String, Int32}(zip(alphabet, idxs)); 
+    alphabet_idx = Dict{String, Int32}(zip(alphabet, idxs))
     return alphabet_idx, N
 end
-
 
 """
 Check given dfa valid
 """
-function checkdfa!(transition::TransitionFunction,
-                    initial_state::Int32,
-                    accepting_state::AbstractVector{Int32}
-                    alphabet::AbstractVector{String},
-                    )
+function checkdfa!(
+    transition::TransitionFunction,
+    initial_state::Int32,
+    accepting_states::AbstractVector{Int32},
+    alphabet::AbstractVector{String},
+)
     # check z0 and Z_ac in Z, check size(alphabet) == size(transition dim)
     # @assert size(transition.transition, 1) == length(alphabet) "size of alphabet match"
     # @assert all(accepting_state .>= 1) "all accepting states exists"
@@ -109,41 +103,94 @@ function checkdfa!(transition::TransitionFunction,
     # @assert initial_state .>= 1 "initial state exists"
     # @assert initial_state .<= size(transition.transition, 2) "initial state exists"
 
-
     if size(transition.transition, 1) != length(alphabet)
         throw(
-            throw(DimensionMismatch("The size of alphabet ($(length(alphabet))) is not equal to the size of the transition column $(size(transition.transition, 1))",))
+            throw(
+                DimensionMismatch(
+                    "The size of alphabet ($(length(alphabet))) is not equal to the size of the transition column $(size(transition.transition, 1))",
+                ),
+            ),
         )
     end
 
-    if !all(accepting_state .>= 1)
-        throw(
-            throw(ArgumentError("Next state index cannot be zero or negative"))
-        )
+    if !all(accepting_states .>= 1)
+        throw(throw(ArgumentError("Next state index cannot be zero or negative")))
     end
 
-    if !all(accepting_state .<= size(transition.transition, 2))
+    if !all(accepting_states .<= size(transition.transition, 2))
         throw(
-            throw(ArgumentError("Next state index cannot be larger than total number of states"))
+            throw(
+                ArgumentError(
+                    "Next state index cannot be larger than total number of states",
+                ),
+            ),
         )
     end
 
     if initial_state < 1
-        throw(
-            throw(ArgumentError("Initial state index cannot be zero or negative"))
-        )
+        throw(throw(ArgumentError("Initial state index cannot be zero or negative")))
     end
 
     if initial_state > size(transition.transition, 2)
         throw(
-            throw(ArgumentError("Initial state index cannot be larger than total number of states"))
+            throw(
+                ArgumentError(
+                    "Initial state index cannot be larger than total number of states",
+                ),
+            ),
         )
     end
-
-    
 end
 
 function getsize_dfa!(transition)
     return size(transition.transition, 2)
+end
 
-#TODO add accessor methods 
+"""
+    transition(dfa::DFA)
+
+Return the transition object of the Deterministic Finite Automaton. 
+"""
+transition(dfa::DFA) = dfa.transition
+
+"""
+    size(dfa::DFA)
+
+Return ``|Z|`` and ``|2^{AP}|`` of the Deterministic Finite Automaton. 
+"""
+size(dfa::DFA) = (dfa.num_states, dfa.num_alphabet)
+
+"""
+    alphabetptr(dfa::DFA)
+
+Return the alphabet (``2^{AP}``) index mapping of the Deterministic Finite Automaton. 
+"""
+alphabetptr(dfa::DFA) = dfa.alphabetptr
+
+"""
+    initial_state(dfa::DFA)
+
+Return the initial state of the Deterministic Finite Automaton. 
+"""
+initial_state(dfa::DFA) = dfa.initial_state
+
+"""
+    accepting_states(dfa::DFA)
+
+Return the accepting states of the Deterministic Finite Automaton. 
+"""
+accepting_states(dfa::DFA) = dfa.accepting_states
+
+"""
+    getindex(dfa::DFA, z::Int, w::Int)
+
+Return the the next state for source state ``z`` and int input ``w`` of the Deterministic Finite Automaton. 
+"""
+getindex(dfa::DFA, z::Int, w::Int) = getindex(dfa.transition, z, w)
+
+"""
+    getindex(dfa::DFA, z::Int, w::String)
+
+Return the the next state for source state ``z`` and string input ``w`` of the Deterministic Finite Automaton. 
+"""
+getindex(dfa::DFA, z::Int, w::String) = getindex(dfa.transition, z, dfa.alphabetptr[w])

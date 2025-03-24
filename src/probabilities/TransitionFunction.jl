@@ -17,19 +17,22 @@ Then the ```TransitionFunction``` type is defined as matrix which stores the map
 
 """
 
-struct TransitionFunction{T<:Unsigned, MT <: AbstractMatrix{T}}
+struct TransitionFunction{T <: Unsigned, MT <: AbstractMatrix{T}}
     transition::MT
-end
 
-function TransitionFunction(transition::MT) where {T<:Unsigned, MT <: AbstractMatrix{T}}
+    function TransitionFunction(
+        transition::MT,
+    ) where {T <: Unsigned, MT <: AbstractMatrix{T}}
+        checktransition!(transition)
 
-    checktransition!(transition) 
-
-    return TransitionFunction(transition)
+        return TransitionFunction{T, MT}(transition)
+    end
 end
 
 """
-Check given transition func valid
+    checktransition!(transition::AbstractMatrix)
+
+Check given transition function is valid, will throw arguments if violations found. 
 """
 function checktransition!(transition::AbstractMatrix)
     # check only transition to valid states
@@ -37,14 +40,23 @@ function checktransition!(transition::AbstractMatrix)
     # @assert all(transition .<= size(transition, 2)) "all transitioned states exists"
 
     if !all(transition .>= 1)
-        throw(
-            throw(ArgumentError("Transitioned state index cannot be zero or negative"))
-        )
+        throw(throw(ArgumentError("Transitioned state index cannot be zero or negative")))
     end
 
     if !all(transition .<= size(transition, 2))
         throw(
-            throw(ArgumentError("Transitioned state index cannot be larger than total number of states"))
+            throw(
+                ArgumentError(
+                    "Transitioned state index cannot be larger than total number of states",
+                ),
+            ),
         )
     end
 end
+
+"""
+    transition(transition_func::TransitionFunction)
+
+Return the transition matrix of the transition function. 
+"""
+transition(transition_func::TransitionFunction) = transition_func.transition

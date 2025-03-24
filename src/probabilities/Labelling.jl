@@ -21,16 +21,14 @@ Then the ```LabellingFunction``` type is defined as vector which stores the mapp
 
 """
 
-struct LabellingFunction{T<:Unsigned, VT <: AbstractVector{T}
-} <: AbstractLabelling
-    map::VT,
-    num_inputs::Int32,
-    num_outputs::Int32,
+struct LabellingFunction{T <: Unsigned, AT <: AbstractArray{T}} <: AbstractLabelling
+    map::AT
+    num_inputs::Int32
+    num_outputs::Int32
 end
 
-function LabellingFunction(map::VT) where {T<:Unsigned, VT <: AbstractVector{T}}
-
-    num_inputs, num_outputs = count_mapping!(map) 
+function LabellingFunction(map::AT) where {T <: Unsigned, AT <: AbstractArray{T}}
+    num_inputs, num_outputs = count_mapping(map)
 
     return LabellingFunction(map, num_inputs, num_outputs)
 end
@@ -38,9 +36,24 @@ end
 """
 Find size of input and output space of function
 """
-function count_mapping!(map::AbstractVector)
+function count_mapping(map::AbstractArray)
     num_inputs = length(map)
     num_outputs = maximum(map)
 
     return num_inputs, num_outputs
 end
+
+"""
+    mapping(labelling_func::LabellingFunction)
+
+Return the mapping array of the labelling function. 
+"""
+mapping(labelling_func::LabellingFunction) = labelling_func.map
+
+"""
+    size(labelling_func::LabellingFunction)
+
+Returns ``|S|`` and ``|2^{AP}|`` of the labeling function ``L: S => 2^{AP}`` . 
+"""
+size(labelling_func::LabellingFunction) =
+    (labelling_func.num_inputs, labelling_func.num_outputs)

@@ -33,31 +33,26 @@ struct ProductIntervalMarkovDecisionProcessDFA{
     imdp::M
     dfa::D
     labelling_func::L
-end
 
-function ProductIntervalMarkovDecisionProcessDFA(
-    imdp::IntervalMarkovDecisionProcess,
-    dfa::DFA,
-    labelling_func::AbstractLabelling
-)
-    checklabelling!(transition, initial_state, accepting_state, alphabet) 
-
-    return ProductIntervalMarkovDecisionProcessDFA(
-        imdp,
-        dfa,
-        labelling_func
+    function ProductIntervalMarkovDecisionProcessDFA(
+        imdp::IntervalMarkovDecisionProcess,
+        dfa::DFA,
+        labelling_func::AbstractLabelling,
     )
+        checklabelling!(transition, initial_state, accepting_state, alphabet)
+
+        return ProductIntervalMarkovDecisionProcessDFA(imdp, dfa, labelling_func)
+    end
 end
-
-
 
 """
 Check given imdp, dfa, labelling combination is valid
 """
-function checklabelling!(imdp::IntervalMarkovDecisionProcess,
-                         dfa::DFA,
-                         labelling_func::AbstractLabelling
-                        )
+function checklabelling!(
+    imdp::IntervalMarkovDecisionProcess,
+    dfa::DFA,
+    labelling_func::AbstractLabelling,
+)
 
     # check labelling states (input) match IMDP states
     if labelling_func.num_inputs == imdp.num_states
@@ -79,6 +74,25 @@ function checklabelling!(imdp::IntervalMarkovDecisionProcess,
 
     # check all S in Labelfunc
     # check all 2^{AP} in Label func
-
-
 end
+
+"""
+    imdp(md::ProductIntervalMarkovDecisionProcessDFA)
+
+Return the interval markov decision process of the product 
+"""
+imdp(md::ProductIntervalMarkovDecisionProcessDFA) = md.imdp
+
+"""
+    automaton(md::ProductIntervalMarkovDecisionProcessDFA)
+
+Return the deterministic finite automaton of the product 
+"""
+automaton(md::ProductIntervalMarkovDecisionProcessDFA) = md.dfa
+
+"""
+    labelling_function(md::ProductIntervalMarkovDecisionProcessDFA)
+
+Return the labelling function of the product 
+"""
+labelling_function(md::ProductIntervalMarkovDecisionProcessDFA) = md.labelling_func
