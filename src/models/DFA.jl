@@ -158,7 +158,7 @@ transition(dfa::DFA) = dfa.transition
 
 Return ``|Z|`` and ``|2^{AP}|`` of the Deterministic Finite Automaton. 
 """
-size(dfa::DFA) = (dfa.num_states, dfa.num_alphabet)
+Base.size(dfa::DFA) = (dfa.num_states, dfa.num_alphabet)
 
 """
     alphabetptr(dfa::DFA)

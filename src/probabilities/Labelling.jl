@@ -55,5 +55,5 @@ mapping(labelling_func::LabellingFunction) = labelling_func.map
 
 Returns ``|S|`` and ``|2^{AP}|`` of the labeling function ``L: S => 2^{AP}`` . 
 """
-size(labelling_func::LabellingFunction) =
+Base.size(labelling_func::LabellingFunction) =
     (labelling_func.num_inputs, labelling_func.num_outputs)
