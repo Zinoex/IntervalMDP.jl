@@ -35,6 +35,8 @@ struct DFA{
     initial_state::Int32 #z0
     accepting_states::VT #Z_ac
     alphabetptr::DA
+    num_states::Int32
+    num_alphabet::Int32
 end
 
                               
@@ -47,13 +49,17 @@ function DFA(
 )
     checkdfa!(transition, initial_state, accepting_state, alphabet) 
 
-    alphabetptr = alphabet2index(alphabet)
+    alphabetptr, num_alphabet = alphabet2index(alphabet)
+
+    num_states = getsize_dfa!(transition)
 
     return DFA(
         transition,
         initial_states,
         accepting_state,
-        alphabetptr
+        alphabetptr,
+        num_states,
+        num_alphabet,
     )
 end
 
@@ -84,7 +90,7 @@ function alphabet2index(alphabet::AbstractVector{String})
     idxs = collect(1:N);
 
     alphabet_idx = Dict{String, Int32}(zip(alphabet, idxs)); 
-    return alphabet_idx
+    return alphabet_idx, N
 end
 
 
@@ -97,11 +103,47 @@ function checkdfa!(transition::TransitionFunction,
                     alphabet::AbstractVector{String},
                     )
     # check z0 and Z_ac in Z, check size(alphabet) == size(transition dim)
-    @assert size(transition.transition, 1) == length(alphabet) "size of alphabet match"
-    @assert all(accepting_state .>= 1) "all accepting states exists"
-    @assert all(accepting_state .<= size(transition.transition, 2)) "all accepting states exists"
-    @assert initial_state .>= 1 "initial state exists"
-    @assert initial_state .<= size(transition.transition, 2) "initial state exists"
+    # @assert size(transition.transition, 1) == length(alphabet) "size of alphabet match"
+    # @assert all(accepting_state .>= 1) "all accepting states exists"
+    # @assert all(accepting_state .<= size(transition.transition, 2)) "all accepting states exists"
+    # @assert initial_state .>= 1 "initial state exists"
+    # @assert initial_state .<= size(transition.transition, 2) "initial state exists"
+
+
+    if size(transition.transition, 1) != length(alphabet)
+        throw(
+            throw(DimensionMismatch("The size of alphabet ($(length(alphabet))) is not equal to the size of the transition column $(size(transition.transition, 1))",))
+        )
+    end
+
+    if !all(accepting_state .>= 1)
+        throw(
+            throw(ArgumentError("Next state index cannot be zero or negative"))
+        )
+    end
+
+    if !all(accepting_state .<= size(transition.transition, 2))
+        throw(
+            throw(ArgumentError("Next state index cannot be larger than total number of states"))
+        )
+    end
+
+    if initial_state < 1
+        throw(
+            throw(ArgumentError("Initial state index cannot be zero or negative"))
+        )
+    end
+
+    if initial_state > size(transition.transition, 2)
+        throw(
+            throw(ArgumentError("Initial state index cannot be larger than total number of states"))
+        )
+    end
+
+    
 end
+
+function getsize_dfa!(transition)
+    return size(transition.transition, 2)
 
 #TODO add accessor methods 
