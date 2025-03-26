@@ -98,3 +98,14 @@ reward(spec::InfiniteTimeReward)
 discount(spec::InfiniteTimeReward)
 convergence_eps(spec::InfiniteTimeReward)
 ```
+
+## Hitting time
+
+```@docs
+AbstractHittingTime
+
+ExpectedExitTime
+isfinitetime(spec::ExpectedExitTime)
+safe(spec::ExpectedExitTime)
+convergence_eps(spec::ExpectedExitTime)
+```
