@@ -157,13 +157,46 @@ mdp = IntervalMarkovDecisionProcess(transition_probs)
     end
 
     # Infinite time reward
-    @testset "finite time reward" begin
+    @testset "infinite time reward" begin
         prop = InfiniteTimeReward([2.0, 1.0, 0.0], 0.9, 1e-6)
-        spec = Specification(prop, Optimistic, Minimize)
+        spec = Specification(prop, Pessimistic, Maximize)
         problem = Problem(mdp, spec)
         V_conv, _, u = value_iteration(problem)
         @test maximum(u) <= 1e-6
         @test all(V_conv .>= 0.0)
+    end
+
+    # Expected exit time
+    @testset "expected exit time" begin
+        prop = ExpectedExitTime([1, 2], 1e-6)
+
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V_conv1, _, u = value_iteration(problem)
+        @test maximum(u) <= 1e-6
+        @test all(V_conv1 .>= 0.0)
+        @test V_conv1[3] == 0.0
+
+        spec = Specification(prop, Optimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V_conv2, _, u = value_iteration(problem)
+        @test maximum(u) <= 1e-6
+        @test all(V_conv1 .<= V_conv2)
+        @test V_conv2[3] == 0.0
+
+        spec = Specification(prop, Pessimistic, Minimize)
+        problem = Problem(mdp, spec)
+        V_conv1, _, u = value_iteration(problem)
+        @test maximum(u) <= 1e-6
+        @test all(V_conv1 .>= 0.0)
+        @test V_conv1[3] == 0.0
+
+        spec = Specification(prop, Optimistic, Minimize)
+        problem = Problem(mdp, spec)
+        V_conv2, _, u = value_iteration(problem)
+        @test maximum(u) <= 1e-6
+        @test all(V_conv1 .<= V_conv2)
+        @test V_conv2[3] == 0.0
     end
 end
 
@@ -351,9 +384,25 @@ end
     end
 
     # Infinite time reward
-    @testset "finite time reward" begin
+    @testset "infinite time reward" begin
         prop = InfiniteTimeReward([2.0, 1.0, 0.0], 0.9, 1e-6)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V, k, res = value_iteration(problem)
+
+        problem_implicit = Problem(implicit_mdp, spec)
+        V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+
+        @test V ≈ V_implicit
+        @test k == k_implicit
+        @test res ≈ res_implicit
+    end
+
+    # Expected exit time
+    @testset "expected exit time" begin
+        prop = ExpectedExitTime([1, 2], 1e-6)
         spec = Specification(prop, Optimistic, Minimize)
+
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
 

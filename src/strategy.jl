@@ -21,7 +21,7 @@
 abstract type AbstractStrategy end
 
 struct NoStrategy <: AbstractStrategy end
-checkstrategy!(::NoStrategy, system) = nothing
+checkstrategy(::NoStrategy, system) = nothing
 
 """
     StationaryStrategy
@@ -34,11 +34,11 @@ end
 Base.getindex(strategy::StationaryStrategy, k) = strategy.strategy
 time_length(::StationaryStrategy) = typemax(Int64)
 
-function checkstrategy!(strategy::StationaryStrategy, system)
-    checkstrategy!(strategy.strategy, system)
+function checkstrategy(strategy::StationaryStrategy, system)
+    checkstrategy(strategy.strategy, system)
 end
 
-function checkstrategy!(strategy::AbstractArray, system)
+function checkstrategy(strategy::AbstractArray, system)
     num_actions = stateptr(system)[2:end] .- stateptr(system)[1:(end - 1)]
     if !all(1 .<= vec(strategy) .<= num_actions)
         throw(
@@ -61,9 +61,9 @@ end
 Base.getindex(strategy::TimeVaryingStrategy, k) = strategy.strategy[k]
 time_length(strategy::TimeVaryingStrategy) = length(strategy.strategy)
 
-function checkstrategy!(strategy::TimeVaryingStrategy, system)
+function checkstrategy(strategy::TimeVaryingStrategy, system)
     for strategy_step in strategy.strategy
-        checkstrategy!(strategy_step, system)
+        checkstrategy(strategy_step, system)
     end
 end
 
