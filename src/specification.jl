@@ -760,8 +760,6 @@ Return the convergence threshold of an expected exit time.
 """
 convergence_eps(prop::ExpectedExitTime) = prop.convergence_eps
 
-
-
 ## Problem
 
 """

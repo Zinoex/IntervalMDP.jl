@@ -117,7 +117,6 @@ function IntervalMDP.checkdevice(b::AbstractGPUArray, A::AbstractMatrix)
     @assert false "The reward vector is on the GPU ($(typeof(b))) and the transition matrix is a CPU matrix ($(typeof(A)))."
 end
 
-
 include("cuda/utils.jl")
 include("cuda/array.jl")
 include("cuda/sorting.jl")
