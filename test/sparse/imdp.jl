@@ -401,7 +401,7 @@ end
     # Expected exit time
     @testset "expected exit time" begin
         prop = ExpectedExitTime([1, 2], 1e-6)
-        spec = Specification(prop, Optimistic, Minimize)
+        spec = Specification(prop, Pessimistic, Maximize)
 
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
