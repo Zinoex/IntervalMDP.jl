@@ -7,7 +7,7 @@ Super type for all system Property
 """
 abstract type Property end
 
-function checktimehorizon!(prop, ::AbstractStrategy)
+function checktimehorizon(prop, ::AbstractStrategy)
     if time_horizon(prop) < 1
         throw(
             DomainError(
@@ -18,7 +18,7 @@ function checktimehorizon!(prop, ::AbstractStrategy)
     end
 end
 
-function checktimehorizon!(prop, strategy::TimeVaryingStrategy)
+function checktimehorizon(prop, strategy::TimeVaryingStrategy)
     if time_horizon(prop) < 1
         throw(
             DomainError(
@@ -38,7 +38,7 @@ function checktimehorizon!(prop, strategy::TimeVaryingStrategy)
     end
 end
 
-function checkconvergence!(prop, ::AbstractStrategy)
+function checkconvergence(prop, ::AbstractStrategy)
     if convergence_eps(prop) <= 0
         throw(
             DomainError(
@@ -49,7 +49,7 @@ function checkconvergence!(prop, ::AbstractStrategy)
     end
 end
 
-function checkconvergence!(prop, ::TimeVaryingStrategy)
+function checkconvergence(prop, ::TimeVaryingStrategy)
     throw(
         ArgumentError(
             "time-varying strategies are not supported for infinite time properties.",
@@ -170,9 +170,9 @@ function FiniteTimeReachability(terminal_states::Vector{<:UnionIndex}, time_hori
     return FiniteTimeReachability(terminal_states, time_horizon)
 end
 
-function checkproperty!(prop::FiniteTimeReachability, system, strategy)
-    checktimehorizon!(prop, strategy)
-    checkterminal!(terminal_states(prop), system)
+function checkproperty(prop::FiniteTimeReachability, system, strategy)
+    checktimehorizon(prop, strategy)
+    checkstatebounds(terminal_states(prop), system)
 end
 
 """
@@ -224,9 +224,9 @@ function InfiniteTimeReachability(terminal_states::Vector{<:UnionIndex}, converg
     return InfiniteTimeReachability(terminal_states, convergence_eps)
 end
 
-function checkproperty!(prop::InfiniteTimeReachability, system, strategy)
-    checkconvergence!(prop, strategy)
-    checkterminal!(terminal_states(prop), system)
+function checkproperty(prop::InfiniteTimeReachability, system, strategy)
+    checkconvergence(prop, strategy)
+    checkstatebounds(terminal_states(prop), system)
 end
 
 """
@@ -301,10 +301,10 @@ function FiniteTimeReachAvoid(
     return FiniteTimeReachAvoid(reach, avoid, time_horizon)
 end
 
-function checkproperty!(prop::FiniteTimeReachAvoid, system, strategy)
-    checktimehorizon!(prop, strategy)
-    checkterminal!(terminal_states(prop), system)
-    checkdisjoint!(reach(prop), avoid(prop))
+function checkproperty(prop::FiniteTimeReachAvoid, system, strategy)
+    checktimehorizon(prop, strategy)
+    checkstatebounds(terminal_states(prop), system)
+    checkdisjoint(reach(prop), avoid(prop))
 end
 
 """
@@ -365,10 +365,10 @@ function InfiniteTimeReachAvoid(
     return InfiniteTimeReachAvoid(reach, avoid, convergence_eps)
 end
 
-function checkproperty!(prop::InfiniteTimeReachAvoid, system, strategy)
-    checkconvergence!(prop, strategy)
-    checkterminal!(terminal_states(prop), system)
-    checkdisjoint!(reach(prop), avoid(prop))
+function checkproperty(prop::InfiniteTimeReachAvoid, system, strategy)
+    checkconvergence(prop, strategy)
+    checkstatebounds(terminal_states(prop), system)
+    checkdisjoint(reach(prop), avoid(prop))
 end
 
 """
@@ -407,9 +407,9 @@ Return the set of states to avoid.
 """
 avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
 
-function checkterminal!(terminal_states, system)
+function checkstatebounds(states, system)
     pns = product_num_states(system)
-    for j in terminal_states
+    for j in states
         j = Tuple(j)
 
         if length(j) != length(pns)
@@ -422,7 +422,7 @@ function checkterminal!(terminal_states, system)
     end
 end
 
-function checkdisjoint!(reach, avoid)
+function checkdisjoint(reach, avoid)
     if !isdisjoint(reach, avoid)
         throw(DomainError((reach, avoid), "reach and avoid sets are not disjoint"))
     end
@@ -469,9 +469,9 @@ function FiniteTimeSafety(avoid_states::Vector{<:UnionIndex}, time_horizon)
     return FiniteTimeSafety(avoid_states, time_horizon)
 end
 
-function checkproperty!(prop::FiniteTimeSafety, system, strategy)
-    checktimehorizon!(prop, strategy)
-    checkterminal!(terminal_states(prop), system)
+function checkproperty(prop::FiniteTimeSafety, system, strategy)
+    checktimehorizon(prop, strategy)
+    checkstatebounds(terminal_states(prop), system)
 end
 
 """
@@ -520,9 +520,9 @@ function InfiniteTimeSafety(avoid_states::Vector{<:UnionIndex}, convergence_eps)
     return InfiniteTimeSafety(avoid_states, convergence_eps)
 end
 
-function checkproperty!(prop::InfiniteTimeSafety, system, strategy)
-    checkconvergence!(prop, strategy)
-    checkterminal!(terminal_states(prop), system)
+function checkproperty(prop::InfiniteTimeSafety, system, strategy)
+    checkconvergence(prop, strategy)
+    checkstatebounds(terminal_states(prop), system)
 end
 
 """
@@ -572,8 +572,8 @@ function step_postprocess_value_function!(value_function, prop::AbstractReward)
 end
 postprocess_value_function!(value_function, ::AbstractReward) = value_function
 
-function checkreward!(prop::AbstractReward, system)
-    checkdevice!(reward(prop), system)
+function checkreward(prop::AbstractReward, system)
+    checkdevice(reward(prop), system)
 
     pns = product_num_states(system)
     if size(reward(prop)) != pns
@@ -587,30 +587,6 @@ function checkreward!(prop::AbstractReward, system)
     if discount(prop) <= 0
         throw(DomainError(discount(prop), "the discount factor must be greater than 0"))
     end
-end
-
-function checkdevice!(v::AbstractArray, system::IntervalMarkovProcess)
-    checkdevice!(v, transition_prob(system))
-end
-
-function checkdevice!(v::AbstractArray, p::IntervalProbabilities)
-    # Lower and gap are required to be the same type.
-    checkdevice!(v, lower(p))
-end
-
-function checkdevice!(v::AbstractArray, p::OrthogonalIntervalProbabilities)
-    # All axes of p are required to be the same type.
-    checkdevice!(v, first(pᵢ))
-end
-
-function checkdevice!(v::AbstractArray, p::MixtureIntervalProbabilities)
-    # All mixtures (and weighting_probs) of p are required to be the same type.
-    checkdevice!(v, first(pᵢ))
-end
-
-function checkdevice!(::AbstractArray, ::AbstractMatrix)
-    # Both arguments are on the CPU (technically in RAM).
-    return nothing
 end
 
 """
@@ -630,9 +606,9 @@ struct FiniteTimeReward{R <: Real, AR <: AbstractArray{R}, T <: Integer} <:
     time_horizon::T
 end
 
-function checkproperty!(prop::FiniteTimeReward, system, strategy)
-    checktimehorizon!(prop, strategy)
-    checkreward!(prop, system)
+function checkproperty(prop::FiniteTimeReward, system, strategy)
+    checktimehorizon(prop, strategy)
+    checkreward(prop, system)
 end
 
 """
@@ -676,9 +652,9 @@ struct InfiniteTimeReward{R <: Real, AR <: AbstractArray{R}} <: AbstractReward{R
     convergence_eps::R
 end
 
-function checkproperty!(prop::InfiniteTimeReward, system, strategy)
-    checkconvergence!(prop, strategy)
-    checkreward!(prop, system)
+function checkproperty(prop::InfiniteTimeReward, system, strategy)
+    checkconvergence(prop, strategy)
+    checkreward(prop, system)
 
     if discount(prop) >= 1
         throw(
@@ -717,6 +693,72 @@ discount(prop::InfiniteTimeReward) = prop.discount
 Return the convergence threshold of an infinite time reward optimization.
 """
 convergence_eps(prop::InfiniteTimeReward) = prop.convergence_eps
+
+## Hitting time
+"""
+    AbstractHittingTime
+
+Super type for all HittingTime properties.
+"""
+abstract type AbstractHittingTime <: Property end
+
+postprocess_value_function!(value_function, ::AbstractHittingTime) = value_function
+
+"""
+    ExpectedExitTime{R <: Real, VT <: Vector{<:CartesianIndex}}
+
+`ExpectedExitTime` is a property of HittingTimes ``R : S \\to \\mathbb{R}`` assigned to each state at each iteration
+and a discount factor ``\\gamma``. The time horizon ``H`` is finite, so the discount factor is optional and 
+the optimal policy will be time-varying. Given a strategy ``\\pi : S \\to A``, the property is
+```math
+    V(s_0) = \\mathbb{E}\\left[\\sum_{k=0}^{H} \\gamma^k R(s_k) \\mid s_0, \\pi\\right].
+```
+"""
+struct ExpectedExitTime{R <: Real, VT <: Vector{<:CartesianIndex}} <: AbstractHittingTime
+    safe_states::VT
+    convergence_eps::R
+end
+
+function ExpectedExitTime(safe_states::Vector{<:UnionIndex}, convergence_eps)
+    safe_states = CartesianIndex.(safe_states)
+    return ExpectedExitTime(safe_states, convergence_eps)
+end
+
+function checkproperty(prop::ExpectedExitTime, system, strategy)
+    checkconvergence(prop, strategy)
+    checkstatebounds(safe(prop), system)
+end
+
+function initialize!(value_function, prop::ExpectedExitTime)
+    value_function.previous .= 0.0
+    value_function.previous[safe(prop)] .+= 1.0
+end
+
+function step_postprocess_value_function!(value_function, prop::ExpectedExitTime)
+    value_function.current[safe(prop)] .+= 1.0
+end
+
+"""
+    isfinitetime(prop::ExpectedExitTime)
+
+Return `true` for ExpectedExitTime.
+"""
+isfinitetime(prop::ExpectedExitTime) = false
+
+"""
+    safe(prop::ExpectedExitTime)
+
+Return the set of safe states for which we add a reward of 1 at each time step.
+This is equivalent for [`terminal_states(prop::ExpectedExitTime)`](@ref).
+"""
+safe(prop::ExpectedExitTime) = prop.safe_states
+
+"""
+    convergence_eps(prop::ExpectedExitTime)
+
+Return the convergence threshold of an expected exit time.
+"""
+convergence_eps(prop::ExpectedExitTime) = prop.convergence_eps
 
 ## Problem
 
@@ -775,8 +817,8 @@ step_postprocess_value_function!(value_function, spec::Specification) =
 postprocess_value_function!(value_function, spec::Specification) =
     postprocess_value_function!(value_function, system_property(spec))
 
-function checkspecification!(spec::Specification, system, strategy)
-    return checkproperty!(system_property(spec), system, strategy)
+function checkspecification(spec::Specification, system, strategy)
+    return checkproperty(system_property(spec), system, strategy)
 end
 
 """
@@ -821,8 +863,8 @@ struct Problem{S <: IntervalMarkovProcess, F <: Specification, C <: AbstractStra
         spec::F,
         strategy::C,
     ) where {S <: IntervalMarkovProcess, F <: Specification, C <: AbstractStrategy}
-        checkspecification!(spec, system, strategy)
-        checkstrategy!(strategy, system)
+        checkspecification(spec, system, strategy)
+        checkstrategy(strategy, system)
         return new{S, F, C}(system, spec, strategy)
     end
 end

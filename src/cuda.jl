@@ -26,3 +26,27 @@ function Base.showerror(io::IO, e::OutOfSharedMemory)
         "Please try either the CPU implementation, the (dense) decomposed representation (preferred), or use a larger GPU.",
     )
 end
+
+function checkdevice(v::AbstractArray, system::IntervalMarkovProcess)
+    checkdevice(v, transition_prob(system))
+end
+
+function checkdevice(v::AbstractArray, p::IntervalProbabilities)
+    # Lower and gap are required to be the same type.
+    checkdevice(v, lower(p))
+end
+
+function checkdevice(v::AbstractArray, p::OrthogonalIntervalProbabilities)
+    # All axes of p are required to be the same type.
+    checkdevice(v, first(pᵢ))
+end
+
+function checkdevice(v::AbstractArray, p::MixtureIntervalProbabilities)
+    # All mixtures (and weighting_probs) of p are required to be the same type.
+    checkdevice(v, first(pᵢ))
+end
+
+function checkdevice(::AbstractArray, ::AbstractMatrix)
+    # Both arguments are on the CPU (technically in RAM).
+    return nothing
+end

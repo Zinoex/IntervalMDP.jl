@@ -92,6 +92,31 @@ end
 Adapt.adapt_structure(T::Type{<:IntervalMDP.CuModelAdaptor}, is::AllStates) = is
 Adapt.adapt_structure(T::Type{<:IntervalMDP.CpuModelAdaptor}, is::AllStates) = is
 
+function IntervalMDP.checkdevice(::AbstractGPUArray, ::AbstractGPUMatrix)
+    # Both arguments are on the GPU.
+    return nothing
+end
+
+function IntervalMDP.checkdevice(::AbstractGPUArray, ::AbstractCuSparseMatrix)
+    # Both arguments are on the GPU.
+    return nothing
+end
+
+function IntervalMDP.checkdevice(b::AbstractArray, A::AbstractGPUMatrix)
+    # The first argument is on the CPU (technically in RAM) and the second is on the GPU.
+    @assert false "The reward vector is a CPU array ($(typeof(b))) and the transition matrix is on the GPU ($(typeof(A)))."
+end
+
+function IntervalMDP.checkdevice(b::AbstractArray, A::AbstractCuSparseMatrix)
+    # The first argument is on the CPU (technically in RAM) and the second is on the GPU.
+    @assert false "The reward vector is a CPU array ($(typeof(b))) and the transition matrix is on the GPU ($(typeof(A)))."
+end
+
+function IntervalMDP.checkdevice(b::AbstractGPUArray, A::AbstractMatrix)
+    # The first argument is on the GPU and the second is on the CPU (technically in RAM).
+    @assert false "The reward vector is on the GPU ($(typeof(b))) and the transition matrix is a CPU matrix ($(typeof(A)))."
+end
+
 include("cuda/utils.jl")
 include("cuda/array.jl")
 include("cuda/sorting.jl")
