@@ -707,21 +707,26 @@ postprocess_value_function!(value_function, ::AbstractHittingTime) = value_funct
 """
     ExpectedExitTime{R <: Real, VT <: Vector{<:CartesianIndex}}
 
-`ExpectedExitTime` is a property of HittingTimes ``R : S \\to \\mathbb{R}`` assigned to each state at each iteration
-and a discount factor ``\\gamma``. The time horizon ``H`` is finite, so the discount factor is optional and 
-the optimal policy will be time-varying. Given a strategy ``\\pi : S \\to A``, the property is
+`ExpectedExitTime` is a property of hitting time with respect to an unsafe set. An equivalent
+characterization is that of the expected number of steps in the safe set until reaching the unsafe set.
+The time horizon is infinite, i.e., ``H = \\infty``, thus the package performs value iteration until the value function
+has converged. The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
+As this is an infinite horizon property, the resulting optimal policy will be stationary.
+In formal language, given a strategy ``\\pi : S \\to A`` and an unsafe set ``O``, the property is defined as
 ```math
-    V(s_0) = \\mathbb{E}\\left[\\sum_{k=0}^{H} \\gamma^k R(s_k) \\mid s_0, \\pi\\right].
+    V(s_0) = \\mathbb{E}\\left[\\lvert \\omega_{0:k-1} \\rvert \\mid s_0, \\pi, \\omega_{0:k-1} \\notin O, \\omega_k \\in O \\right]
 ```
+where ``\\omega = s_0 s_1 \\ldots s_k`` is the trajectory of the system, ``\\omega_{0:k-1} = s_0 s_1 \\ldots s_{k-1}`` denotes the subtrajectory
+excluding the final state, and ``\\omega_k = s_k``.
 """
 struct ExpectedExitTime{R <: Real, VT <: Vector{<:CartesianIndex}} <: AbstractHittingTime
-    safe_states::VT
+    avoid_states::VT
     convergence_eps::R
 end
 
-function ExpectedExitTime(safe_states::Vector{<:UnionIndex}, convergence_eps)
-    safe_states = CartesianIndex.(safe_states)
-    return ExpectedExitTime(safe_states, convergence_eps)
+function ExpectedExitTime(avoid_states::Vector{<:UnionIndex}, convergence_eps)
+    avoid_states = CartesianIndex.(avoid_states)
+    return ExpectedExitTime(avoid_states, convergence_eps)
 end
 
 function checkproperty(prop::ExpectedExitTime, system, strategy)
@@ -730,12 +735,13 @@ function checkproperty(prop::ExpectedExitTime, system, strategy)
 end
 
 function initialize!(value_function, prop::ExpectedExitTime)
-    value_function.previous .= 0.0
-    value_function.previous[safe(prop)] .+= 1.0
+    value_function.previous .= 1.0
+    value_function.previous[avoid(prop)] .= 0.0
 end
 
 function step_postprocess_value_function!(value_function, prop::ExpectedExitTime)
-    value_function.current[safe(prop)] .+= 1.0
+    value_function.current .+= 1.0
+    value_function.current[avoid(prop)] .= 0.0
 end
 
 """
@@ -745,13 +751,21 @@ Return `true` for ExpectedExitTime.
 """
 isfinitetime(prop::ExpectedExitTime) = false
 
-"""
-    safe(prop::ExpectedExitTime)
 
-Return the set of safe states for which we add a reward of 1 at each time step.
+"""
+    terminal_states(prop::ExpectedExitTime)
+
+Return the set of terminal states of an expected hitting time property.
+"""
+terminal_states(prop::ExpectedExitTime) = prop.avoid_states
+
+"""
+    avoid(prop::ExpectedExitTime)
+
+Return the set of unsafe states that we compute the expected hitting time with respect to.
 This is equivalent for [`terminal_states(prop::ExpectedExitTime)`](@ref).
 """
-safe(prop::ExpectedExitTime) = prop.safe_states
+avoid(prop::ExpectedExitTime) = prop.avoid_states
 
 """
     convergence_eps(prop::ExpectedExitTime)

@@ -168,7 +168,7 @@ mdp = IntervalMarkovDecisionProcess(transition_probs)
 
     # Expected exit time
     @testset "expected exit time" begin
-        prop = ExpectedExitTime([1, 2], 1e-6)
+        prop = ExpectedExitTime([3], 1e-6)
 
         spec = Specification(prop, Pessimistic, Maximize)
         problem = Problem(mdp, spec)
@@ -400,7 +400,7 @@ end
 
     # Expected exit time
     @testset "expected exit time" begin
-        prop = ExpectedExitTime([1, 2], 1e-6)
+        prop = ExpectedExitTime([3], 1e-6)
         spec = Specification(prop, Pessimistic, Maximize)
 
         problem = Problem(mdp, spec)

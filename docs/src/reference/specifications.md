@@ -18,10 +18,10 @@ StrategyMode
 
 ```@docs
 LTLFormula
-isfinitetime(spec::LTLFormula)
+isfinitetime(prop::LTLFormula)
 LTLfFormula
-isfinitetime(spec::LTLfFormula)
-time_horizon(spec::LTLfFormula)
+isfinitetime(prop::LTLfFormula)
+time_horizon(prop::LTLfFormula)
 PCTLFormula
 ```
 
@@ -31,16 +31,16 @@ PCTLFormula
 AbstractReachability
 
 FiniteTimeReachability
-isfinitetime(spec::FiniteTimeReachability)
-terminal_states(spec::FiniteTimeReachability)
-reach(spec::FiniteTimeReachability)
-time_horizon(spec::FiniteTimeReachability)
+isfinitetime(prop::FiniteTimeReachability)
+terminal_states(prop::FiniteTimeReachability)
+reach(prop::FiniteTimeReachability)
+time_horizon(prop::FiniteTimeReachability)
 
 InfiniteTimeReachability
-isfinitetime(spec::InfiniteTimeReachability)
-terminal_states(spec::InfiniteTimeReachability)
-reach(spec::InfiniteTimeReachability)
-convergence_eps(spec::InfiniteTimeReachability)
+isfinitetime(prop::InfiniteTimeReachability)
+terminal_states(prop::InfiniteTimeReachability)
+reach(prop::InfiniteTimeReachability)
+convergence_eps(prop::InfiniteTimeReachability)
 ```
 
 ## Reach-avoid
@@ -49,18 +49,18 @@ convergence_eps(spec::InfiniteTimeReachability)
 AbstractReachAvoid
 
 FiniteTimeReachAvoid
-isfinitetime(spec::FiniteTimeReachAvoid)
-terminal_states(spec::FiniteTimeReachAvoid)
-reach(spec::FiniteTimeReachAvoid)
-avoid(spec::FiniteTimeReachAvoid)
-time_horizon(spec::FiniteTimeReachAvoid)
+isfinitetime(prop::FiniteTimeReachAvoid)
+terminal_states(prop::FiniteTimeReachAvoid)
+reach(prop::FiniteTimeReachAvoid)
+avoid(prop::FiniteTimeReachAvoid)
+time_horizon(prop::FiniteTimeReachAvoid)
 
 InfiniteTimeReachAvoid
-isfinitetime(spec::InfiniteTimeReachAvoid)
-terminal_states(spec::InfiniteTimeReachAvoid)
-reach(spec::InfiniteTimeReachAvoid)
-avoid(spec::InfiniteTimeReachAvoid)
-convergence_eps(spec::InfiniteTimeReachAvoid)
+isfinitetime(prop::InfiniteTimeReachAvoid)
+terminal_states(prop::InfiniteTimeReachAvoid)
+reach(prop::InfiniteTimeReachAvoid)
+avoid(prop::InfiniteTimeReachAvoid)
+convergence_eps(prop::InfiniteTimeReachAvoid)
 ```
 
 ## Safety
@@ -69,16 +69,16 @@ convergence_eps(spec::InfiniteTimeReachAvoid)
 AbstractSafety
 
 FiniteTimeSafety
-isfinitetime(spec::FiniteTimeSafety)
-terminal_states(spec::FiniteTimeSafety)
-avoid(spec::FiniteTimeSafety)
-time_horizon(spec::FiniteTimeSafety)
+isfinitetime(prop::FiniteTimeSafety)
+terminal_states(prop::FiniteTimeSafety)
+avoid(prop::FiniteTimeSafety)
+time_horizon(prop::FiniteTimeSafety)
 
 InfiniteTimeSafety
-isfinitetime(spec::InfiniteTimeSafety)
-terminal_states(spec::InfiniteTimeSafety)
-avoid(spec::InfiniteTimeSafety)
-convergence_eps(spec::InfiniteTimeSafety)
+isfinitetime(prop::InfiniteTimeSafety)
+terminal_states(prop::InfiniteTimeSafety)
+avoid(prop::InfiniteTimeSafety)
+convergence_eps(prop::InfiniteTimeSafety)
 ```
 
 ## Reward specification
@@ -87,16 +87,16 @@ convergence_eps(spec::InfiniteTimeSafety)
 AbstractReward
 
 FiniteTimeReward
-isfinitetime(spec::FiniteTimeReward)
-reward(spec::FiniteTimeReward)
-discount(spec::FiniteTimeReward)
-time_horizon(spec::FiniteTimeReward)
+isfinitetime(prop::FiniteTimeReward)
+reward(prop::FiniteTimeReward)
+discount(prop::FiniteTimeReward)
+time_horizon(prop::FiniteTimeReward)
 
 InfiniteTimeReward
-isfinitetime(spec::InfiniteTimeReward)
-reward(spec::InfiniteTimeReward)
-discount(spec::InfiniteTimeReward)
-convergence_eps(spec::InfiniteTimeReward)
+isfinitetime(prop::InfiniteTimeReward)
+reward(prop::InfiniteTimeReward)
+discount(prop::InfiniteTimeReward)
+convergence_eps(prop::InfiniteTimeReward)
 ```
 
 ## Hitting time
@@ -105,7 +105,8 @@ convergence_eps(spec::InfiniteTimeReward)
 AbstractHittingTime
 
 ExpectedExitTime
-isfinitetime(spec::ExpectedExitTime)
-safe(spec::ExpectedExitTime)
-convergence_eps(spec::ExpectedExitTime)
+isfinitetime(prop::ExpectedExitTime)
+terminal_states(prop::ExpectedExitTime)
+avoid(prop::ExpectedExitTime)
+convergence_eps(prop::ExpectedExitTime)
 ```
