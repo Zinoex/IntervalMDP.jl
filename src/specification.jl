@@ -731,7 +731,7 @@ end
 
 function checkproperty(prop::ExpectedExitTime, system, strategy)
     checkconvergence(prop, strategy)
-    checkstatebounds(safe(prop), system)
+    checkstatebounds(avoid(prop), system)
 end
 
 function initialize!(value_function, prop::ExpectedExitTime)
