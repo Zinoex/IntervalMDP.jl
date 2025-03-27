@@ -10,3 +10,11 @@ export OrthogonalIntervalMarkovDecisionProcess, OrthogonalIntervalMarkovChain
 
 include("MixtureIntervalMarkovDecisionProcess.jl")
 export MixtureIntervalMarkovDecisionProcess, MixtureIntervalMarkovChain
+
+include("DeterministicAutomaton.jl")
+
+include("DFA.jl")
+
+include("ProductIntervalMarkovProcess.jl")
+
+include("ProductIntervalMarkovDecisionProcess.jl")

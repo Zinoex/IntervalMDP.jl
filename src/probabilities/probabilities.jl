@@ -10,3 +10,7 @@ export OrthogonalIntervalProbabilities
 
 include("MixtureIntervalProbabilities.jl")
 export MixtureIntervalProbabilities, mixture_probs, weighting_probs
+
+include("TransitionFunction.jl")
+
+include("Labelling.jl")
