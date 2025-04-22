@@ -10,7 +10,7 @@ Formally, let ``T : |2^{AP}| \\times |Z| => |Z|`` be a transition function, wher
 - ``Z`` is the set of DFA states, and
 - ``2^{AP}`` is the power set of atomic propositions
 
-Then the ```TransitionFunction``` type is defined as matrix which stores the mapping. The column indices are the alphabet indices and the row indices represent the states.  
+Then the ```TransitionFunction``` type is defined as matrix which stores the mapping. The row indices are the alphabet indices and the column indices represent the states.  
 
 ### Fields
 - `transition::MT`: transition function.
@@ -25,7 +25,7 @@ struct TransitionFunction{T <: Unsigned, MT <: AbstractMatrix{T}}
     ) where {T <: Unsigned, MT <: AbstractMatrix{T}}
         checktransition!(transition)
 
-        return TransitionFunction{T, MT}(transition)
+        return new{T, MT}(transition)
     end
 end
 

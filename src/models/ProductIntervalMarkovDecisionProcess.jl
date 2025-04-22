@@ -26,8 +26,8 @@ See [IntervalMarkovDecisionProcess](@ref) and [DFA](@ref) for more information o
 """
 
 struct ProductIntervalMarkovDecisionProcessDFA{
-    D <: DFA,
     M <: IntervalMarkovDecisionProcess,
+    D <: DFA,
     L <: AbstractLabelling,
 } <: ProductIntervalMarkovProcess
     imdp::M
@@ -35,13 +35,13 @@ struct ProductIntervalMarkovDecisionProcessDFA{
     labelling_func::L
 
     function ProductIntervalMarkovDecisionProcessDFA(
-        imdp::IntervalMarkovDecisionProcess,
-        dfa::DFA,
-        labelling_func::AbstractLabelling,
-    )
+        imdp::M,
+        dfa::D,
+        labelling_func::L,
+    ) where {M <: IntervalMarkovDecisionProcess, D <: DFA, L <: AbstractLabelling}
         checklabelling!(transition, initial_state, accepting_state, alphabet)
 
-        return ProductIntervalMarkovDecisionProcessDFA(imdp, dfa, labelling_func)
+        return new{M, D, L}(imdp, dfa, labelling_func)
     end
 end
 

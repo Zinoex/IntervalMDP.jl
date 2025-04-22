@@ -186,11 +186,11 @@ accepting_states(dfa::DFA) = dfa.accepting_states
 
 Return the the next state for source state ``z`` and int input ``w`` of the Deterministic Finite Automaton. 
 """
-getindex(dfa::DFA, z::Int, w::Int) = getindex(dfa.transition, z, w)
+Base.getindex(dfa::DFA, z::Int, w::Int) = dfa.transition[z, w]
 
 """
     getindex(dfa::DFA, z::Int, w::String)
 
 Return the the next state for source state ``z`` and string input ``w`` of the Deterministic Finite Automaton. 
 """
-getindex(dfa::DFA, z::Int, w::String) = getindex(dfa.transition, z, dfa.alphabetptr[w])
+Base.getindex(dfa::DFA, z::Int, w::String) = dfa[z, dfa.alphabetptr[w]]
