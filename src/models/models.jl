@@ -20,8 +20,7 @@ export DFA,
     transition,
     alphabetptr,
     initial_state,
-    accepting_states,
-    getindex
+    accepting_states
 
 include("ProductIntervalMarkovProcess.jl")
 

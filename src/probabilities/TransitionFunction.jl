@@ -16,7 +16,6 @@ Then the ```TransitionFunction``` type is defined as matrix which stores the map
 - `transition::MT`: transition function.
 
 """
-
 struct TransitionFunction{T <: Unsigned, MT <: AbstractMatrix{T}}
     transition::MT
 

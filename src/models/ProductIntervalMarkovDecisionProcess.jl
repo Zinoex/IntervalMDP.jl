@@ -24,7 +24,6 @@ See [IntervalMarkovDecisionProcess](@ref) and [DFA](@ref) for more information o
 - `dfa::D`: contains details for the DFA
 - `labelling_func::L`: the labelling function from IMDP states to DFA actions
 """
-
 struct ProductIntervalMarkovDecisionProcessDFA{
     M <: IntervalMarkovDecisionProcess,
     D <: DFA,

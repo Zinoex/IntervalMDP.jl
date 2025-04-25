@@ -20,7 +20,6 @@ Then the ```LabellingFunction``` type is defined as vector which stores the mapp
 - `num_outputs::Int32`: number of DFA inputs accounted for in mapping.
 
 """
-
 struct LabellingFunction{T <: Unsigned, AT <: AbstractArray{T}} <: AbstractLabelling
     map::AT
     num_inputs::Int32

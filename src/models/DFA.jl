@@ -25,7 +25,6 @@ See [TransitionFunction](@ref) for more information on the structure of the tran
 - `alphabetptr::DA`: mapping from input to index.
 
 """
-
 struct DFA{
     T <: TransitionFunction,
     VT <: AbstractVector{Int32},
