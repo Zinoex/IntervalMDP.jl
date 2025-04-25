@@ -56,8 +56,8 @@ function DFA(
         initial_state,
         accepting_states,
         alphabetptr,
-        num_states,
-        num_alphabet,
+        Int32(num_states),
+        Int32(num_alphabet),
     )
 end
 
@@ -105,38 +105,34 @@ function checkdfa!(
 
     if size(transition.transition, 1) != length(alphabet)
         throw(
-            throw(
-                DimensionMismatch(
-                    "The size of alphabet ($(length(alphabet))) is not equal to the size of the transition column $(size(transition.transition, 1))",
-                ),
+            DimensionMismatch(
+                "The size of alphabet ($(length(alphabet))) is not equal to the size of the transition column $(size(transition.transition, 1))",
             ),
         )
     end
 
     if !all(accepting_states .>= 1)
-        throw(throw(ArgumentError("Next state index cannot be zero or negative")))
+        throw(ArgumentError("Next state index cannot be zero or negative"))
     end
 
     if !all(accepting_states .<= size(transition.transition, 2))
         throw(
-            throw(
-                ArgumentError(
-                    "Next state index cannot be larger than total number of states",
-                ),
-            ),
+            ArgumentError("Next state index cannot be larger than total number of states"),
         )
     end
 
+    if length(accepting_states) > size(transition.transition, 2)
+        throw(ArgumentError("Invalid Accepting States"))
+    end
+
     if initial_state < 1
-        throw(throw(ArgumentError("Initial state index cannot be zero or negative")))
+        throw(ArgumentError("Initial state index cannot be zero or negative"))
     end
 
     if initial_state > size(transition.transition, 2)
         throw(
-            throw(
-                ArgumentError(
-                    "Initial state index cannot be larger than total number of states",
-                ),
+            ArgumentError(
+                "Initial state index cannot be larger than total number of states",
             ),
         )
     end
@@ -193,4 +189,4 @@ Base.getindex(dfa::DFA, z::Int, w::Int) = dfa.transition[z, w]
 
 Return the the next state for source state ``z`` and string input ``w`` of the Deterministic Finite Automaton. 
 """
-Base.getindex(dfa::DFA, z::Int, w::String) = dfa[z, dfa.alphabetptr[w]]
+Base.getindex(dfa::DFA, z::Int, w::String) = dfa[z, Int(dfa.alphabetptr[w])]

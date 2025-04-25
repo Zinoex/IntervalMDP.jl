@@ -40,15 +40,13 @@ function checktransition!(transition::AbstractMatrix)
     # @assert all(transition .<= size(transition, 2)) "all transitioned states exists"
 
     if !all(transition .>= 1)
-        throw(throw(ArgumentError("Transitioned state index cannot be zero or negative")))
+        throw(ArgumentError("Transitioned state index cannot be zero or negative"))
     end
 
     if !all(transition .<= size(transition, 2))
         throw(
-            throw(
-                ArgumentError(
-                    "Transitioned state index cannot be larger than total number of states",
-                ),
+            ArgumentError(
+                "Transitioned state index cannot be larger than total number of states",
             ),
         )
     end
@@ -60,3 +58,10 @@ end
 Return the transition matrix of the transition function. 
 """
 transition(transition_func::TransitionFunction) = transition_func.transition
+
+"""
+    getindex(tf::TransitionFunction, z::Int, w::Int)
+
+Return the next state for source state ``z`` and int input ``w`` of the transition function. 
+"""
+Base.getindex(tf::TransitionFunction, z::Int, w::Int) = tf.transition[w, z]

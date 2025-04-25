@@ -30,7 +30,7 @@ end
 function LabellingFunction(map::AT) where {T <: Unsigned, AT <: AbstractArray{T}}
     num_inputs, num_outputs = count_mapping(map)
 
-    return LabellingFunction(map, num_inputs, num_outputs)
+    return LabellingFunction(map, Int32(num_inputs), Int32(num_outputs))
 end
 
 """
@@ -57,3 +57,10 @@ Returns ``|S|`` and ``|2^{AP}|`` of the labeling function ``L: S => 2^{AP}`` .
 """
 Base.size(labelling_func::LabellingFunction) =
     (labelling_func.num_inputs, labelling_func.num_outputs)
+
+"""
+    getindex(lf::LabellingFunction, s::Int)
+
+Return the label for state s. 
+"""
+Base.getindex(lf::LabellingFunction, s::Int) = lf.map[s]

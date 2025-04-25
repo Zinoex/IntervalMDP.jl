@@ -7,6 +7,10 @@ test_files = [
     "specification.jl",
     "orthogonal.jl",
     "mixture.jl",
+    "transitionfunc.jl",
+    "dfa.jl",
+    "labelling.jl",
+    "prodimdp.jl",
 ]
 for f in test_files
     @testset "base/$f" include(f)

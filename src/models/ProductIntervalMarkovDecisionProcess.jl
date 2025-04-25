@@ -39,7 +39,7 @@ struct ProductIntervalMarkovDecisionProcessDFA{
         dfa::D,
         labelling_func::L,
     ) where {M <: IntervalMarkovDecisionProcess, D <: DFA, L <: AbstractLabelling}
-        checklabelling!(transition, initial_state, accepting_state, alphabet)
+        checklabelling!(imdp, dfa, labelling_func)
 
         return new{M, D, L}(imdp, dfa, labelling_func)
     end
@@ -55,16 +55,16 @@ function checklabelling!(
 )
 
     # check labelling states (input) match IMDP states
-    if labelling_func.num_inputs == imdp.num_states
+    if labelling_func.num_inputs != imdp.num_states
         throw(
             DimensionMismatch(
-                "The number of IMDP states ($(imdp.num_states)) is not equal to number of mapped states  $(labelling_func.num_inputs) in the labelling function.",
+                "The number of IMDP states $(imdp.num_states) is not equal to number of mapped states  $(labelling_func.num_inputs) in the labelling function.",
             ),
         )
     end
 
     # check state labels (output) match DFA alphabet
-    if labelling_func.num_outputs <= dfa.num_alphabet # not all actions needed to be mapped so can be less but certainly not more
+    if labelling_func.num_outputs > dfa.num_alphabet # not all actions needed to be mapped so can be less but certainly not more
         throw(
             DimensionMismatch(
                 "The number of DFA inputs ($(dfa.num_alphabet)) is not equal to number of mapped states  $(labelling_func.num_outputs) in the labelling function.",

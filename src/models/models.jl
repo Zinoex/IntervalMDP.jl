@@ -14,7 +14,16 @@ export MixtureIntervalMarkovDecisionProcess, MixtureIntervalMarkovChain
 include("DeterministicAutomaton.jl")
 
 include("DFA.jl")
+export DFA,
+    letters2alphabet,
+    alphabet2index,
+    transition,
+    alphabetptr,
+    initial_state,
+    accepting_states,
+    getindex
 
 include("ProductIntervalMarkovProcess.jl")
 
 include("ProductIntervalMarkovDecisionProcess.jl")
+export ProductIntervalMarkovDecisionProcessDFA, imdp, automaton, labelling_function
