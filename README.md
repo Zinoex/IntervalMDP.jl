@@ -71,6 +71,11 @@ V, k, residual = value_iteration(problem)
 
 See [Usage](https://www.baymler.com/IntervalMDP.jl/dev/usage/) for more information about different specifications, using sparse matrices, and CUDA.
 
+## Ecosystem
+Building upon IntervalMDP.jl, we are designing an ecosystem of tools, which current consists of:
+
+- [IntervalMDPAbstractions.jl](https://github.com/Zinoex/IntervalMDPAbstractions.jl) - constructing abstractions of stochastic dynamical systems to verify properties.
+
 ## Copyright notice
 Technische Universiteit Delft hereby disclaims all copyright interest in the program “IntervalMDP.jl” (GPU-accelerated value iteration for Interval Markov Decision Processes) written by the Frederik Baymler Mathiesen. Fred van Keulen, Dean of Mechanical Engineering.
 
