@@ -24,6 +24,13 @@ prop = InfiniteTimeReachability([3], 1e-6)
 @test reach(prop) == [CartesianIndex(3)]
 @test terminal_states(prop) == [CartesianIndex(3)]
 
+prop = ExactTimeReachability([3], 10)
+@test isfinitetime(prop)
+@test time_horizon(prop) == 10
+
+@test reach(prop) == [CartesianIndex(3)]
+@test terminal_states(prop) == [CartesianIndex(3)]
+
 # Reach-avoid
 prop = FiniteTimeReachAvoid([3], [4], 10)
 @test isfinitetime(prop)
@@ -36,6 +43,14 @@ prop = FiniteTimeReachAvoid([3], [4], 10)
 prop = InfiniteTimeReachAvoid([3], [4], 1e-6)
 @test !isfinitetime(prop)
 @test convergence_eps(prop) == 1e-6
+
+@test reach(prop) == [CartesianIndex(3)]
+@test avoid(prop) == [CartesianIndex(4)]
+@test issetequal(terminal_states(prop), [CartesianIndex(3), CartesianIndex(4)])
+
+prop = ExactTimeReachAvoid([3], [4], 10)
+@test isfinitetime(prop)
+@test time_horizon(prop) == 10
 
 @test reach(prop) == [CartesianIndex(3)]
 @test avoid(prop) == [CartesianIndex(4)]
@@ -135,6 +150,30 @@ spec = Specification(prop, Optimistic, Minimize)
         spec = Specification(prop)
         @test_throws DomainError Problem(mc, spec, tv_strat)
 
+        prop = ExactTimeReachability([3], 0)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(mc, spec)
+
+        prop = ExactTimeReachability([3], -1)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(mc, spec)
+
+        prop = ExactTimeReachability([3], 0)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(mc, spec, tv_strat)
+
+        prop = ExactTimeReachAvoid([3], [2], 0)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(mc, spec)
+
+        prop = ExactTimeReachAvoid([3], [2], -1)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(mc, spec)
+
+        prop = ExactTimeReachAvoid([3], [2], 0)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(mc, spec, tv_strat)
+
         prop = FiniteTimeSafety([3], 0)
         spec = Specification(prop)
         @test_throws DomainError Problem(mc, spec)
@@ -175,6 +214,22 @@ spec = Specification(prop, Optimistic, Minimize)
         @test_throws ArgumentError Problem(mc, spec, tv_strat)
 
         prop = FiniteTimeReachAvoid([3], [2], 4)
+        spec = Specification(prop)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+
+        prop = ExactTimeReachability([3], 2)
+        spec = Specification(prop)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+
+        prop = ExactTimeReachability([3], 4)
+        spec = Specification(prop)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+
+        prop = ExactTimeReachAvoid([3], [2], 2)
+        spec = Specification(prop)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+
+        prop = ExactTimeReachAvoid([3], [2], 4)
         spec = Specification(prop)
         @test_throws ArgumentError Problem(mc, spec, tv_strat)
 
@@ -304,6 +359,48 @@ spec = Specification(prop, Optimistic, Minimize)
                 prop = FiniteTimeSafety([(3, 2)], 10) # incorrect dimension
                 spec = Specification(prop)
                 @test_throws StateDimensionMismatch Problem(mc, spec)
+            end
+        end
+
+        @testset "exact time" begin
+            @testset "reachability" begin
+                prop = ExactTimeReachability([4], 10) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(mc, spec)
+
+                prop = ExactTimeReachability([0], 10) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(mc, spec)
+
+                prop = ExactTimeReachability([(3, 2)], 10) # incorrect dimension
+                spec = Specification(prop)
+                @test_throws StateDimensionMismatch Problem(mc, spec)
+            end
+
+            @testset "reach/avoid" begin
+                prop = ExactTimeReachAvoid([4], [2], 10) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(mc, spec)
+
+                prop = ExactTimeReachAvoid([0], [2], 10) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(mc, spec)
+
+                prop = ExactTimeReachAvoid([2], [4], 10) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(mc, spec)
+
+                prop = ExactTimeReachAvoid([2], [0], 10) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(mc, spec)
+
+                prop = ExactTimeReachAvoid([(3, 2)], [(2, 3)], 10) # incorrect dimension
+                spec = Specification(prop)
+                @test_throws StateDimensionMismatch Problem(mc, spec)
+
+                prop = ExactTimeReachAvoid([2], [2], 10) # not disjoint
+                spec = Specification(prop)
+                @test_throws DomainError Problem(mc, spec)
             end
         end
 

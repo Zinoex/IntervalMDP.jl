@@ -92,6 +92,48 @@ mdp = IntervalMarkovDecisionProcess(transition_probs)
         @test V_conv[3] == 1.0
     end
 
+    # Exact time reachability
+    @testset "exact time reachability" begin
+        prop = ExactTimeReachability([3], 10)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V_fixed_it1, k, _ = value_iteration(problem)
+        @test k == 10
+        @test all(V_fixed_it1 .>= 0.0)
+
+        spec = Specification(prop, Optimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V_fixed_it2, k, _ = value_iteration(problem)
+        @test k == 10
+        @test all(V_fixed_it1 .<= V_fixed_it2)
+
+        spec = Specification(prop, Pessimistic, Minimize)
+        problem = Problem(mdp, spec)
+        V_fixed_it1, k, _ = value_iteration(problem)
+        @test k == 10
+        @test all(V_fixed_it1 .>= 0.0)
+
+        spec = Specification(prop, Optimistic, Minimize)
+        problem = Problem(mdp, spec)
+        V_fixed_it2, k, _ = value_iteration(problem)
+        @test k == 10
+        @test all(V_fixed_it1 .<= V_fixed_it2)
+
+        # Compare exact time to finite time
+        prop = ExactTimeReachability([3], 10)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V_fixed_it1, k, _ = value_iteration(problem)
+        @test k == 10
+
+        prop = FiniteTimeReachability([3], 10)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V_fixed_it2, k, _ = value_iteration(problem)
+        @test k == 10
+        @test all(V_fixed_it1 .<= V_fixed_it2)
+    end
+
     # Finite time reach avoid
     @testset "finite time reach/avoid" begin
         prop = FiniteTimeReachAvoid([3], [2], 10)
@@ -138,6 +180,52 @@ mdp = IntervalMarkovDecisionProcess(transition_probs)
         @test all(V_conv .>= 0.0)
         @test V_conv[3] == 1.0
         @test V_conv[2] == 0.0
+    end
+
+    # Exact time reach avoid
+    @testset "exact time reach/avoid" begin
+        prop = ExactTimeReachAvoid([3], [2], 10)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V_fixed_it1, k, _ = value_iteration(problem)
+        @test k == 10
+        @test all(V_fixed_it1 .>= 0.0)
+        @test V_fixed_it1[2] == 0.0
+
+        spec = Specification(prop, Optimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V_fixed_it2, k, _ = value_iteration(problem)
+        @test k == 10
+        @test all(V_fixed_it1 .<= V_fixed_it2)
+        @test V_fixed_it2[2] == 0.0
+
+        spec = Specification(prop, Pessimistic, Minimize)
+        problem = Problem(mdp, spec)
+        V_fixed_it1, k, _ = value_iteration(problem)
+        @test k == 10
+        @test all(V_fixed_it1 .>= 0.0)
+        @test V_fixed_it1[2] == 0.0
+
+        spec = Specification(prop, Optimistic, Minimize)
+        problem = Problem(mdp, spec)
+        V_fixed_it2, k, _ = value_iteration(problem)
+        @test k == 10
+        @test all(V_fixed_it1 .<= V_fixed_it2)
+        @test V_fixed_it2[2] == 0.0
+
+        # Compare exact time to finite time
+        prop = ExactTimeReachAvoid([3], [2], 10)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V_fixed_it1, k, _ = value_iteration(problem)
+        @test k == 10
+
+        prop = FiniteTimeReachAvoid([3], [2], 10)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V_fixed_it2, k, _ = value_iteration(problem)
+        @test k == 10
+        @test all(V_fixed_it1 .<= V_fixed_it2)
     end
 
     # Finite time reward
@@ -281,6 +369,55 @@ end
         @test res ≈ res_implicit
     end
 
+    # Exact time reachability
+    @testset "exact time reachability" begin
+        prop = ExactTimeReachability([3], 10)
+
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V, k, res = value_iteration(problem)
+
+        problem_implicit = Problem(implicit_mdp, spec)
+        V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+
+        @test V ≈ V_implicit
+        @test k == k_implicit
+        @test res ≈ res_implicit
+
+        spec = Specification(prop, Optimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V, k, res = value_iteration(problem)
+
+        problem_implicit = Problem(implicit_mdp, spec)
+        V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+
+        @test V ≈ V_implicit
+        @test k == k_implicit
+        @test res ≈ res_implicit
+
+        spec = Specification(prop, Pessimistic, Minimize)
+        problem = Problem(mdp, spec)
+        V, k, res = value_iteration(problem)
+
+        problem_implicit = Problem(implicit_mdp, spec)
+        V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+
+        @test V ≈ V_implicit
+        @test k == k_implicit
+        @test res ≈ res_implicit
+
+        spec = Specification(prop, Optimistic, Minimize)
+        problem = Problem(mdp, spec)
+        V, k, res = value_iteration(problem)
+
+        problem_implicit = Problem(implicit_mdp, spec)
+        V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+
+        @test V ≈ V_implicit
+        @test k == k_implicit
+        @test res ≈ res_implicit
+    end
+
     # Finite time reach avoid
     @testset "finite time reach/avoid" begin
         prop = FiniteTimeReachAvoid([3], [2], 10)
@@ -335,6 +472,55 @@ end
         prop = InfiniteTimeReachAvoid([3], [2], 1e-6)
         spec = Specification(prop, Pessimistic, Maximize)
 
+        problem = Problem(mdp, spec)
+        V, k, res = value_iteration(problem)
+
+        problem_implicit = Problem(implicit_mdp, spec)
+        V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+
+        @test V ≈ V_implicit
+        @test k == k_implicit
+        @test res ≈ res_implicit
+    end
+
+    # Exact time reach avoid
+    @testset "exact time reach/avoid" begin
+        prop = ExactTimeReachAvoid([3], [2], 10)
+
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V, k, res = value_iteration(problem)
+
+        problem_implicit = Problem(implicit_mdp, spec)
+        V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+
+        @test V ≈ V_implicit
+        @test k == k_implicit
+        @test res ≈ res_implicit
+
+        spec = Specification(prop, Optimistic, Maximize)
+        problem = Problem(mdp, spec)
+        V, k, res = value_iteration(problem)
+
+        problem_implicit = Problem(implicit_mdp, spec)
+        V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+
+        @test V ≈ V_implicit
+        @test k == k_implicit
+        @test res ≈ res_implicit
+
+        spec = Specification(prop, Pessimistic, Minimize)
+        problem = Problem(mdp, spec)
+        V, k, res = value_iteration(problem)
+
+        problem_implicit = Problem(implicit_mdp, spec)
+        V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+
+        @test V ≈ V_implicit
+        @test k == k_implicit
+        @test res ≈ res_implicit
+
+        spec = Specification(prop, Optimistic, Minimize)
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
 

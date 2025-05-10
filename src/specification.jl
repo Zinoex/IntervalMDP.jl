@@ -260,6 +260,67 @@ terminal states differ.
 """
 reach(prop::InfiniteTimeReachability) = prop.terminal_states
 
+"""
+    ExactTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer}
+
+Exact time reachability specified by a set of target/terminal states and a time horizon. 
+That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states and ``H`` is the time horizon,
+the property is 
+```math
+    \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T).
+```
+"""
+struct ExactTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer} <:
+       AbstractReachability
+    terminal_states::VT
+    time_horizon::T
+end
+
+function ExactTimeReachability(terminal_states::Vector{<:UnionIndex}, time_horizon)
+    terminal_states = CartesianIndex.(terminal_states)
+    return ExactTimeReachability(terminal_states, time_horizon)
+end
+
+function checkproperty(prop::ExactTimeReachability, system, strategy)
+    checktimehorizon(prop, strategy)
+    checkstatebounds(terminal_states(prop), system)
+end
+
+function step_postprocess_value_function!(_, ::ExactTimeReachability)
+    return nothing
+end
+
+"""
+    isfinitetime(prop::ExactTimeReachability)
+
+Return `true` for ExactTimeReachability.
+"""
+isfinitetime(prop::ExactTimeReachability) = true
+
+"""
+    time_horizon(prop::ExactTimeReachability)
+
+Return the time horizon of an exact time reachability property.
+"""
+time_horizon(prop::ExactTimeReachability) = prop.time_horizon
+
+"""
+    terminal_states(spec::ExactTimeReachability)
+
+Return the set of terminal states of an exact time reachability property.
+"""
+terminal_states(prop::ExactTimeReachability) = prop.terminal_states
+
+"""
+    reach(prop::ExactTimeReachability)
+
+Return the set of states with which to compute reachbility for an exact time reachability prop.
+This is equivalent for [`terminal_states(prop::ExactTimeReachability)`](@ref) for a regular reachability
+property. See [`ExactTimeReachAvoid`](@ref) for a more complex property where the reachability and
+terminal states differ.
+"""
+reach(prop::ExactTimeReachability) = prop.terminal_states
+
 ## Reach-avoid
 
 """
@@ -406,6 +467,79 @@ reach(prop::InfiniteTimeReachAvoid) = prop.reach
 Return the set of states to avoid.
 """
 avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
+
+"""
+    ExactTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}}, T <: Integer}
+
+Exact time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
+That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states, ``A`` is the set of states to avoid,
+and ``H`` is the time horizon, the property is 
+```math
+    \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T, \\text{ and } \\forall k' = \\{0, \\ldots, k\\}, s_k' \\notin A).
+```
+"""
+struct ExactTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}, T <: Integer} <:
+       AbstractReachAvoid
+    reach::VT
+    avoid::VT
+    time_horizon::T
+end
+
+function ExactTimeReachAvoid(
+    reach::Vector{<:UnionIndex},
+    avoid::Vector{<:UnionIndex},
+    time_horizon,
+)
+    reach = CartesianIndex.(reach)
+    avoid = CartesianIndex.(avoid)
+    return ExactTimeReachAvoid(reach, avoid, time_horizon)
+end
+
+function checkproperty(prop::ExactTimeReachAvoid, system, strategy)
+    checktimehorizon(prop, strategy)
+    checkstatebounds(terminal_states(prop), system)
+    checkdisjoint(reach(prop), avoid(prop))
+end
+
+function step_postprocess_value_function!(value_function, prop::AbstractReachAvoid)
+    @inbounds value_function.current[avoid(prop)] .= 0.0
+end
+
+"""
+    isfinitetime(prop::ExactTimeReachAvoid)
+
+Return `true` for ExactTimeReachAvoid.
+"""
+isfinitetime(prop::ExactTimeReachAvoid) = true
+
+"""
+    time_horizon(prop::ExactTimeReachAvoid)
+
+Return the time horizon of an exact time reach-avoid property.
+"""
+time_horizon(prop::ExactTimeReachAvoid) = prop.time_horizon
+
+"""
+    terminal_states(prop::ExactTimeReachAvoid)
+
+Return the set of terminal states of an exact time reach-avoid property.
+That is, the union of the reach and avoid sets.
+"""
+terminal_states(prop::ExactTimeReachAvoid) = [prop.reach; prop.avoid]
+
+"""
+    reach(prop::ExactTimeReachAvoid)
+
+Return the set of target states.
+"""
+reach(prop::ExactTimeReachAvoid) = prop.reach
+
+"""
+    avoid(prop::ExactTimeReachAvoid)
+
+Return the set of states to avoid.
+"""
+avoid(prop::ExactTimeReachAvoid) = prop.avoid
 
 function checkstatebounds(states, system)
     pns = product_num_states(system)

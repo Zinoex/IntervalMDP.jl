@@ -41,6 +41,13 @@ isfinitetime(prop::InfiniteTimeReachability)
 terminal_states(prop::InfiniteTimeReachability)
 reach(prop::InfiniteTimeReachability)
 convergence_eps(prop::InfiniteTimeReachability)
+
+ExactTimeReachability
+isfinitetime(prop::ExactTimeReachability)
+terminal_states(prop::ExactTimeReachability)
+reach(prop::ExactTimeReachability)
+avoid(prop::ExactTimeReachability)
+time_horizon(prop::ExactTimeReachability)
 ```
 
 ## Reach-avoid
@@ -61,6 +68,13 @@ terminal_states(prop::InfiniteTimeReachAvoid)
 reach(prop::InfiniteTimeReachAvoid)
 avoid(prop::InfiniteTimeReachAvoid)
 convergence_eps(prop::InfiniteTimeReachAvoid)
+
+ExactTimeReachAvoid
+isfinitetime(prop::ExactTimeReachAvoid)
+terminal_states(prop::ExactTimeReachAvoid)
+reach(prop::ExactTimeReachAvoid)
+avoid(prop::ExactTimeReachAvoid)
+time_horizon(prop::ExactTimeReachAvoid)
 ```
 
 ## Safety
