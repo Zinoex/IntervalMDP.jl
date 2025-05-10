@@ -501,7 +501,7 @@ function checkproperty(prop::ExactTimeReachAvoid, system, strategy)
     checkdisjoint(reach(prop), avoid(prop))
 end
 
-function step_postprocess_value_function!(value_function, prop::AbstractReachAvoid)
+function step_postprocess_value_function!(value_function, prop::ExactTimeReachAvoid)
     @inbounds value_function.current[avoid(prop)] .= 0.0
 end
 
