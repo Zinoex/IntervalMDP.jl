@@ -46,7 +46,6 @@ ExactTimeReachability
 isfinitetime(prop::ExactTimeReachability)
 terminal_states(prop::ExactTimeReachability)
 reach(prop::ExactTimeReachability)
-avoid(prop::ExactTimeReachability)
 time_horizon(prop::ExactTimeReachability)
 ```
 
