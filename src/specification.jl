@@ -140,7 +140,7 @@ Super type for all reachability-like properties.
 abstract type AbstractReachability <: Property end
 
 function initialize!(value_function, prop::AbstractReachability)
-    @inbounds value_function.previous[reach(prop)] .= 1.0
+    @inbounds value_function.current[reach(prop)] .= 1.0
 end
 
 function step_postprocess_value_function!(value_function, prop::AbstractReachability)
@@ -572,7 +572,7 @@ Super type for all safety properties.
 abstract type AbstractSafety <: Property end
 
 function initialize!(value_function, prop::AbstractSafety)
-    @inbounds value_function.previous[avoid(prop)] .= -1.0
+    @inbounds value_function.current[avoid(prop)] .= -1.0
 end
 
 function step_postprocess_value_function!(value_function, prop::AbstractSafety)
@@ -697,7 +697,7 @@ Super type for all reward properties.
 abstract type AbstractReward{R <: Real} <: Property end
 
 function initialize!(value_function, prop::AbstractReward)
-    value_function.previous .= reward(prop)
+    value_function.current .= reward(prop)
 end
 
 function step_postprocess_value_function!(value_function, prop::AbstractReward)
@@ -869,8 +869,8 @@ function checkproperty(prop::ExpectedExitTime, system, strategy)
 end
 
 function initialize!(value_function, prop::ExpectedExitTime)
-    value_function.previous .= 1.0
-    value_function.previous[avoid(prop)] .= 0.0
+    value_function.current .= 1.0
+    value_function.current[avoid(prop)] .= 0.0
 end
 
 function step_postprocess_value_function!(value_function, prop::ExpectedExitTime)

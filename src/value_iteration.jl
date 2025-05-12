@@ -100,6 +100,7 @@ function _value_iteration!(
 
     value_function = ValueFunction(problem)
     initialize!(value_function, spec)
+    nextiteration!(value_function)
 
     step!(
         workspace,
