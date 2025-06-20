@@ -8,22 +8,49 @@ That is, if `upper_bound == true` then an upper bound is computed and if `upper_
 bound is computed.
 
 ### Examples
-# TODO: Update example
-
 ```jldoctest
-prob = IntervalProbabilities(;
-    lower = sparse_hcat(
-        SparseVector(15, [4, 10], [0.1, 0.2]),
-        SparseVector(15, [5, 6, 7], [0.5, 0.3, 0.1]),
-    ),
-    upper = sparse_hcat(
-        SparseVector(15, [1, 4, 10], [0.5, 0.6, 0.7]),
-        SparseVector(15, [5, 6, 7], [0.7, 0.5, 0.3]),
-    ),
+prob1 = IntervalProbabilities(;
+    lower = [
+        0.0 0.5
+        0.1 0.3
+        0.2 0.1
+    ],
+    upper = [
+        0.5 0.7
+        0.6 0.5
+        0.7 0.3
+    ],
 )
-model = IntervalMarkovChain(prob)
 
-Vprev = collect(1:15)
+prob2 = IntervalProbabilities(;
+    lower = [
+        0.1 0.2
+        0.2 0.3
+        0.3 0.4
+    ],
+    upper = [
+        0.6 0.6
+        0.5 0.5
+        0.4 0.4
+    ],
+)
+
+prob3 = IntervalProbabilities(; lower = [
+    0.0
+    0.0
+    1.0
+][:, :], upper = [
+    0.0
+    0.0
+    1.0
+][:, :])
+
+transition_probs = [prob1, prob2, prob3]
+istates = [Int32(1)]
+
+model = IntervalMarkovDecisionProcess(transition_probs, istates)
+
+Vprev = [1, 2, 3]
 Vcur = bellman(Vprev, model; upper_bound = false)
 ```
 
@@ -55,21 +82,48 @@ and [`construct_strategy_cache`](@ref) for more details on how to pre-allocate t
 ### Examples
 
 ```jldoctest
-# TODO: Update example
-
-prob = IntervalProbabilities(;
-    lower = sparse_hcat(
-        SparseVector(15, [4, 10], [0.1, 0.2]),
-        SparseVector(15, [5, 6, 7], [0.5, 0.3, 0.1]),
-    ),
-    upper = sparse_hcat(
-        SparseVector(15, [1, 4, 10], [0.5, 0.6, 0.7]),
-        SparseVector(15, [5, 6, 7], [0.7, 0.5, 0.3]),
-    ),
+prob1 = IntervalProbabilities(;
+    lower = [
+        0.0 0.5
+        0.1 0.3
+        0.2 0.1
+    ],
+    upper = [
+        0.5 0.7
+        0.6 0.5
+        0.7 0.3
+    ],
 )
-model = IntervalMarkovChain(prob)
 
-V = collect(1:15)
+prob2 = IntervalProbabilities(;
+    lower = [
+        0.1 0.2
+        0.2 0.3
+        0.3 0.4
+    ],
+    upper = [
+        0.6 0.6
+        0.5 0.5
+        0.4 0.4
+    ],
+)
+
+prob3 = IntervalProbabilities(; lower = [
+    0.0
+    0.0
+    1.0
+][:, :], upper = [
+    0.0
+    0.0
+    1.0
+][:, :])
+
+transition_probs = [prob1, prob2, prob3]
+istates = [Int32(1)]
+
+model = IntervalMarkovDecisionProcess(transition_probs, istates)
+
+V = [1, 2, 3]
 workspace = construct_workspace(model)
 strategy_cache = construct_strategy_cache(NoStrategyConfig())
 Vres = similar(V)
