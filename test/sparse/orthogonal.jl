@@ -20,14 +20,30 @@ for N in [Float32, Float64, Rational{BigInt}]
             ws = construct_workspace(prob)
             strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
             Vres = zeros(N, 2)
-            IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, prob, stateptr(prob); upper_bound = true)
-            @test Vres ≈ N[27//10, 17//10] # [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
+            IntervalMDP._bellman_helper!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                prob,
+                stateptr(prob);
+                upper_bound = true,
+            )
+            @test Vres ≈ N[27 // 10, 17 // 10] # [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
 
             ws = construct_workspace(prob)
             strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
             Vres = zeros(N, 2)
-            IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, prob, stateptr(prob); upper_bound = false)
-            @test Vres ≈ N[17//10, 15//10]  # [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
+            IntervalMDP._bellman_helper!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                prob,
+                stateptr(prob);
+                upper_bound = false,
+            )
+            @test Vres ≈ N[17 // 10, 15 // 10]  # [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
         end
 
         @testset "bellman 3d" begin
@@ -117,24 +133,56 @@ for N in [Float32, Float64, Rational{BigInt}]
                 ws = construct_workspace(prob)
                 strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
                 Vres_dense = zeros(N, 3, 3, 3)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres_dense, V, prob, stateptr(prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres_dense,
+                    V,
+                    prob,
+                    stateptr(prob);
+                    upper_bound = true,
+                )
 
                 ws = construct_workspace(sparse_prob)
                 strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
                 Vres = similar(Vres_dense)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, sparse_prob, stateptr(prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    sparse_prob,
+                    stateptr(prob);
+                    upper_bound = true,
+                )
                 @test Vres ≈ Vres_dense
 
                 ws = IntervalMDP.SparseOrthogonalWorkspace(sparse_prob, 1)
                 strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
                 Vres = similar(Vres_dense)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, sparse_prob, stateptr(prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    sparse_prob,
+                    stateptr(prob);
+                    upper_bound = true,
+                )
                 @test Vres ≈ Vres_dense
 
                 ws = IntervalMDP.ThreadedSparseOrthogonalWorkspace(sparse_prob, 1)
                 strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
                 Vres = similar(Vres_dense)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, sparse_prob, stateptr(prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    sparse_prob,
+                    stateptr(prob);
+                    upper_bound = true,
+                )
                 @test Vres ≈ Vres_dense
             end
 
@@ -143,24 +191,56 @@ for N in [Float32, Float64, Rational{BigInt}]
                 ws = construct_workspace(prob)
                 strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
                 Vres_dense = zeros(N, 3, 3, 3)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres_dense, V, prob, stateptr(prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres_dense,
+                    V,
+                    prob,
+                    stateptr(prob);
+                    upper_bound = false,
+                )
 
                 ws = construct_workspace(sparse_prob)
                 strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
                 Vres = similar(Vres_dense)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, sparse_prob, stateptr(prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    sparse_prob,
+                    stateptr(prob);
+                    upper_bound = false,
+                )
                 @test Vres ≈ Vres_dense
 
                 ws = IntervalMDP.SparseOrthogonalWorkspace(sparse_prob, 1)
                 strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
                 Vres = similar(Vres_dense)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, sparse_prob, stateptr(prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    sparse_prob,
+                    stateptr(prob);
+                    upper_bound = false,
+                )
                 @test Vres ≈ Vres_dense
 
                 ws = IntervalMDP.ThreadedSparseOrthogonalWorkspace(sparse_prob, 1)
                 strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
                 Vres = similar(Vres_dense)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, sparse_prob, stateptr(prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    sparse_prob,
+                    stateptr(prob);
+                    upper_bound = false,
+                )
                 @test Vres ≈ Vres_dense
             end
         end

@@ -139,10 +139,26 @@ function bellman! end
 function bellman!(Vres, V, model; upper_bound = false, maximize = true)
     workspace = construct_workspace(model)
     strategy_cache = NoStrategyCache()
-    return bellman!(workspace, strategy_cache, Vres, V, model; upper_bound = upper_bound, maximize = maximize)
+    return bellman!(
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        model;
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
 end
 
-function bellman!(workspace, strategy_cache, Vres, V, model; upper_bound = false, maximize = true)
+function bellman!(
+    workspace,
+    strategy_cache,
+    Vres,
+    V,
+    model;
+    upper_bound = false,
+    maximize = true,
+)
     return _bellman_helper!(
         workspace,
         strategy_cache,
@@ -336,7 +352,10 @@ Base.@propagate_inbounds function state_action_bellman(
     return dot(V, lowerⱼ) + gap_value(Vp_workspace, used)
 end
 
-Base.@propagate_inbounds function gap_value(Vp::VP, sum_lower) where {T, VP <: AbstractVector{<:Tuple{T, <:Real}}}
+Base.@propagate_inbounds function gap_value(
+    Vp::VP,
+    sum_lower,
+) where {T, VP <: AbstractVector{<:Tuple{T, <:Real}}}
     remaining = one(T) - sum_lower
     res = zero(T)
 

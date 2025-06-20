@@ -18,46 +18,94 @@ for N in [Float32, Float64, Rational{BigInt}]
             V = N[1, 2, 3]
 
             @testset "maximization" begin
-                Vexpected = N[27//10, 17//10]
+                Vexpected = N[27 // 10, 17 // 10]
 
                 ws = construct_workspace(prob)
                 strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
                 Vres = zeros(N, 2)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, prob, stateptr(prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    prob,
+                    stateptr(prob);
+                    upper_bound = true,
+                )
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.DenseOrthogonalWorkspace(prob, 1)
                 strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, prob, stateptr(prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    prob,
+                    stateptr(prob);
+                    upper_bound = true,
+                )
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
                 strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, prob, stateptr(prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    prob,
+                    stateptr(prob);
+                    upper_bound = true,
+                )
                 @test Vres ≈ Vexpected
             end
 
             @testset "minimization" begin
-                Vexpected = N[17//10, 15//10]
+                Vexpected = N[17 // 10, 15 // 10]
 
                 ws = construct_workspace(prob)
                 strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
                 Vres = zeros(N, 2)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, prob, stateptr(prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    prob,
+                    stateptr(prob);
+                    upper_bound = false,
+                )
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.DenseOrthogonalWorkspace(prob, 1)
                 strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, prob, stateptr(prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    prob,
+                    stateptr(prob);
+                    upper_bound = false,
+                )
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
                 strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, prob, stateptr(prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    prob,
+                    stateptr(prob);
+                    upper_bound = false,
+                )
                 @test Vres ≈ Vexpected
             end
         end
@@ -147,7 +195,15 @@ for N in [Float32, Float64, Rational{BigInt}]
                 ws = construct_workspace(prob)
                 strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
                 Vres_first = zeros(N, 3, 3, 3)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres_first, V, prob, stateptr(prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres_first,
+                    V,
+                    prob,
+                    stateptr(prob);
+                    upper_bound = true,
+                )
                 @test all(Vres_first .>= 0.0)
                 @test Vres_first[1, 1, 1] ≈ V111_expected
                 @test Vres_first[2, 2, 2] ≈ V222_expected
@@ -159,13 +215,29 @@ for N in [Float32, Float64, Rational{BigInt}]
                 ws = IntervalMDP.DenseOrthogonalWorkspace(prob, 1)
                 strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
                 Vres = similar(Vres_first)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, prob, stateptr(prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    prob,
+                    stateptr(prob);
+                    upper_bound = true,
+                )
                 @test Vres ≈ Vres_first
 
                 ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
                 strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
                 Vres = similar(Vres_first)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, prob, stateptr(prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    prob,
+                    stateptr(prob);
+                    upper_bound = true,
+                )
                 @test Vres ≈ Vres_first
             end
 
@@ -181,7 +253,15 @@ for N in [Float32, Float64, Rational{BigInt}]
                 ws = construct_workspace(prob)
                 strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
                 Vres_first = zeros(N, 3, 3, 3)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres_first, V, prob, stateptr(prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres_first,
+                    V,
+                    prob,
+                    stateptr(prob);
+                    upper_bound = false,
+                )
                 @test all(Vres_first .>= 0.0)
                 @test Vres_first[1, 1, 1] ≈ V111_expected
                 @test Vres_first[2, 2, 2] ≈ V222_expected
@@ -193,13 +273,29 @@ for N in [Float32, Float64, Rational{BigInt}]
                 ws = IntervalMDP.DenseOrthogonalWorkspace(prob, 1)
                 strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
                 Vres = similar(Vres_first)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, prob, stateptr(prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    prob,
+                    stateptr(prob);
+                    upper_bound = false,
+                )
                 @test Vres ≈ Vres_first
 
                 ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
                 strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
                 Vres = similar(Vres_first)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, prob, stateptr(prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    prob,
+                    stateptr(prob);
+                    upper_bound = false,
+                )
                 @test Vres ≈ Vres_first
             end
         end
@@ -531,7 +627,10 @@ for N in [Float32, Float64]
 
             probs = OrthogonalIntervalProbabilities(
                 ntuple(
-                    i -> IntervalProbabilities(; lower = prob_lower[i], upper = prob_upper[i]),
+                    i -> IntervalProbabilities(;
+                        lower = prob_lower[i],
+                        upper = prob_upper[i],
+                    ),
                     3,
                 ),
                 (Int32(3), Int32(3), Int32(3)),
@@ -563,7 +662,10 @@ for N in [Float32, Float64]
                 end
             end
 
-            probs = IntervalProbabilities(; lower = prob_lower_simple, upper = prob_upper_simple)
+            probs = IntervalProbabilities(;
+                lower = prob_lower_simple,
+                upper = prob_upper_simple,
+            )
 
             mdp = IntervalMarkovChain(probs)
 
@@ -586,8 +688,8 @@ for N in [Float32, Float64]
             num_choices = num_states * num_actions
 
             prob_lower = [
-                rand(rng, N, num_states_per_axis, num_choices) ./ num_states_per_axis for
-                _ in 1:num_axis
+                rand(rng, N, num_states_per_axis, num_choices) ./ num_states_per_axis
+                for _ in 1:num_axis
             ]
             prob_upper = [
                 (rand(rng, N, num_states_per_axis, num_choices) .+ N(1)) ./
@@ -596,7 +698,10 @@ for N in [Float32, Float64]
 
             probs = OrthogonalIntervalProbabilities(
                 ntuple(
-                    i -> IntervalProbabilities(; lower = prob_lower[i], upper = prob_upper[i]),
+                    i -> IntervalProbabilities(;
+                        lower = prob_lower[i],
+                        upper = prob_upper[i],
+                    ),
                     num_axis,
                 ),
                 (

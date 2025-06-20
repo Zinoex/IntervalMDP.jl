@@ -39,13 +39,16 @@ for N in [Float32, Float64]
                 ),
                 (Int32(2),),
             )
-            weighting_probs = IntervalProbabilities(; lower = N[
-                0.3 0.5
-                0.4 0.3
-            ], upper = N[
-                0.8 0.7
-                0.7 0.5
-            ])
+            weighting_probs = IntervalProbabilities(;
+                lower = N[
+                    0.3 0.5
+                    0.4 0.3
+                ],
+                upper = N[
+                    0.8 0.7
+                    0.7 0.5
+                ],
+            )
             mixture_prob = MixtureIntervalProbabilities((prob1, prob2), weighting_probs)
 
             V = N[1.0, 2.0, 3.0]
@@ -59,19 +62,43 @@ for N in [Float32, Float64]
                 ws = construct_workspace(mixture_prob)
                 strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
                 Vres = zeros(N, 2)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, mixture_prob, stateptr(mixture_prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    mixture_prob,
+                    stateptr(mixture_prob);
+                    upper_bound = true,
+                )
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
                 strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, mixture_prob, stateptr(mixture_prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    mixture_prob,
+                    stateptr(mixture_prob);
+                    upper_bound = true,
+                )
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
                 strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, mixture_prob, stateptr(mixture_prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    mixture_prob,
+                    stateptr(mixture_prob);
+                    upper_bound = true,
+                )
                 @test Vres ≈ Vexpected
             end
 
@@ -84,19 +111,43 @@ for N in [Float32, Float64]
                 ws = construct_workspace(mixture_prob)
                 strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
                 Vres = zeros(N, 2)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, mixture_prob, stateptr(mixture_prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    mixture_prob,
+                    stateptr(mixture_prob);
+                    upper_bound = false,
+                )
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
                 strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, mixture_prob, stateptr(mixture_prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    mixture_prob,
+                    stateptr(mixture_prob);
+                    upper_bound = false,
+                )
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
                 strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, mixture_prob, stateptr(mixture_prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    mixture_prob,
+                    stateptr(mixture_prob);
+                    upper_bound = false,
+                )
                 @test Vres ≈ Vexpected
             end
         end
@@ -140,13 +191,16 @@ for N in [Float32, Float64]
             # Weighting probabilities are treated the same way for sparse and dense matrices.
             # This choice is made to simplify the implementation and since the number of
             # mixtures is typically small, with few non-zero entries.
-            weighting_probs = IntervalProbabilities(; lower = N[
-                0.3 0.5
-                0.4 0.3
-            ], upper = N[
-                0.8 0.7
-                0.7 0.5
-            ])
+            weighting_probs = IntervalProbabilities(;
+                lower = N[
+                    0.3 0.5
+                    0.4 0.3
+                ],
+                upper = N[
+                    0.8 0.7
+                    0.7 0.5
+                ],
+            )
             mixture_prob = MixtureIntervalProbabilities((prob1, prob2), weighting_probs)
 
             V = N[1.0, 2.0, 3.0]
@@ -160,19 +214,43 @@ for N in [Float32, Float64]
                 ws = construct_workspace(mixture_prob)
                 strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
                 Vres = zeros(N, 2)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, mixture_prob, stateptr(mixture_prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    mixture_prob,
+                    stateptr(mixture_prob);
+                    upper_bound = true,
+                )
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
                 strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, mixture_prob, stateptr(mixture_prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    mixture_prob,
+                    stateptr(mixture_prob);
+                    upper_bound = true,
+                )
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
                 strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, mixture_prob, stateptr(mixture_prob); upper_bound = true)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    mixture_prob,
+                    stateptr(mixture_prob);
+                    upper_bound = true,
+                )
                 @test Vres ≈ Vexpected
             end
 
@@ -185,19 +263,43 @@ for N in [Float32, Float64]
                 ws = construct_workspace(mixture_prob)
                 strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
                 Vres = zeros(N, 2)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, mixture_prob, stateptr(mixture_prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    mixture_prob,
+                    stateptr(mixture_prob);
+                    upper_bound = false,
+                )
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
                 strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, mixture_prob, stateptr(mixture_prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    mixture_prob,
+                    stateptr(mixture_prob);
+                    upper_bound = false,
+                )
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
                 strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, mixture_prob, stateptr(mixture_prob); upper_bound = false)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    mixture_prob,
+                    stateptr(mixture_prob);
+                    upper_bound = false,
+                )
                 @test Vres ≈ Vexpected
             end
         end
@@ -223,8 +325,10 @@ for N in [Float32, Float64]
 
             probs1 = OrthogonalIntervalProbabilities(
                 ntuple(
-                    i ->
-                        IntervalProbabilities(; lower = prob_lower1[i], upper = prob_upper1[i]),
+                    i -> IntervalProbabilities(;
+                        lower = prob_lower1[i],
+                        upper = prob_upper1[i],
+                    ),
                     num_axis,
                 ),
                 (
@@ -245,8 +349,10 @@ for N in [Float32, Float64]
 
             probs2 = OrthogonalIntervalProbabilities(
                 ntuple(
-                    i ->
-                        IntervalProbabilities(; lower = prob_lower2[i], upper = prob_upper2[i]),
+                    i -> IntervalProbabilities(;
+                        lower = prob_lower2[i],
+                        upper = prob_upper2[i],
+                    ),
                     num_axis,
                 ),
                 (

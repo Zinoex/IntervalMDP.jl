@@ -885,7 +885,6 @@ Return `true` for ExpectedExitTime.
 """
 isfinitetime(prop::ExpectedExitTime) = false
 
-
 """
     terminal_states(prop::ExpectedExitTime)
 
