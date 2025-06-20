@@ -21,7 +21,8 @@ export construct_strategy_cache, time_length
 include("specification.jl")
 export Property, LTLFormula, LTLfFormula, PCTLFormula
 
-export AbstractReachability, FiniteTimeReachability, InfiniteTimeReachability, ExactTimeReachability
+export AbstractReachability,
+    FiniteTimeReachability, InfiniteTimeReachability, ExactTimeReachability
 export AbstractReachAvoid, FiniteTimeReachAvoid, InfiniteTimeReachAvoid, ExactTimeReachAvoid
 export AbstractSafety, FiniteTimeSafety, InfiniteTimeSafety
 export AbstractReward, FiniteTimeReward, InfiniteTimeReward

@@ -1,7 +1,7 @@
 """
-    bellman(V, prob; upper_bound = false)
+    bellman(V, model; upper_bound = false)
 
-Compute robust Bellman update with the value function `V` and the interval probabilities `prob` 
+Compute robust Bellman update with the value function `V` and the model `model`, e.g. [`IntervalMarkovDecisionProcess`](@ref),
 that upper or lower bounds the expectation of the value function `V` via O-maximization [1].
 Whether the expectation is maximized or minimized is determined by the `upper_bound` keyword argument.
 That is, if `upper_bound == true` then an upper bound is computed and if `upper_bound == false` then a lower
@@ -9,19 +9,49 @@ bound is computed.
 
 ### Examples
 ```jldoctest
-prob = IntervalProbabilities(;
-    lower = sparse_hcat(
-        SparseVector(15, [4, 10], [0.1, 0.2]),
-        SparseVector(15, [5, 6, 7], [0.5, 0.3, 0.1]),
-    ),
-    upper = sparse_hcat(
-        SparseVector(15, [1, 4, 10], [0.5, 0.6, 0.7]),
-        SparseVector(15, [5, 6, 7], [0.7, 0.5, 0.3]),
-    ),
+prob1 = IntervalProbabilities(;
+    lower = [
+        0.0 0.5
+        0.1 0.3
+        0.2 0.1
+    ],
+    upper = [
+        0.5 0.7
+        0.6 0.5
+        0.7 0.3
+    ],
 )
 
-Vprev = collect(1:15)
-Vcur = bellman(Vprev, prob; upper_bound = false)
+prob2 = IntervalProbabilities(;
+    lower = [
+        0.1 0.2
+        0.2 0.3
+        0.3 0.4
+    ],
+    upper = [
+        0.6 0.6
+        0.5 0.5
+        0.4 0.4
+    ],
+)
+
+prob3 = IntervalProbabilities(; lower = [
+    0.0
+    0.0
+    1.0
+][:, :], upper = [
+    0.0
+    0.0
+    1.0
+][:, :])
+
+transition_probs = [prob1, prob2, prob3]
+istates = [Int32(1)]
+
+model = IntervalMarkovDecisionProcess(transition_probs, istates)
+
+Vprev = [1, 2, 3]
+Vcur = bellman(Vprev, model; upper_bound = false)
 ```
 
 !!! note
@@ -31,16 +61,16 @@ Vcur = bellman(Vprev, prob; upper_bound = false)
 [1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
 
 """
-function bellman(V, prob; upper_bound = false)
-    Vres = similar(V, source_shape(prob))
-    return bellman!(Vres, V, prob; upper_bound = upper_bound)
+function bellman(V, model; upper_bound = false, maximize = true)
+    Vres = similar(V, source_shape(model))
+    return bellman!(Vres, V, model; upper_bound = upper_bound, maximize = maximize)
 end
 
 """
-    bellman!(workspace, strategy_cache, Vres, V, prob, stateptr; upper_bound = false, maximize = true)
+    bellman!(workspace, strategy_cache, Vres, V, model, stateptr; upper_bound = false, maximize = true)
 
-Compute in-place robust Bellman update with the value function `V` and the interval probabilities
-`prob` that upper or lower bounds the expectation of the value function `V` via O-maximization [1].
+Compute in-place robust Bellman update with the value function `V` and the model `model`, 
+e.g. [`IntervalMarkovDecisionProcess`](@ref), that upper or lower bounds the expectation of the value function `V` via O-maximization [1].
 Whether the expectation is maximized or minimized is determined by the `upper_bound` keyword argument.
 That is, if `upper_bound == true` then an upper bound is computed and if `upper_bound == false` then a lower
 bound is computed. 
@@ -52,23 +82,53 @@ and [`construct_strategy_cache`](@ref) for more details on how to pre-allocate t
 ### Examples
 
 ```jldoctest
-prob = IntervalProbabilities(;
-    lower = sparse_hcat(
-        SparseVector(15, [4, 10], [0.1, 0.2]),
-        SparseVector(15, [5, 6, 7], [0.5, 0.3, 0.1]),
-    ),
-    upper = sparse_hcat(
-        SparseVector(15, [1, 4, 10], [0.5, 0.6, 0.7]),
-        SparseVector(15, [5, 6, 7], [0.7, 0.5, 0.3]),
-    ),
+prob1 = IntervalProbabilities(;
+    lower = [
+        0.0 0.5
+        0.1 0.3
+        0.2 0.1
+    ],
+    upper = [
+        0.5 0.7
+        0.6 0.5
+        0.7 0.3
+    ],
 )
 
-V = collect(1:15)
-workspace = construct_workspace(prob)
+prob2 = IntervalProbabilities(;
+    lower = [
+        0.1 0.2
+        0.2 0.3
+        0.3 0.4
+    ],
+    upper = [
+        0.6 0.6
+        0.5 0.5
+        0.4 0.4
+    ],
+)
+
+prob3 = IntervalProbabilities(; lower = [
+    0.0
+    0.0
+    1.0
+][:, :], upper = [
+    0.0
+    0.0
+    1.0
+][:, :])
+
+transition_probs = [prob1, prob2, prob3]
+istates = [Int32(1)]
+
+model = IntervalMarkovDecisionProcess(transition_probs, istates)
+
+V = [1, 2, 3]
+workspace = construct_workspace(model)
 strategy_cache = construct_strategy_cache(NoStrategyConfig())
 Vres = similar(V)
 
-Vres = bellman!(workspace, strategy_cache, Vres, V, prob; upper_bound = false, maximize = true)
+Vres = bellman!(workspace, strategy_cache, Vres, V, model; upper_bound = false, maximize = true)
 ```
 
 [1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
@@ -76,21 +136,38 @@ Vres = bellman!(workspace, strategy_cache, Vres, V, prob; upper_bound = false, m
 """
 function bellman! end
 
-function bellman!(Vres, V, prob; upper_bound = false)
-    workspace = construct_workspace(prob)
+function bellman!(Vres, V, model; upper_bound = false, maximize = true)
+    workspace = construct_workspace(model)
     strategy_cache = NoStrategyCache()
-    return bellman!(workspace, strategy_cache, Vres, V, prob; upper_bound = upper_bound)
-end
-
-function bellman!(workspace, strategy_cache, Vres, V, prob; upper_bound = false)
     return bellman!(
         workspace,
         strategy_cache,
         Vres,
         V,
-        prob,
-        stateptr(prob);
+        model;
         upper_bound = upper_bound,
+        maximize = maximize,
+    )
+end
+
+function bellman!(
+    workspace,
+    strategy_cache,
+    Vres,
+    V,
+    model;
+    upper_bound = false,
+    maximize = true,
+)
+    return _bellman_helper!(
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        transition_prob(model),
+        stateptr(model);
+        upper_bound = upper_bound,
+        maximize = maximize,
     )
 end
 
@@ -99,7 +176,7 @@ end
 ######################################################
 
 # Non-threaded
-function bellman!(
+function _bellman_helper!(
     workspace::Union{DenseWorkspace, SparseWorkspace},
     strategy_cache::AbstractStrategyCache,
     Vres,
@@ -129,7 +206,7 @@ function bellman!(
 end
 
 # Threaded
-function bellman!(
+function _bellman_helper!(
     workspace::Union{ThreadedDenseWorkspace, ThreadedSparseWorkspace},
     strategy_cache::AbstractStrategyCache,
     Vres,
@@ -231,20 +308,20 @@ Base.@propagate_inbounds function dense_sorted_state_action_bellman(V, prob, jâ‚
 end
 
 Base.@propagate_inbounds function gap_value(
-    V,
+    V::AbstractVector{T},
     gap::VR,
     sum_lower,
     perm,
-) where {VR <: AbstractVector}
-    remaining = 1.0 - sum_lower
-    res = 0.0
+) where {T, VR <: AbstractVector}
+    remaining = one(T) - sum_lower
+    res = zero(T)
 
     @inbounds for i in perm
         p = min(remaining, gap[i])
         res += p * V[i]
 
         remaining -= p
-        if remaining <= 0.0
+        if remaining <= zero(T)
             break
         end
     end
@@ -275,16 +352,19 @@ Base.@propagate_inbounds function state_action_bellman(
     return dot(V, lowerâ±¼) + gap_value(Vp_workspace, used)
 end
 
-Base.@propagate_inbounds function gap_value(Vp, sum_lower)
-    remaining = 1.0 - sum_lower
-    res = 0.0
+Base.@propagate_inbounds function gap_value(
+    Vp::VP,
+    sum_lower,
+) where {T, VP <: AbstractVector{<:Tuple{T, <:Real}}}
+    remaining = one(T) - sum_lower
+    res = zero(T)
 
     for (V, p) in Vp
         p = min(remaining, p)
         res += p * V
 
         remaining -= p
-        if remaining <= 0.0
+        if remaining <= zero(T)
             break
         end
     end
@@ -295,7 +375,7 @@ end
 ################################################################
 # Bellman operator for OrthogonalIntervalMarkovDecisionProcess #
 ################################################################
-function bellman!(
+function _bellman_helper!(
     workspace::Union{DenseOrthogonalWorkspace, SparseOrthogonalWorkspace, MixtureWorkspace},
     strategy_cache::AbstractStrategyCache,
     Vres,
@@ -329,7 +409,7 @@ function bellman!(
     return Vres
 end
 
-function bellman!(
+function _bellman_helper!(
     workspace::Union{
         ThreadedDenseOrthogonalWorkspace,
         ThreadedSparseOrthogonalWorkspace,

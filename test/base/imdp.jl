@@ -45,6 +45,16 @@ mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
 
 mdp = IntervalMarkovDecisionProcess(transition_probs)
 
+@testset "bellman" begin
+    V = [1.0, 2.0, 3.0]
+    Vres = bellman(V, mdp; upper_bound = false, maximize = true)
+    @test Vres ≈ [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.3 * 1 + 0.3 * 2 + 0.4 * 3, 1.0 * 3]
+
+    Vres = similar(Vres)
+    bellman!(Vres, V, mdp; upper_bound = false, maximize = true)
+    @test Vres ≈ [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.3 * 1 + 0.3 * 2 + 0.4 * 3, 1.0 * 3]
+end
+
 @testset "explicit sink state" begin
     transition_prob, _ = IntervalMDP.interval_prob_hcat(transition_probs)
     @test_throws DimensionMismatch IntervalMarkovChain(transition_prob)
