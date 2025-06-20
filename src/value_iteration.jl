@@ -203,8 +203,7 @@ function step!(
         strategy_cache,
         value_function.current,
         value_function.previous,
-        transition_prob(mp),
-        stateptr(mp);
+        mp;
         upper_bound = upper_bound,
         maximize = maximize,
     )
@@ -224,8 +223,7 @@ function step!(
         strategy_cache[time_length(strategy_cache) - k],
         value_function.current,
         value_function.previous,
-        transition_prob(mp),
-        stateptr(mp);
+        mp;
         upper_bound = upper_bound,
         maximize = maximize,
     )

@@ -1,4 +1,4 @@
-function IntervalMDP.bellman!(
+function IntervalMDP._bellman_helper!(
     workspace::CuDenseWorkspace,
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres,
