@@ -33,5 +33,3 @@ num_states(mp::IntervalMarkovProcess) = mp.num_states
 Return the interval on transition probabilities.
 """
 transition_prob(mp::IntervalMarkovProcess) = mp.transition_prob
-
-source_shape(mp::IntervalMarkovProcess) = source_shape(transition_prob(mp))
