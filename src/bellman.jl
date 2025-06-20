@@ -8,7 +8,7 @@ That is, if `upper_bound == true` then an upper bound is computed and if `upper_
 bound is computed.
 
 ### Examples
-# TODO: Update examples
+# TODO: Update example
 
 ```jldoctest
 prob = IntervalProbabilities(;
@@ -55,6 +55,8 @@ and [`construct_strategy_cache`](@ref) for more details on how to pre-allocate t
 ### Examples
 
 ```jldoctest
+# TODO: Update example
+
 prob = IntervalProbabilities(;
     lower = sparse_hcat(
         SparseVector(15, [4, 10], [0.1, 0.2]),
@@ -236,20 +238,20 @@ Base.@propagate_inbounds function dense_sorted_state_action_bellman(V, prob, jâ‚
 end
 
 Base.@propagate_inbounds function gap_value(
-    V,
+    V::AbstractVector{T},
     gap::VR,
     sum_lower,
     perm,
-) where {VR <: AbstractVector}
-    remaining = 1.0 - sum_lower
-    res = 0.0
+) where {T, VR <: AbstractVector}
+    remaining = one(T) - sum_lower
+    res = zero(T)
 
     @inbounds for i in perm
         p = min(remaining, gap[i])
         res += p * V[i]
 
         remaining -= p
-        if remaining <= 0.0
+        if remaining <= zero(T)
             break
         end
     end
@@ -280,16 +282,16 @@ Base.@propagate_inbounds function state_action_bellman(
     return dot(V, lowerâ±¼) + gap_value(Vp_workspace, used)
 end
 
-Base.@propagate_inbounds function gap_value(Vp, sum_lower)
-    remaining = 1.0 - sum_lower
-    res = 0.0
+Base.@propagate_inbounds function gap_value(Vp::VP, sum_lower) where {T, VP <: AbstractVector{<:Tuple{T, <:Real}}}
+    remaining = one(T) - sum_lower
+    res = zero(T)
 
     for (V, p) in Vp
         p = min(remaining, p)
         res += p * V
 
         remaining -= p
-        if remaining <= 0.0
+        if remaining <= zero(T)
             break
         end
     end
