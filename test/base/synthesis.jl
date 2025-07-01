@@ -147,6 +147,6 @@ end
     @test policy isa TimeVaryingStrategy
     @test time_length(policy) == 10
     for k in 1:time_length(policy)
-        @test policy[k] == [1, 2]
+        @test policy[k] == [1, 2, 1]
     end
 end

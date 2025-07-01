@@ -40,7 +40,8 @@ end
 
 function checkstrategy(strategy::AbstractArray, system)
     num_actions = stateptr(system)[2:end] .- stateptr(system)[1:(end - 1)]
-    if !all(1 .<= vec(strategy) .<= num_actions)
+    ranges = (1:n for n in source_shape(system))
+    if !all(1 .<= vec(strategy[ranges...]) .<= num_actions)
         throw(
             DomainError(
                 "The strategy includes at least one invalid action (less than 1 or greater than num_actions for the state).",
@@ -115,15 +116,15 @@ abstract type OptimizingStrategyCache <: AbstractStrategyCache end
 abstract type NonOptimizingStrategyCache <: AbstractStrategyCache end
 
 """
-    construct_strategy_cache(mp::Union{IntervalProbabilities, IntervalMarkovProcess}, config::AbstractStrategyConfig)
+    construct_strategy_cache(mp::Union{AbstractIntervalProbabilities, StochasticProcess}, config::AbstractStrategyConfig)
 
 Construct a strategy cache from a configuration for a given interval Markov process. The resuling cache type
 depends on the configuration and the device to store the strategy depends on the device of the Markov process.
 """
 function construct_strategy_cache end
 
-construct_strategy_cache(mp::IntervalMarkovProcess, config, strategy = NoStrategy()) =
-    construct_strategy_cache(mp, config, strategy, source_shape(mp))
+construct_strategy_cache(mp::StochasticProcess, config, strategy = NoStrategy()) =
+    construct_strategy_cache(mp, config, strategy, product_num_states(mp))
 
 # Strategy cache for applying given policies - useful for dispatching
 struct GivenStrategyCache{S <: AbstractStrategy} <: NonOptimizingStrategyCache
@@ -182,29 +183,22 @@ function TimeVaryingStrategyCache(cur_strategy::A) where {A}
 end
 
 function construct_strategy_cache(
-    mp::IntervalMarkovProcess,
+    mp,
     ::TimeVaryingStrategyConfig,
     strategy,
     dims,
 )
-    cur_strategy = construct_action_cache(transition_prob(mp), dims)
+    cur_strategy = arrayfactory(mp, Int32, dims)
     return TimeVaryingStrategyCache(cur_strategy)
 end
 
-function construct_action_cache(
-    ::IntervalProbabilities{R, VR},
-    dims,
-) where {R <: Real, VR <: AbstractVector{R}}
-    return zeros(Int32, dims)
+function replacezerobyone!(array)
+    array[array .== 0] .= 1
+    return array
 end
 
-construct_action_cache(p::OrthogonalIntervalProbabilities, dims) =
-    construct_action_cache(first(p), dims)
-construct_action_cache(p::MixtureIntervalProbabilities, dims) =
-    construct_action_cache(first(p), dims)
-
 cachetostrategy(strategy_cache::TimeVaryingStrategyCache) =
-    TimeVaryingStrategy([indices for indices in reverse(strategy_cache.strategy)])
+    TimeVaryingStrategy([replacezerobyone!(indices) for indices in reverse(strategy_cache.strategy)])
 
 function extract_strategy!(
     strategy_cache::TimeVaryingStrategyCache,
@@ -229,17 +223,17 @@ struct StationaryStrategyCache{A <: AbstractArray{Int32}} <: OptimizingStrategyC
 end
 
 function construct_strategy_cache(
-    mp::IntervalMarkovProcess,
+    mp,
     ::StationaryStrategyConfig,
     strategy,
     dims,
 )
-    strategy = construct_action_cache(transition_prob(mp), dims)
+    strategy = arrayfactory(mp, Int32, dims)
     return StationaryStrategyCache(strategy)
 end
 
 cachetostrategy(strategy_cache::StationaryStrategyCache) =
-    StationaryStrategy(strategy_cache.strategy)
+    StationaryStrategy(replacezerobyone!(strategy_cache.strategy))
 
 function extract_strategy!(
     strategy_cache::StationaryStrategyCache,

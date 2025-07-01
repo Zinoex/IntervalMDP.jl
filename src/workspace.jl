@@ -1,6 +1,30 @@
 
 function construct_workspace end
 
+struct ProductWorkspace{W, MT <: AbstractMatrix{<:Real}}
+    underlying_workspace::W
+    intermediate_values::MT
+end
+
+"""
+    construct_workspace(proc::ProductProcess)
+
+Construct a workspace for computing the Bellman update, given a value function.
+If the Bellman update is used in a hot-loop, it is more efficient to use this function
+to preallocate the workspace and reuse across iterations.
+
+The underlying workspace type is determined by the type and size of the transition probability matrix,
+as well as the number of threads available.
+"""
+function construct_workspace(proc::ProductProcess)
+    underlying_workspace = construct_workspace(markov_process(proc))
+
+    mp = system(problem)
+    intermediate_values = arrayfactory(mp, valuetype(mp), product_num_states(mp))
+
+    return ProductWorkspace(underlying_workspace, intermediate_values)
+end
+
 """
     construct_workspace(mp::IntervalMarkovProcess)
 

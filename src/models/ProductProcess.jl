@@ -70,22 +70,25 @@ function checkproduct(
 end
 
 """
-    markov_process(md::ProductIntervalMarkovDecisionProcessDFA)
+    markov_process(proc::ProductIntervalMarkovDecisionProcessDFA)
 
 Return the interval markov decision process of the product 
 """
-markov_process(md::ProductProcess) = md.imdp
+markov_process(proc::ProductProcess) = proc.imdp
 
 """
-    automaton(md::ProductIntervalMarkovDecisionProcessDFA)
+    automaton(proc::ProductIntervalMarkovDecisionProcessDFA)
 
 Return the deterministic finite automaton of the product 
 """
-automaton(md::ProductProcess) = md.dfa
+automaton(proc::ProductProcess) = proc.dfa
 
 """
-    labelling_function(md::ProductProcess)
+    labelling_function(proc::ProductProcess)
 
 Return the labelling function of the product 
 """
-labelling_function(md::ProductProcess) = md.labelling_func
+labelling_function(proc::ProductProcess) = proc.labelling_func
+
+product_num_states(proc::ProductProcess) = (product_num_states(markov_process(proc))..., num_states(automaton(proc)))
+source_shape(proc::ProductProcess) = (source_shape(markov_process(proc))..., num_states(automaton(proc)))
