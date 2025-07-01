@@ -21,12 +21,12 @@ in the Bellman operator ([`bellman`](ref)).
 We check that the transition matrix is valid, i.e. that all indices are positive and do not exceed the number of states.
 
 """
-struct TransitionFunction{T <: Unsigned, MT <: AbstractMatrix{T}}
+struct TransitionFunction{T <: Integer, MT <: AbstractMatrix{T}}
     transition::MT
 
     function TransitionFunction(
         transition::MT,
-    ) where {T <: Unsigned, MT <: AbstractMatrix{T}}
+    ) where {T <: Integer, MT <: AbstractMatrix{T}}
         checktransition(transition)
 
         return new{T, MT}(transition)

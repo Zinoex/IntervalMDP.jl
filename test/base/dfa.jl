@@ -62,42 +62,34 @@ end
 
     delta = TransitionFunction(T)
     istate = Int32(1)
-    astates = Int32[3]
 
     @testset "labels" begin
         @test map == IntervalMDP.atomicpropositions2labels(atomic_props)
     end
 
     @testset "good case" begin
-        dfa = DFA(delta, istate, astates, atomic_props)
+        dfa = DFA(delta, istate, atomic_props)
         Ns, Na = size(dfa)
 
         @test transition(dfa) == delta
         @test initial_state(dfa) == istate
-        @test accepting_states(dfa) == astates
         @test labelmap(dfa) == map
         @test Ns == 3
         @test Na == 4
     end
 
     @testset "alphabet size mismatch" begin
-        @test_throws DimensionMismatch DFA(delta, istate, astates, ["a", "b", "c"])
-        @test_throws DimensionMismatch DFA(delta, istate, astates, ["a"])
-    end
-
-    @testset "bad accepting states" begin
-        @test_throws ArgumentError DFA(delta, istate, Int32[0], atomic_props)
-        @test_throws ArgumentError DFA(delta, istate, Int32[4], atomic_props)
-        @test_throws ArgumentError DFA(delta, istate, Int32[1, 2, 3, 3], atomic_props)
+        @test_throws DimensionMismatch DFA(delta, istate, ["a", "b", "c"])
+        @test_throws DimensionMismatch DFA(delta, istate, ["a"])
     end
 
     @testset "bad initial state" begin
-        @test_throws ArgumentError DFA(delta, Int32(0), astates, atomic_props)
-        @test_throws ArgumentError DFA(delta, Int32(4), astates, atomic_props)
+        @test_throws ArgumentError DFA(delta, Int32(0), atomic_props)
+        @test_throws ArgumentError DFA(delta, Int32(4), atomic_props)
     end
 
     @testset "indexing" begin
-        dfa = DFA(delta, istate, astates, atomic_props)
+        dfa = DFA(delta, istate, atomic_props)
 
         @test dfa[2, "ab"] == 1
         @test dfa[2, 1] == 3

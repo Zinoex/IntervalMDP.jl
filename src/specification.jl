@@ -7,6 +7,37 @@ Super type for all system Property
 """
 abstract type Property end
 
+function checkmodelpropertycompatibility(prop, system)
+    throw(
+        ArgumentError(
+            "the property $(typeof(prop)) is not compatible with the system $(typeof(system))",
+        ),
+    )
+end
+
+"""
+    BasicProperty
+
+A basic property that applies to a "raw" [`IntervalMarkovProcess`](@ref).
+"""
+abstract type BasicProperty <: Property end
+
+function checkmodelpropertycompatibility(::BasicProperty, ::IntervalMarkovProcess)
+    return nothing
+end
+
+"""
+    ProductProperty
+
+A property that applies to a [`ProductProcess`](@ref).
+"""
+abstract type ProductProperty <: Property end
+
+function checkmodelpropertycompatibility(::ProductProperty, ::ProductProcess)
+    return nothing
+end
+
+
 function checktimehorizon(prop, ::AbstractStrategy)
     if time_horizon(prop) < 1
         throw(
@@ -57,78 +88,133 @@ function checkconvergence(prop, ::TimeVaryingStrategy)
     )
 end
 
-## Temporal logics
+## DFA reachability
 
 """
-    AbstractTemporalLogic
+    AbstractDFAReachability
 
-Super type for temporal logic property
+Super type for all reachability-like properties.
 """
-abstract type AbstractTemporalLogic <: Property end
+abstract type AbstractDFAReachability <: ProductProperty end
 
-"""
-    LTLFormula
-
-Linear Temporal Logic (LTL) property (first-order logic + next and until operators) [1].
-Let ``ϕ`` denote the formula and ``M`` denote an interval Markov process. Then compute ``M ⊧ ϕ``.
-
-[1] Vardi, M.Y. (1996). An automata-theoretic approach to linear temporal logic. In: Moller, F., Birtwistle, G. (eds) Logics for Concurrency. Lecture Notes in Computer Science, vol 1043. Springer, Berlin, Heidelberg.
-"""
-struct LTLFormula <: AbstractTemporalLogic
-    formula::String
+function initialize!(value_function, prop::AbstractDFAReachability)
+    @inbounds selectdim(value_function.current, value_function.ndims(), reach(prop)) .= 1.0
 end
 
+function step_postprocess_value_function!(value_function, prop::AbstractDFAReachability)
+    @inbounds selectdim(value_function.current, value_function.ndims(), reach(prop)) .= 1.0
+end
+
+postprocess_value_function!(value_function, ::AbstractDFAReachability) = nothing
+
 """
-    isfinitetime(prop::LTLFormula)
+    FiniteTimeDFAReachability{VT <: Vector{<:Int32}, T <: Integer}
 
-Return `false` for an LTL formula. LTL formulas are not finite time property.
+Finite time reachability specified by a set of target/terminal states and a time horizon. 
+That is, denote a trace by ``z_1 z_2 z_3 \\cdots`` with ``z_k = (s_k, q_k)`` then if ``T`` is the set of target states and ``H`` is the time horizon,
+the property is 
+```math
+    \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, q_k \\in T).
+```
 """
-isfinitetime(prop::LTLFormula) = false
-
-"""
-    LTLfFormula
-
-An LTL formula over finite traces [1]. See [`LTLFormula`](@ref) for the structure of LTL formulas.
-Let ``ϕ`` denote the formula, ``M`` denote an interval Markov process, and ``H`` the time horizon.
-Then compute ``M ⊧ ϕ`` within traces of length ``H``.
-
-### Fields
-- `formula::String`: LTL formula
-- `time_horizon::T`: Time horizon of the finite traces 
-
-[1] Giuseppe De Giacomo and Moshe Y. Vardi. 2013. Linear temporal logic and linear dynamic logic on finite traces. In Proceedings of the Twenty-Third international joint conference on Artificial Intelligence (IJCAI '13). AAAI Press, 854–860.
-"""
-struct LTLfFormula{T <: Integer} <: AbstractTemporalLogic
-    formula::String
+struct FiniteTimeDFAReachability{VT <: Vector{<:Int32}, T <: Integer} <:
+        AbstractDFAReachability
+    terminal_states::VT
     time_horizon::T
 end
 
-"""
-    isfinitetime(spec::LTLfFormula)
-
-Return `true` for an LTLf formula. LTLf formulas are specifically over finite traces.
-"""
-isfinitetime(prop::LTLfFormula) = true
-
-"""
-    time_horizon(spec::LTLfFormula)
-
-Return the time horizon of an LTLf formula.
-"""
-time_horizon(prop::LTLfFormula) = prop.time_horizon
-
-"""
-    PCTLFormula
-
-A Probabilistic Computation Tree Logic (PCTL) formula [1].
-Let ``ϕ`` denote the formula and ``M`` denote an interval Markov process. Then compute ``M ⊧ ϕ``.
-
-[1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
-
-"""
-struct PCTLFormula <: AbstractTemporalLogic
-    formula::String
+function FiniteTimeDFAReachability(terminal_states::Vector{<:Integer}, time_horizon)
+    terminal_states = Int32.(terminal_states)
+    return FiniteTimeDFAReachability(terminal_states, time_horizon)
 end
+
+function checkproperty(prop::FiniteTimeDFAReachability, system, strategy)
+    checktimehorizon(prop, strategy)
+    checkstatebounds(terminal_states(prop), system)
+end
+
+"""
+    isfinitetime(prop::FiniteTimeDFAReachability)
+
+Return `true` for FiniteTimeDFAReachability.
+"""
+isfinitetime(prop::FiniteTimeDFAReachability) = true
+
+"""
+    time_horizon(prop::FiniteTimeDFAReachability)
+
+Return the time horizon of a finite time reachability property.
+"""
+time_horizon(prop::FiniteTimeDFAReachability) = prop.time_horizon
+
+"""
+    terminal_states(spec::FiniteTimeDFAReachability)
+
+Return the set of terminal states of a finite time reachability property.
+"""
+terminal_states(prop::FiniteTimeDFAReachability) = prop.terminal_states
+
+"""
+    reach(prop::FiniteTimeDFAReachability)
+
+Return the set of states with which to compute reachbility for a finite time reachability prop.
+This is equivalent for [`terminal_states(prop::FiniteTimeDFAReachability)`](@ref) for a DFA reachability
+property. 
+"""
+reach(prop::FiniteTimeDFAReachability) = prop.terminal_states
+
+"""
+    InfiniteTimeDFAReachability{R <: Real, VT <: Vector{<:Int32}} 
+ 
+`InfiniteTimeDFAReachability` is similar to [`FiniteTimeDFAReachability`](@ref) except that the time horizon is infinite, i.e., ``H = \\infty``.
+In practice it means, performing the value iteration until the value function has converged, defined by some threshold `convergence_eps`.
+The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
+"""
+struct InfiniteTimeDFAReachability{R <: Real, VT <: Vector{<:Int32}} <:
+        AbstractDFAReachability
+    terminal_states::VT
+    convergence_eps::R
+end
+
+function InfiniteTimeDFAReachability(terminal_states::Vector{<:Integer}, convergence_eps)
+    terminal_states = Int32.(terminal_states)
+    return InfiniteTimeDFAReachability(terminal_states, convergence_eps)
+end
+
+function checkproperty(prop::InfiniteTimeDFAReachability, system, strategy)
+    checkconvergence(prop, strategy)
+    checkstatebounds(terminal_states(prop), system)
+end
+
+"""
+    isfinitetime(prop::InfiniteTimeDFAReachability)
+
+Return `false` for InfiniteTimeDFAReachability.
+"""
+isfinitetime(prop::InfiniteTimeDFAReachability) = false
+
+"""
+    convergence_eps(prop::InfiniteTimeDFAReachability)
+
+Return the convergence threshold of an infinite time reachability property.
+"""
+convergence_eps(prop::InfiniteTimeDFAReachability) = prop.convergence_eps
+
+"""
+    terminal_states(prop::InfiniteTimeDFAReachability)
+
+Return the set of terminal states of an infinite time reachability property.
+"""
+terminal_states(prop::InfiniteTimeDFAReachability) = prop.terminal_states
+
+"""
+    reach(prop::InfiniteTimeDFAReachability)
+
+Return the set of states with which to compute reachbility for a infinite time reachability property.
+This is equivalent for [`terminal_states(prop::InfiniteTimeDFAReachability)`](@ref) for a DFA reachability
+property.
+"""
+reach(prop::InfiniteTimeDFAReachability) = prop.terminal_states
 
 ## Reachability
 
@@ -137,7 +223,7 @@ end
 
 Super type for all reachability-like properties.
 """
-abstract type AbstractReachability <: Property end
+abstract type AbstractReachability <: BasicProperty end
 
 function initialize!(value_function, prop::AbstractReachability)
     @inbounds value_function.current[reach(prop)] .= 1.0
@@ -267,7 +353,7 @@ Exact time reachability specified by a set of target/terminal states and a time 
 That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states and ``H`` is the time horizon,
 the property is 
 ```math
-    \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T).
+    \\mathbb{P}(s_H \\in T).
 ```
 """
 struct ExactTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer} <:
@@ -475,7 +561,7 @@ Exact time reach-avoid specified by a set of target/terminal states, a set of av
 That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states, ``A`` is the set of states to avoid,
 and ``H`` is the time horizon, the property is 
 ```math
-    \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T, \\text{ and } \\forall k' = \\{0, \\ldots, k\\}, s_k' \\notin A).
+    \\mathbb{P}(s_H \\in T, \\text{ and } \\forall k = \\{0, \\ldots, H\\}, s_k \\notin A).
 ```
 """
 struct ExactTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}, T <: Integer} <:
@@ -541,7 +627,7 @@ Return the set of states to avoid.
 """
 avoid(prop::ExactTimeReachAvoid) = prop.avoid
 
-function checkstatebounds(states, system)
+function checkstatebounds(states, system::IntervalMarkovProcess)
     pns = product_num_states(system)
     for j in states
         j = Tuple(j)
@@ -552,6 +638,16 @@ function checkstatebounds(states, system)
 
         if any(j .< 1) || any(j .> pns)
             throw(InvalidStateError(j, pns))
+        end
+    end
+end
+
+checkstatebounds(states, system::ProductProcess) = checkstatebounds(states, automaton(system))
+
+function checkstatebounds(states, system::DeterministicAutomaton)
+    for state in states
+        if state < 1 || state > num_states(system)
+            throw(InvalidStateError(state, num_states(system)))
         end
     end
 end
@@ -569,7 +665,7 @@ end
 
 Super type for all safety properties.
 """
-abstract type AbstractSafety <: Property end
+abstract type AbstractSafety <: BasicProperty end
 
 function initialize!(value_function, prop::AbstractSafety)
     @inbounds value_function.current[avoid(prop)] .= -1.0
@@ -689,12 +785,13 @@ This is equivalent for [`terminal_states(prop::InfiniteTimeSafety)`](@ref).
 avoid(prop::InfiniteTimeSafety) = prop.avoid_states
 
 ## Reward
+
 """
     AbstractReward{R <: Real}
 
 Super type for all reward properties.
 """
-abstract type AbstractReward{R <: Real} <: Property end
+abstract type AbstractReward{R <: Real} <: BasicProperty end
 
 function initialize!(value_function, prop::AbstractReward)
     value_function.current .= reward(prop)
@@ -834,7 +931,7 @@ convergence_eps(prop::InfiniteTimeReward) = prop.convergence_eps
 
 Super type for all HittingTime properties.
 """
-abstract type AbstractHittingTime <: Property end
+abstract type AbstractHittingTime <: BasicProperty end
 
 postprocess_value_function!(value_function, ::AbstractHittingTime) = value_function
 
@@ -965,8 +1062,10 @@ postprocess_value_function!(value_function, spec::Specification) =
     postprocess_value_function!(value_function, system_property(spec))
 
 function checkspecification(spec::Specification, system, strategy)
-    return checkproperty(system_property(spec), system, strategy)
+    checkmodelpropertycompatibility(system_property(spec), system)
+    checkproperty(system_property(spec), system, strategy)
 end
+
 
 """
     system_property(spec::Specification)
@@ -992,7 +1091,7 @@ ismaximize(spec::Specification) = ismaximize(strategy_mode(spec))
 isminimize(spec::Specification) = isminimize(strategy_mode(spec))
 
 """
-    Problem{S <: IntervalMarkovProcess, F <: Specification}
+    Problem{S <: StochasticProcess, F <: Specification}
 
 A problem is a tuple of an interval Markov process and a specification.
 
@@ -1000,7 +1099,7 @@ A problem is a tuple of an interval Markov process and a specification.
 - `system::S`: interval Markov process.
 - `spec::F`: specification (either temporal logic or reachability-like).
 """
-struct Problem{S <: IntervalMarkovProcess, F <: Specification, C <: AbstractStrategy}
+struct Problem{S <: StochasticProcess, F <: Specification, C <: AbstractStrategy}
     system::S
     spec::F
     strategy::C
@@ -1009,14 +1108,14 @@ struct Problem{S <: IntervalMarkovProcess, F <: Specification, C <: AbstractStra
         system::S,
         spec::F,
         strategy::C,
-    ) where {S <: IntervalMarkovProcess, F <: Specification, C <: AbstractStrategy}
+    ) where {S <: StochasticProcess, F <: Specification, C <: AbstractStrategy}
         checkspecification(spec, system, strategy)
         checkstrategy(strategy, system)
         return new{S, F, C}(system, spec, strategy)
     end
 end
 
-Problem(system::IntervalMarkovProcess, spec::Specification) =
+Problem(system::StochasticProcess, spec::Specification) =
     Problem(system, spec, NoStrategy())
 
 """

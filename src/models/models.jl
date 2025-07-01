@@ -1,3 +1,5 @@
+abstract type StochasticProcess end
+
 include("IntervalMarkovProcess.jl")
 export IntervalMarkovProcess, AllStates
 export transition_prob, num_states, initial_states, stateptr, tomarkovchain

@@ -1,109 +1,149 @@
 using Revise, Test
 using IntervalMDP
 
-# LTL
-prop = LTLFormula("G !avoid")
-@test !isfinitetime(prop)
+@testset "getters" begin
+    @testset "DFA reachability" begin
+        prop = FiniteTimeDFAReachability([3], 10)
+        @test isfinitetime(prop)
+        @test time_horizon(prop) == 10
 
-prop = LTLfFormula("G !avoid", 10)
-@test isfinitetime(prop)
-@test time_horizon(prop) == 10
+        @test reach(prop) == [3]
+        @test terminal_states(prop) == [3]
 
-# Reachability
-prop = FiniteTimeReachability([3], 10)
-@test isfinitetime(prop)
-@test time_horizon(prop) == 10
+        prop = InfiniteTimeDFAReachability([3], 1e-6)
+        @test !isfinitetime(prop)
+        @test convergence_eps(prop) == 1e-6
 
-@test reach(prop) == [CartesianIndex(3)]
-@test terminal_states(prop) == [CartesianIndex(3)]
+        @test reach(prop) == [3]
+        @test terminal_states(prop) == [3]
+    end
 
-prop = InfiniteTimeReachability([3], 1e-6)
-@test !isfinitetime(prop)
-@test convergence_eps(prop) == 1e-6
+    @testset "reachability" begin
+        prop = FiniteTimeReachability([3], 10)
+        @test isfinitetime(prop)
+        @test time_horizon(prop) == 10
 
-@test reach(prop) == [CartesianIndex(3)]
-@test terminal_states(prop) == [CartesianIndex(3)]
+        @test reach(prop) == [CartesianIndex(3)]
+        @test terminal_states(prop) == [CartesianIndex(3)]
 
-prop = ExactTimeReachability([3], 10)
-@test isfinitetime(prop)
-@test time_horizon(prop) == 10
+        prop = InfiniteTimeReachability([3], 1e-6)
+        @test !isfinitetime(prop)
+        @test convergence_eps(prop) == 1e-6
 
-@test reach(prop) == [CartesianIndex(3)]
-@test terminal_states(prop) == [CartesianIndex(3)]
+        @test reach(prop) == [CartesianIndex(3)]
+        @test terminal_states(prop) == [CartesianIndex(3)]
 
-# Reach-avoid
-prop = FiniteTimeReachAvoid([3], [4], 10)
-@test isfinitetime(prop)
-@test time_horizon(prop) == 10
+        prop = ExactTimeReachability([3], 10)
+        @test isfinitetime(prop)
+        @test time_horizon(prop) == 10
 
-@test reach(prop) == [CartesianIndex(3)]
-@test avoid(prop) == [CartesianIndex(4)]
-@test issetequal(terminal_states(prop), [CartesianIndex(3), CartesianIndex(4)])
+        @test reach(prop) == [CartesianIndex(3)]
+        @test terminal_states(prop) == [CartesianIndex(3)]
+    end
 
-prop = InfiniteTimeReachAvoid([3], [4], 1e-6)
-@test !isfinitetime(prop)
-@test convergence_eps(prop) == 1e-6
+    @testset "reach-avoid" begin
+        prop = FiniteTimeReachAvoid([3], [4], 10)
+        @test isfinitetime(prop)
+        @test time_horizon(prop) == 10
 
-@test reach(prop) == [CartesianIndex(3)]
-@test avoid(prop) == [CartesianIndex(4)]
-@test issetequal(terminal_states(prop), [CartesianIndex(3), CartesianIndex(4)])
+        @test reach(prop) == [CartesianIndex(3)]
+        @test avoid(prop) == [CartesianIndex(4)]
+        @test issetequal(terminal_states(prop), [CartesianIndex(3), CartesianIndex(4)])
 
-prop = ExactTimeReachAvoid([3], [4], 10)
-@test isfinitetime(prop)
-@test time_horizon(prop) == 10
+        prop = InfiniteTimeReachAvoid([3], [4], 1e-6)
+        @test !isfinitetime(prop)
+        @test convergence_eps(prop) == 1e-6
 
-@test reach(prop) == [CartesianIndex(3)]
-@test avoid(prop) == [CartesianIndex(4)]
-@test issetequal(terminal_states(prop), [CartesianIndex(3), CartesianIndex(4)])
+        @test reach(prop) == [CartesianIndex(3)]
+        @test avoid(prop) == [CartesianIndex(4)]
+        @test issetequal(terminal_states(prop), [CartesianIndex(3), CartesianIndex(4)])
 
-# Reward
-prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 10)
-@test isfinitetime(prop)
-@test time_horizon(prop) == 10
+        prop = ExactTimeReachAvoid([3], [4], 10)
+        @test isfinitetime(prop)
+        @test time_horizon(prop) == 10
 
-@test reward(prop) == [1.0, 2.0, 3.0]
-@test discount(prop) == 0.9
+        @test reach(prop) == [CartesianIndex(3)]
+        @test avoid(prop) == [CartesianIndex(4)]
+        @test issetequal(terminal_states(prop), [CartesianIndex(3), CartesianIndex(4)])
+    end
 
-prop = InfiniteTimeReward([1.0, 2.0, 3.0], 0.9, 1e-6)
-@test !isfinitetime(prop)
-@test convergence_eps(prop) == 1e-6
+    @testset "safety" begin
+        prop = FiniteTimeSafety([3], 10)
+        @test isfinitetime(prop)
+        @test time_horizon(prop) == 10
 
-@test reward(prop) == [1.0, 2.0, 3.0]
-@test discount(prop) == 0.9
+        @test avoid(prop) == [CartesianIndex(3)]
+        @test terminal_states(prop) == [CartesianIndex(3)]
 
-# Default
-spec = Specification(prop)
-@test satisfaction_mode(spec) == Pessimistic
-@test strategy_mode(spec) == Maximize
-@test system_property(spec) == prop
+        prop = InfiniteTimeSafety([3], 1e-6)
+        @test !isfinitetime(prop)
+        @test convergence_eps(prop) == 1e-6
 
-# Convenience
-@test !isoptimistic(Pessimistic)
-@test isoptimistic(Optimistic)
-@test ispessimistic(Pessimistic)
-@test !ispessimistic(Optimistic)
+        @test avoid(prop) == [CartesianIndex(3)]
+        @test terminal_states(prop) == [CartesianIndex(3)]
+    end
 
-@test isoptimistic(!Pessimistic)
-@test ispessimistic(!Optimistic)
+    @testset "reward" begin
+        prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 10)
+        @test isfinitetime(prop)
+        @test time_horizon(prop) == 10
 
-@test ismaximize(Maximize)
-@test !ismaximize(Minimize)
-@test !isminimize(Maximize)
-@test isminimize(Minimize)
+        @test reward(prop) == [1.0, 2.0, 3.0]
+        @test discount(prop) == 0.9
 
-@test isminimize(!Maximize)
-@test ismaximize(!Minimize)
+        prop = InfiniteTimeReward([1.0, 2.0, 3.0], 0.9, 1e-6)
+        @test !isfinitetime(prop)
+        @test convergence_eps(prop) == 1e-6
 
-# IMC
-spec = Specification(prop, Optimistic)
-@test satisfaction_mode(spec) == Optimistic
-@test system_property(spec) == prop
+        @test reward(prop) == [1.0, 2.0, 3.0]
+        @test discount(prop) == 0.9
+    end
 
-# IMDP
-spec = Specification(prop, Optimistic, Minimize)
-@test satisfaction_mode(spec) == Optimistic
-@test strategy_mode(spec) == Minimize
-@test system_property(spec) == prop
+    @testset "expected exit time" begin
+        prop = ExpectedExitTime([3], 1e-6)
+        @test !isfinitetime(prop)
+        @test convergence_eps(prop) == 1e-6
+
+        @test avoid(prop) == [CartesianIndex(3)]
+        @test terminal_states(prop) == [CartesianIndex(3)]
+    end
+end
+
+@testset "specification" begin
+    # Default
+    spec = Specification(prop)
+    @test satisfaction_mode(spec) == Pessimistic
+    @test strategy_mode(spec) == Maximize
+    @test system_property(spec) == prop
+
+    # Convenience
+    @test !isoptimistic(Pessimistic)
+    @test isoptimistic(Optimistic)
+    @test ispessimistic(Pessimistic)
+    @test !ispessimistic(Optimistic)
+
+    @test isoptimistic(!Pessimistic)
+    @test ispessimistic(!Optimistic)
+
+    @test ismaximize(Maximize)
+    @test !ismaximize(Minimize)
+    @test !isminimize(Maximize)
+    @test isminimize(Minimize)
+
+    @test isminimize(!Maximize)
+    @test ismaximize(!Minimize)
+
+    # IMC
+    spec = Specification(prop, Optimistic)
+    @test satisfaction_mode(spec) == Optimistic
+    @test system_property(spec) == prop
+
+    # IMDP
+    spec = Specification(prop, Optimistic, Minimize)
+    @test satisfaction_mode(spec) == Optimistic
+    @test strategy_mode(spec) == Minimize
+    @test system_property(spec) == prop
+end
 
 ##########
 # Errors #
@@ -124,8 +164,38 @@ spec = Specification(prop, Optimistic, Minimize)
     mc = IntervalMarkovChain(prob)
     tv_strat = TimeVaryingStrategy([Int32[1, 1, 1]])
 
+    # Product model - just simple reachability
+    delta = TransitionFunction(Int32[
+        1 2
+        2 2
+    ])    
+    istate = Int32(1)
+    atomic_props = ["reach"]
+    dfa = DFA(delta, istate, atomic_props)
+
+    labelling = LabellingFunction(Int32[1, 1, 2])
+
+    prod_proc = ProductProcess(mc, dfa, labelling)
+    tv_prod_strat = TimeVaryingStrategy([Int32[
+        1 1
+        1 1
+        1 1
+    ]])
+
     # Time horizon must be a positive integer
     @testset "time horizon" begin
+        prop = FiniteTimeDFAReachability([2], 0)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(prod_proc, spec)
+
+        prop = FiniteTimeDFAReachability([2], -1)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(prod_proc, spec)
+
+        prop = FiniteTimeDFAReachability([2], 0)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(prod_proc, spec, tv_prod_strat)
+        
         prop = FiniteTimeReachability([3], 0)
         spec = Specification(prop)
         @test_throws DomainError Problem(mc, spec)
@@ -201,6 +271,14 @@ spec = Specification(prop, Optimistic, Minimize)
 
     # Time horizon must be equal to the time length of the time-varying interval Markov process
     @testset "time horizon/time-varying strategy" begin
+        prop = FiniteTimeDFAReachability([2], 2)
+        spec = Specification(prop)
+        @test_throws ArgumentError Problem(prod_proc, spec, tv_prod_strat)
+
+        prop = FiniteTimeDFAReachability([2], 4)
+        spec = Specification(prop)
+        @test_throws ArgumentError Problem(prod_proc, spec, tv_prod_strat)
+
         prop = FiniteTimeReachability([3], 2)
         spec = Specification(prop)
         @test_throws ArgumentError Problem(mc, spec, tv_strat)
@@ -252,6 +330,14 @@ spec = Specification(prop, Optimistic, Minimize)
 
     # Convergence epsilon must be a positive number
     @testset "convergence epsilon" begin
+        prop = InfiniteTimeDFAReachability([2], 0.0)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(prod_proc, spec)
+
+        prop = InfiniteTimeDFAReachability([2], -1e-3)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(prod_proc, spec)
+
         prop = InfiniteTimeReachability([3], 0.0)
         spec = Specification(prop)
         @test_throws DomainError Problem(mc, spec)
@@ -283,10 +369,22 @@ spec = Specification(prop, Optimistic, Minimize)
         prop = InfiniteTimeReward([1.0, 2.0, 3.0], 0.9, -1e-3)
         spec = Specification(prop)
         @test_throws DomainError Problem(mc, spec)
+
+        prop = ExpectedExitTime([3], 0.0)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(mc, spec)
+
+        prop = ExpectedExitTime([3], -1e-3)
+        spec = Specification(prop)
+        @test_throws DomainError Problem(mc, spec)
     end
 
     # Infinite time properties are not supported for time-varying interval Markov processes
     @testset "infinite time property/time-varying controller" begin
+        prop = InfiniteTimeDFAReachability([2], 1e-6)
+        spec = Specification(prop)
+        @test_throws ArgumentError Problem(prod_proc, spec, tv_prod_strat)
+
         prop = InfiniteTimeReachability([3], 1e-6)
         spec = Specification(prop)
         @test_throws ArgumentError Problem(mc, spec, tv_strat)
@@ -302,11 +400,25 @@ spec = Specification(prop, Optimistic, Minimize)
         prop = InfiniteTimeReward([1.0, 2.0, 3.0], 0.9, 1e-6)
         spec = Specification(prop)
         @test_throws ArgumentError Problem(mc, spec, tv_strat)
+
+        prop = ExpectedExitTime([3], 1e-6)
+        spec = Specification(prop)
+        @test_throws ArgumentError Problem(mc, spec, tv_strat)
     end
 
     # Specification state errors
     @testset "specification state errors" begin
         @testset "finite time" begin
+            @testset "DFA reachability" begin
+                prop = FiniteTimeDFAReachability([3], 10) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(prod_proc, spec)
+
+                prop = FiniteTimeDFAReachability([0], 10) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(prod_proc, spec)
+            end
+
             @testset "reachability" begin
                 prop = FiniteTimeReachability([4], 10) # out-of-bounds
                 spec = Specification(prop)
@@ -405,6 +517,16 @@ spec = Specification(prop, Optimistic, Minimize)
         end
 
         @testset "infinite time" begin
+            @testset "DFA reachability" begin
+                prop = InfiniteTimeDFAReachability([3], 1e-6) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(prod_proc, spec)
+
+                prop = InfiniteTimeDFAReachability([0], 1e-6) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(prod_proc, spec)
+            end
+
             @testset "reachability" begin
                 prop = InfiniteTimeReachability([4], 1e-6) # out-of-bounds
                 spec = Specification(prop)
@@ -455,6 +577,20 @@ spec = Specification(prop, Optimistic, Minimize)
                 @test_throws InvalidStateError Problem(mc, spec)
 
                 prop = InfiniteTimeSafety([(3, 2)], 1e-6) # incorrect dimension
+                spec = Specification(prop)
+                @test_throws StateDimensionMismatch Problem(mc, spec)
+            end
+
+            @testset "expected exit time" begin
+                prop = ExpectedExitTime([4], 1e-6) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(mc, spec)
+
+                prop = ExpectedExitTime([0], 1e-6) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError Problem(mc, spec)
+
+                prop = ExpectedExitTime([(3, 2)], 1e-6) # incorrect dimension
                 spec = Specification(prop)
                 @test_throws StateDimensionMismatch Problem(mc, spec)
             end

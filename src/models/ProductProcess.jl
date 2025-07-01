@@ -28,7 +28,7 @@ struct ProductProcess{
     M <: IntervalMarkovProcess,
     D <: DeterministicAutomaton,
     L <: AbstractLabelling,
-}
+} <: StochasticProcess
     imdp::M
     dfa::D
     labelling_func::L

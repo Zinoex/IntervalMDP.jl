@@ -30,28 +30,24 @@ TODO: Detection of non-accepting end components. They can be replaced by a singl
 """
 struct DFA{
     T <: TransitionFunction,
-    VT <: AbstractVector{Int32},
     DA <: AbstractDict{String, Int32},
 } <: DeterministicAutomaton
     transition::T # delta : |Q| x |2^{AP}| => |Q|   
     initial_state::Int32 # q_0
-    accepting_states::VT # Q_ac
     labelmap::DA
 end
 
 function DFA(
     transition::TransitionFunction,
     initial_state::Int32,
-    accepting_states::AbstractVector{Int32},
     atomic_propositions::AbstractVector{String},
 )
     labelmap = atomicpropositions2labels(atomic_propositions)
-    checkdfa(transition, initial_state, accepting_states, labelmap)
+    checkdfa(transition, initial_state, labelmap)
 
     return DFA(
         transition,
         initial_state,
-        accepting_states,
         labelmap,
     )
 end
@@ -84,7 +80,6 @@ end
 function checkdfa(
     transition::TransitionFunction,
     initial_state::Int32,
-    accepting_states::AbstractVector{Int32},
     labelmap,
 )
     num_states = size(transition, 2)
@@ -96,22 +91,6 @@ function checkdfa(
                 "The labels in the transition function ($(num_labels(transition))) is not equal to the number of labels of the DFA ($(length(labelmap))).",
             ),
         )
-    end
-
-    # Check Q_ac ⊂ Q, 
-    if any(accepting_states .< 1)
-        throw(ArgumentError("Next state index cannot be less than one."))
-    end
-
-    if any(accepting_states .> num_states)
-        throw(
-            ArgumentError("Next state index cannot be larger than total number of states."),
-        )
-    end
-
-    # Check that accepting states are unique
-    if length(accepting_states) != length(unique(accepting_states))
-        throw(ArgumentError("Accepting states must be unique."))
     end
 
     # Check z_0 in Z

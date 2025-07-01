@@ -31,7 +31,7 @@ function LabellingFunction(map::AT) where {T <: Integer, AT <: AbstractArray{T}}
     return LabellingFunction(map, Int32(num_outputs))
 end
 
-function checklabelling(map::AbstractArray{<:Unsigned})
+function checklabelling(map::AbstractArray{<:Integer})
     labels = unique(map)
 
     if any(labels .< 1)

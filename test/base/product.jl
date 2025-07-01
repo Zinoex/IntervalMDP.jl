@@ -1,7 +1,7 @@
 using Revise, Test
 using IntervalMDP
 
-@testset "construction prodIMDP DFA" begin
+@testset "construction product IMDP/DFA" begin
     # dfa
     T = UInt16[
         1 3 3
@@ -12,10 +12,9 @@ using IntervalMDP
 
     delta = TransitionFunction(T)
     istate = Int32(1)
-    astates = Int32[3]
     atomic_props = ["a", "b"]
 
-    dfa = DFA(delta, istate, astates, atomic_props)
+    dfa = DFA(delta, istate, atomic_props)
 
     # imdp
     prob1 = IntervalProbabilities(;
@@ -90,10 +89,8 @@ using IntervalMDP
         delta = TransitionFunction(T)
 
         istate = Int32(1)
-        astates = Int32[2]
         atomic_props = ["a"]
-
-        dfa = DFA(delta, istate, astates, atomic_props)
+        dfa = DFA(delta, istate, atomic_props)
 
         # labelling
         map = UInt16[1, 2, 3]
