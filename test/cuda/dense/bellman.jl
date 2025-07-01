@@ -1,46 +1,51 @@
 using Revise, Test
 using IntervalMDP, SparseArrays, CUDA
 
-#### Maximization
-@testset "maximization" begin
-    prob = IntervalMDP.cu(
-        IntervalProbabilities(;
-            lower = [0.0 0.5; 0.1 0.3; 0.2 0.1],
-            upper = [0.5 0.7; 0.6 0.5; 0.7 0.3],
-        ),
-    )
 
-    V = IntervalMDP.cu([1.0, 2.0, 3.0])
+for N in [Float32, Float64]
+    @testset "N = $N" begin
+        prob = IntervalProbabilities(;
+            lower = N[0 1//2; 1//10 3//10; 2//10 1//10],
+            upper = N[5//10 7//10; 6//10 5//10; 7//10 3//10],
+        )
+        prob = IntervalMDP.cu(prob)
 
-    Vres = bellman(V, prob; upper_bound = true)
-    Vres = Vector(Vres)
-    @test Vres ≈ [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
+        V = IntervalMDP.cu(N[1, 2, 3])
 
-    # To GPU first
-    prob = IntervalProbabilities(;
-        lower = IntervalMDP.cu([0.0 0.5; 0.1 0.3; 0.2 0.1]),
-        upper = IntervalMDP.cu([0.5 0.7; 0.6 0.5; 0.7 0.3]),
-    )
+        #### Maximization
+        @testset "maximization" begin
+            ws = construct_workspace(prob)
+            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            Vres = CUDA.zeros(N, 2)
+            IntervalMDP._bellman_helper!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                prob,
+                stateptr(prob);
+                upper_bound = true,
+            )
+            Vres = Vector(Vres)  # Convert to CPU for testing
+            @test Vres ≈ N[27 // 10, 17 // 10] # [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
+        end
 
-    V = IntervalMDP.cu([1.0, 2.0, 3.0])
-
-    Vres = bellman(V, prob; upper_bound = true)
-    Vres = Vector(Vres)
-    @test Vres ≈ [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
-end
-
-#### Minimization
-@testset "minimization" begin
-    prob = IntervalMDP.cu(
-        IntervalProbabilities(;
-            lower = [0.0 0.5; 0.1 0.3; 0.2 0.1],
-            upper = [0.5 0.7; 0.6 0.5; 0.7 0.3],
-        ),
-    )
-
-    V = IntervalMDP.cu([1.0, 2.0, 3.0])
-
-    Vres = bellman(V, prob; upper_bound = false)
-    Vres = Vector(Vres)
-    @test Vres ≈ [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
+        #### Minimization
+        @testset "minimization" begin
+            ws = construct_workspace(prob)
+            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            Vres = CUDA.zeros(N, 2)
+            IntervalMDP._bellman_helper!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                prob,
+                stateptr(prob);
+                upper_bound = false,
+            )
+            Vres = Vector(Vres)  # Convert to CPU for testing
+            @test Vres ≈ N[17 // 10, 15 // 10]  # [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
+        end
+    end
 end

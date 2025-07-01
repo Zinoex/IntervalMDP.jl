@@ -32,11 +32,12 @@ function IntervalMDP._bellman_helper!(
     # - squeeze as many states as possible in a block
     # - use shared memory to store the values and permutation
     # - use bitonic sort to sort the values for all states in a block
-    wanted_threads = min(1024, 32 * num_source(prob))
+    num_states = length(stateptr) - one(Int32)
+    wanted_threads = min(1024, 32 * num_states)
 
     threads = min(max_threads, wanted_threads)
     warps = div(threads, 32)
-    blocks = min(2^16 - 1, cld(num_source(prob), warps))
+    blocks = min(2^16 - 1, cld(num_states, warps))
     shmem =
         length(V) * (sizeof(Int32) + sizeof(Tv)) +
         warps * workspace.max_actions * sizeof(Tv)
@@ -131,8 +132,9 @@ end
     warps = div(blockDim().x, warpsize())
     wid = fld1(threadIdx().x, warpsize())
 
+    num_states = length(stateptr) - one(Int32)
     j = wid + (blockIdx().x - one(Int32)) * warps
-    @inbounds while j <= num_source(prob)
+    @inbounds while j <= num_states
         state_dense_omaximization!(
             action_workspace,
             strategy_cache,
@@ -250,6 +252,7 @@ end
 
         s += warpsize()
     end
+    sync_warp()
 
     # Add the gap multiplied by the value
     s = lane
@@ -286,6 +289,7 @@ end
 
         s += warpsize()
     end
+    sync_warp()
 
     gap_value = CUDA.reduce_warp(+, gap_value)
     return gap_value

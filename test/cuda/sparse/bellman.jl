@@ -3,70 +3,106 @@ using IntervalMDP, SparseArrays, CUDA
 using StatsBase
 using Random: MersenneTwister
 
-#### Maximization
-@testset "maximization" begin
-    prob = IntervalMDP.cu(
-        IntervalProbabilities(;
-            lower = sparse_hcat(
-                SparseVector(Int32(15), Int32[4, 10], [0.1, 0.2]),
-                SparseVector(Int32(15), Int32[5, 6, 7], [0.5, 0.3, 0.1]),
-            ),
-            upper = sparse_hcat(
-                SparseVector(Int32(15), Int32[1, 4, 10], [0.5, 0.6, 0.7]),
-                SparseVector(Int32(15), Int32[5, 6, 7], [0.7, 0.5, 0.3]),
-            ),
-        ),
-    )
 
-    V = IntervalMDP.cu(collect(1.0:15.0))
+for N in [Float32, Float64, Rational{BigInt}]
+    @testset "N = $N" begin
+        prob = IntervalProbabilities(;
+            lower = sparse(N[0 1//2; 1//10 3//10; 2//10 1//10]),
+            upper = sparse(N[5//10 7//10; 6//10 5//10; 7//10 3//10]),
+        )
 
-    Vres = bellman(V, prob; upper_bound = true)
-    Vres = Vector(Vres)
-    @test Vres ≈ [0.3 * 4 + 0.7 * 10, 0.5 * 5 + 0.3 * 6 + 0.2 * 7]
+        V = N[1, 2, 3]
 
-    # To GPU first
-    prob = IntervalProbabilities(;
-        lower = IntervalMDP.cu(
-            sparse_hcat(
-                SparseVector(Int32(15), Int32[4, 10], [0.1, 0.2]),
-                SparseVector(Int32(15), Int32[5, 6, 7], [0.5, 0.3, 0.1]),
-            ),
-        ),
-        upper = IntervalMDP.cu(
-            sparse_hcat(
-                SparseVector(Int32(15), Int32[1, 4, 10], [0.5, 0.6, 0.7]),
-                SparseVector(Int32(15), Int32[5, 6, 7], [0.7, 0.5, 0.3]),
-            ),
-        ),
-    )
+        #### Maximization
+        @testset "maximization" begin
+            ws = construct_workspace(prob)
+            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            Vres = zeros(N, 2)
+            IntervalMDP._bellman_helper!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                prob,
+                stateptr(prob);
+                upper_bound = true,
+            )
+            @test Vres ≈ N[27 // 10, 17 // 10] # [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
 
-    V = IntervalMDP.cu(collect(1.0:15.0))
+            ws = IntervalMDP.DenseWorkspace(gap(prob), 1)
+            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            Vres = similar(Vres)
+            IntervalMDP._bellman_helper!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                prob,
+                stateptr(prob);
+                upper_bound = true,
+            )
+            @test Vres ≈ N[27 // 10, 17 // 10]
 
-    Vres = bellman(V, prob; upper_bound = true)
-    Vres = Vector(Vres)
-    @test Vres ≈ [0.3 * 4 + 0.7 * 10, 0.5 * 5 + 0.3 * 6 + 0.2 * 7]
-end
+            ws = IntervalMDP.ThreadedDenseWorkspace(gap(prob), 1)
+            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            Vres = similar(Vres)
+            IntervalMDP._bellman_helper!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                prob,
+                stateptr(prob);
+                upper_bound = true,
+            )
+            @test Vres ≈ N[27 // 10, 17 // 10]
+        end
 
-#### Minimization
-@testset "minimization" begin
-    prob = IntervalMDP.cu(
-        IntervalProbabilities(;
-            lower = sparse_hcat(
-                SparseVector(Int32(15), Int32[4, 10], [0.1, 0.2]),
-                SparseVector(Int32(15), Int32[5, 6, 7], [0.5, 0.3, 0.1]),
-            ),
-            upper = sparse_hcat(
-                SparseVector(Int32(15), Int32[1, 4, 10], [0.5, 0.6, 0.7]),
-                SparseVector(Int32(15), Int32[5, 6, 7], [0.7, 0.5, 0.3]),
-            ),
-        ),
-    )
+        #### Minimization
+        @testset "minimization" begin
+            ws = construct_workspace(prob)
+            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            Vres = zeros(N, 2)
+            IntervalMDP._bellman_helper!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                prob,
+                stateptr(prob);
+                upper_bound = false,
+            )
+            @test Vres ≈ N[17 // 10, 15 // 10]  # [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
 
-    V = IntervalMDP.cu(collect(1.0:15.0))
+            ws = IntervalMDP.DenseWorkspace(gap(prob), 1)
+            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            Vres = similar(Vres)
+            IntervalMDP._bellman_helper!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                prob,
+                stateptr(prob);
+                upper_bound = false,
+            )
+            @test Vres ≈ N[17 // 10, 15 // 10]
 
-    Vres = bellman(V, prob; upper_bound = false)
-    Vres = Vector(Vres)
-    @test Vres ≈ [0.5 * 1 + 0.3 * 4 + 0.2 * 10, 0.6 * 5 + 0.3 * 6 + 0.1 * 7]
+            ws = IntervalMDP.ThreadedDenseWorkspace(gap(prob), 1)
+            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            Vres = similar(Vres)
+            IntervalMDP._bellman_helper!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                prob,
+                stateptr(prob);
+                upper_bound = false,
+            )
+            @test Vres ≈ N[17 // 10, 15 // 10]
+        end
+    end
 end
 
 #### Large matrices
@@ -110,8 +146,32 @@ end
         prob, V, cuda_prob, cuda_V =
             sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
 
-        V_cpu = bellman(V, prob; upper_bound = false)
-        V_gpu = Vector(bellman(cuda_V, cuda_prob; upper_bound = false))
+        ws = construct_workspace(prob)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        V_cpu = zeros(Float64, m)
+        IntervalMDP._bellman_helper!(
+            ws,
+            strategy_cache,
+            V_cpu,
+            V,
+            prob,
+            stateptr(prob);
+            upper_bound = false,
+        )
+
+        ws = construct_workspace(cuda_prob)
+        strategy_cache = construct_strategy_cache(cuda_prob, NoStrategyConfig())
+        V_gpu = CUDA.zeros(Float64, m)
+        IntervalMDP._bellman_helper!(
+            ws,
+            strategy_cache,
+            V_gpu,
+            cuda_V,
+            cuda_prob,
+            stateptr(cuda_prob);
+            upper_bound = false,
+        )
+        V_gpu = Vector(V_gpu)  # Convert to CPU for testing
 
         @test V_cpu ≈ V_gpu
     end
@@ -126,8 +186,32 @@ end
         prob, V, cuda_prob, cuda_V =
             sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
 
-        V_cpu = bellman(V, prob; upper_bound = false)
-        V_gpu = Vector(bellman(cuda_V, cuda_prob; upper_bound = false))
+        ws = construct_workspace(prob)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        V_cpu = zeros(Float64, m)
+        IntervalMDP._bellman_helper!(
+            ws,
+            strategy_cache,
+            V_cpu,
+            V,
+            prob,
+            stateptr(prob);
+            upper_bound = false,
+        )
+
+        ws = construct_workspace(cuda_prob)
+        strategy_cache = construct_strategy_cache(cuda_prob, NoStrategyConfig())
+        V_gpu = CUDA.zeros(Float64, m)
+        IntervalMDP._bellman_helper!(
+            ws,
+            strategy_cache,
+            V_gpu,
+            cuda_V,
+            cuda_prob,
+            stateptr(cuda_prob);
+            upper_bound = false,
+        )
+        V_gpu = Vector(V_gpu)  # Convert to CPU for testing
 
         @test V_cpu ≈ V_gpu
     end
@@ -142,8 +226,32 @@ end
         prob, V, cuda_prob, cuda_V =
             sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
 
-        V_cpu = bellman(V, prob; upper_bound = false)
-        V_gpu = Vector(bellman(cuda_V, cuda_prob; upper_bound = false))
+        ws = construct_workspace(prob)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        V_cpu = zeros(Float64, m)
+        IntervalMDP._bellman_helper!(
+            ws,
+            strategy_cache,
+            V_cpu,
+            V,
+            prob,
+            stateptr(prob);
+            upper_bound = false,
+        )
+
+        ws = construct_workspace(cuda_prob)
+        strategy_cache = construct_strategy_cache(cuda_prob, NoStrategyConfig())
+        V_gpu = CUDA.zeros(Float64, m)
+        IntervalMDP._bellman_helper!(
+            ws,
+            strategy_cache,
+            V_gpu,
+            cuda_V,
+            cuda_prob,
+            stateptr(cuda_prob);
+            upper_bound = false,
+        )
+        V_gpu = Vector(V_gpu)  # Convert to CPU for testing
 
         @test V_cpu ≈ V_gpu
     end
@@ -158,8 +266,32 @@ end
         prob, V, cuda_prob, cuda_V =
             sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
 
-        V_cpu = bellman(V, prob; upper_bound = false)
-        V_gpu = Vector(bellman(cuda_V, cuda_prob; upper_bound = false))
+        ws = construct_workspace(prob)
+        strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+        V_cpu = zeros(Float64, m)
+        IntervalMDP._bellman_helper!(
+            ws,
+            strategy_cache,
+            V_cpu,
+            V,
+            prob,
+            stateptr(prob);
+            upper_bound = false,
+        )
+
+        ws = construct_workspace(cuda_prob)
+        strategy_cache = construct_strategy_cache(cuda_prob, NoStrategyConfig())
+        V_gpu = CUDA.zeros(Float64, m)
+        IntervalMDP._bellman_helper!(
+            ws,
+            strategy_cache,
+            V_gpu,
+            cuda_V,
+            cuda_prob,
+            stateptr(cuda_prob);
+            upper_bound = false,
+        )
+        V_gpu = Vector(V_gpu)  # Convert to CPU for testing
 
         @test V_cpu ≈ V_gpu
     end
@@ -174,9 +306,16 @@ end
         prob, V, cuda_prob, cuda_V =
             sample_sparse_interval_probabilities(rng, n, m, nnz_per_column)
 
-        @test_throws IntervalMDP.OutOfSharedMemory bellman(
+        ws = construct_workspace(cuda_prob)
+        strategy_cache = construct_strategy_cache(cuda_prob, NoStrategyConfig())
+        V_gpu = CUDA.zeros(Float64, m)
+        @test_throws IntervalMDP.OutOfSharedMemory IntervalMDP._bellman_helper!(
+            ws,
+            strategy_cache,
+            V_gpu,
             cuda_V,
-            cuda_prob;
+            cuda_prob,
+            stateptr(cuda_prob);
             upper_bound = false,
         )
     end

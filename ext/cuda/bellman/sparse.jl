@@ -114,10 +114,9 @@ function try_small_sparse_bellman!(
         return false
     end
 
-    # TODO: Dynamically maximize the number of states per block
-
+    num_states = length(stateptr) - one(Int32)
     threads = desired_warps * 32
-    blocks = min(2^16 - 1, cld(num_source(prob), desired_warps))
+    blocks = min(2^16 - 1, cld(num_states, desired_warps))
 
     kernel(
         workspace,
@@ -168,8 +167,9 @@ function small_sparse_bellman_kernel!(
     @inbounds gap_ws = @view gap_ws[:, wid]
 
     # Grid-stride loop
+    num_states = length(stateptr) - one(Int32)
     j = wid + (blockIdx().x - one(Int32)) * nwarps
-    while j <= num_source(prob)
+    while j <= num_states
         state_small_sparse_omaximization!(
             action_workspace,
             value_ws,
@@ -462,8 +462,9 @@ function try_large_sparse_bellman!(
 
     wanted_threads = min(1024, nextwarp(device(), cld(workspace.max_nonzeros, 2)))
 
+    num_states = length(stateptr) - one(Int32)
     threads = min(max_threads, wanted_threads)
-    blocks = min(2^16 - 1, num_source(prob))
+    blocks = min(2^16 - 1, num_states)
 
     kernel(
         T1,
@@ -506,8 +507,9 @@ function large_sparse_bellman_kernel!(
     )
 
     # Grid-stride loop
+    num_states = length(stateptr) - one(Int32)
     j = blockIdx().x
-    @inbounds while j <= num_source(prob)
+    @inbounds while j <= num_states
         state_sparse_omaximization!(
             action_workspace,
             value_ws,

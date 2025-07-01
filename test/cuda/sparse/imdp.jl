@@ -44,7 +44,7 @@ transition_probs = [prob1, prob2, prob3]
 istates = [Int32(1)]
 
 mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs, istates))
-@test initial_states(mdp) == istates
+@test Vector(initial_states(mdp)) == istates
 
 mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs))
 
@@ -58,24 +58,28 @@ mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs))
         spec = Specification(prop, Pessimistic, Maximize)
         problem = Problem(mdp, spec)
         V_fixed_it1, k, _ = value_iteration(problem)
+        V_fixed_it1 = Vector(V_fixed_it1)  # Convert to CPU for testing
         @test k == 10
         @test all(V_fixed_it1 .>= 0.0)
 
         spec = Specification(prop, Optimistic, Maximize)
         problem = Problem(mdp, spec)
         V_fixed_it2, k, _ = value_iteration(problem)
+        V_fixed_it2 = Vector(V_fixed_it2)  # Convert to CPU for testing
         @test k == 10
         @test all(V_fixed_it1 .<= V_fixed_it2)
 
         spec = Specification(prop, Pessimistic, Minimize)
         problem = Problem(mdp, spec)
         V_fixed_it1, k, _ = value_iteration(problem)
+        V_fixed_it1 = Vector(V_fixed_it1)  # Convert to CPU for testing
         @test k == 10
         @test all(V_fixed_it1 .>= 0.0)
 
         spec = Specification(prop, Optimistic, Minimize)
         problem = Problem(mdp, spec)
         V_fixed_it2, k, _ = value_iteration(problem)
+        V_fixed_it2 = Vector(V_fixed_it2)  # Convert to CPU for testing
         @test k == 10
         @test all(V_fixed_it1 .<= V_fixed_it2)
     end
@@ -86,6 +90,7 @@ mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs))
         spec = Specification(prop, Pessimistic, Maximize)
         problem = Problem(mdp, spec)
         V_conv, _, u = value_iteration(problem)
+        V_conv = Vector(V_conv)  # Convert to CPU for testing
         @test maximum(u) <= 1e-6
         @test all(V_conv .>= 0.0)
     end
@@ -96,24 +101,28 @@ mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs))
         spec = Specification(prop, Pessimistic, Maximize)
         problem = Problem(mdp, spec)
         V_fixed_it1, k, _ = value_iteration(problem)
+        V_fixed_it1 = Vector(V_fixed_it1)  # Convert to CPU for testing
         @test k == 10
         @test all(V_fixed_it1 .>= 0.0)
 
         spec = Specification(prop, Optimistic, Maximize)
         problem = Problem(mdp, spec)
         V_fixed_it2, k, _ = value_iteration(problem)
+        V_fixed_it2 = Vector(V_fixed_it2)  # Convert to CPU for testing
         @test k == 10
         @test all(V_fixed_it1 .<= V_fixed_it2)
 
         spec = Specification(prop, Pessimistic, Minimize)
         problem = Problem(mdp, spec)
         V_fixed_it1, k, _ = value_iteration(problem)
+        V_fixed_it1 = Vector(V_fixed_it1)  # Convert to CPU for testing
         @test k == 10
         @test all(V_fixed_it1 .>= 0.0)
 
         spec = Specification(prop, Optimistic, Minimize)
         problem = Problem(mdp, spec)
         V_fixed_it2, k, _ = value_iteration(problem)
+        V_fixed_it2 = Vector(V_fixed_it2)  # Convert to CPU for testing
         @test k == 10
         @test all(V_fixed_it1 .<= V_fixed_it2)
     end
@@ -124,6 +133,7 @@ mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs))
         spec = Specification(prop, Pessimistic, Maximize)
         problem = Problem(mdp, spec)
         V_conv, _, u = value_iteration(problem)
+        V_conv = Vector(V_conv)  # Convert to CPU for testing
         @test maximum(u) <= 1e-6
         @test all(V_conv .>= 0.0)
     end
@@ -134,24 +144,28 @@ mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs))
         spec = Specification(prop, Pessimistic, Maximize)
         problem = Problem(mdp, spec)
         V_fixed_it1, k, _ = value_iteration(problem)
+        V_fixed_it1 = Vector(V_fixed_it1)  # Convert to CPU for testing
         @test k == 10
         @test all(V_fixed_it1 .>= 0.0)
 
         spec = Specification(prop, Optimistic, Maximize)
         problem = Problem(mdp, spec)
         V_fixed_it2, k, _ = value_iteration(problem)
+        V_fixed_it2 = Vector(V_fixed_it2)  # Convert to CPU for testing
         @test k == 10
         @test all(V_fixed_it1 .<= V_fixed_it2)
 
         spec = Specification(prop, Pessimistic, Minimize)
         problem = Problem(mdp, spec)
         V_fixed_it1, k, _ = value_iteration(problem)
+        V_fixed_it1 = Vector(V_fixed_it1)  # Convert to CPU for testing
         @test k == 10
         @test all(V_fixed_it1 .>= 0.0)
 
         spec = Specification(prop, Optimistic, Minimize)
         problem = Problem(mdp, spec)
         V_fixed_it2, k, _ = value_iteration(problem)
+        V_fixed_it2 = Vector(V_fixed_it2)  # Convert to CPU for testing
         @test k == 10
         @test all(V_fixed_it1 .<= V_fixed_it2)
     end
@@ -162,6 +176,7 @@ mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs))
         spec = Specification(prop, Pessimistic, Maximize)
         problem = Problem(mdp, spec)
         V_conv, _, u = value_iteration(problem)
+        V_conv = Vector(V_conv)  # Convert to CPU for testing
         @test maximum(u) <= 1e-6
         @test all(V_conv .>= 0.0)
     end
@@ -173,6 +188,7 @@ mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs))
         spec = Specification(prop, Pessimistic, Maximize)
         problem = Problem(mdp, spec)
         V_conv1, _, u = value_iteration(problem)
+        V_conv1 = Vector(V_conv1)  # Convert to CPU for testing
         @test maximum(u) <= 1e-6
         @test all(V_conv1 .>= 0.0)
         @test V_conv1[3] == 0.0
@@ -180,6 +196,7 @@ mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs))
         spec = Specification(prop, Optimistic, Maximize)
         problem = Problem(mdp, spec)
         V_conv2, _, u = value_iteration(problem)
+        V_conv2 = Vector(V_conv2)  # Convert to CPU for testing
         @test maximum(u) <= 1e-6
         @test all(V_conv1 .<= V_conv2)
         @test V_conv2[3] == 0.0
@@ -187,6 +204,7 @@ mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs))
         spec = Specification(prop, Pessimistic, Minimize)
         problem = Problem(mdp, spec)
         V_conv1, _, u = value_iteration(problem)
+        V_conv1 = Vector(V_conv1)  # Convert to CPU for testing
         @test maximum(u) <= 1e-6
         @test all(V_conv1 .>= 0.0)
         @test V_conv1[3] == 0.0
@@ -194,6 +212,7 @@ mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs))
         spec = Specification(prop, Optimistic, Minimize)
         problem = Problem(mdp, spec)
         V_conv2, _, u = value_iteration(problem)
+        V_conv2 = Vector(V_conv2)  # Convert to CPU for testing
         @test maximum(u) <= 1e-6
         @test all(V_conv1 .<= V_conv2)
         @test V_conv2[3] == 0.0
@@ -202,7 +221,7 @@ end
 
 @testset "implicit sink state" begin
     transition_probs = [prob1, prob2]
-    implicit_mdp = IntervalMarkovDecisionProcess(transition_probs)
+    implicit_mdp = IntervalMDP.cu(IntervalMarkovDecisionProcess(transition_probs))
 
     # Finite time reachability
     @testset "finite time reachability" begin
@@ -211,9 +230,13 @@ end
         spec = Specification(prop, Pessimistic, Maximize)
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -222,9 +245,13 @@ end
         spec = Specification(prop, Optimistic, Maximize)
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -233,9 +260,13 @@ end
         spec = Specification(prop, Pessimistic, Minimize)
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -244,9 +275,13 @@ end
         spec = Specification(prop, Optimistic, Minimize)
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -260,9 +295,13 @@ end
 
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -276,9 +315,13 @@ end
         spec = Specification(prop, Pessimistic, Maximize)
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -287,9 +330,13 @@ end
         spec = Specification(prop, Optimistic, Maximize)
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -298,9 +345,13 @@ end
         spec = Specification(prop, Pessimistic, Minimize)
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -309,9 +360,13 @@ end
         spec = Specification(prop, Optimistic, Minimize)
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -325,9 +380,13 @@ end
 
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -341,9 +400,13 @@ end
         spec = Specification(prop, Pessimistic, Maximize)
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -352,9 +415,13 @@ end
         spec = Specification(prop, Optimistic, Maximize)
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -363,9 +430,13 @@ end
         spec = Specification(prop, Pessimistic, Minimize)
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -374,9 +445,13 @@ end
         spec = Specification(prop, Optimistic, Minimize)
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -389,9 +464,13 @@ end
         spec = Specification(prop, Pessimistic, Maximize)
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
@@ -405,9 +484,13 @@ end
 
         problem = Problem(mdp, spec)
         V, k, res = value_iteration(problem)
+        V = Vector(V)  # Convert to CPU for testing
+        res = Vector(res)  # Convert to CPU for testing
 
         problem_implicit = Problem(implicit_mdp, spec)
         V_implicit, k_implicit, res_implicit = value_iteration(problem_implicit)
+        V_implicit = Vector(V_implicit)  # Convert to CPU for testing
+        res_implicit = Vector(res_implicit)  # Convert to CPU for testing
 
         @test V ≈ V_implicit
         @test k == k_implicit
