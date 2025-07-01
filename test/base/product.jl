@@ -7,14 +7,15 @@ using IntervalMDP
         1 3 3
         2 1 3
         3 3 3
+        1 1 1
     ]
 
-    tr = TransitionFunction(T)
-    iztates = Int32(1)
-    aztates = Int32[3]
-    alphabet = String["a", "b", "ab"]
+    delta = TransitionFunction(T)
+    istate = Int32(1)
+    astates = Int32[3]
+    atomic_props = ["a", "b"]
 
-    dfa = DFA(tr, iztates, aztates, alphabet)
+    dfa = DFA(delta, istate, astates, atomic_props)
 
     # imdp
     prob1 = IntervalProbabilities(;
@@ -64,9 +65,9 @@ using IntervalMDP
         map = UInt16[1, 2, 3]
         lf = LabellingFunction(map)
 
-        prodIMDP = ProductIntervalMarkovDecisionProcessDFA(mdp, dfa, lf)
+        prodIMDP = ProductProcess(mdp, dfa, lf)
 
-        @test imdp(prodIMDP) == mdp
+        @test markov_process(prodIMDP) == mdp
         @test automaton(prodIMDP) == dfa
         @test labelling_function(prodIMDP) == lf
     end
@@ -77,15 +78,27 @@ using IntervalMDP
         map = UInt16[1, 2]
         lf = LabellingFunction(map)
 
-        @test_throws DimensionMismatch ProductIntervalMarkovDecisionProcessDFA(mdp, dfa, lf)
+        @test_throws DimensionMismatch ProductProcess(mdp, dfa, lf)
     end
 
     @testset "DFA inputs labelling func output mismatch (more output than inputs)" begin
+        T = UInt16[
+            1 2 2
+            2 1 2
+        ]
+
+        delta = TransitionFunction(T)
+
+        istate = Int32(1)
+        astates = Int32[2]
+        atomic_props = ["a"]
+
+        dfa = DFA(delta, istate, astates, atomic_props)
 
         # labelling
-        map = UInt16[1, 2, 4]
+        map = UInt16[1, 2, 3]
         lf = LabellingFunction(map)
 
-        @test_throws DimensionMismatch ProductIntervalMarkovDecisionProcessDFA(mdp, dfa, lf)
+        @test_throws DimensionMismatch ProductProcess(mdp, dfa, lf)
     end
 end

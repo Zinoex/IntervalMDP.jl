@@ -95,7 +95,7 @@ function MixtureIntervalMarkovDecisionProcess(
     stateptr::AbstractVector{Int32},
     initial_states::InitialStates = AllStates(),
 )
-    num_states = checksize_imdp!(transition_prob, stateptr)
+    num_states = checksize_imdp(transition_prob, stateptr)
 
     return MixtureIntervalMarkovDecisionProcess(
         transition_prob,
@@ -132,7 +132,7 @@ function MixtureIntervalMarkovChain(
     return MixtureIntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
 end
 
-function checksize_imdp!(p::MixtureIntervalProbabilities, stateptr::AbstractVector{Int32})
+function checksize_imdp(p::MixtureIntervalProbabilities, stateptr::AbstractVector{Int32})
     num_states = length(stateptr) - 1
 
     min_actions = mindiff(stateptr)
@@ -147,6 +147,7 @@ function checksize_imdp!(p::MixtureIntervalProbabilities, stateptr::AbstractVect
             ),
         )
     end
+    # TODO:: Check that source_dims match stateptr
 
     return Int32(prod(num_target, first(p)))
 end

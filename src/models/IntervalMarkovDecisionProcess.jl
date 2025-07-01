@@ -107,7 +107,7 @@ function IntervalMarkovDecisionProcess(
     stateptr::AbstractVector{Int32},
     initial_states::InitialStates = AllStates(),
 )
-    num_states = checksize_imdp!(transition_prob, stateptr)
+    num_states = checksize_imdp(transition_prob, stateptr)
 
     return IntervalMarkovDecisionProcess(
         transition_prob,
@@ -143,7 +143,7 @@ function IntervalMarkovChain(
     return IntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
 end
 
-function checksize_imdp!(p::IntervalProbabilities, stateptr::AbstractVector{Int32})
+function checksize_imdp(p::IntervalProbabilities, stateptr::AbstractVector{Int32})
     num_states = length(stateptr) - 1
 
     min_actions = mindiff(stateptr)

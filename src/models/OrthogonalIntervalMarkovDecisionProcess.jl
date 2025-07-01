@@ -60,7 +60,7 @@ function OrthogonalIntervalMarkovDecisionProcess(
     stateptr::AbstractVector{Int32},
     initial_states::InitialStates = AllStates(),
 )
-    num_states = checksize_imdp!(transition_prob, stateptr)
+    num_states = checksize_imdp(transition_prob, stateptr)
 
     return OrthogonalIntervalMarkovDecisionProcess(
         transition_prob,
@@ -105,7 +105,7 @@ function OrthogonalIntervalMarkovChain(
     )
 end
 
-function checksize_imdp!(
+function checksize_imdp(
     p::OrthogonalIntervalProbabilities,
     stateptr::AbstractVector{Int32},
 )
