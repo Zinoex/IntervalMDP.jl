@@ -3,7 +3,6 @@ using IntervalMDP, SparseArrays, CUDA
 using StatsBase
 using Random: MersenneTwister
 
-
 for N in [Float32, Float64, Rational{BigInt}]
     @testset "N = $N" begin
         prob = IntervalProbabilities(;

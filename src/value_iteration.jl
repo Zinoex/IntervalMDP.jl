@@ -152,28 +152,32 @@ struct ValueFunction{R, A <: AbstractArray{R}}
     current::A
 end
 
-function ValueFunction(previous::A) where {R, A <: AbstractArray{R}}
-    current = copy(previous)
-    return ValueFunction{R, A}(previous, current)
-end
-
 function ValueFunction(problem::Problem)
     mp = system(problem)
-    pns = product_num_states(mp)
+    previous = arrayfactory(mp, valuetype(mp), product_num_states(mp))
+    current = copy(previous)
 
-    return ValueFunction(mp, pns)
+    return ValueFunction(previous, current)
 end
 
-ValueFunction(mp::IntervalMarkovProcess, num_states) =
-    ValueFunction(transition_prob(mp), num_states)
-ValueFunction(prob::MixtureIntervalProbabilities, num_states) =
-    ValueFunction(first(prob), num_states)
-ValueFunction(prob::OrthogonalIntervalProbabilities, num_states) =
-    ValueFunction(first(prob), num_states)
-ValueFunction(prob::IntervalProbabilities, num_states) =
-    ValueFunction(gap(prob), num_states)
-ValueFunction(::MR, num_states) where {R, MR <: AbstractMatrix{R}} =
-    ValueFunction(zeros(R, num_states))
+arrayfactory(mp::ProductProcess, T, num_states) =
+    arrayfactory(markov_process(mp), T, num_states)
+arrayfactory(mp::IntervalMarkovProcess, T, num_states) =
+    arrayfactory(transition_prob(mp), T, num_states)
+arrayfactory(prob::MixtureIntervalProbabilities, T, num_states) =
+    arrayfactory(first(prob), T, num_states)
+arrayfactory(prob::OrthogonalIntervalProbabilities, T, num_states) =
+    arrayfactory(first(prob), T, num_states)
+arrayfactory(prob::IntervalProbabilities, T, num_states) =
+    arrayfactory(gap(prob), T, num_states)
+arrayfactory(::MR, T, num_states) where {MR <: AbstractMatrix} = zeros(T, num_states)
+
+valuetype(mp::ProductProcess) = valuetype(markov_process(mp))
+valuetype(mp::IntervalMarkovProcess) = valuetype(transition_prob(mp))
+valuetype(prob::MixtureIntervalProbabilities) = valuetype(first(prob))
+valuetype(prob::OrthogonalIntervalProbabilities) = valuetype(first(prob))
+valuetype(prob::IntervalProbabilities) = valuetype(gap(prob))
+valuetype(::MR) where {R, MR <: AbstractMatrix{R}} = R
 
 function lastdiff!(V)
     # Reuse prev to store the latest difference
@@ -194,7 +198,7 @@ function step!(
     strategy_cache::OptimizingStrategyCache,
     value_function,
     k,
-    mp::IntervalMarkovProcess;
+    mp;
     upper_bound,
     maximize,
 )
@@ -214,7 +218,7 @@ function step!(
     strategy_cache::NonOptimizingStrategyCache,
     value_function,
     k,
-    mp::IntervalMarkovProcess;
+    mp;
     upper_bound,
     maximize,
 )

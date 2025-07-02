@@ -15,4 +15,4 @@ include("TransitionFunction.jl")
 export TransitionFunction, transition
 
 include("Labelling.jl")
-export LabellingFunction, count_mapping, mapping
+export LabellingFunction, mapping, num_labels

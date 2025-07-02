@@ -16,9 +16,9 @@ with great efficiency. Furthermore, it provides methods for accelerating the com
 certificate using CUDA hardware. 
 
 ## Features
-- O-maximization and value iteration
+- Value iteration (Bellman operator via O-maximization)
 - Dense and sparse matrix support
-- Parametric probability types for customizable precision
+- Parametric probability and value types for customizable precision including rationals and floating-point numbers
 - Multithreaded CPU and CUDA-accelerated value iteration
 - Data loading and writing in formats by various tools (PRISM, bmdp-tool, IMDP.jl)
 
@@ -72,7 +72,7 @@ V, k, residual = value_iteration(problem)
 See [Usage](https://www.baymler.com/IntervalMDP.jl/dev/usage/) for more information about different specifications, using sparse matrices, and CUDA.
 
 ## Ecosystem
-Building upon IntervalMDP.jl, we are designing an ecosystem of tools, which current consists of:
+Building upon IntervalMDP.jl, we are designing an ecosystem of tools, which currently consists of:
 
 - [IntervalMDPAbstractions.jl](https://github.com/Zinoex/IntervalMDPAbstractions.jl) - constructing abstractions of stochastic dynamical systems to verify properties.
 

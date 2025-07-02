@@ -19,8 +19,9 @@ export StationaryStrategy, TimeVaryingStrategy
 export construct_strategy_cache, time_length
 
 include("specification.jl")
-export Property, LTLFormula, LTLfFormula, PCTLFormula
+export Property, BasicProperty, ProductProperty
 
+export AbstractDFAReachability, FiniteTimeDFAReachability, InfiniteTimeDFAReachability
 export AbstractReachability,
     FiniteTimeReachability, InfiniteTimeReachability, ExactTimeReachability
 export AbstractReachAvoid, FiniteTimeReachAvoid, InfiniteTimeReachAvoid, ExactTimeReachAvoid

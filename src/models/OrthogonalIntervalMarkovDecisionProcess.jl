@@ -20,7 +20,7 @@ Then the ```OrthogonalIntervalMarkovDecisionProcess``` type is defined as follow
 `transition_prob` represents ``\\Gamma``. Actions are implicitly defined by `stateptr` (e.g. if `source_dims` in `transition_prob` is `(2, 3, 2)`, and
 `stateptr[3] == 4` and `stateptr[4] == 7` then the actions available to state `CartesianIndex(1, 2, 1)` are `[1, 2, 3]`), and `initial_states`
 is the set of initial states ``S_0``. If no initial states are specified, then the initial states are assumed to be all states in ``S``
-represented by `AllStates`. See [OrthogonalIntervalProbabilities](@ref) and [Theory](@ref) for more information on the structure
+represented by `AllStates`. See [`OrthogonalIntervalProbabilities`](@ref) and [Theory](@ref) for more information on the structure
 of the transition probability ambiguity sets.
 
 ### Fields
@@ -32,7 +32,7 @@ of the transition probability ambiguity sets.
 
 ### Examples
 Assume that `prob1`, `prob2`, and `prob3` are `IntervalProbabilities` for the first, second, and third axis, respectively, defined as the example 
-in [OrthogonalIntervalProbabilities](@ref). Then the following code constructs an `OrthogonalIntervalMarkovDecisionProcess` with three axes of three states each.
+in [`OrthogonalIntervalProbabilities`](@ref). Then the following code constructs an `OrthogonalIntervalMarkovDecisionProcess` with three axes of three states each.
 The number of actions per state is one, i.e. the model is a Markov chain. Therefore, the `stateptr` is a unit range `1:num_states + 1` and we can call
 the convenience constructor `OrthogonalIntervalMarkovChain` instead.
 
@@ -60,7 +60,7 @@ function OrthogonalIntervalMarkovDecisionProcess(
     stateptr::AbstractVector{Int32},
     initial_states::InitialStates = AllStates(),
 )
-    num_states = checksize_imdp!(transition_prob, stateptr)
+    num_states = checksize_imdp(transition_prob, stateptr)
 
     return OrthogonalIntervalMarkovDecisionProcess(
         transition_prob,
@@ -105,10 +105,7 @@ function OrthogonalIntervalMarkovChain(
     )
 end
 
-function checksize_imdp!(
-    p::OrthogonalIntervalProbabilities,
-    stateptr::AbstractVector{Int32},
-)
+function checksize_imdp(p::OrthogonalIntervalProbabilities, stateptr::AbstractVector{Int32})
     num_states = length(stateptr) - 1
 
     min_actions = mindiff(stateptr)

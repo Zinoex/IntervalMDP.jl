@@ -117,6 +117,12 @@ function IntervalMDP.checkdevice(b::AbstractGPUArray, A::AbstractMatrix)
     @assert false "The reward vector is on the GPU ($(typeof(b))) and the transition matrix is a CPU matrix ($(typeof(A)))."
 end
 
+IntervalMDP.arrayfactory(
+    ::MR,
+    T,
+    num_states,
+) where {R, MR <: Union{CuSparseMatrixCSC{R}, CuMatrix{R}}} = CUDA.zeros(T, num_states)
+
 include("cuda/utils.jl")
 include("cuda/array.jl")
 include("cuda/sorting.jl")
@@ -124,7 +130,6 @@ include("cuda/workspace.jl")
 include("cuda/strategy.jl")
 include("cuda/bellman/dense.jl")
 include("cuda/bellman/sparse.jl")
-include("cuda/value_iteration.jl")
 include("cuda/interval_probabilities.jl")
 include("cuda/specification.jl")
 

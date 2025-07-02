@@ -2,8 +2,8 @@
     MixtureIntervalProbabilities{N, P <: OrthogonalIntervalProbabilities, Q <: IntervalProbabilities}
 
 A tuple of `OrthogonalIntervalProbabilities` for independent transition probabilities in a mixture that all share
-the same source/action pairs, and target states. See [OrthogonalIntervalProbabilities](@ref) for more information on the structure of the transition probabilities
-for each model in the mixture. The mixture is weighted by an `IntervalProbabilities` ambiguity set, called `weighting_probs`.
+the same source/action pairs, and target states. See [`OrthogonalIntervalProbabilities`](@ref) for more information on the structure of the transition probabilities
+for each model in the mixture. The mixture is weighted by an [`IntervalProbabilities`](@ref) ambiguity set, called `weighting_probs`.
 
 ### Fields
 - `mixture_probs::NTuple{N, P}`: A tuple of `OrthogonalIntervalProbabilities` transition probabilities along each axis.

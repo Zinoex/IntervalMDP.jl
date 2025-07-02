@@ -17,7 +17,7 @@ Formally, let ``(S, S_0, A, \\Gamma)`` be an interval Markov decision process, w
 Then the ```IntervalMarkovDecisionProcess``` type is defined as follows: indices `1:num_states` are the states in ``S``, 
 `transition_prob` represents ``\\Gamma``, actions are implicitly defined by `stateptr` (e.g. if `stateptr[3] == 4` and `stateptr[4] == 7` then
 the actions available to state 3 are `[1, 2, 3]`), and `initial_states` is the set of initial states ``S_0``. If no initial states are specified,
-then the initial states are assumed to be all states in ``S`` represented by `AllStates`. See [IntervalProbabilities](@ref) and [Theory](@ref) for more information
+then the initial states are assumed to be all states in ``S`` represented by `AllStates`. See [`IntervalProbabilities`](@ref) and [Theory](@ref) for more information
 on the structure of the transition probability ambiguity sets.
 
 ### Fields
@@ -107,7 +107,7 @@ function IntervalMarkovDecisionProcess(
     stateptr::AbstractVector{Int32},
     initial_states::InitialStates = AllStates(),
 )
-    num_states = checksize_imdp!(transition_prob, stateptr)
+    num_states = checksize_imdp(transition_prob, stateptr)
 
     return IntervalMarkovDecisionProcess(
         transition_prob,
@@ -143,7 +143,7 @@ function IntervalMarkovChain(
     return IntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
 end
 
-function checksize_imdp!(p::IntervalProbabilities, stateptr::AbstractVector{Int32})
+function checksize_imdp(p::IntervalProbabilities, stateptr::AbstractVector{Int32})
     num_states = length(stateptr) - 1
 
     min_actions = mindiff(stateptr)

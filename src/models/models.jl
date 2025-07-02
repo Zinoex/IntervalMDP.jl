@@ -1,3 +1,5 @@
+abstract type StochasticProcess end
+
 include("IntervalMarkovProcess.jl")
 export IntervalMarkovProcess, AllStates
 export transition_prob, num_states, initial_states, stateptr, tomarkovchain
@@ -14,15 +16,7 @@ export MixtureIntervalMarkovDecisionProcess, MixtureIntervalMarkovChain
 include("DeterministicAutomaton.jl")
 
 include("DFA.jl")
-export DFA,
-    letters2alphabet,
-    alphabet2index,
-    transition,
-    alphabetptr,
-    initial_state,
-    accepting_states
+export DFA, transition, labelmap, initial_state, accepting_states
 
-include("ProductIntervalMarkovProcess.jl")
-
-include("ProductIntervalMarkovDecisionProcess.jl")
-export ProductIntervalMarkovDecisionProcessDFA, imdp, automaton, labelling_function
+include("ProductProcess.jl")
+export ProductProcess, markov_process, automaton, labelling_function

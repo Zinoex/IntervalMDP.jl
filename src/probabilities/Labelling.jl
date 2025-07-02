@@ -2,44 +2,49 @@ abstract type AbstractLabelling end
 
 """
     struct LabellingFunction{
-        T  <:Unsigned, 
+        T  <: Integer, 
         VT <: AbstractVector{T}
     }
 
 A type representing the labelling of IMDP states into DFA inputs.
 
-Formally, let ``L : S => 2^{AP}`` be a labelling function, where 
+Formally, let ``L : S \\to 2^{AP}`` be a labelling function, where 
 - ``S`` is the set of IMDP states, and
 - ``2^{AP}`` is the power set of atomic propositions
 
 Then the ```LabellingFunction``` type is defined as vector which stores the mapping. 
 
 ### Fields
-- `map::VT`: mapping function where indices are IMDP states and stored values are DFA inputs.
+- `map::VT`: mapping function where indices are (factored) IMDP states and stored values are DFA inputs.
 - `num_inputs::Int32`: number of IMDP states accounted for in mapping.
 - `num_outputs::Int32`: number of DFA inputs accounted for in mapping.
 
 """
-struct LabellingFunction{T <: Unsigned, AT <: AbstractArray{T}} <: AbstractLabelling
+struct LabellingFunction{T <: Integer, AT <: AbstractArray{T}} <: AbstractLabelling
     map::AT
-    num_inputs::Int32
     num_outputs::Int32
 end
 
-function LabellingFunction(map::AT) where {T <: Unsigned, AT <: AbstractArray{T}}
-    num_inputs, num_outputs = count_mapping(map)
+function LabellingFunction(map::AT) where {T <: Integer, AT <: AbstractArray{T}}
+    num_outputs = checklabelling(map)
 
-    return LabellingFunction(map, Int32(num_inputs), Int32(num_outputs))
+    return LabellingFunction(map, Int32(num_outputs))
 end
 
-"""
-Find size of input and output space of function
-"""
-function count_mapping(map::AbstractArray)
-    num_inputs = length(map)
-    num_outputs = maximum(map)
+function checklabelling(map::AbstractArray{<:Integer})
+    labels = unique(map)
 
-    return num_inputs, num_outputs
+    if any(labels .< 1)
+        throw(ArgumentError("Labelled state index cannot be less than 1"))
+    end
+
+    # Check that labels are consecutive integers
+    sort!(labels)
+    if any(diff(labels) .!= 1)
+        throw(ArgumentError("Labelled state indices must be consecutive integers"))
+    end
+
+    return last(labels)
 end
 
 """
@@ -52,14 +57,19 @@ mapping(labelling_func::LabellingFunction) = labelling_func.map
 """
     size(labelling_func::LabellingFunction)
 
-Returns ``|S|`` and ``|2^{AP}|`` of the labeling function ``L: S => 2^{AP}`` . 
+Returns the shape of the input range of the labeling function ``L : S \\to 2^{AP}``, which can be multiple dimensions in case of factored IMDPs. 
 """
-Base.size(labelling_func::LabellingFunction) =
-    (labelling_func.num_inputs, labelling_func.num_outputs)
+Base.size(labelling_func::LabellingFunction) = size(labelling_func.map)
 
 """
-    getindex(lf::LabellingFunction, s::Int)
-
-Return the label for state s. 
+    num_labels(labelling_func::LabellingFunction)
+Return the number of labels (DFA inputs) in the labelling function.
 """
-Base.getindex(lf::LabellingFunction, s::Int) = lf.map[s]
+num_labels(labelling_func::LabellingFunction) = labelling_func.num_outputs
+
+"""
+    getindex(lf::LabellingFunction, s...)
+
+Return the label for state s.
+"""
+Base.getindex(lf::LabellingFunction, s...) = lf.map[s...]

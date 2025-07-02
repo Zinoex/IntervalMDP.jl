@@ -1,7 +1,6 @@
 using Revise, Test
 using IntervalMDP, SparseArrays, CUDA
 
-
 for N in [Float32, Float64]
     @testset "N = $N" begin
         prob = IntervalProbabilities(;

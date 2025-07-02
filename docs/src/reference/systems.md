@@ -16,16 +16,16 @@ MixtureIntervalMarkovDecisionProcess
 MixtureIntervalMarkovChain
 stateptr(mdp::MixtureIntervalMarkovDecisionProcess)
 DFA
-letters2alphabet(letters::AbstractVector{String})
-alphabet2index(alphabet::AbstractVector{String})
+num_states(dfa::DFA)
+num_labels(dfa::DFA)
 transition(dfa::DFA)
-alphabetptr(dfa::DFA)
+labelmap(dfa::DFA)
 initial_state(dfa::DFA)
 accepting_states(dfa::DFA)
-ProductIntervalMarkovDecisionProcessDFA
-imdp(md::ProductIntervalMarkovDecisionProcessDFA)
-automaton(md::ProductIntervalMarkovDecisionProcessDFA)
-labelling_function(md::ProductIntervalMarkovDecisionProcessDFA)
+ProductProcess
+markov_process(proc::ProductProcess)
+automaton(proc::ProductProcess)
+labelling_function(proc::ProductProcess)
 ```
 
 ## Probability representation
@@ -75,12 +75,14 @@ weighting_probs
 ### Labelling of IMDP states to Automaton alphabet
 ```@docs
 LabellingFunction
-count_mapping(map::AbstractArray)
 mapping(labelling_func::LabellingFunction)
+num_labels(labelling_func::LabellingFunction)
 ```
 
 ### Transition function for DFA
 ```@docs
 TransitionFunction
 transition(transition_func::TransitionFunction)
+num_states(tf::TransitionFunction)
+num_labels(tf::TransitionFunction)
 ```
