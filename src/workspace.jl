@@ -1,7 +1,7 @@
 
 function construct_workspace end
 
-struct ProductWorkspace{W, MT <: AbstractMatrix{<:Real}}
+struct ProductWorkspace{W, MT <: AbstractArray}
     underlying_workspace::W
     intermediate_values::MT
 end
@@ -17,9 +17,8 @@ The underlying workspace type is determined by the type and size of the transiti
 as well as the number of threads available.
 """
 function construct_workspace(proc::ProductProcess)
-    underlying_workspace = construct_workspace(markov_process(proc))
-
-    mp = system(problem)
+    mp = markov_process(proc)
+    underlying_workspace = construct_workspace(mp)
     intermediate_values = arrayfactory(mp, valuetype(mp), product_num_states(mp))
 
     return ProductWorkspace(underlying_workspace, intermediate_values)

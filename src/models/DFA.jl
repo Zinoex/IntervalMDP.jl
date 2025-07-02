@@ -162,3 +162,5 @@ Base.getindex(dfa::DFA, q, w) = dfa.transition[q, w]
 Return the the next state for source state ``q`` and `String` input ``w`` (mapping it to the appropriate index) of the Deterministic Finite Automaton. 
 """
 Base.getindex(dfa::DFA, q, w::String) = dfa[q, dfa.labelmap[w]]
+
+Base.iterate(dfa::DFA, state::Int32 = one(Int32)) = state > num_states(dfa) ? nothing : (state, state + one(Int32))

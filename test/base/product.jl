@@ -99,3 +99,153 @@ using IntervalMDP
         @test_throws DimensionMismatch ProductProcess(mdp, dfa, lf)
     end
 end
+
+@testset "bellman" begin
+    for N in [Float32, Float64, Rational{BigInt}]
+        @testset "N = $N" begin
+            prob = IntervalProbabilities(;
+                lower = N[
+                    0     5//10 0
+                    1//10 3//10 0
+                    2//10 1//10 1
+                ],
+                upper = N[
+                    5//10 7//10 0
+                    6//10 5//10 0
+                    7//10 3//10 1
+                ],
+            )
+            mc = IntervalMarkovChain(prob)
+
+            # Product model - just simple reachability
+            delta = TransitionFunction(Int32[
+                1 2
+                2 2
+            ])    
+            istate = Int32(1)
+            atomic_props = ["reach"]
+            dfa = DFA(delta, istate, atomic_props)
+
+            labelling = LabellingFunction(Int32[1, 1, 2])
+
+            prod_proc = ProductProcess(mc, dfa, labelling)
+
+            V = N[
+                4 1
+                2 3
+                0 5
+            ]
+
+            Vres = bellman(V, prod_proc; upper_bound=false)
+
+            @test Vres ≈ N[
+                30//10 24//10
+                33//10 2
+                5      5
+            ]
+        end
+    end
+end
+
+@testset "value_iteration" begin
+    for N in [Float32, Float64, Rational{BigInt}]
+        @testset "N = $N" begin
+            prob1 = IntervalProbabilities(;
+                lower = N[
+                    0//10 5//10
+                    1//10 3//10
+                    2//10 1//10
+                ],
+                upper = N[
+                    5//10 7//10
+                    6//10 5//10
+                    7//10 3//10
+                ],
+            )
+            
+            prob2 = IntervalProbabilities(;
+                lower = N[
+                    1//10 2//10
+                    2//10 3//10
+                    3//10 4//10
+                ],
+                upper = N[
+                    6//10 6//10
+                    5//10 5//10
+                    4//10 4//10
+                ],
+            )
+            
+            prob3 = IntervalProbabilities(; lower = N[
+                0
+                0
+                1
+            ][:, :], upper = N[
+                0
+                0
+                1
+            ][:, :])
+            
+            transition_probs = [prob1, prob2, prob3]
+            mdp = IntervalMarkovDecisionProcess(transition_probs)
+
+            # Product model - just simple reachability
+            delta = TransitionFunction(Int32[
+                1 2
+                2 2
+            ])    
+            istate = Int32(1)
+            atomic_props = ["reach"]
+            dfa = DFA(delta, istate, atomic_props)
+
+            labelling = LabellingFunction(Int32[1, 1, 2])
+
+            prod_proc = ProductProcess(mc, dfa, labelling)
+
+            @testset "finite time reachability" begin
+                prop = FiniteTimeDFAReachability([2], 10)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = Problem(prod_proc, spec)
+
+                policy, V_fixed_it1, k, res = control_synthesis(problem)
+
+                @test all(V_fixed_it1 .>= 0)
+                @test k == 10
+                @test V_fixed_it1[:, 2] == N[1, 1, 1]
+
+                problem = Problem(prod_proc, spec, policy)
+                V_mc, k, res = value_iteration(problem)
+
+                @test V_fixed_it1 ≈ V_mc
+
+                prop = FiniteTimeDFAReachability([2], 11)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = Problem(prod_proc, spec)
+
+                V_fixed_it2, k, res = value_iteration(problem)
+
+                @test all(V_fixed_it2 .>= 0)
+                @test k == 11
+                @test V_fixed_it2[:, 2] == N[1, 1, 1]
+                @test all(V_fixed_it2 .>= V_fixed_it1)
+            end
+
+            @testset "infinite time reachability" begin
+                prop = InfiniteTimeDFAReachability([2], 1e-3)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = Problem(prod_proc, spec)
+
+                policy, V_conv, k, res = control_synthesis(problem)
+
+                @test all(V_conv .>= 0)
+                @test maximum(res) <= 1e-3
+                @test V_conv[:, 2] == N[1, 1, 1]
+
+                problem = Problem(prod_proc, spec, policy)
+                V_mc, k, res = value_iteration(problem)
+
+                @test V_conv ≈ V_mc
+            end
+        end
+    end
+end

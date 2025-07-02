@@ -155,7 +155,7 @@ function bellman!(
     strategy_cache,
     Vres,
     V,
-    model;
+    model::IntervalMarkovProcess;
     upper_bound = false,
     maximize = true,
 )
@@ -168,6 +168,80 @@ function bellman!(
         stateptr(model);
         upper_bound = upper_bound,
         maximize = maximize,
+    )
+end
+
+function bellman!(
+    workspace::ProductWorkspace,
+    strategy_cache,
+    Vres,
+    V,
+    model::ProductProcess;
+    upper_bound = false,
+    maximize = true,
+)
+    mp = markov_process(model)
+    lf = labelling_function(model)
+    dfa = automaton(model)
+
+    W = workspace.intermediate_values
+
+    @inbounds for state in dfa
+        local_strategy_cache = localize_strategy_cache(strategy_cache, state) 
+
+        # Select the value function for the current DFA state
+        # according to the appropriate DFA transition function
+        map!(W, CartesianIndices(product_num_states(mp))) do idx
+            return V[idx, dfa[state, lf[idx]]]
+        end
+
+        # For each state in the product process, compute the Bellman operator
+        # for the corresponding Markov process
+        bellman!(
+            workspace.underlying_workspace,
+            local_strategy_cache,
+            selectdim(Vres, ndims(Vres), state),
+            W,
+            mp;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
+    end
+
+    return Vres
+end
+
+function localize_strategy_cache(
+    strategy_cache::NoStrategyCache,
+    dfa_state,
+)
+    return strategy_cache
+end
+
+function localize_strategy_cache(
+    strategy_cache::TimeVaryingStrategyCache,
+    dfa_state,
+)
+    return TimeVaryingStrategyCache(
+        selectdim(strategy_cache.cur_strategy, ndims(strategy_cache.cur_strategy), dfa_state),
+    )
+end
+
+function localize_strategy_cache(
+    strategy_cache::StationaryStrategyCache,
+    dfa_state,
+)
+    return StationaryStrategyCache(
+        selectdim(strategy_cache.strategy, ndims(strategy_cache.strategy), dfa_state),
+    )
+end
+
+function localize_strategy_cache(
+    strategy_cache::ActiveGivenStrategyCache,
+    dfa_state,
+)
+    return ActiveGivenStrategyCache(
+        selectdim(strategy_cache.strategy, ndims(strategy_cache.strategy), dfa_state),
     )
 end
 

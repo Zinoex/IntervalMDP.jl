@@ -38,7 +38,16 @@ function checkstrategy(strategy::StationaryStrategy, system)
     checkstrategy(strategy.strategy, system)
 end
 
-function checkstrategy(strategy::AbstractArray, system)
+function checkstrategy(strategy::AbstractArray, system::ProductProcess)
+    mp = markov_process(system)
+    dfa = automaton(system)
+
+    for state in dfa
+        checkstrategy(selectdim(strategy, ndims(strategy), state), mp)
+    end
+end
+
+function checkstrategy(strategy::AbstractArray, system::IntervalMarkovProcess)
     num_actions = stateptr(system)[2:end] .- stateptr(system)[1:(end - 1)]
     ranges = (1:n for n in source_shape(system))
     if !all(1 .<= vec(strategy[ranges...]) .<= num_actions)
@@ -131,7 +140,7 @@ struct GivenStrategyCache{S <: AbstractStrategy} <: NonOptimizingStrategyCache
     strategy::S
 end
 
-construct_strategy_cache(::IntervalMarkovProcess, ::GivenStrategyConfig, strategy, dims) =
+construct_strategy_cache(::StochasticProcess, ::GivenStrategyConfig, strategy, dims) =
     GivenStrategyCache(strategy)
 time_length(cache::GivenStrategyCache) = time_length(cache.strategy)
 
@@ -164,7 +173,7 @@ function construct_strategy_cache(
     return NoStrategyCache()
 end
 
-construct_strategy_cache(::IntervalMarkovProcess, ::NoStrategyConfig, strategy, dims) =
+construct_strategy_cache(::StochasticProcess, ::NoStrategyConfig, strategy, dims) =
     NoStrategyCache()
 
 function extract_strategy!(::NoStrategyCache, values, V, j, maximize)

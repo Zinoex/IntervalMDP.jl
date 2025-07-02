@@ -98,11 +98,11 @@ Super type for all reachability-like properties.
 abstract type AbstractDFAReachability <: ProductProperty end
 
 function initialize!(value_function, prop::AbstractDFAReachability)
-    @inbounds selectdim(value_function.current, value_function.ndims(), reach(prop)) .= 1.0
+    @inbounds selectdim(value_function.current, ndims(value_function.current), reach(prop)) .= 1.0
 end
 
 function step_postprocess_value_function!(value_function, prop::AbstractDFAReachability)
-    @inbounds selectdim(value_function.current, value_function.ndims(), reach(prop)) .= 1.0
+    @inbounds selectdim(value_function.current, ndims(value_function.current), reach(prop)) .= 1.0
 end
 
 postprocess_value_function!(value_function, ::AbstractDFAReachability) = nothing

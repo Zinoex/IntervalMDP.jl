@@ -193,7 +193,7 @@ function step!(
     strategy_cache::OptimizingStrategyCache,
     value_function,
     k,
-    mp::IntervalMarkovProcess;
+    mp;
     upper_bound,
     maximize,
 )
@@ -213,7 +213,7 @@ function step!(
     strategy_cache::NonOptimizingStrategyCache,
     value_function,
     k,
-    mp::IntervalMarkovProcess;
+    mp;
     upper_bound,
     maximize,
 )
