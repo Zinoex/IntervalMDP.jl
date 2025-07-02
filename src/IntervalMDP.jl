@@ -22,7 +22,6 @@ include("specification.jl")
 export Property, BasicProperty, ProductProperty
 
 export AbstractDFAReachability, FiniteTimeDFAReachability, InfiniteTimeDFAReachability
-
 export AbstractReachability,
     FiniteTimeReachability, InfiniteTimeReachability, ExactTimeReachability
 export AbstractReachAvoid, FiniteTimeReachAvoid, InfiniteTimeReachAvoid, ExactTimeReachAvoid

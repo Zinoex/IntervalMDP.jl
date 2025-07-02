@@ -37,7 +37,6 @@ function checkmodelpropertycompatibility(::ProductProperty, ::ProductProcess)
     return nothing
 end
 
-
 function checktimehorizon(prop, ::AbstractStrategy)
     if time_horizon(prop) < 1
         throw(
@@ -98,11 +97,19 @@ Super type for all reachability-like properties.
 abstract type AbstractDFAReachability <: ProductProperty end
 
 function initialize!(value_function, prop::AbstractDFAReachability)
-    @inbounds selectdim(value_function.current, ndims(value_function.current), reach(prop)) .= 1.0
+    @inbounds selectdim(
+        value_function.current,
+        ndims(value_function.current),
+        reach(prop),
+    ) .= 1.0
 end
 
 function step_postprocess_value_function!(value_function, prop::AbstractDFAReachability)
-    @inbounds selectdim(value_function.current, ndims(value_function.current), reach(prop)) .= 1.0
+    @inbounds selectdim(
+        value_function.current,
+        ndims(value_function.current),
+        reach(prop),
+    ) .= 1.0
 end
 
 postprocess_value_function!(value_function, ::AbstractDFAReachability) = nothing
@@ -118,7 +125,7 @@ the property is
 ```
 """
 struct FiniteTimeDFAReachability{VT <: Vector{<:Int32}, T <: Integer} <:
-        AbstractDFAReachability
+       AbstractDFAReachability
     terminal_states::VT
     time_horizon::T
 end
@@ -171,7 +178,7 @@ In practice it means, performing the value iteration until the value function ha
 The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
 """
 struct InfiniteTimeDFAReachability{R <: Real, VT <: Vector{<:Int32}} <:
-        AbstractDFAReachability
+       AbstractDFAReachability
     terminal_states::VT
     convergence_eps::R
 end
@@ -642,7 +649,8 @@ function checkstatebounds(states, system::IntervalMarkovProcess)
     end
 end
 
-checkstatebounds(states, system::ProductProcess) = checkstatebounds(states, automaton(system))
+checkstatebounds(states, system::ProductProcess) =
+    checkstatebounds(states, automaton(system))
 
 function checkstatebounds(states, system::DeterministicAutomaton)
     for state in states
@@ -1065,7 +1073,6 @@ function checkspecification(spec::Specification, system, strategy)
     checkmodelpropertycompatibility(system_property(spec), system)
     checkproperty(system_property(spec), system, strategy)
 end
-
 
 """
     system_property(spec::Specification)

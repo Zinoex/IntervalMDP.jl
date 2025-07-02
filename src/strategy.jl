@@ -191,12 +191,7 @@ function TimeVaryingStrategyCache(cur_strategy::A) where {A}
     return TimeVaryingStrategyCache(cur_strategy, Vector{A}())
 end
 
-function construct_strategy_cache(
-    mp,
-    ::TimeVaryingStrategyConfig,
-    strategy,
-    dims,
-)
+function construct_strategy_cache(mp, ::TimeVaryingStrategyConfig, strategy, dims)
     cur_strategy = arrayfactory(mp, Int32, dims)
     return TimeVaryingStrategyCache(cur_strategy)
 end
@@ -206,8 +201,9 @@ function replacezerobyone!(array)
     return array
 end
 
-cachetostrategy(strategy_cache::TimeVaryingStrategyCache) =
-    TimeVaryingStrategy([replacezerobyone!(indices) for indices in reverse(strategy_cache.strategy)])
+cachetostrategy(strategy_cache::TimeVaryingStrategyCache) = TimeVaryingStrategy([
+    replacezerobyone!(indices) for indices in reverse(strategy_cache.strategy)
+])
 
 function extract_strategy!(
     strategy_cache::TimeVaryingStrategyCache,
@@ -231,12 +227,7 @@ struct StationaryStrategyCache{A <: AbstractArray{Int32}} <: OptimizingStrategyC
     strategy::A
 end
 
-function construct_strategy_cache(
-    mp,
-    ::StationaryStrategyConfig,
-    strategy,
-    dims,
-)
+function construct_strategy_cache(mp, ::StationaryStrategyConfig, strategy, dims)
     strategy = arrayfactory(mp, Int32, dims)
     return StationaryStrategyCache(strategy)
 end

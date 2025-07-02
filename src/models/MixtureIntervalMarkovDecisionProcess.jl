@@ -21,11 +21,11 @@ Then the ```MixtureIntervalMarkovDecisionProcess``` type is defined as follows: 
 `transition_prob` represents ``\\Gamma`` and ``\\Gamma^\\alpha``. Actions are implicitly defined by `stateptr` (e.g. if `source_dims` in `transition_prob`
 is `(2, 3, 2)`, and `stateptr[3] == 4` and `stateptr[4] == 7` then the actions available to state `CartesianIndex(1, 2, 1)` are `[1, 2, 3]`), and `initial_states`
 is the set of initial states ``S_0``. If no initial states are specified, then the initial states are assumed to be all states in ``S``
-represented by `AllStates`. See [MixtureIntervalProbabilities](@ref) and [Theory](@ref) for more information on the structure
+represented by `AllStates`. See [`MixtureIntervalProbabilities`](@ref) and [Theory](@ref) for more information on the structure
 of the transition probability ambiguity sets.
 
 ### Fields
-- `transition_prob::P`: ambiguity set on transition probabilities (see [MixtureIntervalProbabilities](@ref) for the structure).
+- `transition_prob::P`: ambiguity set on transition probabilities (see [`MixtureIntervalProbabilities`](@ref) for the structure).
 - `stateptr::VT`: pointer to the start of each source state in `transition_prob` (i.e. `transition_prob[k][l][:, stateptr[j]:stateptr[j + 1] - 1]` is the transition
     probability matrix for source state `j` for each model `k` and axis `l`) in the style of colptr for sparse matrices in CSC format.
 - `initial_states::VI`: initial states.

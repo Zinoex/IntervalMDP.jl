@@ -16,11 +16,7 @@ export MixtureIntervalMarkovDecisionProcess, MixtureIntervalMarkovChain
 include("DeterministicAutomaton.jl")
 
 include("DFA.jl")
-export DFA,
-    transition,
-    labelmap,
-    initial_state,
-    accepting_states
+export DFA, transition, labelmap, initial_state, accepting_states
 
 include("ProductProcess.jl")
 export ProductProcess, markov_process, automaton, labelling_function

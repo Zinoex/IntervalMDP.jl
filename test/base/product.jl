@@ -105,7 +105,7 @@ end
         @testset "N = $N" begin
             prob = IntervalProbabilities(;
                 lower = N[
-                    0     5//10 0
+                    0 5//10 0
                     1//10 3//10 0
                     2//10 1//10 1
                 ],
@@ -121,7 +121,7 @@ end
             delta = TransitionFunction(Int32[
                 1 2
                 2 2
-            ])    
+            ])
             istate = Int32(1)
             atomic_props = ["reach"]
             dfa = DFA(delta, istate, atomic_props)
@@ -136,12 +136,12 @@ end
                 0 5
             ]
 
-            Vres = bellman(V, prod_proc; upper_bound=false)
+            Vres = bellman(V, prod_proc; upper_bound = false)
 
             @test Vres ≈ N[
                 30//10 24//10
                 33//10 2
-                5      5
+                5 5
             ]
         end
     end
@@ -162,7 +162,7 @@ end
                     7//10 3//10
                 ],
             )
-            
+
             prob2 = IntervalProbabilities(;
                 lower = N[
                     1//10 2//10
@@ -175,7 +175,7 @@ end
                     4//10 4//10
                 ],
             )
-            
+
             prob3 = IntervalProbabilities(; lower = N[
                 0
                 0
@@ -185,7 +185,7 @@ end
                 0
                 1
             ][:, :])
-            
+
             transition_probs = [prob1, prob2, prob3]
             mdp = IntervalMarkovDecisionProcess(transition_probs)
 
@@ -193,7 +193,7 @@ end
             delta = TransitionFunction(Int32[
                 1 2
                 2 2
-            ])    
+            ])
             istate = Int32(1)
             atomic_props = ["reach"]
             dfa = DFA(delta, istate, atomic_props)

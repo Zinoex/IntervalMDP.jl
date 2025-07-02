@@ -28,10 +28,8 @@ TODO: Add explicit sink states for non-accepting self-looping states since we do
 TODO: Detection of non-accepting end components. They can be replaced by a single state.
 
 """
-struct DFA{
-    T <: TransitionFunction,
-    DA <: AbstractDict{String, Int32},
-} <: DeterministicAutomaton
+struct DFA{T <: TransitionFunction, DA <: AbstractDict{String, Int32}} <:
+       DeterministicAutomaton
     transition::T # delta : |Q| x |2^{AP}| => |Q|   
     initial_state::Int32 # q_0
     labelmap::DA
@@ -45,11 +43,7 @@ function DFA(
     labelmap = atomicpropositions2labels(atomic_propositions)
     checkdfa(transition, initial_state, labelmap)
 
-    return DFA(
-        transition,
-        initial_state,
-        labelmap,
-    )
+    return DFA(transition, initial_state, labelmap)
 end
 
 """
@@ -77,18 +71,14 @@ function label2index(labels::AbstractVector{String})
     return label2idx
 end
 
-function checkdfa(
-    transition::TransitionFunction,
-    initial_state::Int32,
-    labelmap,
-)
+function checkdfa(transition::TransitionFunction, initial_state::Int32, labelmap)
     num_states = size(transition, 2)
 
     # Check size of transition function
     if num_labels(transition) != length(labelmap)
         throw(
             DimensionMismatch(
-                "The labels in the transition function ($(num_labels(transition))) is not equal to the number of labels of the DFA ($(length(labelmap))).",
+                "The labels in the transition function ($(num_labels(transition))) are not equal to the number of labels of the DFA ($(length(labelmap))).",
             ),
         )
     end
@@ -163,4 +153,5 @@ Return the the next state for source state ``q`` and `String` input ``w`` (mappi
 """
 Base.getindex(dfa::DFA, q, w::String) = dfa[q, dfa.labelmap[w]]
 
-Base.iterate(dfa::DFA, state::Int32 = one(Int32)) = state > num_states(dfa) ? nothing : (state, state + one(Int32))
+Base.iterate(dfa::DFA, state::Int32 = one(Int32)) =
+    state > num_states(dfa) ? nothing : (state, state + one(Int32))

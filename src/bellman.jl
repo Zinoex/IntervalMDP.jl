@@ -1,5 +1,5 @@
 """
-    bellman(V, model; upper_bound = false)
+    bellman(V, model; upper_bound = false, maximize = true)
 
 Compute robust Bellman update with the value function `V` and the model `model`, e.g. [`IntervalMarkovDecisionProcess`](@ref),
 that upper or lower bounds the expectation of the value function `V` via O-maximization [1].
@@ -56,7 +56,7 @@ Vcur = bellman(Vprev, model; upper_bound = false)
 
 !!! note
     This function will construct a workspace object and an output vector.
-    For a hot-loop, it is more efficient to use `bellman!` and pass in pre-allocated objects.
+    For a hot-loop, it is more efficient to use [`bellman!`](@ref) and pass in pre-allocated objects.
 
 [1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
 
@@ -67,7 +67,7 @@ function bellman(V, model; upper_bound = false, maximize = true)
 end
 
 """
-    bellman!(workspace, strategy_cache, Vres, V, model, stateptr; upper_bound = false, maximize = true)
+    bellman!(workspace, strategy_cache, Vres, V, model; upper_bound = false, maximize = true)
 
 Compute in-place robust Bellman update with the value function `V` and the model `model`, 
 e.g. [`IntervalMarkovDecisionProcess`](@ref), that upper or lower bounds the expectation of the value function `V` via O-maximization [1].
@@ -187,7 +187,7 @@ function bellman!(
     W = workspace.intermediate_values
 
     @inbounds for state in dfa
-        local_strategy_cache = localize_strategy_cache(strategy_cache, state) 
+        local_strategy_cache = localize_strategy_cache(strategy_cache, state)
 
         # Select the value function for the current DFA state
         # according to the appropriate DFA transition function
@@ -211,35 +211,27 @@ function bellman!(
     return Vres
 end
 
-function localize_strategy_cache(
-    strategy_cache::NoStrategyCache,
-    dfa_state,
-)
+function localize_strategy_cache(strategy_cache::NoStrategyCache, dfa_state)
     return strategy_cache
 end
 
-function localize_strategy_cache(
-    strategy_cache::TimeVaryingStrategyCache,
-    dfa_state,
-)
+function localize_strategy_cache(strategy_cache::TimeVaryingStrategyCache, dfa_state)
     return TimeVaryingStrategyCache(
-        selectdim(strategy_cache.cur_strategy, ndims(strategy_cache.cur_strategy), dfa_state),
+        selectdim(
+            strategy_cache.cur_strategy,
+            ndims(strategy_cache.cur_strategy),
+            dfa_state,
+        ),
     )
 end
 
-function localize_strategy_cache(
-    strategy_cache::StationaryStrategyCache,
-    dfa_state,
-)
+function localize_strategy_cache(strategy_cache::StationaryStrategyCache, dfa_state)
     return StationaryStrategyCache(
         selectdim(strategy_cache.strategy, ndims(strategy_cache.strategy), dfa_state),
     )
 end
 
-function localize_strategy_cache(
-    strategy_cache::ActiveGivenStrategyCache,
-    dfa_state,
-)
+function localize_strategy_cache(strategy_cache::ActiveGivenStrategyCache, dfa_state)
     return ActiveGivenStrategyCache(
         selectdim(strategy_cache.strategy, ndims(strategy_cache.strategy), dfa_state),
     )

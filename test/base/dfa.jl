@@ -48,7 +48,6 @@ using IntervalMDP
     end
 end
 
-
 @testset "dfa" begin
     atomic_props = ["a", "b"]
     map = Dict("" => 1, "a" => 2, "b" => 3, "ab" => 4)

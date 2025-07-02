@@ -16,7 +16,7 @@ Then the ```TransitionFunction``` type is defined as matrix which stores the map
 - `transition::MT`: transition functions encoded as matrix with labels on the rows, source states on the columns, and integer values for the destination.
 
 The choice to have labels on the rows is due to the column-major storage of matrices in Julia and the fact that we want the outer loop over DFA source states 
-in the Bellman operator ([`bellman`](ref)).
+in the Bellman operator [`bellman!`](@ref).
 
 We check that the transition matrix is valid, i.e. that all indices are positive and do not exceed the number of states.
 

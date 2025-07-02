@@ -8,21 +8,30 @@ strategy
 Specification
 system_property
 Property
+BasicProperty
+ProductProperty
 satisfaction_mode
 SatisfactionMode
 strategy_mode
 StrategyMode
 ```
 
-## Temporal logic
+## DFA Reachability
 
 ```@docs
-LTLFormula
-isfinitetime(prop::LTLFormula)
-LTLfFormula
-isfinitetime(prop::LTLfFormula)
-time_horizon(prop::LTLfFormula)
-PCTLFormula
+AbstractDFAReachability
+
+FiniteTimeDFAReachability
+isfinitetime(prop::FiniteTimeDFAReachability)
+terminal_states(prop::FiniteTimeDFAReachability)
+reach(prop::FiniteTimeDFAReachability)
+time_horizon(prop::FiniteTimeDFAReachability)
+
+InfiniteTimeDFAReachability
+isfinitetime(prop::InfiniteTimeDFAReachability)
+terminal_states(prop::InfiniteTimeDFAReachability)
+reach(prop::InfiniteTimeDFAReachability)
+convergence_eps(prop::InfiniteTimeDFAReachability)
 ```
 
 ## Reachability

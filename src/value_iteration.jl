@@ -160,11 +160,16 @@ function ValueFunction(problem::Problem)
     return ValueFunction(previous, current)
 end
 
-arrayfactory(mp::ProductProcess, T, num_states) = arrayfactory(markov_process(mp), T, num_states)
-arrayfactory(mp::IntervalMarkovProcess, T, num_states) = arrayfactory(transition_prob(mp), T, num_states)
-arrayfactory(prob::MixtureIntervalProbabilities, T, num_states) = arrayfactory(first(prob), T, num_states)
-arrayfactory(prob::OrthogonalIntervalProbabilities, T, num_states) = arrayfactory(first(prob), T, num_states)
-arrayfactory(prob::IntervalProbabilities, T, num_states) = arrayfactory(gap(prob), T, num_states)
+arrayfactory(mp::ProductProcess, T, num_states) =
+    arrayfactory(markov_process(mp), T, num_states)
+arrayfactory(mp::IntervalMarkovProcess, T, num_states) =
+    arrayfactory(transition_prob(mp), T, num_states)
+arrayfactory(prob::MixtureIntervalProbabilities, T, num_states) =
+    arrayfactory(first(prob), T, num_states)
+arrayfactory(prob::OrthogonalIntervalProbabilities, T, num_states) =
+    arrayfactory(first(prob), T, num_states)
+arrayfactory(prob::IntervalProbabilities, T, num_states) =
+    arrayfactory(gap(prob), T, num_states)
 arrayfactory(::MR, T, num_states) where {MR <: AbstractMatrix} = zeros(T, num_states)
 
 valuetype(mp::ProductProcess) = valuetype(markov_process(mp))

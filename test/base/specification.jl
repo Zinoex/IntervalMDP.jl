@@ -168,7 +168,7 @@ end
     delta = TransitionFunction(Int32[
         1 2
         2 2
-    ])    
+    ])
     istate = Int32(1)
     atomic_props = ["reach"]
     dfa = DFA(delta, istate, atomic_props)
@@ -195,7 +195,7 @@ end
         prop = FiniteTimeDFAReachability([2], 0)
         spec = Specification(prop)
         @test_throws DomainError Problem(prod_proc, spec, tv_prod_strat)
-        
+
         prop = FiniteTimeReachability([3], 0)
         spec = Specification(prop)
         @test_throws DomainError Problem(mc, spec)

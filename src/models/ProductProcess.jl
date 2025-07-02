@@ -37,7 +37,11 @@ struct ProductProcess{
         imdp::M,
         dfa::D,
         labelling_func::L,
-    ) where {M <: IntervalMarkovProcess, D <: DeterministicAutomaton, L <: AbstractLabelling}
+    ) where {
+        M <: IntervalMarkovProcess,
+        D <: DeterministicAutomaton,
+        L <: AbstractLabelling,
+    }
         checkproduct(imdp, dfa, labelling_func)
 
         return new{M, D, L}(imdp, dfa, labelling_func)
@@ -90,5 +94,7 @@ Return the labelling function of the product
 """
 labelling_function(proc::ProductProcess) = proc.labelling_func
 
-product_num_states(proc::ProductProcess) = (product_num_states(markov_process(proc))..., num_states(automaton(proc)))
-source_shape(proc::ProductProcess) = (source_shape(markov_process(proc))..., num_states(automaton(proc)))
+product_num_states(proc::ProductProcess) =
+    (product_num_states(markov_process(proc))..., num_states(automaton(proc)))
+source_shape(proc::ProductProcess) =
+    (source_shape(markov_process(proc))..., num_states(automaton(proc)))

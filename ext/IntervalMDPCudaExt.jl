@@ -121,9 +121,7 @@ IntervalMDP.arrayfactory(
     ::MR,
     T,
     num_states,
-) where {R, MR <: Union{CuSparseMatrixCSC{R}, CuMatrix{R}}} =
-    CUDA.zeros(T, num_states)
-
+) where {R, MR <: Union{CuSparseMatrixCSC{R}, CuMatrix{R}}} = CUDA.zeros(T, num_states)
 
 include("cuda/utils.jl")
 include("cuda/array.jl")

@@ -23,9 +23,9 @@ labelmap(dfa::DFA)
 initial_state(dfa::DFA)
 accepting_states(dfa::DFA)
 ProductProcess
-markov_process(md::ProductProcess)
-automaton(md::ProductProcess)
-labelling_function(md::ProductProcess)
+markov_process(proc::ProductProcess)
+automaton(proc::ProductProcess)
+labelling_function(proc::ProductProcess)
 ```
 
 ## Probability representation
