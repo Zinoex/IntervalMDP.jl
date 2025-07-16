@@ -37,7 +37,7 @@ export reach, avoid, safe, terminal_states, time_horizon, convergence_eps, rewar
 
 export SatisfactionMode, Pessimistic, Optimistic, ispessimistic, isoptimistic
 export StrategyMode, Maximize, Minimize, ismaximize, isminimize
-export Specification, Problem
+export Specification
 export system, specification, system_property, strategy, satisfaction_mode, strategy_mode
 
 include("problem.jl")
@@ -50,7 +50,7 @@ include("cuda.jl")
 include("utils.jl")
 include("threading.jl")
 include("workspace.jl")
-include("stategy_cache.jl")
+include("strategy_cache.jl")
 include("bellman.jl")
 
 include("algorithms.jl")

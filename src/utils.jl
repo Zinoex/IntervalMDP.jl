@@ -13,11 +13,11 @@ arrayfactory(prob::OrthogonalIntervalProbabilities, T, num_states) =
     arrayfactory(first(prob), T, num_states)
 arrayfactory(prob::IntervalProbabilities, T, num_states) =
     arrayfactory(gap(prob), T, num_states)
-arrayfactory(::MR, T, num_states) where {MR <: AbstractMatrix} = zeros(T, num_states)
+arrayfactory(::MR, T, num_states) where {MR <: AbstractArray} = zeros(T, num_states)
 
 valuetype(mp::ProductProcess) = valuetype(markov_process(mp))
 valuetype(mp::IntervalMarkovProcess) = valuetype(transition_prob(mp))
 valuetype(prob::MixtureIntervalProbabilities) = valuetype(first(prob))
 valuetype(prob::OrthogonalIntervalProbabilities) = valuetype(first(prob))
 valuetype(prob::IntervalProbabilities) = valuetype(gap(prob))
-valuetype(::MR) where {R, MR <: AbstractMatrix{R}} = R
+valuetype(::MR) where {R, MR <: AbstractArray{R}} = R
