@@ -47,14 +47,7 @@ end
 Base.getindex(cache::GivenStrategyCache, k) = ActiveGivenStrategyCache(cache.strategy[k])
 Base.getindex(cache::ActiveGivenStrategyCache, j) = cache.strategy[j]
 
-function extract_strategy!(::GivenStrategyCache, values, V, j, maximize)
-    throw(ArgumentError("The strategy is given and not supposed to optimize over actions."))
-end
-function extract_strategy!(::ActiveGivenStrategyCache, values, V, j, maximize)
-    throw(ArgumentError("The strategy is given and not supposed to optimize over actions."))
-end
 step_postprocess_strategy_cache!(::GivenStrategyCache) = nothing
-step_postprocess_strategy_cache!(::ActiveGivenStrategyCache) = nothing
 
 construct_strategy_cache(problem::ControlSynthesisProblem) = construct_strategy_cache(
     problem,
