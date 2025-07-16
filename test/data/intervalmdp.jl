@@ -161,3 +161,34 @@ end
     @test discount(new_prop) ≈ 0.9
     @test convergence_eps(new_prop) ≈ 1e-6
 end
+
+@testset "io joint" begin
+    mdp = read_intervalmdp_jl_model("data/multiObj_robotIMDP.nc")
+
+    prop = FiniteTimeReachability([207], 10)
+    spec = Specification(prop, Pessimistic, Minimize)
+
+    problem = VerificationProblem(mdp, spec)
+
+    # Write the problem to files
+    new_path = tempname()
+    model_path = new_path * ".nc"
+    spec_path = new_path * ".json"
+
+    write_intervalmdp_jl_model(model_path, problem)
+    write_intervalmdp_jl_spec(spec_path, problem)
+
+    @test isfile(model_path)
+    @test isfile(spec_path)
+
+    # Read the problem back from files
+    new_problem = read_intervalmdp_jl(model_path, spec_path)
+    @test isa(new_problem, VerificationProblem)
+
+    new_problem = read_intervalmdp_jl(model_path, spec_path; control_synthesis = true)
+    @test isa(new_problem, ControlSynthesisProblem)
+
+    # Clean up
+    rm(model_path)
+    rm(spec_path)
+end

@@ -17,8 +17,8 @@ for N in [Float32, Float64, Rational{BigInt}]
 
             V = N[1, 2, 3]
 
-            ws = construct_workspace(prob)
-            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            ws = IntervalMDP.construct_workspace(prob)
+            strategy_cache = IntervalMDP.construct_strategy_cache(prob)
             Vres = zeros(N, 2)
             IntervalMDP._bellman_helper!(
                 ws,
@@ -31,8 +31,8 @@ for N in [Float32, Float64, Rational{BigInt}]
             )
             @test Vres ≈ N[27 // 10, 17 // 10] # [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
 
-            ws = construct_workspace(prob)
-            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            ws = IntervalMDP.construct_workspace(prob)
+            strategy_cache = IntervalMDP.construct_strategy_cache(prob)
             Vres = zeros(N, 2)
             IntervalMDP._bellman_helper!(
                 ws,
@@ -130,8 +130,8 @@ for N in [Float32, Float64, Rational{BigInt}]
 
             #### Maximization
             @testset "maximization" begin
-                ws = construct_workspace(prob)
-                strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+                ws = IntervalMDP.construct_workspace(prob)
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 Vres_dense = zeros(N, 3, 3, 3)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -143,8 +143,8 @@ for N in [Float32, Float64, Rational{BigInt}]
                     upper_bound = true,
                 )
 
-                ws = construct_workspace(sparse_prob)
-                strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
+                ws = IntervalMDP.construct_workspace(sparse_prob)
+                strategy_cache = IntervalMDP.construct_strategy_cache(sparse_prob)
                 Vres = similar(Vres_dense)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -158,7 +158,7 @@ for N in [Float32, Float64, Rational{BigInt}]
                 @test Vres ≈ Vres_dense
 
                 ws = IntervalMDP.SparseOrthogonalWorkspace(sparse_prob, 1)
-                strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(sparse_prob)
                 Vres = similar(Vres_dense)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -172,7 +172,7 @@ for N in [Float32, Float64, Rational{BigInt}]
                 @test Vres ≈ Vres_dense
 
                 ws = IntervalMDP.ThreadedSparseOrthogonalWorkspace(sparse_prob, 1)
-                strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(sparse_prob)
                 Vres = similar(Vres_dense)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -188,8 +188,8 @@ for N in [Float32, Float64, Rational{BigInt}]
 
             #### Minimization
             @testset "minimization" begin
-                ws = construct_workspace(prob)
-                strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+                ws = IntervalMDP.construct_workspace(prob)
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 Vres_dense = zeros(N, 3, 3, 3)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -201,8 +201,8 @@ for N in [Float32, Float64, Rational{BigInt}]
                     upper_bound = false,
                 )
 
-                ws = construct_workspace(sparse_prob)
-                strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
+                ws = IntervalMDP.construct_workspace(sparse_prob)
+                strategy_cache = IntervalMDP.construct_strategy_cache(sparse_prob)
                 Vres = similar(Vres_dense)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -216,7 +216,7 @@ for N in [Float32, Float64, Rational{BigInt}]
                 @test Vres ≈ Vres_dense
 
                 ws = IntervalMDP.SparseOrthogonalWorkspace(sparse_prob, 1)
-                strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(sparse_prob)
                 Vres = similar(Vres_dense)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -230,7 +230,7 @@ for N in [Float32, Float64, Rational{BigInt}]
                 @test Vres ≈ Vres_dense
 
                 ws = IntervalMDP.ThreadedSparseOrthogonalWorkspace(sparse_prob, 1)
-                strategy_cache = construct_strategy_cache(sparse_prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(sparse_prob)
                 Vres = similar(Vres_dense)
                 IntervalMDP._bellman_helper!(
                     ws,

@@ -12,8 +12,8 @@ for N in [Float32, Float64, Rational{BigInt}]
 
         #### Maximization
         @testset "maximization" begin
-            ws = construct_workspace(prob)
-            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            ws = IntervalMDP.construct_workspace(prob)
+            strategy_cache = IntervalMDP.construct_strategy_cache(prob)
             Vres = zeros(N, 2)
             IntervalMDP._bellman_helper!(
                 ws,
@@ -27,7 +27,7 @@ for N in [Float32, Float64, Rational{BigInt}]
             @test Vres ≈ N[27 // 10, 17 // 10] # [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
 
             ws = IntervalMDP.DenseWorkspace(gap(prob), 1)
-            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            strategy_cache = IntervalMDP.construct_strategy_cache(prob)
             Vres = similar(Vres)
             IntervalMDP._bellman_helper!(
                 ws,
@@ -41,7 +41,7 @@ for N in [Float32, Float64, Rational{BigInt}]
             @test Vres ≈ N[27 // 10, 17 // 10]
 
             ws = IntervalMDP.ThreadedDenseWorkspace(gap(prob), 1)
-            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            strategy_cache = IntervalMDP.construct_strategy_cache(prob)
             Vres = similar(Vres)
             IntervalMDP._bellman_helper!(
                 ws,
@@ -57,8 +57,8 @@ for N in [Float32, Float64, Rational{BigInt}]
 
         #### Minimization
         @testset "minimization" begin
-            ws = construct_workspace(prob)
-            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            ws = IntervalMDP.construct_workspace(prob)
+            strategy_cache = IntervalMDP.construct_strategy_cache(prob)
             Vres = zeros(N, 2)
             IntervalMDP._bellman_helper!(
                 ws,
@@ -72,7 +72,7 @@ for N in [Float32, Float64, Rational{BigInt}]
             @test Vres ≈ N[17 // 10, 15 // 10]  # [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
 
             ws = IntervalMDP.DenseWorkspace(gap(prob), 1)
-            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            strategy_cache = IntervalMDP.construct_strategy_cache(prob)
             Vres = similar(Vres)
             IntervalMDP._bellman_helper!(
                 ws,
@@ -86,7 +86,7 @@ for N in [Float32, Float64, Rational{BigInt}]
             @test Vres ≈ N[17 // 10, 15 // 10]
 
             ws = IntervalMDP.ThreadedDenseWorkspace(gap(prob), 1)
-            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            strategy_cache = IntervalMDP.construct_strategy_cache(prob)
             Vres = similar(Vres)
             IntervalMDP._bellman_helper!(
                 ws,

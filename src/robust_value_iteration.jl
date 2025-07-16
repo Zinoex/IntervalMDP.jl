@@ -19,12 +19,14 @@ termination_criteria(prop, finitetime::Val{false}) =
     CovergenceCriteria(convergence_eps(prop))
 
 """
-    value_iteration(problem::Problem; callback=nothing)
+    solve(problem::AbstractIntervalMDPAlgorithm, alg::RobustValueIteration; callback=nothing)
 
-Solve minimizes/mazimizes optimistic/pessimistic specification problems using value iteration for interval Markov processes. 
+Solve minimizes/maximizes optimistic/pessimistic specification problems using value iteration for interval Markov processes. 
 
 It is possible to provide a callback function that will be called at each iteration with the current value function and
 iteration count. The callback function should have the signature `callback(V::AbstractArray, k::Int)`.
+
+`solve` can be called without specifying the algorithm, in which case it defaults to [`RobustValueIteration`](@ref).
 
 ### Examples
 
@@ -68,26 +70,31 @@ terminal_states = [3]
 time_horizon = 10
 prop = FiniteTimeReachability(terminal_states, time_horizon)
 spec = Specification(prop, Pessimistic, Maximize)
-problem = Problem(mdp, spec)
-V, k, residual = value_iteration(problem)
+
+### Verification
+problem = VerificationProblem(mdp, spec)
+sol = solve(problem, RobustValueIteration(); callback = (V, k) -> println("Iteration ", k))
+V, k, res = sol  # or `value_function(sol), num_iterations(sol), residual(sol)`
+
+# Control synthesis
+problem = ControlSynthesisProblem(mdp, spec)
+sol = solve(problem, RobustValueIteration(); callback = (V, k) -> println("Iteration ", k))
+σ, V, k, res = sol # or `strategy(sol), value_function(sol), num_iterations(sol), residual(sol)`
 ```
-
 """
-function value_iteration(problem::Problem; callback = nothing)
-    strategy_config = whichstrategyconfig(problem)
-    V, k, res, _ = _value_iteration!(strategy_config, problem; callback = callback)
-
-    return V, k, res
+function solve(problem::VerificationProblem, alg::RobustValueIteration; kwargs...)
+    V, k, res, _ = _value_iteration!(problem, alg; kwargs...)
+    return VerificationSolution(V, res, k)
 end
-whichstrategyconfig(::Problem{S, F, <:NoStrategy}) where {S, F} = NoStrategyConfig()
-whichstrategyconfig(::Problem{S, F, <:AbstractStrategy}) where {S, F} =
-    GivenStrategyConfig()
 
-function _value_iteration!(
-    strategy_config::AbstractStrategyConfig,
-    problem::Problem;
-    callback = nothing,
-)
+function solve(problem::ControlSynthesisProblem, alg::RobustValueIteration; kwargs...)
+    V, k, res, strategy_cache = _value_iteration!(problem, alg; kwargs...)
+    strategy = cachetostrategy(strategy_cache)
+
+    return ControlSynthesisSolution(strategy, V, res, k)
+end
+
+function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = nothing)
     mp = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(spec)
@@ -96,7 +103,7 @@ function _value_iteration!(
 
     # It is more efficient to use allocate first and reuse across iterations
     workspace = construct_workspace(mp)
-    strategy_cache = construct_strategy_cache(mp, strategy_config, strategy(problem))
+    strategy_cache = construct_strategy_cache(problem)
 
     value_function = ValueFunction(problem)
     initialize!(value_function, spec)
@@ -152,32 +159,13 @@ struct ValueFunction{R, A <: AbstractArray{R}}
     current::A
 end
 
-function ValueFunction(problem::Problem)
+function ValueFunction(problem::AbstractIntervalMDPProblem)
     mp = system(problem)
     previous = arrayfactory(mp, valuetype(mp), product_num_states(mp))
     current = copy(previous)
 
     return ValueFunction(previous, current)
 end
-
-arrayfactory(mp::ProductProcess, T, num_states) =
-    arrayfactory(markov_process(mp), T, num_states)
-arrayfactory(mp::IntervalMarkovProcess, T, num_states) =
-    arrayfactory(transition_prob(mp), T, num_states)
-arrayfactory(prob::MixtureIntervalProbabilities, T, num_states) =
-    arrayfactory(first(prob), T, num_states)
-arrayfactory(prob::OrthogonalIntervalProbabilities, T, num_states) =
-    arrayfactory(first(prob), T, num_states)
-arrayfactory(prob::IntervalProbabilities, T, num_states) =
-    arrayfactory(gap(prob), T, num_states)
-arrayfactory(::MR, T, num_states) where {MR <: AbstractMatrix} = zeros(T, num_states)
-
-valuetype(mp::ProductProcess) = valuetype(markov_process(mp))
-valuetype(mp::IntervalMarkovProcess) = valuetype(transition_prob(mp))
-valuetype(prob::MixtureIntervalProbabilities) = valuetype(first(prob))
-valuetype(prob::OrthogonalIntervalProbabilities) = valuetype(first(prob))
-valuetype(prob::IntervalProbabilities) = valuetype(gap(prob))
-valuetype(::MR) where {R, MR <: AbstractMatrix{R}} = R
 
 function lastdiff!(V)
     # Reuse prev to store the latest difference

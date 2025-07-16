@@ -113,7 +113,11 @@ function write_prism_spec(lab_path, srew_path, pctl_path, mdp_or_mc, spec)
     write_prism_props_file(pctl_path, spec)
 end
 
-function write_prism_labels_file(lab_path, mdp_or_mc, prop::AbstractReachability)
+function write_prism_labels_file(
+    lab_path,
+    mdp_or_mc,
+    prop::IntervalMDP.AbstractReachability,
+)
     istates = initial_states(mdp_or_mc)
     target_states = reach(prop)
 
@@ -132,7 +136,7 @@ function write_prism_labels_file(lab_path, mdp_or_mc, prop::AbstractReachability
     end
 end
 
-function write_prism_labels_file(lab_path, mdp_or_mc, prop::AbstractReachAvoid)
+function write_prism_labels_file(lab_path, mdp_or_mc, prop::IntervalMDP.AbstractReachAvoid)
     istates = initial_states(mdp_or_mc)
     target_states = reach(prop)
     avoid_states = avoid(prop)
@@ -157,7 +161,7 @@ function write_prism_labels_file(lab_path, mdp_or_mc, prop::AbstractReachAvoid)
     end
 end
 
-function write_prism_labels_file(lab_path, mdp_or_mc, prop::AbstractReward)
+function write_prism_labels_file(lab_path, mdp_or_mc, prop::IntervalMDP.AbstractReward)
     istates = initial_states(mdp_or_mc)
 
     open(lab_path, "w") do io
@@ -170,11 +174,16 @@ function write_prism_labels_file(lab_path, mdp_or_mc, prop::AbstractReward)
     end
 end
 
-function write_prism_rewards_file(lab_path, mdp_or_mc, prop::AbstractReachability)
+function write_prism_rewards_file(
+    lab_path,
+    mdp_or_mc,
+    prop::IntervalMDP.AbstractReachability,
+)
     # Do nothing - no rewards for reachability
+    return nothing
 end
 
-function write_prism_rewards_file(srew_path, mdp_or_mc, prop::AbstractReward)
+function write_prism_rewards_file(srew_path, mdp_or_mc, prop::IntervalMDP.AbstractReward)
     rew = reward(prop)
 
     open(srew_path, "w") do io
@@ -247,7 +256,7 @@ end
 """
     read_prism_file(path_without_file_ending)
 
-Read PRISM explicit file formats and pctl file, and return a Problem including system and specification.
+Read PRISM explicit file formats and pctl file, and return a ControlSynthesisProblem including system and specification.
 
 See [PRISM Explicit Model Files](https://prismmodelchecker.org/manual/Appendices/ExplicitModelFiles) for more information on the file format.
 """
@@ -269,7 +278,7 @@ function read_prism_file(sta_path, tra_path, lab_path, srew_path, pctl_path)
 
     mdp = IntervalMarkovDecisionProcess(probs, stateptr, initial_states)
 
-    return Problem(mdp, spec)
+    return ControlSynthesisProblem(mdp, spec)
 end
 
 function read_prism_states_file(sta_path)
@@ -445,9 +454,9 @@ function read_prism_props_file(pctl_path)
     satisfaction_mode = (m[:adversary] == "min") ? Pessimistic : Optimistic
 
     if m[:probrew] == "P"
-        abstract_type = AbstractReachability
+        abstract_type = IntervalMDP.AbstractReachability
     elseif m[:probrew] == "R"
-        abstract_type = AbstractReward
+        abstract_type = IntervalMDP.AbstractReward
     else
         throw(DomainError("Incorrect property $property"))
     end
@@ -457,7 +466,7 @@ function read_prism_props_file(pctl_path)
     return prop_type, prop_meta, satisfaction_mode, strategy_mode
 end
 
-function read_prism_path_prob(::Type{AbstractReachability}, pathprop)
+function read_prism_path_prob(::Type{IntervalMDP.AbstractReachability}, pathprop)
     convergence_eps = 1e-6
 
     m = match(r"!\"avoid\" U<=(?<time_horizon>\d+) \"reach\"", pathprop)
@@ -483,7 +492,7 @@ function read_prism_path_prob(::Type{AbstractReachability}, pathprop)
     throw(DomainError("Invalid path property $pathprop"))
 end
 
-function read_prism_path_prob(::Type{<:AbstractReward}, pathprop)
+function read_prism_path_prob(::Type{<:IntervalMDP.AbstractReward}, pathprop)
     m = match(r"C<=(?<time_horizon>\d+)", pathprop)
     if !isnothing(m)
         discount = 1.0  # This does not need to converge (since finite time)
@@ -500,8 +509,11 @@ function read_prism_path_prob(::Type{<:AbstractReward}, pathprop)
     throw(DomainError("Invalid path property $pathprop"))
 end
 
-read_prism_rewards_file(srew_path, prop_type::Type{<:AbstractReachability}, num_states) =
-    nothing
+read_prism_rewards_file(
+    srew_path,
+    prop_type::Type{<:IntervalMDP.AbstractReachability},
+    num_states,
+) = nothing
 
 function read_prism_rewards_header(line)
     words = eachsplit(line; limit = 2)
@@ -527,7 +539,11 @@ function read_prism_rewards_line(line)
     return index, reward
 end
 
-function read_prism_rewards_file(srew_path, prop_type::Type{<:AbstractReward}, num_states)
+function read_prism_rewards_file(
+    srew_path,
+    prop_type::Type{<:IntervalMDP.AbstractReward},
+    num_states,
+)
     return open(srew_path, "r") do io
         num_rewards, num_nonzero_rewards = read_prism_rewards_header(readline(io))
 
@@ -545,7 +561,7 @@ end
 
 function read_prism_labels_file(
     lab_path,
-    prop_type::Type{<:AbstractReachability},
+    prop_type::Type{<:IntervalMDP.AbstractReachability},
     prop_meta,
     rewards,
 )
@@ -560,7 +576,7 @@ end
 
 function read_prism_labels_file(
     lab_path,
-    prop_type::Type{<:AbstractReachAvoid},
+    prop_type::Type{<:IntervalMDP.AbstractReachAvoid},
     prop_meta,
     rewards,
 )
@@ -576,7 +592,7 @@ end
 
 function read_prism_labels_file(
     lab_path,
-    prop_type::Type{<:AbstractReward},
+    prop_type::Type{<:IntervalMDP.AbstractReward},
     prop_meta,
     rewards,
 )

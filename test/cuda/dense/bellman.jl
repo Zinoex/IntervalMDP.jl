@@ -13,8 +13,8 @@ for N in [Float32, Float64]
 
         #### Maximization
         @testset "maximization" begin
-            ws = construct_workspace(prob)
-            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            ws = IntervalMDP.construct_workspace(prob)
+            strategy_cache = IntervalMDP.construct_strategy_cache(prob)
             Vres = CUDA.zeros(N, 2)
             IntervalMDP._bellman_helper!(
                 ws,
@@ -31,8 +31,8 @@ for N in [Float32, Float64]
 
         #### Minimization
         @testset "minimization" begin
-            ws = construct_workspace(prob)
-            strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+            ws = IntervalMDP.construct_workspace(prob)
+            strategy_cache = IntervalMDP.construct_strategy_cache(prob)
             Vres = CUDA.zeros(N, 2)
             IntervalMDP._bellman_helper!(
                 ws,

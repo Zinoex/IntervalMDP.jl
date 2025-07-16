@@ -114,14 +114,19 @@ spec = Specification(prop, Optimistic, Maximize)
 spec = Specification(prop, Optimistic, Minimize)
 
 ## Combine system and specification in a Problem
-problem = Problem(imdp_or_imc, spec)
+problem = VerificationProblem(imdp_or_imc, spec)
 ```
 
-Finally, we call `value_iteration` to solve the specification. `value_iteration` returns the value function for all states in addition to the number of iterations performed and the last Bellman residual.
+Finally, we call [`solve`](@ref) to solve the specification. `solve` returns the value function for all states in addition to the number of iterations performed and the last Bellman residual, wrapped in a solution object.
 
 ```julia
-V, k, residual = value_iteration(problem)
+sol = solve(problem) # or solve(problem, RobustValueIteration())
+V, k, res = sol
+
+# or alternatively
+V, k, res = value_function(sol), num_iterations(sol), residual(sol)
 ```
+For now, only [`RobustValueIteration`](@ref) is supported, but more algorithms are planned.
 
 !!! note
     To use multi-threading for parallelization, you need to either start julia with `julia --threads <n|auto>` where `n` is a positive integer or to set the environment variable `JULIA_NUM_THREADS` to the number of threads you want to use. For more information, see [Multi-threading](https://docs.julialang.org/en/v1/manual/multi-threading/).

@@ -1,7 +1,8 @@
 # Problem
 
 ```@docs
-Problem
+VerificationProblem
+ControlSynthesisProblem
 system
 specification
 strategy
@@ -19,8 +20,6 @@ StrategyMode
 ## DFA Reachability
 
 ```@docs
-AbstractDFAReachability
-
 FiniteTimeDFAReachability
 isfinitetime(prop::FiniteTimeDFAReachability)
 terminal_states(prop::FiniteTimeDFAReachability)
@@ -37,8 +36,6 @@ convergence_eps(prop::InfiniteTimeDFAReachability)
 ## Reachability
 
 ```@docs
-AbstractReachability
-
 FiniteTimeReachability
 isfinitetime(prop::FiniteTimeReachability)
 terminal_states(prop::FiniteTimeReachability)
@@ -61,8 +58,6 @@ time_horizon(prop::ExactTimeReachability)
 ## Reach-avoid
 
 ```@docs
-AbstractReachAvoid
-
 FiniteTimeReachAvoid
 isfinitetime(prop::FiniteTimeReachAvoid)
 terminal_states(prop::FiniteTimeReachAvoid)
@@ -88,8 +83,6 @@ time_horizon(prop::ExactTimeReachAvoid)
 ## Safety
 
 ```@docs
-AbstractSafety
-
 FiniteTimeSafety
 isfinitetime(prop::FiniteTimeSafety)
 terminal_states(prop::FiniteTimeSafety)
@@ -106,8 +99,6 @@ convergence_eps(prop::InfiniteTimeSafety)
 ## Reward specification
 
 ```@docs
-AbstractReward
-
 FiniteTimeReward
 isfinitetime(prop::FiniteTimeReward)
 reward(prop::FiniteTimeReward)
@@ -124,8 +115,6 @@ convergence_eps(prop::InfiniteTimeReward)
 ## Hitting time
 
 ```@docs
-AbstractHittingTime
-
 ExpectedExitTime
 isfinitetime(prop::ExpectedExitTime)
 terminal_states(prop::ExpectedExitTime)

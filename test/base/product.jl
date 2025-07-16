@@ -136,7 +136,7 @@ end
                 0 5
             ]
 
-            Vres = bellman(V, prod_proc; upper_bound = false)
+            Vres = IntervalMDP.bellman(V, prod_proc; upper_bound = false)
 
             @test Vres ≈ N[
                 30//10 24//10
@@ -147,7 +147,7 @@ end
     end
 end
 
-@testset "value_iteration" begin
+@testset "value iteration" begin
     for N in [Float32, Float64, Rational{BigInt}]
         @testset "N = $N" begin
             prob1 = IntervalProbabilities(;
@@ -200,29 +200,29 @@ end
 
             labelling = LabellingFunction(Int32[1, 1, 2])
 
-            prod_proc = ProductProcess(mc, dfa, labelling)
+            prod_proc = ProductProcess(mdp, dfa, labelling)
 
             @testset "finite time reachability" begin
                 prop = FiniteTimeDFAReachability([2], 10)
                 spec = Specification(prop, Pessimistic, Maximize)
-                problem = Problem(prod_proc, spec)
+                problem = ControlSynthesisProblem(prod_proc, spec)
 
-                policy, V_fixed_it1, k, res = control_synthesis(problem)
+                policy, V_fixed_it1, k, res = solve(problem)
 
                 @test all(V_fixed_it1 .>= 0)
                 @test k == 10
                 @test V_fixed_it1[:, 2] == N[1, 1, 1]
 
-                problem = Problem(prod_proc, spec, policy)
-                V_mc, k, res = value_iteration(problem)
+                problem = VerificationProblem(prod_proc, spec, policy)
+                V_mc, k, res = solve(problem)
 
                 @test V_fixed_it1 ≈ V_mc
 
                 prop = FiniteTimeDFAReachability([2], 11)
                 spec = Specification(prop, Pessimistic, Maximize)
-                problem = Problem(prod_proc, spec)
+                problem = VerificationProblem(prod_proc, spec)
 
-                V_fixed_it2, k, res = value_iteration(problem)
+                V_fixed_it2, k, res = solve(problem)
 
                 @test all(V_fixed_it2 .>= 0)
                 @test k == 11
@@ -233,16 +233,16 @@ end
             @testset "infinite time reachability" begin
                 prop = InfiniteTimeDFAReachability([2], 1e-3)
                 spec = Specification(prop, Pessimistic, Maximize)
-                problem = Problem(prod_proc, spec)
+                problem = ControlSynthesisProblem(prod_proc, spec)
 
-                policy, V_conv, k, res = control_synthesis(problem)
+                policy, V_conv, k, res = solve(problem)
 
                 @test all(V_conv .>= 0)
                 @test maximum(res) <= 1e-3
                 @test V_conv[:, 2] == N[1, 1, 1]
 
-                problem = Problem(prod_proc, spec, policy)
-                V_mc, k, res = value_iteration(problem)
+                problem = VerificationProblem(prod_proc, spec, policy)
+                V_mc, k, res = solve(problem)
 
                 @test V_conv ≈ V_mc
             end
