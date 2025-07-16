@@ -180,6 +180,7 @@ function write_prism_rewards_file(
     prop::IntervalMDP.AbstractReachability,
 )
     # Do nothing - no rewards for reachability
+    return nothing
 end
 
 function write_prism_rewards_file(srew_path, mdp_or_mc, prop::IntervalMDP.AbstractReward)

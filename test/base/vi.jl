@@ -22,9 +22,14 @@ mc = IntervalMarkovChain(prob)
 prop = FiniteTimeReachability([3], 10)
 spec = Specification(prop, Pessimistic)
 problem = VerificationProblem(mc, spec)
-V_fixed_it, k, _ = solve(problem)
+sol = solve(problem)
+V_fixed_it, k, res_ = sol
 @test k == 10
 @test all(V_fixed_it .>= 0.0)
+
+@test value_function(sol) == V_fixed_it
+@test num_iterations(sol) == k
+@test residual(sol) == res
 
 prop = FiniteTimeReachability([3], 11)
 spec = Specification(prop, Pessimistic)

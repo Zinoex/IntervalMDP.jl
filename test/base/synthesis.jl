@@ -46,13 +46,19 @@ mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
 prop = FiniteTimeReachability([3], 10)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = ControlSynthesisProblem(mdp, spec)
-policy, V, k, res = solve(problem)
+sol = solve(problem)
+policy, V, k, res = sol
 
 @test policy isa TimeVaryingStrategy
 @test time_length(policy) == 10
 for k in 1:time_length(policy)
     @test policy[k] == [1, 2, 1]
 end
+
+@test strategy(sol) == policy
+@test value_function(sol) == V_fixed_it
+@test num_iterations(sol) == k
+@test residual(sol) == res
 
 # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
 problem = VerificationProblem(mdp, spec, policy)
