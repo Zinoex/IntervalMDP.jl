@@ -1,33 +1,36 @@
+# IntervalMDP.jl - A Julia package for solving Interval Markov Decision Processes (IMDPs)
 module IntervalMDP
 
+# General solve interface
+import CommonSolve: solve, solve!, init
+export solve
+
+# Import necessary libraries
 using LinearAlgebra, SparseArrays
 
+### Utilities
 const UnionIndex = Union{<:Integer, <:Tuple}
 
-include("threading.jl")
-include("utils.jl")
 include("errors.jl")
 export InvalidStateError, StateDimensionMismatch
 
+### Modelling
 include("probabilities/probabilities.jl")
 include("models/models.jl")
 
 include("strategy.jl")
-export GivenStrategyConfig,
-    NoStrategyConfig, TimeVaryingStrategyConfig, StationaryStrategyConfig
 export StationaryStrategy, TimeVaryingStrategy
-export construct_strategy_cache, time_length
+export time_length
 
 include("specification.jl")
 export Property, BasicProperty, ProductProperty
 
-export AbstractDFAReachability, FiniteTimeDFAReachability, InfiniteTimeDFAReachability
-export AbstractReachability,
-    FiniteTimeReachability, InfiniteTimeReachability, ExactTimeReachability
-export AbstractReachAvoid, FiniteTimeReachAvoid, InfiniteTimeReachAvoid, ExactTimeReachAvoid
-export AbstractSafety, FiniteTimeSafety, InfiniteTimeSafety
-export AbstractReward, FiniteTimeReward, InfiniteTimeReward
-export AbstractHittingTime, ExpectedExitTime
+export FiniteTimeDFAReachability, InfiniteTimeDFAReachability
+export FiniteTimeReachability, InfiniteTimeReachability, ExactTimeReachability
+export FiniteTimeReachAvoid, InfiniteTimeReachAvoid, ExactTimeReachAvoid
+export FiniteTimeSafety, InfiniteTimeSafety
+export FiniteTimeReward, InfiniteTimeReward
+export ExpectedExitTime
 
 export isfinitetime
 export reach, avoid, safe, terminal_states, time_horizon, convergence_eps, reward, discount
@@ -37,21 +40,25 @@ export StrategyMode, Maximize, Minimize, ismaximize, isminimize
 export Specification, Problem
 export system, specification, system_property, strategy, satisfaction_mode, strategy_mode
 
-include("workspace.jl")
-export construct_workspace
-
-include("bellman.jl")
-export bellman, bellman!
-
-include("value_iteration.jl")
-export value_iteration, termination_criteria
-export TerminationCriteria, FixedIterationsCriteria, CovergenceCriteria
-
-include("synthesis.jl")
-export control_synthesis
+include("problem.jl")
+export VerificationProblem, ControlSynthesisProblem
+export value_function, residual, num_iterations
 
 include("cuda.jl")
 
+### Solving
+include("utils.jl")
+include("threading.jl")
+include("workspace.jl")
+include("stategy_cache.jl")
+include("bellman.jl")
+
+include("algorithms.jl")
+export RobustValueIteration
+
+include("robust_value_iteration.jl")
+
+### Saving and loading models
 include("Data/Data.jl")
 
 end

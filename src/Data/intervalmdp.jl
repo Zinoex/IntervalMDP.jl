@@ -1,16 +1,20 @@
 """
-    read_intervalmdp_jl(model_path, spec_path)
+    read_intervalmdp_jl(model_path, spec_path; control_synthesis = false)
 
-Read an IntervalMDP.jl data file and return an `IntervalMarkovDecisionProcess`
-or `IntervalMarkovChain` and a list of terminal states. 
+Read an IntervalMDP.jl data file and return a [`ControlSynthesisProblem`](@ref) or 
+[`VerificationProblem`](@ref) depending on the `control_synthesis` flag.
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-function read_intervalmdp_jl(model_path, spec_path)
+function read_intervalmdp_jl(model_path, spec_path; control_synthesis = false)
     mdp = read_intervalmdp_jl_model(model_path)
     spec = read_intervalmdp_jl_spec(spec_path)
 
-    return Problem(mdp, spec)
+    if control_synthesis
+        return ControlSynthesisProblem(mdp, spec)
+    else
+        return VerificationProblem(mdp, spec)
+    end
 end
 
 """
@@ -229,7 +233,7 @@ function write_intervalmdp_jl_model(model_path, mdp::IntervalMarkovDecisionProce
     end
 end
 
-write_intervalmdp_jl_model(model_path, problem::Problem) =
+write_intervalmdp_jl_model(model_path, problem::IntervalMDP.AbstractIntervalMDPProblem) =
     write_intervalmdp_jl_model(model_path, system(problem))
 
 """
@@ -252,7 +256,7 @@ function write_intervalmdp_jl_spec(spec_path, spec::Specification; indent = 4)
     end
 end
 
-write_intervalmdp_jl_spec(spec_path, problem::Problem) =
+write_intervalmdp_jl_spec(spec_path, problem::IntervalMDP.AbstractIntervalMDPProblem) =
     write_intervalmdp_jl_spec(spec_path, specification(problem))
 
 function intervalmdp_jl_property_dict(prop::FiniteTimeReachability)

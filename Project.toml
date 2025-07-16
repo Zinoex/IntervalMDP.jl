@@ -1,9 +1,10 @@
 name = "IntervalMDP"
 uuid = "051c988a-e73c-45a4-90ec-875cac0402c7"
 authors = ["Frederik Baymler Mathiesen <frederik@baymler.com> and contributors"]
-version = "0.5.0"
+version = "0.6.0"
 
 [deps]
+CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
@@ -21,6 +22,7 @@ IntervalMDPCudaExt = ["Adapt", "CUDA", "GPUArrays", "LLVM"]
 [compat]
 Adapt = "4"
 CUDA = "5.1"
+CommonSolve = "0.2.4"
 GPUArrays = "10, 11"
 JSON = "0.21.4"
 LLVM = "7, 8, 9"

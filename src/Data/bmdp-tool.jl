@@ -110,7 +110,7 @@ function read_bmdp_tool_file(path)
 end
 
 """
-    write_bmdp_tool_file(path, problem::Problem)
+    write_bmdp_tool_file(path, problem::IntervalMDP.AbstractIntervalMDPProblem)
 
 Write a bmdp-tool transition probability file for the given an IMDP and a reachability specification.
 The file will not contain enough information to specify a reachability specification. The remaining
@@ -118,7 +118,7 @@ parameters are rather command line arguments.
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-write_bmdp_tool_file(path, problem::Problem) =
+write_bmdp_tool_file(path, problem::IntervalMDP.AbstractIntervalMDPProblem) =
     write_bmdp_tool_file(path, system(problem), specification(problem))
 
 """
@@ -130,8 +130,11 @@ write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, spec::Specification) =
 """
     write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, prop::AbstractReachability)
 """
-write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, prop::AbstractReachability) =
-    write_bmdp_tool_file(path, mdp, reach(prop))
+write_bmdp_tool_file(
+    path,
+    mdp::IntervalMarkovProcess,
+    prop::IntervalMDP.AbstractReachability,
+) = write_bmdp_tool_file(path, mdp, reach(prop))
 
 """
     write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, terminal_states::Vector{T})

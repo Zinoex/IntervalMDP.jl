@@ -137,6 +137,10 @@ end
 
 function checkproperty(prop::FiniteTimeDFAReachability, system, strategy)
     checktimehorizon(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::FiniteTimeDFAReachability, system)
     checkstatebounds(terminal_states(prop), system)
 end
 
@@ -190,6 +194,10 @@ end
 
 function checkproperty(prop::InfiniteTimeDFAReachability, system, strategy)
     checkconvergence(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::InfiniteTimeDFAReachability, system)
     checkstatebounds(terminal_states(prop), system)
 end
 
@@ -265,6 +273,10 @@ end
 
 function checkproperty(prop::FiniteTimeReachability, system, strategy)
     checktimehorizon(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::FiniteTimeReachability, system)
     checkstatebounds(terminal_states(prop), system)
 end
 
@@ -319,6 +331,10 @@ end
 
 function checkproperty(prop::InfiniteTimeReachability, system, strategy)
     checkconvergence(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::InfiniteTimeReachability, system)
     checkstatebounds(terminal_states(prop), system)
 end
 
@@ -376,6 +392,10 @@ end
 
 function checkproperty(prop::ExactTimeReachability, system, strategy)
     checktimehorizon(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::ExactTimeReachability, system)
     checkstatebounds(terminal_states(prop), system)
 end
 
@@ -457,6 +477,10 @@ end
 
 function checkproperty(prop::FiniteTimeReachAvoid, system, strategy)
     checktimehorizon(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::FiniteTimeReachAvoid, system)
     checkstatebounds(terminal_states(prop), system)
     checkdisjoint(reach(prop), avoid(prop))
 end
@@ -521,6 +545,10 @@ end
 
 function checkproperty(prop::InfiniteTimeReachAvoid, system, strategy)
     checkconvergence(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::InfiniteTimeReachAvoid, system)
     checkstatebounds(terminal_states(prop), system)
     checkdisjoint(reach(prop), avoid(prop))
 end
@@ -590,6 +618,10 @@ end
 
 function checkproperty(prop::ExactTimeReachAvoid, system, strategy)
     checktimehorizon(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::ExactTimeReachAvoid, system)
     checkstatebounds(terminal_states(prop), system)
     checkdisjoint(reach(prop), avoid(prop))
 end
@@ -709,6 +741,10 @@ end
 
 function checkproperty(prop::FiniteTimeSafety, system, strategy)
     checktimehorizon(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::FiniteTimeSafety, system)
     checkstatebounds(terminal_states(prop), system)
 end
 
@@ -760,6 +796,10 @@ end
 
 function checkproperty(prop::InfiniteTimeSafety, system, strategy)
     checkconvergence(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::InfiniteTimeSafety, system)
     checkstatebounds(terminal_states(prop), system)
 end
 
@@ -847,6 +887,10 @@ end
 
 function checkproperty(prop::FiniteTimeReward, system, strategy)
     checktimehorizon(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::FiniteTimeReward, system)
     checkreward(prop, system)
 end
 
@@ -893,8 +937,15 @@ end
 
 function checkproperty(prop::InfiniteTimeReward, system, strategy)
     checkconvergence(prop, strategy)
-    checkreward(prop, system)
+    checkproperty(prop, system)
+end
 
+function checkproperty(prop::InfiniteTimeReward, system)
+    checkreward(prop, system)
+    checkdiscountupperbound(prop)
+end
+
+function checkdiscountupperbound(prop::InfiniteTimeReward)
     if discount(prop) >= 1
         throw(
             DomainError(
@@ -970,6 +1021,10 @@ end
 
 function checkproperty(prop::ExpectedExitTime, system, strategy)
     checkconvergence(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::ExpectedExitTime, system)
     checkstatebounds(avoid(prop), system)
 end
 
@@ -1074,6 +1129,11 @@ function checkspecification(spec::Specification, system, strategy)
     checkproperty(system_property(spec), system, strategy)
 end
 
+function checkspecification(spec::Specification, system)
+    checkmodelpropertycompatibility(system_property(spec), system)
+    checkproperty(system_property(spec), system)
+end
+
 """
     system_property(spec::Specification)
 """
@@ -1096,52 +1156,3 @@ Return the strategy mode of a specification.
 strategy_mode(spec::Specification) = spec.strategy
 ismaximize(spec::Specification) = ismaximize(strategy_mode(spec))
 isminimize(spec::Specification) = isminimize(strategy_mode(spec))
-
-"""
-    Problem{S <: StochasticProcess, F <: Specification}
-
-A problem is a tuple of an interval Markov process and a specification.
-
-### Fields
-- `system::S`: interval Markov process.
-- `spec::F`: specification (either temporal logic or reachability-like).
-"""
-struct Problem{S <: StochasticProcess, F <: Specification, C <: AbstractStrategy}
-    system::S
-    spec::F
-    strategy::C
-
-    function Problem(
-        system::S,
-        spec::F,
-        strategy::C,
-    ) where {S <: StochasticProcess, F <: Specification, C <: AbstractStrategy}
-        checkspecification(spec, system, strategy)
-        checkstrategy(strategy, system)
-        return new{S, F, C}(system, spec, strategy)
-    end
-end
-
-Problem(system::StochasticProcess, spec::Specification) =
-    Problem(system, spec, NoStrategy())
-
-"""
-    system(prob::Problem)
-
-Return the system of a problem.
-"""
-system(prob::Problem) = prob.system
-
-"""
-    specification(prob::Problem)
-
-Return the specification of a problem.
-"""
-specification(prob::Problem) = prob.spec
-
-"""
-    strategy(prob::Problem)
-
-Return the strategy of a problem, if provided.
-"""
-strategy(prob::Problem) = prob.strategy

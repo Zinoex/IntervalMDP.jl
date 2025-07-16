@@ -59,8 +59,8 @@ for N in [Float32, Float64]
                     (0.5 * 1 + 0.3 * 2 + 0.2 * 3) * 0.5 + (0.4 * 1 + 0.4 * 2 + 0.2 * 3) * 0.5,
                 ]
 
-                ws = construct_workspace(mixture_prob)
-                strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+                ws = IntervalMDP.construct_workspace(mixture_prob)
+                strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = zeros(N, 2)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -74,7 +74,7 @@ for N in [Float32, Float64]
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
-                strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -88,7 +88,7 @@ for N in [Float32, Float64]
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
-                strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -108,8 +108,8 @@ for N in [Float32, Float64]
                     (0.6 * 1 + 0.3 * 2 + 0.1 * 3) * 0.5 + (0.6 * 1 + 0.4 * 2 + 0.0 * 3) * 0.5,
                 ]
 
-                ws = construct_workspace(mixture_prob)
-                strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+                ws = IntervalMDP.construct_workspace(mixture_prob)
+                strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = zeros(N, 2)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -123,7 +123,7 @@ for N in [Float32, Float64]
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
-                strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -137,7 +137,7 @@ for N in [Float32, Float64]
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
-                strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -211,8 +211,8 @@ for N in [Float32, Float64]
                     (0.5 * 1 + 0.3 * 2 + 0.2 * 3) * 0.5 + (0.4 * 1 + 0.4 * 2 + 0.2 * 3) * 0.5,
                 ]
 
-                ws = construct_workspace(mixture_prob)
-                strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+                ws = IntervalMDP.construct_workspace(mixture_prob)
+                strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = zeros(N, 2)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -226,7 +226,7 @@ for N in [Float32, Float64]
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
-                strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -240,7 +240,7 @@ for N in [Float32, Float64]
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
-                strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -260,8 +260,8 @@ for N in [Float32, Float64]
                     (0.6 * 1 + 0.3 * 2 + 0.1 * 3) * 0.5 + (0.6 * 1 + 0.4 * 2 + 0.0 * 3) * 0.5,
                 ]
 
-                ws = construct_workspace(mixture_prob)
-                strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+                ws = IntervalMDP.construct_workspace(mixture_prob)
+                strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = zeros(N, 2)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -275,7 +275,7 @@ for N in [Float32, Float64]
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
-                strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -289,7 +289,7 @@ for N in [Float32, Float64]
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
-                strategy_cache = construct_strategy_cache(mixture_prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -382,15 +382,15 @@ for N in [Float32, Float64]
                 10,
             )
             spec = Specification(prop, Pessimistic, Maximize)
-            prob = Problem(mdp, spec)
+            prob = ControlSynthesisProblem(mdp, spec)
 
-            policy, V, it, res = control_synthesis(prob)
+            policy, V, it, res = solve(prob)
             @test it == 10
             @test all(V .≥ 0.0)
 
             # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
-            prob = Problem(mdp, spec, policy)
-            V_mc, k, res = value_iteration(prob)
+            prob = VerificationProblem(mdp, spec, policy)
+            V_mc, k, res = solve(prob)
             @test V ≈ V_mc
         end
     end

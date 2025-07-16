@@ -106,7 +106,7 @@ prop = system_property(spec)
 ## Explicit file paths for reward prop
 prop = FiniteTimeReward(collect(1.0:207.0), 0.9, 10)
 spec = Specification(prop, Pessimistic, Maximize)
-problem = Problem(mdp, spec)
+problem = VerificationProblem(mdp, spec)
 
 # Write back to a new path
 new_path = tempname()

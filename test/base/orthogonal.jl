@@ -20,8 +20,8 @@ for N in [Float32, Float64, Rational{BigInt}]
             @testset "maximization" begin
                 Vexpected = N[27 // 10, 17 // 10]
 
-                ws = construct_workspace(prob)
-                strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+                ws = IntervalMDP.construct_workspace(prob)
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 Vres = zeros(N, 2)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -35,7 +35,7 @@ for N in [Float32, Float64, Rational{BigInt}]
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.DenseOrthogonalWorkspace(prob, 1)
-                strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 Vres = similar(Vres)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -49,7 +49,7 @@ for N in [Float32, Float64, Rational{BigInt}]
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
-                strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 Vres = similar(Vres)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -66,8 +66,8 @@ for N in [Float32, Float64, Rational{BigInt}]
             @testset "minimization" begin
                 Vexpected = N[17 // 10, 15 // 10]
 
-                ws = construct_workspace(prob)
-                strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+                ws = IntervalMDP.construct_workspace(prob)
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 Vres = zeros(N, 2)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -81,7 +81,7 @@ for N in [Float32, Float64, Rational{BigInt}]
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.DenseOrthogonalWorkspace(prob, 1)
-                strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 Vres = similar(Vres)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -95,7 +95,7 @@ for N in [Float32, Float64, Rational{BigInt}]
                 @test Vres ≈ Vexpected
 
                 ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
-                strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 Vres = similar(Vres)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -192,8 +192,8 @@ for N in [Float32, Float64, Rational{BigInt}]
                 V122_expected = 20.52
                 V113_expected = 19.5096296296296
 
-                ws = construct_workspace(prob)
-                strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+                ws = IntervalMDP.construct_workspace(prob)
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 Vres_first = zeros(N, 3, 3, 3)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -213,7 +213,7 @@ for N in [Float32, Float64, Rational{BigInt}]
                 @test Vres_first[1, 1, 3] ≈ V113_expected
 
                 ws = IntervalMDP.DenseOrthogonalWorkspace(prob, 1)
-                strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 Vres = similar(Vres_first)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -227,7 +227,7 @@ for N in [Float32, Float64, Rational{BigInt}]
                 @test Vres ≈ Vres_first
 
                 ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
-                strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 Vres = similar(Vres_first)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -250,8 +250,8 @@ for N in [Float32, Float64, Rational{BigInt}]
                 V122_expected = 10.3088888888889
                 V113_expected = 11.5774074074074
 
-                ws = construct_workspace(prob)
-                strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+                ws = IntervalMDP.construct_workspace(prob)
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 Vres_first = zeros(N, 3, 3, 3)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -271,7 +271,7 @@ for N in [Float32, Float64, Rational{BigInt}]
                 @test Vres_first[1, 1, 3] ≈ V113_expected
 
                 ws = IntervalMDP.DenseOrthogonalWorkspace(prob, 1)
-                strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 Vres = similar(Vres_first)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -285,7 +285,7 @@ for N in [Float32, Float64, Rational{BigInt}]
                 @test Vres ≈ Vres_first
 
                 ws = IntervalMDP.ThreadedDenseOrthogonalWorkspace(prob, 1)
-                strategy_cache = construct_strategy_cache(prob, NoStrategyConfig())
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 Vres = similar(Vres_first)
                 IntervalMDP._bellman_helper!(
                     ws,
@@ -394,11 +394,11 @@ for N in [Float32, Float64, Rational{BigInt}]
 
                 prop = FiniteTimeSafety([(3, i, j) for i in 1:3 for j in 1:3], 10)
                 spec = Specification(prop, Pessimistic, Maximize)
-                prob = Problem(mdp, spec)
-                implicit_prob = Problem(implicit_mdp, spec)
+                prob = VerificationProblem(mdp, spec)
+                implicit_prob = VerificationProblem(implicit_mdp, spec)
 
-                V, k, res = value_iteration(prob)
-                V_implicit, k_implicit, res_implicit = value_iteration(implicit_prob)
+                V, k, res = solve(prob)
+                V_implicit, k_implicit, res_implicit = solve(implicit_prob)
 
                 @test V ≈ V_implicit
                 @test k == k_implicit
@@ -498,11 +498,11 @@ for N in [Float32, Float64, Rational{BigInt}]
 
                 prop = FiniteTimeSafety([(i, 3, j) for i in 1:3 for j in 1:3], 10)
                 spec = Specification(prop, Pessimistic, Maximize)
-                prob = Problem(mdp, spec)
-                implicit_prob = Problem(implicit_mdp, spec)
+                prob = VerificationProblem(mdp, spec)
+                implicit_prob = VerificationProblem(implicit_mdp, spec)
 
-                V, k, res = value_iteration(prob)
-                V_implicit, k_implicit, res_implicit = value_iteration(implicit_prob)
+                V, k, res = solve(prob)
+                V_implicit, k_implicit, res_implicit = solve(implicit_prob)
 
                 @test V ≈ V_implicit
                 @test k == k_implicit
@@ -602,11 +602,11 @@ for N in [Float32, Float64, Rational{BigInt}]
 
                 prop = FiniteTimeSafety([(i, j, 3) for i in 1:3 for j in 1:3], 10)
                 spec = Specification(prop, Pessimistic, Maximize)
-                prob = Problem(mdp, spec)
-                implicit_prob = Problem(implicit_mdp, spec)
+                prob = VerificationProblem(mdp, spec)
+                implicit_prob = VerificationProblem(implicit_mdp, spec)
 
-                V, k, res = value_iteration(prob)
-                V_implicit, k_implicit, res_implicit = value_iteration(implicit_prob)
+                V, k, res = solve(prob)
+                V_implicit, k_implicit, res_implicit = solve(implicit_prob)
 
                 @test V ≈ V_implicit
                 @test k == k_implicit
@@ -640,9 +640,9 @@ for N in [Float32, Float64]
 
             prop = FiniteTimeReachability([(3, 3, 3)], 10)
             spec = Specification(prop, Pessimistic, Maximize)
-            prob = Problem(mdp, spec)
+            prob = VerificationProblem(mdp, spec)
 
-            V_ortho, it_ortho, res_ortho = value_iteration(prob)
+            V_ortho, it_ortho, res_ortho = solve(prob)
 
             @test V_ortho[3, 3, 3] ≈ 1.0
             @test all(V_ortho .>= 0.0)
@@ -671,9 +671,9 @@ for N in [Float32, Float64]
 
             prop = FiniteTimeReachability([27], 10)
             spec = Specification(prop, Pessimistic, Maximize)
-            prob = Problem(mdp, spec)
+            prob = VerificationProblem(mdp, spec)
 
-            V_direct, it_direct, res_direct = value_iteration(prob)
+            V_direct, it_direct, res_direct = solve(prob)
             @test V_direct[27] ≈ N(1)
             @test all(V_ortho .≥ reshape(V_direct, 3, 3, 3))
         end
@@ -719,15 +719,15 @@ for N in [Float32, Float64]
                 10,
             )
             spec = Specification(prop, Pessimistic, Maximize)
-            prob = Problem(mdp, spec)
+            prob = ControlSynthesisProblem(mdp, spec)
 
-            policy, V, it, res = control_synthesis(prob)
+            policy, V, it, res = solve(prob)
             @test it == 10
             @test all(V .≥ 0.0)
 
             # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
-            prob = Problem(mdp, spec, policy)
-            V_mc, k, res = value_iteration(prob)
+            prob = VerificationProblem(mdp, spec, policy)
+            V_mc, k, res = solve(prob)
             @test V ≈ V_mc
         end
     end
@@ -1350,9 +1350,9 @@ end
 
     prop = FiniteTimeReachAvoid(reach_set, avoid_set, 10)
     spec = Specification(prop, Pessimistic, Maximize)
-    prob_ortho = Problem(pmdp, spec)
+    prob_ortho = VerificationProblem(pmdp, spec)
 
-    V_ortho, it_ortho, res_ortho = value_iteration(prob_ortho)
+    V_ortho, it_ortho, res_ortho = solve(prob_ortho)
     @test all(V_ortho .≥ 0.0)
 
     # Direct abstraction
@@ -1360,9 +1360,9 @@ end
 
     prop = FiniteTimeReachAvoid(reach_set, avoid_set, 10)
     spec = Specification(prop, Pessimistic, Maximize)
-    prob_direct = Problem(mdp, spec)
+    prob_direct = VerificationProblem(mdp, spec)
 
-    V_direct, it_direct, res_direct = value_iteration(prob_direct)
+    V_direct, it_direct, res_direct = solve(prob_direct)
 
     @test it_ortho == it_direct
     @test all(V_ortho .≥ reshape(V_direct, 6, 6))

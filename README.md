@@ -63,10 +63,10 @@ imc = IntervalMarkovChain(prob, initial_states)
 target_set = [3]
 prop = FiniteTimeReachability(target_set, 10)  # Time steps
 spec = Specification(prop, Pessimistic, Maximize)
-problem = Problem(imc, spec)
+problem = VerificationProblem(imc, spec)
 
 # Solve
-V, k, residual = value_iteration(problem)
+V, k, residual = solve(problem)
 ```
 
 See [Usage](https://www.baymler.com/IntervalMDP.jl/dev/usage/) for more information about different specifications, using sparse matrices, and CUDA.

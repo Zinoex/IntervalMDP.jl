@@ -51,12 +51,12 @@ istates = [Int32(1)]
 model = IntervalMarkovDecisionProcess(transition_probs, istates)
 
 Vprev = [1, 2, 3]
-Vcur = bellman(Vprev, model; upper_bound = false)
+Vcur = IntervalMDP.bellman(Vprev, model; upper_bound = false)
 ```
 
 !!! note
     This function will construct a workspace object and an output vector.
-    For a hot-loop, it is more efficient to use [`bellman!`](@ref) and pass in pre-allocated objects.
+    For a hot-loop, it is more efficient to use `bellman!` and pass in pre-allocated objects.
 
 [1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
 
@@ -125,10 +125,10 @@ model = IntervalMarkovDecisionProcess(transition_probs, istates)
 
 V = [1, 2, 3]
 workspace = construct_workspace(model)
-strategy_cache = construct_strategy_cache(NoStrategyConfig())
+strategy_cache = construct_strategy_cache(model)
 Vres = similar(V)
 
-Vres = bellman!(workspace, strategy_cache, Vres, V, model; upper_bound = false, maximize = true)
+Vres = IntervalMDP.bellman!(workspace, strategy_cache, Vres, V, model; upper_bound = false, maximize = true)
 ```
 
 [1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
@@ -138,7 +138,7 @@ function bellman! end
 
 function bellman!(Vres, V, model; upper_bound = false, maximize = true)
     workspace = construct_workspace(model)
-    strategy_cache = NoStrategyCache()
+    strategy_cache = construct_strategy_cache(model)
     return bellman!(
         workspace,
         strategy_cache,

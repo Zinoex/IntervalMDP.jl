@@ -186,224 +186,224 @@ end
     @testset "time horizon" begin
         prop = FiniteTimeDFAReachability([2], 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(prod_proc, spec)
+        @test_throws DomainError VerificationProblem(prod_proc, spec)
 
         prop = FiniteTimeDFAReachability([2], -1)
         spec = Specification(prop)
-        @test_throws DomainError Problem(prod_proc, spec)
+        @test_throws DomainError VerificationProblem(prod_proc, spec)
 
         prop = FiniteTimeDFAReachability([2], 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(prod_proc, spec, tv_prod_strat)
+        @test_throws DomainError VerificationProblem(prod_proc, spec, tv_prod_strat)
 
         prop = FiniteTimeReachability([3], 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = FiniteTimeReachability([3], -1)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = FiniteTimeReachability([3], 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec, tv_strat)
+        @test_throws DomainError VerificationProblem(mc, spec, tv_strat)
 
         prop = FiniteTimeReachAvoid([3], [2], 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = FiniteTimeReachAvoid([3], [2], -1)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = FiniteTimeReachAvoid([3], [2], 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec, tv_strat)
+        @test_throws DomainError VerificationProblem(mc, spec, tv_strat)
 
         prop = ExactTimeReachability([3], 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = ExactTimeReachability([3], -1)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = ExactTimeReachability([3], 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec, tv_strat)
+        @test_throws DomainError VerificationProblem(mc, spec, tv_strat)
 
         prop = ExactTimeReachAvoid([3], [2], 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = ExactTimeReachAvoid([3], [2], -1)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = ExactTimeReachAvoid([3], [2], 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec, tv_strat)
+        @test_throws DomainError VerificationProblem(mc, spec, tv_strat)
 
         prop = FiniteTimeSafety([3], 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = FiniteTimeSafety([3], -1)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = FiniteTimeSafety([3], 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec, tv_strat)
+        @test_throws DomainError VerificationProblem(mc, spec, tv_strat)
 
         prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, -1)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec, tv_strat)
+        @test_throws DomainError VerificationProblem(mc, spec, tv_strat)
     end
 
     # Time horizon must be equal to the time length of the time-varying interval Markov process
     @testset "time horizon/time-varying strategy" begin
         prop = FiniteTimeDFAReachability([2], 2)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(prod_proc, spec, tv_prod_strat)
+        @test_throws ArgumentError VerificationProblem(prod_proc, spec, tv_prod_strat)
 
         prop = FiniteTimeDFAReachability([2], 4)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(prod_proc, spec, tv_prod_strat)
+        @test_throws ArgumentError VerificationProblem(prod_proc, spec, tv_prod_strat)
 
         prop = FiniteTimeReachability([3], 2)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = FiniteTimeReachability([3], 4)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = FiniteTimeReachAvoid([3], [2], 2)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = FiniteTimeReachAvoid([3], [2], 4)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = ExactTimeReachability([3], 2)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = ExactTimeReachability([3], 4)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = ExactTimeReachAvoid([3], [2], 2)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = ExactTimeReachAvoid([3], [2], 4)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = FiniteTimeSafety([3], 2)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = FiniteTimeSafety([3], 4)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 2)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 4)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
     end
 
     # Convergence epsilon must be a positive number
     @testset "convergence epsilon" begin
         prop = InfiniteTimeDFAReachability([2], 0.0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(prod_proc, spec)
+        @test_throws DomainError VerificationProblem(prod_proc, spec)
 
         prop = InfiniteTimeDFAReachability([2], -1e-3)
         spec = Specification(prop)
-        @test_throws DomainError Problem(prod_proc, spec)
+        @test_throws DomainError VerificationProblem(prod_proc, spec)
 
         prop = InfiniteTimeReachability([3], 0.0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = InfiniteTimeReachability([3], -1e-3)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = InfiniteTimeReachAvoid([3], [2], 0.0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = InfiniteTimeReachAvoid([3], [2], -1e-3)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = InfiniteTimeSafety([3], 0.0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = InfiniteTimeSafety([3], -1e-3)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = InfiniteTimeReward([1.0, 2.0, 3.0], 0.9, 0.0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = InfiniteTimeReward([1.0, 2.0, 3.0], 0.9, -1e-3)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = ExpectedExitTime([3], 0.0)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = ExpectedExitTime([3], -1e-3)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
     end
 
     # Infinite time properties are not supported for time-varying interval Markov processes
     @testset "infinite time property/time-varying controller" begin
         prop = InfiniteTimeDFAReachability([2], 1e-6)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(prod_proc, spec, tv_prod_strat)
+        @test_throws ArgumentError VerificationProblem(prod_proc, spec, tv_prod_strat)
 
         prop = InfiniteTimeReachability([3], 1e-6)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = InfiniteTimeReachAvoid([3], [2], 1e-6)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = InfiniteTimeSafety([3], 1e-6)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = InfiniteTimeReward([1.0, 2.0, 3.0], 0.9, 1e-6)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
 
         prop = ExpectedExitTime([3], 1e-6)
         spec = Specification(prop)
-        @test_throws ArgumentError Problem(mc, spec, tv_strat)
+        @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
     end
 
     # Specification state errors
@@ -412,65 +412,65 @@ end
             @testset "DFA reachability" begin
                 prop = FiniteTimeDFAReachability([3], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(prod_proc, spec)
+                @test_throws InvalidStateError VerificationProblem(prod_proc, spec)
 
                 prop = FiniteTimeDFAReachability([0], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(prod_proc, spec)
+                @test_throws InvalidStateError VerificationProblem(prod_proc, spec)
             end
 
             @testset "reachability" begin
                 prop = FiniteTimeReachability([4], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = FiniteTimeReachability([0], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = FiniteTimeReachability([(3, 2)], 10) # incorrect dimension
                 spec = Specification(prop)
-                @test_throws StateDimensionMismatch Problem(mc, spec)
+                @test_throws StateDimensionMismatch VerificationProblem(mc, spec)
             end
 
             @testset "reach/avoid" begin
                 prop = FiniteTimeReachAvoid([4], [2], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = FiniteTimeReachAvoid([0], [2], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = FiniteTimeReachAvoid([2], [4], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = FiniteTimeReachAvoid([2], [0], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = FiniteTimeReachAvoid([(3, 2)], [(2, 3)], 10) # incorrect dimension
                 spec = Specification(prop)
-                @test_throws StateDimensionMismatch Problem(mc, spec)
+                @test_throws StateDimensionMismatch VerificationProblem(mc, spec)
 
                 prop = FiniteTimeReachAvoid([2], [2], 10) # not disjoint
                 spec = Specification(prop)
-                @test_throws DomainError Problem(mc, spec)
+                @test_throws DomainError VerificationProblem(mc, spec)
             end
 
             @testset "safety" begin
                 prop = FiniteTimeSafety([4], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = FiniteTimeSafety([0], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = FiniteTimeSafety([(3, 2)], 10) # incorrect dimension
                 spec = Specification(prop)
-                @test_throws StateDimensionMismatch Problem(mc, spec)
+                @test_throws StateDimensionMismatch VerificationProblem(mc, spec)
             end
         end
 
@@ -478,41 +478,41 @@ end
             @testset "reachability" begin
                 prop = ExactTimeReachability([4], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = ExactTimeReachability([0], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = ExactTimeReachability([(3, 2)], 10) # incorrect dimension
                 spec = Specification(prop)
-                @test_throws StateDimensionMismatch Problem(mc, spec)
+                @test_throws StateDimensionMismatch VerificationProblem(mc, spec)
             end
 
             @testset "reach/avoid" begin
                 prop = ExactTimeReachAvoid([4], [2], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = ExactTimeReachAvoid([0], [2], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = ExactTimeReachAvoid([2], [4], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = ExactTimeReachAvoid([2], [0], 10) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = ExactTimeReachAvoid([(3, 2)], [(2, 3)], 10) # incorrect dimension
                 spec = Specification(prop)
-                @test_throws StateDimensionMismatch Problem(mc, spec)
+                @test_throws StateDimensionMismatch VerificationProblem(mc, spec)
 
                 prop = ExactTimeReachAvoid([2], [2], 10) # not disjoint
                 spec = Specification(prop)
-                @test_throws DomainError Problem(mc, spec)
+                @test_throws DomainError VerificationProblem(mc, spec)
             end
         end
 
@@ -520,79 +520,79 @@ end
             @testset "DFA reachability" begin
                 prop = InfiniteTimeDFAReachability([3], 1e-6) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(prod_proc, spec)
+                @test_throws InvalidStateError VerificationProblem(prod_proc, spec)
 
                 prop = InfiniteTimeDFAReachability([0], 1e-6) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(prod_proc, spec)
+                @test_throws InvalidStateError VerificationProblem(prod_proc, spec)
             end
 
             @testset "reachability" begin
                 prop = InfiniteTimeReachability([4], 1e-6) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = InfiniteTimeReachability([0], 1e-6) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = InfiniteTimeReachability([(3, 2)], 1e-6) # incorrect dimension
                 spec = Specification(prop)
-                @test_throws StateDimensionMismatch Problem(mc, spec)
+                @test_throws StateDimensionMismatch VerificationProblem(mc, spec)
             end
 
             @testset "reach/avoid" begin
                 prop = InfiniteTimeReachAvoid([4], [2], 1e-6) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = InfiniteTimeReachAvoid([0], [2], 1e-6) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = InfiniteTimeReachAvoid([2], [4], 1e-6) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = InfiniteTimeReachAvoid([(3, 2)], [(2, 3)], 1e-6) # incorrect dimension
                 spec = Specification(prop)
-                @test_throws StateDimensionMismatch Problem(mc, spec)
+                @test_throws StateDimensionMismatch VerificationProblem(mc, spec)
 
                 prop = InfiniteTimeReachAvoid([2], [0], 1e-6) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = InfiniteTimeReachAvoid([2], [2], 1e-6) # not disjoint
                 spec = Specification(prop)
-                @test_throws DomainError Problem(mc, spec)
+                @test_throws DomainError VerificationProblem(mc, spec)
             end
 
             @testset "safety" begin
                 prop = InfiniteTimeSafety([4], 1e-6) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = InfiniteTimeSafety([0], 1e-6) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = InfiniteTimeSafety([(3, 2)], 1e-6) # incorrect dimension
                 spec = Specification(prop)
-                @test_throws StateDimensionMismatch Problem(mc, spec)
+                @test_throws StateDimensionMismatch VerificationProblem(mc, spec)
             end
 
             @testset "expected exit time" begin
                 prop = ExpectedExitTime([4], 1e-6) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = ExpectedExitTime([0], 1e-6) # out-of-bounds
                 spec = Specification(prop)
-                @test_throws InvalidStateError Problem(mc, spec)
+                @test_throws InvalidStateError VerificationProblem(mc, spec)
 
                 prop = ExpectedExitTime([(3, 2)], 1e-6) # incorrect dimension
                 spec = Specification(prop)
-                @test_throws StateDimensionMismatch Problem(mc, spec)
+                @test_throws StateDimensionMismatch VerificationProblem(mc, spec)
             end
         end
     end
@@ -601,30 +601,30 @@ end
         # Reward discount factor must be in the range (0, ∞) for finite time properties
         prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.0, 10)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = FiniteTimeReward([1.0, 2.0, 3.0], -1.0, 10)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         # Reward discount factor must be in the range (0, 1) for infinite time properties
         prop = InfiniteTimeReward([1.0, 2.0, 3.0], 1.0, 1e-6)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
 
         prop = InfiniteTimeReward([1.0, 2.0, 3.0], 0.0, 1e-6)
         spec = Specification(prop)
-        @test_throws DomainError Problem(mc, spec)
+        @test_throws DomainError VerificationProblem(mc, spec)
     end
 
     # Reward shape
     @testset "reward shape" begin
         prop = FiniteTimeReward([1.0, 2.0], 0.9, 10)
         spec = Specification(prop)
-        @test_throws DimensionMismatch Problem(mc, spec)
+        @test_throws DimensionMismatch VerificationProblem(mc, spec)
 
         prop = InfiniteTimeReward([1.0, 2.0], 0.9, 1e-6)
         spec = Specification(prop)
-        @test_throws DimensionMismatch Problem(mc, spec)
+        @test_throws DimensionMismatch VerificationProblem(mc, spec)
     end
 end

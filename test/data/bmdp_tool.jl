@@ -30,7 +30,7 @@ new_transition_probabilities = transition_prob(new_mdp)
 tstates = [CartesianIndex(207)]
 prop = FiniteTimeReachability(tstates, 10)
 spec = Specification(prop, Pessimistic, Maximize)
-problem = Problem(mdp, spec)
+problem = VerificationProblem(mdp, spec)
 
 new_path = tempname() * ".txt"
 write_bmdp_tool_file(new_path, problem)
