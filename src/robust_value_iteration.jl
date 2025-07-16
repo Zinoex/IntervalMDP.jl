@@ -21,7 +21,7 @@ termination_criteria(prop, finitetime::Val{false}) =
 """
     solve(problem::AbstractIntervalMDPAlgorithm, alg::RobustValueIteration; callback=nothing)
 
-Solve minimizes/mazimizes optimistic/pessimistic specification problems using value iteration for interval Markov processes. 
+Solve minimizes/maximizes optimistic/pessimistic specification problems using value iteration for interval Markov processes. 
 
 It is possible to provide a callback function that will be called at each iteration with the current value function and
 iteration count. The callback function should have the signature `callback(V::AbstractArray, k::Int)`.
