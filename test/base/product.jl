@@ -147,7 +147,7 @@ end
     end
 end
 
-@testset "value_iteration" begin
+@testset "value iteration" begin
     for N in [Float32, Float64, Rational{BigInt}]
         @testset "N = $N" begin
             prob1 = IntervalProbabilities(;
@@ -200,7 +200,7 @@ end
 
             labelling = LabellingFunction(Int32[1, 1, 2])
 
-            prod_proc = ProductProcess(mc, dfa, labelling)
+            prod_proc = ProductProcess(mdp, dfa, labelling)
 
             @testset "finite time reachability" begin
                 prop = FiniteTimeDFAReachability([2], 10)

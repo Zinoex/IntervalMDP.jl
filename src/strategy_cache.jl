@@ -19,7 +19,6 @@ function construct_strategy_cache(
         OrthogonalIntervalProbabilities,
         MixtureIntervalProbabilities,
         StochasticProcess,
-        VerificationProblem,
     },
 )
     return NoStrategyCache()
