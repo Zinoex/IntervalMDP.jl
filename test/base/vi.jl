@@ -23,7 +23,7 @@ prop = FiniteTimeReachability([3], 10)
 spec = Specification(prop, Pessimistic)
 problem = VerificationProblem(mc, spec)
 sol = solve(problem)
-V_fixed_it, k, res_ = sol
+V_fixed_it, k, res = sol
 @test k == 10
 @test all(V_fixed_it .>= 0.0)
 

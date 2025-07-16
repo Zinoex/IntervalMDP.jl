@@ -56,7 +56,7 @@ for k in 1:time_length(policy)
 end
 
 @test strategy(sol) == policy
-@test value_function(sol) == V_fixed_it
+@test value_function(sol) == V
 @test num_iterations(sol) == k
 @test residual(sol) == res
 
