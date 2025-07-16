@@ -182,10 +182,10 @@ end
     @test isfile(spec_path)
 
     # Read the problem back from files
-    new_problem = read_intervalmdp_jl_problem(model_path, spec_path)
+    new_problem = read_intervalmdp_jl(model_path, spec_path)
     @test isa(new_problem, VerificationProblem)
 
-    new_problem = read_intervalmdp_jl_problem(model_path, spec_path; control_synthesis = true)
+    new_problem = read_intervalmdp_jl(model_path, spec_path; control_synthesis = true)
     @test isa(new_problem, ControlSynthesisProblem)
 
     # Clean up
