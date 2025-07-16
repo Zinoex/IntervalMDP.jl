@@ -176,7 +176,7 @@ end
     spec_path = new_path * ".json"
 
     write_intervalmdp_jl_model(model_path, problem)
-    write_intervalmdp_jl_spec(spec_path, spec)
+    write_intervalmdp_jl_spec(spec_path, problem)
 
     @test isfile(model_path)
     @test isfile(spec_path)
