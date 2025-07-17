@@ -96,7 +96,8 @@ function _interval_iteration(problem::AbstractIntervalMDPProblem, alg::IntervalI
     strategy_cache = construct_strategy_cache(problem)
 
     # TODO: Think about how the value functions should be initialized for interval iteration
-    # in particular for (discounted) reward problems and expected exit time problems.
+    # in particular for (discounted) reward problems and expected exit time problems. Options:
+    # 1. restrict Interval Iteration to logic problems only and add a lower bound/upper bound initialize.
     primary_value_function = ValueFunction(problem)
     initialize!(primary_value_function, spec)
     nextiteration!(primary_value_function)
