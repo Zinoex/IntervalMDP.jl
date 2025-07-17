@@ -95,6 +95,7 @@ end
 Super type for all reachability-like properties.
 """
 abstract type AbstractDFAReachability <: ProductProperty end
+isprobability(::AbstractDFAReachability) = true
 
 function initialize!(value_function, prop::AbstractDFAReachability)
     @inbounds selectdim(
@@ -102,6 +103,17 @@ function initialize!(value_function, prop::AbstractDFAReachability)
         ndims(value_function.current),
         reach(prop),
     ) .= 1.0
+end
+
+function lower_bound_initialize!(value_function, prop::AbstractDFAReachability, end_components)
+    value_function.current .= 0.0
+    initialize!(value_function, prop)
+end
+
+function upper_bound_initialize!(value_function, prop::AbstractDFAReachability, end_components)
+    value_function.current .= 1.0
+    # TODO: Compute end components that do not intersect with the reach set.
+    # Set the value function to 0 for those components.
 end
 
 function step_specification!(value_function, prop::AbstractDFAReachability)
@@ -239,6 +251,7 @@ reach(prop::InfiniteTimeDFAReachability) = prop.terminal_states
 Super type for all reachability-like properties.
 """
 abstract type AbstractReachability <: BasicProperty end
+isprobability(::AbstractReachability) = true
 
 function initialize!(value_function, prop::AbstractReachability)
     @inbounds value_function.current[reach(prop)] .= 1.0
@@ -706,6 +719,7 @@ end
 Super type for all safety properties.
 """
 abstract type AbstractSafety <: BasicProperty end
+isprobability(::AbstractSafety) = true
 
 function initialize!(value_function, prop::AbstractSafety)
     @inbounds value_function.current[avoid(prop)] .= -1.0
@@ -840,6 +854,7 @@ avoid(prop::InfiniteTimeSafety) = prop.avoid_states
 Super type for all reward properties.
 """
 abstract type AbstractReward{R <: Real} <: BasicProperty end
+isprobability(::AbstractReward) = false
 
 function initialize!(value_function, prop::AbstractReward)
     value_function.current .= reward(prop)
@@ -991,6 +1006,7 @@ convergence_eps(prop::InfiniteTimeReward) = prop.convergence_eps
 Super type for all HittingTime properties.
 """
 abstract type AbstractHittingTime <: BasicProperty end
+isprobability(::AbstractHittingTime) = false
 
 postprocess_value_function!(value_function, ::AbstractHittingTime) = value_function
 

@@ -87,24 +87,38 @@ end
 function _interval_iteration(problem::AbstractIntervalMDPProblem, alg::IntervalIteration; callback = nothing)
     mp = system(problem)
     spec = specification(problem)
+
+    if !isprobability(system_property(spec))
+        throw(ArgumentError("Interval Iteration is only supported for probability-based specifications (the value function represents a probability)."))
+    end
+
     term_criteria = termination_criteria(spec)
     upper_bound = isoptimistic(spec)
     maximize = ismaximize(spec)
+
+    ec = maximal_end_components(mp)
 
     # It is more efficient to use allocate first and reuse across iterations
     workspace = construct_workspace(mp)
     strategy_cache = construct_strategy_cache(problem)
 
-    # TODO: Think about how the value functions should be initialized for interval iteration
-    # in particular for (discounted) reward problems and expected exit time problems. Options:
-    # 1. restrict Interval Iteration to logic problems only and add a lower bound/upper bound initialize.
-    primary_value_function = ValueFunction(problem)
-    initialize!(primary_value_function, spec)
-    nextiteration!(primary_value_function)
+    # Initialize value functions and select the primal and dual value functions
+    # based on whether the specification is optimistic or pessimistic.
+    lb_value_function = ValueFunction(problem)
+    lower_bound_initialize!(lb_value_function, spec, ec)
+    nextiteration!(lb_value_function)
 
-    dual_value_function = ValueFunction(problem)
-    initialize!(dual_value_function, spec)
-    nextiteration!(dual_value_function)
+    ub_value_function = ValueFunction(problem)
+    upper_bound_initialize!(ub_value_function, spec, ec)
+    nextiteration!(ub_value_function)
+
+    if upper_bound
+        primal_value_function = ub_value_function
+        dual_value_function = lb_value_function
+    else
+        primal_value_function = lb_value_function
+        dual_value_function = ub_value_function
+    end
 
     residual = zero(primary_value_function.current)
 
