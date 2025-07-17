@@ -51,7 +51,7 @@ include("utils.jl")
 include("threading.jl")
 
 include("algorithms/algorithms.jl")
-export RobustValueIteration
+export RobustValueIteration, IntervalIteration
 
 ### Saving and loading models
 include("Data/Data.jl")

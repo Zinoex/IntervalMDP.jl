@@ -8,3 +8,4 @@ include("bellman.jl")
 include("termination_criteria.jl")
 
 include("robust_value_iteration.jl")
+include("interval_iteration.jl")
