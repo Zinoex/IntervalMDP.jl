@@ -1,3 +1,4 @@
+
 abstract type AbstractIntervalMDPAlgorithm end
 
 ##########################
@@ -17,7 +18,7 @@ struct RobustValueIteration <: AbstractIntervalMDPAlgorithm end
 ############################
 
 # TODO: Provide implementation for this algorithm. When provided, consider changing the default algorithm.
-struct IntervalValueIteration <: AbstractIntervalMDPAlgorithm end
+struct IntervalIteration <: AbstractIntervalMDPAlgorithm end
 
 # TODO: Consider topological value iteration as an alternative algorithm (infinite time only).
 

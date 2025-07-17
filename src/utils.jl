@@ -21,3 +21,9 @@ valuetype(prob::MixtureIntervalProbabilities) = valuetype(first(prob))
 valuetype(prob::OrthogonalIntervalProbabilities) = valuetype(first(prob))
 valuetype(prob::IntervalProbabilities) = valuetype(gap(prob))
 valuetype(::MR) where {R, MR <: AbstractArray{R}} = R
+
+function maybe_callback(callback, args...)
+    if !isnothing(callback)
+        callback(args...)
+    end
+end

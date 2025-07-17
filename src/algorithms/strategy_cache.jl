@@ -11,26 +11,36 @@ the specification and the device to store the strategy depends on the device of 
 function construct_strategy_cache end
 
 # Strategy cache for not storing policies - useful for dispatching
-struct NoStrategyCache <: OptimizingStrategyCache end
+struct NoStrategyCache{A <: AbstractArray{Int32}} <: OptimizingStrategyCache
+    strategy::A
+end
 
 function construct_strategy_cache(
-    ::Union{
+    prob::Union{
         IntervalProbabilities,
         OrthogonalIntervalProbabilities,
         MixtureIntervalProbabilities,
-        StochasticProcess,
     },
 )
-    return NoStrategyCache()
+    strategy = arrayfactory(prob, Int32, source_shape(prob))
+    return NoStrategyCache(strategy)
 end
 
-construct_strategy_cache(::VerificationProblem{S, F, <:NoStrategy}) where {S, F} =
-    NoStrategyCache()
-
-function extract_strategy!(::NoStrategyCache, values, V, j, maximize)
-    return maximize ? maximum(values) : minimum(values)
+function construct_strategy_cache(mp::StochasticProcess)
+    strategy = arrayfactory(mp, Int32, product_num_states(mp))
+    return NoStrategyCache(strategy)
 end
-step_postprocess_strategy_cache!(::NoStrategyCache) = nothing
+
+function construct_strategy_cache(problem::VerificationProblem{S, F, <:NoStrategy}) where {S, F}
+    return construct_strategy_cache(system(problem))
+end
+
+function extract_strategy!(strategy_cache::NoStrategyCache, values::AbstractArray{R}, V, j, maximize) where {R <: Real}
+    neutral = maximize ? typemin(R) : typemax(R), 1
+    return _extract_strategy!(strategy_cache.strategy, values, neutral, j, maximize)
+end
+current_strategy(cache::NoStrategyCache, k) = cache.strategy
+step_strategy_cache!(::NoStrategyCache) = nothing
 
 # Strategy cache for applying given policies - useful for dispatching
 struct GivenStrategyCache{S <: AbstractStrategy} <: NonOptimizingStrategyCache
@@ -41,13 +51,15 @@ construct_strategy_cache(problem::VerificationProblem{S, F, C}) where {S, F, C} 
     GivenStrategyCache(strategy(problem))
 time_length(cache::GivenStrategyCache) = time_length(cache.strategy)
 
+current_strategy(cache::GivenStrategyCache, k) = cache[time_length(strategy_cache) - k]
+step_strategy_cache!(::GivenStrategyCache) = nothing
+
 struct ActiveGivenStrategyCache{A <: AbstractArray{Int32}} <: NonOptimizingStrategyCache
     strategy::A
 end
 Base.getindex(cache::GivenStrategyCache, k) = ActiveGivenStrategyCache(cache.strategy[k])
 Base.getindex(cache::ActiveGivenStrategyCache, j) = cache.strategy[j]
 
-step_postprocess_strategy_cache!(::GivenStrategyCache) = nothing
 
 construct_strategy_cache(problem::ControlSynthesisProblem) = construct_strategy_cache(
     problem,
@@ -92,7 +104,9 @@ function extract_strategy!(
 
     return _extract_strategy!(strategy_cache.cur_strategy, values, neutral, j, maximize)
 end
-function step_postprocess_strategy_cache!(strategy_cache::TimeVaryingStrategyCache)
+
+current_strategy(cache::TimeVaryingStrategyCache, k) = cache.cur_strategy
+function step_strategy_cache!(strategy_cache::TimeVaryingStrategyCache)
     push!(strategy_cache.strategy, copy(strategy_cache.cur_strategy))
 end
 
@@ -128,7 +142,9 @@ function extract_strategy!(
 
     return _extract_strategy!(strategy_cache.strategy, values, neutral, j, maximize)
 end
-step_postprocess_strategy_cache!(::StationaryStrategyCache) = nothing
+
+current_strategy(cache::StationaryStrategyCache, k) = cache.strategy
+step_strategy_cache!(::StationaryStrategyCache) = nothing
 
 # Shared between stationary and time-varying strategies
 function _extract_strategy!(cur_strategy, values, neutral, j, maximize)

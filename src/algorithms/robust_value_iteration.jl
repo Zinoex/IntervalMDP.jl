@@ -1,22 +1,4 @@
-abstract type TerminationCriteria end
-function termination_criteria(spec::Specification)
-    prop = system_property(spec)
-    return termination_criteria(prop, Val(isfinitetime(prop)))
-end
 
-struct FixedIterationsCriteria{T <: Integer} <: TerminationCriteria
-    n::T
-end
-(f::FixedIterationsCriteria)(V, k, u) = k >= f.n
-termination_criteria(prop, finitetime::Val{true}) =
-    FixedIterationsCriteria(time_horizon(prop))
-
-struct CovergenceCriteria{T <: AbstractFloat} <: TerminationCriteria
-    tol::T
-end
-(f::CovergenceCriteria)(V, k, u) = maximum(abs, u) < f.tol
-termination_criteria(prop, finitetime::Val{false}) =
-    CovergenceCriteria(convergence_eps(prop))
 
 """
     solve(problem::AbstractIntervalMDPAlgorithm, alg::RobustValueIteration; callback=nothing)
@@ -83,18 +65,18 @@ sol = solve(problem, RobustValueIteration(); callback = (V, k) -> println("Itera
 ```
 """
 function solve(problem::VerificationProblem, alg::RobustValueIteration; kwargs...)
-    V, k, res, _ = _value_iteration!(problem, alg; kwargs...)
+    V, k, res, _ = _value_iteration(problem, alg; kwargs...)
     return VerificationSolution(V, res, k)
 end
 
 function solve(problem::ControlSynthesisProblem, alg::RobustValueIteration; kwargs...)
-    V, k, res, strategy_cache = _value_iteration!(problem, alg; kwargs...)
+    V, k, res, strategy_cache = _value_iteration(problem, alg; kwargs...)
     strategy = cachetostrategy(strategy_cache)
 
     return ControlSynthesisSolution(strategy, V, res, k)
 end
 
-function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = nothing)
+function _value_iteration(problem::AbstractIntervalMDPProblem, alg::RobustValueIteration; callback = nothing)
     mp = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(spec)
@@ -118,13 +100,11 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
         upper_bound = upper_bound,
         maximize = maximize,
     )
-    step_postprocess_value_function!(value_function, spec)
-    step_postprocess_strategy_cache!(strategy_cache)
-    k = 1
+    step_specification!(value_function, spec)
+    step_strategy_cache!(strategy_cache)
 
-    if !isnothing(callback)
-        callback(value_function.current, k)
-    end
+    k = 1
+    maybe_callback(callback, value_function.current, k)
 
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
@@ -138,13 +118,11 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
             upper_bound = upper_bound,
             maximize = maximize,
         )
-        step_postprocess_value_function!(value_function, spec)
-        step_postprocess_strategy_cache!(strategy_cache)
+        step_specification!(value_function, spec)
+        step_strategy_cache!(strategy_cache)
+        
         k += 1
-
-        if !isnothing(callback)
-            callback(value_function.current, k)
-        end
+        maybe_callback(callback, value_function.current, k)
     end
 
     postprocess_value_function!(value_function, spec)
@@ -154,42 +132,15 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     return value_function.current, k, value_function.previous, strategy_cache
 end
 
-struct ValueFunction{R, A <: AbstractArray{R}}
-    previous::A
-    current::A
-end
-
-function ValueFunction(problem::AbstractIntervalMDPProblem)
-    mp = system(problem)
-    previous = arrayfactory(mp, valuetype(mp), product_num_states(mp))
-    current = copy(previous)
-
-    return ValueFunction(previous, current)
-end
-
-function lastdiff!(V)
-    # Reuse prev to store the latest difference
-    V.previous .-= V.current
-    rmul!(V.previous, -1.0)
-
-    return V.previous
-end
-
-function nextiteration!(V)
-    copy!(V.previous, V.current)
-
-    return V
-end
-
 function step!(
     workspace,
-    strategy_cache::OptimizingStrategyCache,
+    strategy_cache::C,
     value_function,
     k,
     mp;
     upper_bound,
     maximize,
-)
+) where {C <: AbstractStrategyCache}
     bellman!(
         workspace,
         strategy_cache,
@@ -203,7 +154,7 @@ end
 
 function step!(
     workspace,
-    strategy_cache::NonOptimizingStrategyCache,
+    strategy_cache::GivenStrategyCache,
     value_function,
     k,
     mp;

@@ -1,10 +1,12 @@
 abstract type ActiveCache end
 abstract type OptimizingActiveCache <: ActiveCache end
 
-struct NoStrategyActiveCache <: OptimizingActiveCache end
+struct NoStrategyActiveCache{V <: AbstractVector{Int32}} <: OptimizingActiveCache
+    strategy::V
+end
 Adapt.@adapt_structure NoStrategyActiveCache
-@inline function active_cache(::IntervalMDP.NoStrategyCache)
-    return NoStrategyActiveCache()
+@inline function active_cache(strategy::IntervalMDP.NoStrategyCache)
+    return NoStrategyActiveCache(strategy_cache.strategy)
 end
 
 struct TimeVaryingStrategyActiveCache{V <: AbstractVector{Int32}} <: OptimizingActiveCache
@@ -36,7 +38,7 @@ Base.@propagate_inbounds Base.getindex(cache::GivenStrategyActiveCache, j) =
     cache.strategy[j]
 
 @inline function extract_strategy_warp!(
-    ::NoStrategyActiveCache,
+    cache::NoStrategyActiveCache,
     values::AbstractVector{Tv},
     V,
     j,
@@ -44,26 +46,32 @@ Base.@propagate_inbounds Base.getindex(cache::GivenStrategyActiveCache, j) =
     lane,
 ) where {Tv}
     assume(warpsize() == 32)
-    action_min, action_neutral = action_reduce[1], action_reduce[3]
+    action_lt, action_neutral = action_reduce[2], action_reduce[3]
 
     warp_aligned_length = kernel_nextwarp(length(values))
-    @inbounds opt_val = action_neutral
+    opt_val, opt_idx = action_neutral, 1
 
     s = lane
     @inbounds while s <= warp_aligned_length
-        new_val = if s <= length(values)
-            values[s]
+        new_val, new_idx = if s <= length(values)
+            values[s], s
         else
-            action_neutral
+            action_neutral, 1
         end
-        opt_val = action_min(new_val, opt_val)
+        opt_val, opt_idx = argop(action_lt, opt_val, opt_idx, new_val, new_idx)
 
         s += warpsize()
     end
 
-    opt_val = CUDA.reduce_warp(action_min, opt_val)
+    opt_val, opt_idx = argmin_warp(action_lt, opt_val, opt_idx)
+
+    if lane == 1
+        @inbounds cache.strategy[j] = opt_idx
+    end
+
     return opt_val
 end
+
 
 @inline function extract_strategy_warp!(
     cache::TimeVaryingStrategyActiveCache,

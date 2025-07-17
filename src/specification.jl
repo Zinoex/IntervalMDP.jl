@@ -104,7 +104,7 @@ function initialize!(value_function, prop::AbstractDFAReachability)
     ) .= 1.0
 end
 
-function step_postprocess_value_function!(value_function, prop::AbstractDFAReachability)
+function step_specification!(value_function, prop::AbstractDFAReachability)
     @inbounds selectdim(
         value_function.current,
         ndims(value_function.current),
@@ -244,7 +244,7 @@ function initialize!(value_function, prop::AbstractReachability)
     @inbounds value_function.current[reach(prop)] .= 1.0
 end
 
-function step_postprocess_value_function!(value_function, prop::AbstractReachability)
+function step_specification!(value_function, prop::AbstractReachability)
     @inbounds value_function.current[reach(prop)] .= 1.0
 end
 
@@ -399,7 +399,7 @@ function checkproperty(prop::ExactTimeReachability, system)
     checkstatebounds(terminal_states(prop), system)
 end
 
-function step_postprocess_value_function!(_, ::ExactTimeReachability)
+function step_specification!(_, ::ExactTimeReachability)
     return nothing
 end
 
@@ -443,7 +443,7 @@ A property of reachability that includes a set of states to avoid.
 """
 abstract type AbstractReachAvoid <: AbstractReachability end
 
-function step_postprocess_value_function!(value_function, prop::AbstractReachAvoid)
+function step_specification!(value_function, prop::AbstractReachAvoid)
     @inbounds value_function.current[reach(prop)] .= 1.0
     @inbounds value_function.current[avoid(prop)] .= 0.0
 end
@@ -626,7 +626,7 @@ function checkproperty(prop::ExactTimeReachAvoid, system)
     checkdisjoint(reach(prop), avoid(prop))
 end
 
-function step_postprocess_value_function!(value_function, prop::ExactTimeReachAvoid)
+function step_specification!(value_function, prop::ExactTimeReachAvoid)
     @inbounds value_function.current[avoid(prop)] .= 0.0
 end
 
@@ -711,7 +711,7 @@ function initialize!(value_function, prop::AbstractSafety)
     @inbounds value_function.current[avoid(prop)] .= -1.0
 end
 
-function step_postprocess_value_function!(value_function, prop::AbstractSafety)
+function step_specification!(value_function, prop::AbstractSafety)
     @inbounds value_function.current[avoid(prop)] .= -1.0
 end
 
@@ -845,7 +845,7 @@ function initialize!(value_function, prop::AbstractReward)
     value_function.current .= reward(prop)
 end
 
-function step_postprocess_value_function!(value_function, prop::AbstractReward)
+function step_specification!(value_function, prop::AbstractReward)
     rmul!(value_function.current, discount(prop))
     value_function.current .+= reward(prop)
 end
@@ -1033,7 +1033,7 @@ function initialize!(value_function, prop::ExpectedExitTime)
     value_function.current[avoid(prop)] .= 0.0
 end
 
-function step_postprocess_value_function!(value_function, prop::ExpectedExitTime)
+function step_specification!(value_function, prop::ExpectedExitTime)
     value_function.current .+= 1.0
     value_function.current[avoid(prop)] .= 0.0
 end
@@ -1119,8 +1119,8 @@ Specification(prop::Property, satisfaction::SatisfactionMode) =
 
 initialize!(value_function, spec::Specification) =
     initialize!(value_function, system_property(spec))
-step_postprocess_value_function!(value_function, spec::Specification) =
-    step_postprocess_value_function!(value_function, system_property(spec))
+step_specification!(value_function, spec::Specification) =
+    step_specification!(value_function, system_property(spec))
 postprocess_value_function!(value_function, spec::Specification) =
     postprocess_value_function!(value_function, system_property(spec))
 

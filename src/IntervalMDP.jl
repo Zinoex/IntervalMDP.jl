@@ -49,14 +49,9 @@ include("cuda.jl")
 ### Solving
 include("utils.jl")
 include("threading.jl")
-include("workspace.jl")
-include("strategy_cache.jl")
-include("bellman.jl")
 
-include("algorithms.jl")
+include("algorithms/algorithms.jl")
 export RobustValueIteration
-
-include("robust_value_iteration.jl")
 
 ### Saving and loading models
 include("Data/Data.jl")
