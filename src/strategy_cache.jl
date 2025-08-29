@@ -15,7 +15,7 @@ struct NoStrategyCache <: OptimizingStrategyCache end
 
 function construct_strategy_cache(
     ::Union{
-        IntervalProbabilities,
+        IntervalAmbiguitySet,
         OrthogonalIntervalProbabilities,
         MixtureIntervalProbabilities,
         StochasticProcess,

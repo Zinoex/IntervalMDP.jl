@@ -377,7 +377,7 @@ function read_prism_transitions_file(tra_path, num_states)
             probs_upper_nzval,
         )
 
-        probs = IntervalProbabilities(; lower = probs_lower, upper = probs_upper)
+        probs = IntervalAmbiguitySet(; lower = probs_lower, upper = probs_upper)
 
         return probs, stateptr
     end

@@ -4,6 +4,7 @@ abstract type AbstractIntervalMDPProblem end
 # Verification #
 #################
 
+# Problem
 """
     VerificationProblem{S <: StochasticProcess, F <: Specification, C <: AbstractStrategy}
 
@@ -59,6 +60,7 @@ Return the strategy of a problem, if provided.
 """
 strategy(prob::VerificationProblem) = prob.strategy
 
+# Solution
 struct VerificationSolution{R, MR <: AbstractArray{R}, D}
     value_function::MR
     residual::MR
@@ -95,6 +97,7 @@ Base.iterate(s::VerificationSolution, args...) =
 # Control synthesis #
 #####################
 
+# Problem
 """
     ControlSynthesisProblem{S <: StochasticProcess, F <: Specification}
 
@@ -132,6 +135,7 @@ Return the specification of a problem.
 """
 specification(prob::ControlSynthesisProblem) = prob.spec
 
+# Solution
 struct ControlSynthesisSolution{C <: AbstractStrategy, R, MR <: AbstractArray{R}, D}
     strategy::C
     value_function::MR

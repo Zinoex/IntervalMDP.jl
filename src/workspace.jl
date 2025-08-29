@@ -88,7 +88,7 @@ The workspace type is determined by the type and size of the transition probabil
 as well as the number of threads available.
 """
 function construct_workspace(
-    prob::IntervalProbabilities{R, VR, MR},
+    prob::IntervalAmbiguitySet{R, VR, MR},
     max_actions = 1;
     threshold = 10,
 ) where {R, VR, MR <: AbstractMatrix{R}}
@@ -129,7 +129,7 @@ end
 Base.getindex(ws::ThreadedSparseWorkspace, i) = ws.thread_workspaces[i]
 
 function construct_workspace(
-    prob::IntervalProbabilities{R, VR, MR},
+    prob::IntervalAmbiguitySet{R, VR, MR},
     max_actions = 1;
     threshold = 10,
 ) where {R, VR, MR <: AbstractSparseMatrix{R}}
@@ -153,7 +153,7 @@ struct DenseOrthogonalWorkspace{N, M, T <: Real} <: SimpleOrthogonalWorkspace
 end
 
 function DenseOrthogonalWorkspace(
-    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R}},
+    p::OrthogonalIntervalProbabilities{N, <:IntervalAmbiguitySet{R}},
     max_actions,
 ) where {N, R}
     pns = num_target(p)
@@ -182,7 +182,7 @@ struct ThreadedDenseOrthogonalWorkspace{N, M, T}
 end
 
 function ThreadedDenseOrthogonalWorkspace(
-    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R}},
+    p::OrthogonalIntervalProbabilities{N, <:IntervalAmbiguitySet{R}},
     max_actions,
 ) where {N, R}
     nthreads = Threads.nthreads()
@@ -222,7 +222,7 @@ The workspace type is determined by the type and size of the transition probabil
 as well as the number of threads available.
 """
 function construct_workspace(
-    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}},
+    p::OrthogonalIntervalProbabilities{N, <:IntervalAmbiguitySet{R, VR, MR}},
     max_actions = 1,
 ) where {N, R, VR, MR <: AbstractMatrix{R}}
     if Threads.nthreads() == 1
@@ -243,7 +243,7 @@ scratch(ws::SparseOrthogonalWorkspace) = ws.scratch
 actions(ws::SparseOrthogonalWorkspace) = ws.actions
 
 function SparseOrthogonalWorkspace(
-    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}},
+    p::OrthogonalIntervalProbabilities{N, <:IntervalAmbiguitySet{R, VR, MR}},
     max_actions,
 ) where {N, R, VR, MR <: AbstractSparseMatrix{R}}
     max_nonzeros_per_prob = [maximum(map(nnz, eachcol(gap(pᵢ)))) for pᵢ in p]
@@ -282,7 +282,7 @@ The workspace type is determined by the type and size of the transition probabil
 as well as the number of threads available.
 """
 function construct_workspace(
-    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}},
+    p::OrthogonalIntervalProbabilities{N, <:IntervalAmbiguitySet{R, VR, MR}},
     max_actions = 1,
 ) where {N, R, VR, MR <: AbstractSparseMatrix{R}}
     if Threads.nthreads() == 1
@@ -308,7 +308,7 @@ actions(ws::MixtureWorkspace) = actions(ws.orthogonal_workspace)
 function MixtureWorkspace(
     p::MixtureIntervalProbabilities{
         N,
-        <:OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}},
+        <:OrthogonalIntervalProbabilities{M, <:IntervalAmbiguitySet{R, VR, MR}},
     },
     max_actions,
 ) where {N, M, R, VR, MR <: AbstractMatrix{R}}
@@ -326,7 +326,7 @@ end
 function MixtureWorkspace(
     p::MixtureIntervalProbabilities{
         N,
-        <:OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}},
+        <:OrthogonalIntervalProbabilities{M, <:IntervalAmbiguitySet{R, VR, MR}},
     },
     max_actions,
 ) where {N, M, R, VR, MR <: AbstractSparseMatrix{R}}
@@ -363,7 +363,7 @@ end
 function ThreadedMixtureWorkspace(
     p::MixtureIntervalProbabilities{
         N,
-        <:OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}},
+        <:OrthogonalIntervalProbabilities{M, <:IntervalAmbiguitySet{R, VR, MR}},
     },
     max_actions,
 ) where {N, M, R, VR, MR <: AbstractMatrix{R}}
@@ -403,7 +403,7 @@ end
 function ThreadedMixtureWorkspace(
     p::MixtureIntervalProbabilities{
         N,
-        <:OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}},
+        <:OrthogonalIntervalProbabilities{M, <:IntervalAmbiguitySet{R, VR, MR}},
     },
     max_actions,
 ) where {N, M, R, VR, MR <: AbstractSparseMatrix{R}}
@@ -453,7 +453,7 @@ as well as the number of threads available.
 function construct_workspace(
     p::MixtureIntervalProbabilities{
         N,
-        <:OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}},
+        <:OrthogonalIntervalProbabilities{M, <:IntervalAmbiguitySet{R, VR, MR}},
     },
     max_actions = 1,
 ) where {N, M, R, VR, MR <: Union{AbstractMatrix{R}, AbstractSparseMatrix{R}}}

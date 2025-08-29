@@ -31,7 +31,7 @@ function checkdevice(v::AbstractArray, system::IntervalMarkovProcess)
     checkdevice(v, transition_prob(system))
 end
 
-function checkdevice(v::AbstractArray, p::IntervalProbabilities)
+function checkdevice(v::AbstractArray, p::IntervalAmbiguitySet)
     # Lower and gap are required to be the same type.
     checkdevice(v, lower(p))
 end

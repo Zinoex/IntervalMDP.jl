@@ -48,7 +48,7 @@ function read_bmdp_tool_file(path)
         end
 
         probs = Vector{
-            IntervalProbabilities{
+            IntervalAmbiguitySet{
                 Float64,
                 Vector{Float64},
                 SparseArrays.FixedSparseCSC{Float64, Int32},
@@ -97,7 +97,7 @@ function read_bmdp_tool_file(path)
             probs_lower = probs_lower[:, actions_to_keep]
             probs_upper = probs_upper[:, actions_to_keep]
 
-            probs[j + 1] = IntervalProbabilities(; lower = probs_lower, upper = probs_upper)
+            probs[j + 1] = IntervalAmbiguitySet(; lower = probs_lower, upper = probs_upper)
         end
 
         action_list_per_state = collect(0:(number_actions - 1))

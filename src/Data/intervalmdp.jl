@@ -60,7 +60,7 @@ function read_intervalmdp_jl_model(model_path)
             upper_nzval,
         )
 
-        prob = IntervalProbabilities(; lower = P̲, upper = P̅)
+        prob = IntervalAmbiguitySet(; lower = P̲, upper = P̅)
         stateptr = convert.(Int32, dataset["stateptr"][:])
 
         return IntervalMarkovDecisionProcess(prob, stateptr, initial_states)

@@ -247,7 +247,7 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    prob::IntervalProbabilities,
+    prob::IntervalAmbiguitySet,
     stateptr;
     upper_bound = false,
     maximize = true,
@@ -277,7 +277,7 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    prob::IntervalProbabilities,
+    prob::IntervalAmbiguitySet,
     stateptr;
     upper_bound = false,
     maximize = true,

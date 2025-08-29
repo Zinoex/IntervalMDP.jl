@@ -1,15 +1,9 @@
-abstract type AbstractIntervalProbabilities end
-export lower, upper, gap, sum_lower
-export num_source, axes_source, num_target, axes_target
+abstract type AbstractMarginal end
 
-include("IntervalProbabilities.jl")
-export IntervalProbabilities
+export lower, upper, gap
 
-include("OrthogonalIntervalProbabilities.jl")
-export OrthogonalIntervalProbabilities
-
-include("MixtureIntervalProbabilities.jl")
-export MixtureIntervalProbabilities, mixture_probs, weighting_probs
+include("IntervalAmbiguitySets.jl")
+export IntervalAmbiguitySets
 
 include("TransitionFunction.jl")
 export TransitionFunction, transition
