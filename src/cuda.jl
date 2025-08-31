@@ -27,23 +27,19 @@ function Base.showerror(io::IO, e::OutOfSharedMemory)
     )
 end
 
-function checkdevice(v::AbstractArray, system::IntervalMarkovProcess)
-    checkdevice(v, transition_prob(system))
+function checkdevice(v::AbstractArray, system::FactoredRMDP)
+    for marginal in system.transition
+        checkdevice(v, marginal)
+    end
 end
 
-function checkdevice(v::AbstractArray, p::IntervalAmbiguitySet)
-    # Lower and gap are required to be the same type.
-    checkdevice(v, lower(p))
+function checkdevice(v::AbstractArray, marginal::Marginal)
+    checkdevice(v, marginal.ambiguity_sets)
 end
 
-function checkdevice(v::AbstractArray, p::OrthogonalIntervalProbabilities)
-    # All axes of p are required to be the same type.
-    checkdevice(v, first(pᵢ))
-end
-
-function checkdevice(v::AbstractArray, p::MixtureIntervalProbabilities)
-    # All mixtures (and weighting_probs) of p are required to be the same type.
-    checkdevice(v, first(pᵢ))
+function checkdevice(v::AbstractArray, p::IntervalAmbiguitySets)
+    # Lower and gap are required to be the same type, so not necessary to check.
+    checkdevice(v, p.lower)
 end
 
 function checkdevice(::AbstractArray, ::AbstractMatrix)

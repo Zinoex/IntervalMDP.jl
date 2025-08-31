@@ -18,18 +18,18 @@ initial_states(mp::IntervalMarkovProcess) = mp.initial_states
 A type to represent all states in a Markov process. This type is used to specify all states as the initial states.
 """
 struct AllStates end
-const InitialStates = Union{AllStates, AbstractVector}
+const InitialStates = Union{AllStates, <:AbstractVector}
 
 """
     num_states(mp::IntervalMarkovProcess)
 
 Return the number of states.
 """
-num_states(mp::IntervalMarkovProcess) = mp.num_states
+function num_states end
 
 """
-    transition_prob(mp::IntervalMarkovProcess)
+    num_actions(mp::IntervalMarkovProcess)
 
-Return the interval on transition probabilities.
+Return the number of actions.
 """
-transition_prob(mp::IntervalMarkovProcess) = mp.transition_prob
+function num_actions end

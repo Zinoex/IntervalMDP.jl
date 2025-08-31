@@ -5,8 +5,10 @@ export IntervalMarkovProcess, AllStates
 export num_states, num_actions, initial_states
 
 include("FactoredRobustMarkovDecisionProcess.jl")
-const FactoredRMDP = FactoredRobustMarkovDecisionProcess
 export FactoredRobustMarkovDecisionProcess, state_variables, action_variables
+
+include("IntervalMarkovChain.jl")
+export IntervalMarkovChain
 
 include("DeterministicAutomaton.jl")
 

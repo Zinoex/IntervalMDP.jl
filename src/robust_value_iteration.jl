@@ -161,7 +161,7 @@ end
 
 function ValueFunction(problem::AbstractIntervalMDPProblem)
     mp = system(problem)
-    previous = arrayfactory(mp, valuetype(mp), product_num_states(mp))
+    previous = arrayfactory(mp, valuetype(mp), state_variables(mp))
     current = copy(previous)
 
     return ValueFunction(previous, current)

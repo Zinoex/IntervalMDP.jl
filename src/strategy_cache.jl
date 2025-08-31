@@ -15,10 +15,8 @@ struct NoStrategyCache <: OptimizingStrategyCache end
 
 function construct_strategy_cache(
     ::Union{
-        IntervalAmbiguitySet,
-        OrthogonalIntervalProbabilities,
-        MixtureIntervalProbabilities,
-        StochasticProcess,
+        <:AbstractAmbiguitySets,
+        <:StochasticProcess,
     },
 )
     return NoStrategyCache()
@@ -66,7 +64,8 @@ end
 
 function construct_strategy_cache(problem::ControlSynthesisProblem, time_varying::Val{true})
     mp = system(problem)
-    cur_strategy = arrayfactory(mp, Int32, product_num_states(mp))
+    N = length(action_variables(mp))
+    cur_strategy = arrayfactory(mp, NTuple{N, Int32}, source_shape(mp))
     return TimeVaryingStrategyCache(cur_strategy)
 end
 
@@ -106,7 +105,8 @@ function construct_strategy_cache(
     time_varying::Val{false},
 )
     mp = system(problem)
-    strategy = arrayfactory(mp, Int32, product_num_states(mp))
+    N = length(action_variables(mp))
+    cur_strategy = arrayfactory(mp, NTuple{N, Int32}, source_shape(mp))
     return StationaryStrategyCache(strategy)
 end
 
@@ -136,6 +136,7 @@ function _extract_strategy!(cur_strategy, values, neutral, j, maximize)
 
     opt_val, opt_index = neutral
 
+    # TODO: update to accept state variables
     for (i, v) in enumerate(values)
         if gt(v, opt_val)
             opt_val = v

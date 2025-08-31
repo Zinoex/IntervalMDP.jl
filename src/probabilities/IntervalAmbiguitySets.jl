@@ -38,74 +38,15 @@ sparse_prob = IntervalAmbiguitySets(;
 [1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
 
 """
-struct IntervalAmbiguitySets{R, MR <: AbstractMatrix{R}, N, M, I <: LinearIndices} <: AbstractMarginal
+struct IntervalAmbiguitySets{R, MR <: AbstractMatrix{R}} <: AbstractAmbiguitySets
     lower::MR
     gap::MR
 
-    state_indices::NTuple{N, Int32}
-    action_indices::NTuple{M, Int32}
+    function IntervalAmbiguitySets(lower::MR, gap::MR) where {R, MR <: AbstractMatrix{R}}
+        checkprobabilities(lower, gap)
 
-    source_dims::NTuple{N, Int32}
-    action_dims::NTuple{M, Int32}
-    linear_index::I
-
-    function IntervalAmbiguitySets(lower::MR, gap::MR, state_indices, action_indices, source_dims, action_dims) where {R, MR <: AbstractMatrix{R}}
-        checkprobabilities!(lower, gap)
-
-        linear_index = LinearIndices((source_dims..., action_dims...))
-        return IntervalAmbiguitySets(lower, gap, state_indices, action_indices, source_dims, action_dims, linear_index)
+        return new{R, MR}(lower, gap)
     end
-end
-
-# Constructor for upper and lower bounds
-# Constructor if no state/action indices are given (i.e. only one state and one action variable)
-
-function checkprobabilities!(lower::AbstractMatrix, gap::AbstractMatrix)
-    @assert all(lower .>= 0) "The lower bound transition probabilities must be non-negative."
-    @assert all(gap .>= 0) "The gap transition probabilities must be non-negative."
-    @assert all(lower .+ gap .<= 1) "The sum of lower and gap transition probabilities must be less than or equal to 1."
-
-    sum_lower = vec(sum(lower; dims = 1))
-    max_lower_bound = maximum(sum_lower)
-    @assert max_lower_bound <= 1 "The joint lower bound transition probability per column (max is $max_lower_bound) should be less than or equal to 1."
-
-    sum_upper = vec(sum(lower + gap; dims = 1))
-    max_upper_bound = minimum(sum_upper)
-    @assert max_upper_bound >= 1 "The joint upper bound transition probability per column (min is $max_upper_bound) should be greater than or equal to 1."
-end
-
-function checkprobabilities!(lower::AbstractSparseMatrix, gap::AbstractSparseMatrix)
-    @assert all(nonzeros(lower) .>= 0) "The lower bound transition probabilities must be non-negative."
-    @assert all(nonzeros(gap) .>= 0) "The gap transition probabilities must be non-negative."
-    @assert all(nonzeros(lower) .+ nonzeros(gap) .<= 1) "The sum of lower and gap transition probabilities must be less than or equal to 1."
-
-    sum_lower = vec(sum(lower; dims = 1))
-    max_lower_bound = maximum(sum_lower)
-    @assert max_lower_bound <= 1 "The joint lower bound transition probability per column (max is $max_lower_bound) should be less than or equal to 1."
-
-    sum_upper = vec(sum(lower + gap; dims = 1))
-    max_upper_bound = minimum(sum_upper)
-    @assert max_upper_bound >= 1 "The joint upper bound transition probability per column (min is $max_upper_bound) should be greater than or equal to 1."
-end
-
-function checkindices(
-    state_indices::NTuple{N, Int32},
-    action_indices::NTuple{M, Int32},
-    source_dims::NTuple{N, Int32},
-    action_dims::NTuple{M, Int32},
-) where {N, M}
-    # TODO: More checks
-    @assert all(state_indices .> 0) "State indices must be positive."
-    @assert all(action_indices .> 0) "Action indices must be positive."
-
-    @assert length(state_indices) == length(source_dims) "Length of state indices must match length of source dimensions."
-    @assert length(action_indices) == length(action_dims) "Length of action indices must match length of action dimensions."
-
-    total_source = prod(source_dims)
-    total_action = prod(action_dims)
-
-    @assert all(state_indices .<= total_source) "State indices must not exceed total number of source states ($total_source)."
-    @assert all(action_indices .<= total_action) "Action indices must not exceed total number of actions ($total_action)."
 end
 
 # Keyword constructor from lower and upper
@@ -148,29 +89,69 @@ function compute_gap(
     return lower, gap
 end
 
-state_variables(p::IntervalAmbiguitySets) = p.source_indices
-action_variables(p::IntervalAmbiguitySets) = p.action_indices
-source_shape(p::IntervalAmbiguitySets) = p.source_dims
-action_shape(p::IntervalAmbiguitySets) = p.action_dims
-num_target(p::IntervalAmbiguitySets) = size(p.lower, 1)
+function checkprobabilities(lower::AbstractMatrix, gap::AbstractMatrix)
+    @assert all(lower .>= 0) "The lower bound transition probabilities must be non-negative."
+    @assert all(gap .>= 0) "The gap transition probabilities must be non-negative."
+    @assert all(lower .+ gap .<= 1) "The sum of lower and gap transition probabilities must be less than or equal to 1."
 
-struct IntervalAmbiguitySet{R, VR <: AbstractVector{R}}
-    lower::VR
-    gap::VR
+    sum_lower = vec(sum(lower; dims = 1))
+    max_lower_bound = maximum(sum_lower)
+    @assert max_lower_bound <= 1 "The joint lower bound transition probability per column (max is $max_lower_bound) should be less than or equal to 1."
+
+    sum_upper = vec(sum(lower + gap; dims = 1))
+    max_upper_bound = minimum(sum_upper)
+    @assert max_upper_bound >= 1 "The joint upper bound transition probability per column (min is $max_upper_bound) should be greater than or equal to 1."
 end
 
-function Base.getindex(p::IntervalAmbiguitySets, source::CartesianIndex, action::CartesianIndex)
-    source = Tuple(source)[p.state_indices]
-    action = Tuple(action)[p.action_indices]
-    j = p.linear_index[source..., action...]
+function checkprobabilities!(lower::AbstractSparseMatrix, gap::AbstractSparseMatrix)
+    @assert all(nonzeros(lower) .>= 0) "The lower bound transition probabilities must be non-negative."
+    @assert all(nonzeros(gap) .>= 0) "The gap transition probabilities must be non-negative."
+    @assert all(nonzeros(lower) .+ nonzeros(gap) .<= 1) "The sum of lower and gap transition probabilities must be less than or equal to 1."
 
-    # TODO: Consider ways to avoid specifying/allocating self-loops
+    sum_lower = vec(sum(lower; dims = 1))
+    max_lower_bound = maximum(sum_lower)
+    @assert max_lower_bound <= 1 "The joint lower bound transition probability per column (max is $max_lower_bound) should be less than or equal to 1."
 
+    sum_upper = vec(sum(lower + gap; dims = 1))
+    max_upper_bound = minimum(sum_upper)
+    @assert max_upper_bound >= 1 "The joint upper bound transition probability per column (min is $max_upper_bound) should be greater than or equal to 1."
+end
+num_target(p::IntervalAmbiguitySets) = size(p.lower, 1)
+num_sets(p::IntervalAmbiguitySets) = size(p.lower, 2)
+source_shape(p::IntervalAmbiguitySets) = (num_sets(p),)
+action_shape(::IntervalAmbiguitySets) = (1,)
+marginals(p::IntervalAmbiguitySets) = (p,)
+
+function Base.getindex(p::IntervalAmbiguitySets, j)
     # Select by columns only! 
     l = @view p.lower[:, j]
     g = @view p.gap[:, j]
 
     return IntervalAmbiguitySet(l, g)
+end
+
+sub2ind(::IntervalAmbiguitySets, jₛ, jₐ) = jₛ
+function Base.getindex(p::IntervalAmbiguitySets, jₛ, jₐ)
+    # Select by columns only! 
+    l = @view p.lower[:, jₛ]
+    g = @view p.gap[:, jₛ]
+
+    return p[jₛ]
+end
+
+Base.iterate(p::IntervalAmbiguitySets) = (p[1], 2)
+function Base.iterate(p::IntervalAmbiguitySets, state)
+    if state > num_sets(p)
+        return nothing
+    else
+        return (p[state], state + 1)
+    end
+end
+Base.length(p::IntervalAmbiguitySets) = num_sets(p)
+
+struct IntervalAmbiguitySet{R, VR <: AbstractVector{R}}
+    lower::VR
+    gap::VR
 end
 
 lower(p::IntervalAmbiguitySet) = p.lower
@@ -183,7 +164,8 @@ gap(p::IntervalAmbiguitySet) = p.gap
 gap(p::IntervalAmbiguitySet, destination) = p.gap[destination]
 
 const ColumnView{Tv} = SubArray{Tv, 1, <:AbstractMatrix{Tv}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}
-support(p::IntervalAmbiguitySet{R, <:ColumnView{R}}) = eachindex(p.lower)
+support(p::IntervalAmbiguitySet{R, <:ColumnView{R}}) where {R} = eachindex(p.gap)
 
-const SparseColumnView{Tv, Ti} = SubArray{Tv, 1, <:AbstractSparseMatrixCSC{Tv, Ti}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}
-support(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) = rowvals(p.lower)
+const SparseColumnView{Tv, Ti} = SubArray{Tv, 1, <:SparseArrays.AbstractSparseMatrixCSC{Tv, Ti}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}
+support(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = rowvals(p.gap)
+SparseArrays.nnz(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = nnz(p.gap)

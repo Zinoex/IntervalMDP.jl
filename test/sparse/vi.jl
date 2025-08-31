@@ -1,7 +1,7 @@
 using Revise, Test
 using IntervalMDP, SparseArrays
 
-prob = IntervalProbabilities(;
+prob = IntervalAmbiguitySets(;
     lower = sparse_hcat(
         SparseVector(3, [2, 3], [0.1, 0.2]),
         SparseVector(3, [1, 2, 3], [0.5, 0.3, 0.1]),

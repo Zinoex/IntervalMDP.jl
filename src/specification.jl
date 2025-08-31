@@ -667,7 +667,7 @@ Return the set of states to avoid.
 avoid(prop::ExactTimeReachAvoid) = prop.avoid
 
 function checkstatebounds(states, system::IntervalMarkovProcess)
-    pns = product_num_states(system)
+    pns = state_variables(system)
     for j in states
         j = Tuple(j)
 
@@ -854,7 +854,7 @@ postprocess_value_function!(value_function, ::AbstractReward) = value_function
 function checkreward(prop::AbstractReward, system)
     checkdevice(reward(prop), system)
 
-    pns = product_num_states(system)
+    pns = state_variables(system)
     if size(reward(prop)) != pns
         throw(
             DimensionMismatch(
