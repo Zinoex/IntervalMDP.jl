@@ -116,7 +116,6 @@ initial_states(rmdp::FactoredRobustMarkovDecisionProcess) = rmdp.initial_states
 source_shape(m::FactoredRobustMarkovDecisionProcess) = m.source_dims
 action_shape(m::FactoredRobustMarkovDecisionProcess) = m.action_vars
 
-sub2ind(rmdp::FactoredRMDP, r, jₛ, jₐ) = sub2ind(rmdp.transition[r], jₛ, jₐ)
-function Base.getindex(rmdp::FactoredRMDP, r::Int, jₛ, jₐ)
-    return rmdp.transition[r][jₛ, jₐ]
+function Base.getindex(rmdp::FactoredRMDP, r)
+    return rmdp.transition[r]
 end
