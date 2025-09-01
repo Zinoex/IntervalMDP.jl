@@ -1,7 +1,7 @@
 using Revise, Test
 using IntervalMDP
 
-prob1 = IntervalProbabilities(;
+prob1 = IntervalAmbiguitySets(;
     lower = sparse([
         0.0 0.5
         0.1 0.3
@@ -14,7 +14,7 @@ prob1 = IntervalProbabilities(;
     ]),
 )
 
-prob2 = IntervalProbabilities(;
+prob2 = IntervalAmbiguitySets(;
     lower = sparse([
         0.1 0.2
         0.2 0.3
@@ -27,17 +27,17 @@ prob2 = IntervalProbabilities(;
     ]),
 )
 
-prob3 = IntervalProbabilities(;
+prob3 = IntervalAmbiguitySets(;
     lower = sparse([
-        0.0
-        0.0
-        1.0
-    ][:, :]),
+        0.0 0.0
+        0.0 0.0
+        1.0 1.0
+    ]),
     upper = sparse([
-        0.0
-        0.0
-        1.0
-    ][:, :]),
+        0.0 0.0
+        0.0 0.0
+        1.0 1.0
+    ]),
 )
 
 transition_probs = [prob1, prob2, prob3]
@@ -49,7 +49,7 @@ mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
 mdp = IntervalMarkovDecisionProcess(transition_probs)
 
 @testset "explicit sink state" begin
-    transition_prob, _ = IntervalMDP.interval_prob_hcat(transition_probs)
+    transition_prob = IntervalMDP.interval_prob_hcat(transition_probs)
     @test_throws DimensionMismatch IntervalMarkovChain(transition_prob)
 
     # Finite time reachability

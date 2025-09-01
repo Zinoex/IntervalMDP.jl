@@ -6,7 +6,7 @@ arrayfactory(marginal::Marginal, T, num_states) =
     arrayfactory(marginal.ambiguity_sets, T, num_states)
 arrayfactory(prob::IntervalAmbiguitySets, T, num_states) =
     arrayfactory(prob.gap, T, num_states)
-arrayfactory(::MR, T, num_states) where {MR <: AbstractArray} = zeros(T, num_states)
+arrayfactory(::MR, T, num_states) where {MR <: AbstractArray} = Array{T}(undef, num_states)
 
 valuetype(mp::ProductProcess) = valuetype(markov_process(mp))
 valuetype(mp::FactoredRMDP) = valuetype(mp.transition[1])

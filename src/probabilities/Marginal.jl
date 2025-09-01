@@ -17,7 +17,7 @@ struct SARectangularMarginal{A <: AbstractAmbiguitySets, N, M, I <: LinearIndice
     ) where {A <: AbstractAmbiguitySets, N, M}
         checkindices(ambiguity_sets, state_indices, action_indices, source_dims, action_vars)
 
-        linear_index = LinearIndices((source_dims..., action_vars...))
+        linear_index = LinearIndices((action_vars..., source_dims...))
         return new{A, N, M, typeof(linear_index)}(ambiguity_sets, state_indices, action_indices, source_dims, action_vars, linear_index)
     end
 end
@@ -61,11 +61,11 @@ function Base.getindex(p::Marginal, source, action)
     return ambiguity_sets(p)[sub2ind(p, source, action)]
 end
 
-sub2ind(p::Marginal, source::CartesianIndex, action::CartesianIndex) = sub2ind(p, Tuple(source), Tuple(action))
-function sub2ind(p::Marginal, source::NTuple{N, <:Integer}, action::NTuple{M, <:Integer}) where {N, M}
-    source = getindex.(Tuple(source), p.state_indices)
+sub2ind(p::Marginal, action::CartesianIndex, source::CartesianIndex) = sub2ind(p, Tuple(action), Tuple(source))
+function sub2ind(p::Marginal, action::NTuple{M, <:Integer}, source::NTuple{N, <:Integer}) where {N, M}
     action = getindex.(Tuple(action), p.action_indices)
-    j = p.linear_index[source..., action...]
+    source = getindex.(Tuple(source), p.state_indices)
+    j = p.linear_index[action..., source...]
 
     return j
 end

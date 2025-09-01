@@ -130,8 +130,8 @@ function Base.getindex(p::IntervalAmbiguitySets, j)
     return IntervalAmbiguitySet(l, g)
 end
 
-sub2ind(::IntervalAmbiguitySets, jₛ, jₐ) = jₛ
-function Base.getindex(p::IntervalAmbiguitySets, jₛ, jₐ)
+sub2ind(::IntervalAmbiguitySets, jₐ, jₛ) = jₛ
+function Base.getindex(p::IntervalAmbiguitySets, jₐ, jₛ)
     # Select by columns only! 
     l = @view p.lower[:, jₛ]
     g = @view p.gap[:, jₛ]

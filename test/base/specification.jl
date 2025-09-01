@@ -149,7 +149,7 @@ end
 # Errors #
 ##########
 @testset "errors" begin
-    prob = IntervalProbabilities(;
+    prob = IntervalAmbiguitySets(;
         lower = [
             0.0 0.5 0.0
             0.1 0.3 0.0
@@ -162,7 +162,7 @@ end
         ],
     )
     mc = IntervalMarkovChain(prob)
-    tv_strat = TimeVaryingStrategy([Int32[1, 1, 1]])
+    tv_strat = TimeVaryingStrategy([Tuple{Int32}[(1,), (1,)]])
 
     # Product model - just simple reachability
     delta = TransitionFunction(Int32[
@@ -176,10 +176,10 @@ end
     labelling = LabellingFunction(Int32[1, 1, 2])
 
     prod_proc = ProductProcess(mc, dfa, labelling)
-    tv_prod_strat = TimeVaryingStrategy([Int32[
-        1 1
-        1 1
-        1 1
+    tv_prod_strat = TimeVaryingStrategy([Tuple{Int32}[
+        (1,) (1,)
+        (1,) (1,)
+        (1,) (1,)
     ]])
 
     # Time horizon must be a positive integer

@@ -2,8 +2,8 @@
 test_files = [
     "bellman.jl",
     "vi.jl",
-    # "imdp.jl",
-    # "synthesis.jl",
+    "imdp.jl",
+    "synthesis.jl",
     # "orthogonal.jl"
 ]
 

@@ -25,7 +25,7 @@ end
 construct_strategy_cache(::VerificationProblem{S, F, <:NoStrategy}) where {S, F} =
     NoStrategyCache()
 
-function extract_strategy!(::NoStrategyCache, values, V, j, maximize)
+function extract_strategy!(::NoStrategyCache, values, V, j, action_shape, maximize)
     return maximize ? maximum(values) : minimum(values)
 end
 step_postprocess_strategy_cache!(::NoStrategyCache) = nothing
@@ -39,7 +39,7 @@ construct_strategy_cache(problem::VerificationProblem{S, F, C}) where {S, F, C} 
     GivenStrategyCache(strategy(problem))
 time_length(cache::GivenStrategyCache) = time_length(cache.strategy)
 
-struct ActiveGivenStrategyCache{A <: AbstractArray{Int32}} <: NonOptimizingStrategyCache
+struct ActiveGivenStrategyCache{N, A <: AbstractArray{NTuple{N, Int32}}} <: NonOptimizingStrategyCache
     strategy::A
 end
 Base.getindex(cache::GivenStrategyCache, k) = ActiveGivenStrategyCache(cache.strategy[k])
@@ -53,12 +53,12 @@ construct_strategy_cache(problem::ControlSynthesisProblem) = construct_strategy_
 )
 
 # Strategy cache for storing time-varying policies
-struct TimeVaryingStrategyCache{A <: AbstractArray{Int32}} <: OptimizingStrategyCache
+struct TimeVaryingStrategyCache{N, A <: AbstractArray{NTuple{N, Int32}}} <: OptimizingStrategyCache
     cur_strategy::A
     strategy::Vector{A}
 end
 
-function TimeVaryingStrategyCache(cur_strategy::A) where {A}
+function TimeVaryingStrategyCache(cur_strategy::A) where {N, A <: AbstractArray{NTuple{N, Int32}}}
     return TimeVaryingStrategyCache(cur_strategy, Vector{A}())
 end
 
@@ -66,37 +66,32 @@ function construct_strategy_cache(problem::ControlSynthesisProblem, time_varying
     mp = system(problem)
     N = length(action_variables(mp))
     cur_strategy = arrayfactory(mp, NTuple{N, Int32}, source_shape(mp))
+    cur_strategy .= (ntuple(_ -> 0, N),)
     return TimeVaryingStrategyCache(cur_strategy)
 end
 
-function replacezerobyone!(array)
-    array[array .== 0] .= 1
-    return array
-end
-
-cachetostrategy(strategy_cache::TimeVaryingStrategyCache) = TimeVaryingStrategy([
-    replacezerobyone!(indices) for indices in reverse(strategy_cache.strategy)
-])
+cachetostrategy(strategy_cache::TimeVaryingStrategyCache) = TimeVaryingStrategy(collect(reverse(strategy_cache.strategy)))
 
 function extract_strategy!(
     strategy_cache::TimeVaryingStrategyCache,
     values::AbstractArray{R},
     V,
-    j,
+    jₛ,
+    action_shape,
     maximize,
 ) where {R <: Real}
     opt_val = maximize ? typemin(R) : typemax(R)
-    opt_index = 1
+    opt_index = ntuple(_ -> 1, length(action_shape))
     neutral = (opt_val, opt_index)
 
-    return _extract_strategy!(strategy_cache.cur_strategy, values, neutral, j, maximize)
+    return _extract_strategy!(strategy_cache.cur_strategy, values, neutral, jₛ, action_shape, maximize)
 end
 function step_postprocess_strategy_cache!(strategy_cache::TimeVaryingStrategyCache)
     push!(strategy_cache.strategy, copy(strategy_cache.cur_strategy))
 end
 
 # Strategy cache for storing stationary policies
-struct StationaryStrategyCache{A <: AbstractArray{Int32}} <: OptimizingStrategyCache
+struct StationaryStrategyCache{N, A <: AbstractArray{NTuple{N, Int32}}} <: OptimizingStrategyCache
     strategy::A
 end
 
@@ -106,44 +101,45 @@ function construct_strategy_cache(
 )
     mp = system(problem)
     N = length(action_variables(mp))
-    cur_strategy = arrayfactory(mp, NTuple{N, Int32}, source_shape(mp))
+    strategy = arrayfactory(mp, NTuple{N, Int32}, source_shape(mp))
+    strategy .= (ntuple(_ -> 0, N),)
     return StationaryStrategyCache(strategy)
 end
 
-cachetostrategy(strategy_cache::StationaryStrategyCache) =
-    StationaryStrategy(replacezerobyone!(strategy_cache.strategy))
+cachetostrategy(strategy_cache::StationaryStrategyCache) = StationaryStrategy(strategy_cache.strategy)
 
 function extract_strategy!(
     strategy_cache::StationaryStrategyCache,
     values::AbstractArray{R},
     V,
-    j,
+    jₛ,
+    action_shape,
     maximize,
 ) where {R <: Real}
-    neutral = if iszero(strategy_cache.strategy[j])
+    neutral = if all(iszero.(strategy_cache.strategy[jₛ]))
         maximize ? typemin(R) : typemax(R), 1
     else
-        V[j], strategy_cache.strategy[j]
+        V[jₛ], strategy_cache.strategy[jₛ]
     end
 
-    return _extract_strategy!(strategy_cache.strategy, values, neutral, j, maximize)
+    return _extract_strategy!(strategy_cache.strategy, values, neutral, jₛ, action_shape, maximize)
 end
 step_postprocess_strategy_cache!(::StationaryStrategyCache) = nothing
 
 # Shared between stationary and time-varying strategies
-function _extract_strategy!(cur_strategy, values, neutral, j, maximize)
+function _extract_strategy!(cur_strategy, values, neutral, jₛ, action_shape, maximize)
     gt = maximize ? (>) : (<)
 
     opt_val, opt_index = neutral
 
-    # TODO: update to accept state variables
-    for (i, v) in enumerate(values)
+    for jₐ in CartesianIndices(action_shape)
+        v = values[jₐ]
         if gt(v, opt_val)
             opt_val = v
-            opt_index = i
+            opt_index = Tuple(jₐ)
         end
     end
 
-    @inbounds cur_strategy[j] = opt_index
+    @inbounds cur_strategy[jₛ] = opt_index
     return opt_val
 end

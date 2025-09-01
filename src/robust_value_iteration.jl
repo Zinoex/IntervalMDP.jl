@@ -162,15 +162,16 @@ end
 function ValueFunction(problem::AbstractIntervalMDPProblem)
     mp = system(problem)
     previous = arrayfactory(mp, valuetype(mp), state_variables(mp))
+    previous .= zero(valuetype(mp))
     current = copy(previous)
 
     return ValueFunction(previous, current)
 end
 
-function lastdiff!(V)
+function lastdiff!(V::ValueFunction{R}) where {R}
     # Reuse prev to store the latest difference
     V.previous .-= V.current
-    rmul!(V.previous, -1.0)
+    rmul!(V.previous, -one(R))
 
     return V.previous
 end

@@ -330,12 +330,12 @@ function state_bellman!(
 )
     @inbounds begin
         for jₐ in CartesianIndices(action_shape(marginal))
-            ambiguity_set = marginal[jₛ, jₐ]
-            budget = workspace.budget[sub2ind(marginal, jₛ, jₐ)]
+            ambiguity_set = marginal[jₐ, jₛ]
+            budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
             workspace.actions[jₐ] = state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)
         end
 
-        Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, V, jₛ, maximize)
+        Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, V, jₛ, action_shape(marginal), maximize)
     end
 end
 
@@ -350,9 +350,9 @@ function state_bellman!(
     maximize,
 )
     @inbounds begin
-        jₐ = strategy_cache[jₛ]
-        ambiguity_set = marginal[jₛ, jₐ]
-        budget = workspace.budget[sub2ind(marginal, jₛ, jₐ)]
+        jₐ = CartesianIndex(strategy_cache[jₛ])
+        ambiguity_set = marginal[jₐ, jₛ]
+        budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
         Vres[jₛ] = state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)
     end
 end

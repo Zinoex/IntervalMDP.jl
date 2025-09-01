@@ -20,7 +20,7 @@ is a set of ambiguity sets on the product transition probabilities, for each pro
 See [`IntervalMarkovDecisionProcess`](@ref) and [`DFA`](@ref) for more information on the structure, definition, and usage of the DFA and IMDP.
 
 ### Fields
-- `imdp::M`: contains details for the interval Markov process.
+- `mdp::M`: contains details for the interval Markov process.
 - `dfa::D`: contains details for the DFA
 - `labelling_func::L`: the labelling function from IMDP states to DFA actions
 """
@@ -29,12 +29,12 @@ struct ProductProcess{
     D <: DeterministicAutomaton,
     L <: AbstractLabelling,
 } <: StochasticProcess
-    imdp::M
+    mdp::M
     dfa::D
     labelling_func::L
 
     function ProductProcess(
-        imdp::M,
+        mdp::M,
         dfa::D,
         labelling_func::L,
     ) where {
@@ -42,23 +42,23 @@ struct ProductProcess{
         D <: DeterministicAutomaton,
         L <: AbstractLabelling,
     }
-        checkproduct(imdp, dfa, labelling_func)
+        checkproduct(mdp, dfa, labelling_func)
 
-        return new{M, D, L}(imdp, dfa, labelling_func)
+        return new{M, D, L}(mdp, dfa, labelling_func)
     end
 end
 
 function checkproduct(
-    imdp::IntervalMarkovProcess,
+    mdp::FactoredRMDP,
     dfa::DeterministicAutomaton,
     labelling_func::AbstractLabelling,
 )
 
-    # check labelling states (input) match IMDP states
-    if size(labelling_func) != source_shape(imdp)
+    # check labelling states (input) match MDP states
+    if size(labelling_func) != state_variables(mdp)
         throw(
             DimensionMismatch(
-                "The number of IMDP states $(source_shape(imdp)) is not equal to number of mapped states  $(size(labelling_func)) in the labelling function.",
+                "The mapped states $(size(labelling_func)) in the labelling function is not equal the fRMDP state variables $(state_variables(mdp)).",
             ),
         )
     end
@@ -78,7 +78,7 @@ end
 
 Return the interval markov decision process of the product 
 """
-markov_process(proc::ProductProcess) = proc.imdp
+markov_process(proc::ProductProcess) = proc.mdp
 
 """
     automaton(proc::ProductIntervalMarkovDecisionProcessDFA)

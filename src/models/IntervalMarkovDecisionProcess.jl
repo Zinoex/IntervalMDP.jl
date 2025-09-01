@@ -1,17 +1,65 @@
+function IntervalMarkovDecisionProcess(marginal::Marginal{<:IntervalAmbiguitySets}, initial_states::InitialStates = AllStates())
+    state_vars = (Int32(num_target(marginal)),)
+    action_vars = action_shape(marginal)
+    source_dims = source_shape(marginal)
+    transition = (marginal,)
 
-function IntervalMarkovDecisionProcess(states::Vector{S}, actions::Vector{A}, transition_intervals::Dict{Tuple{S,A,S}, Tuple{Float64, Float64}}, rewards::Dict{Tuple{S,A}, Float64}) where {S,A}
-    # Validate inputs
-    for ((s, a, s_next), (p_min, p_max)) in transition_intervals
-        @assert 0.0 <= p_min <= p_max <= 1.0 "Transition probabilities must be in [0, 1] and p_min <= p_max"
+    return FactoredRMDP(
+        state_vars,
+        action_vars,
+        source_dims,
+        transition,
+        initial_states
+    )
+end
+
+function IntervalMarkovDecisionProcess(ambiguity_set::IntervalAmbiguitySets, num_actions::Int, initial_states::InitialStates = AllStates())
+    state_indices = (1,)
+    action_indices = (1,)
+
+    if num_sets(ambiguity_set) % num_actions != 0
+        throw(ArgumentError("The number of sets in the ambiguity set must be a multiple of the number of actions."))
     end
-    for s in states
-        for a in actions
-            total_min = sum(p_min for ((s2, a2, s3), (p_min, p_max)) in transition_intervals if s2 == s && a2 == a)
-            total_max = sum(p_max for ((s2, a2, s3), (p_min, p_max)) in transition_intervals if s2 == s && a2 == a)
-            @assert total_min <= 1.0 "Total minimum transition probability from state $s with action $a exceeds 1"
-            @assert total_max <= 1.0 "Total maximum transition probability from state $s with action $a exceeds 1"
+
+    source_dims = (num_sets(ambiguity_set) ÷ num_actions,)
+    action_vars = (num_actions,)
+    marginal = Marginal(ambiguity_set, state_indices, action_indices, source_dims, action_vars)
+
+    return IntervalMarkovDecisionProcess(marginal, initial_states)
+end
+
+function IntervalMarkovDecisionProcess(
+    ps::Vector{<:IntervalAmbiguitySets},
+    initial_states::InitialStates = AllStates(),
+)
+    marginal = interval_prob_hcat(ps)
+    return IntervalMarkovDecisionProcess(marginal, initial_states)
+end
+
+function interval_prob_hcat(
+    ps::Vector{<:IntervalAmbiguitySets{R, MR}},
+) where {R, MR <: AbstractMatrix{R}}
+    if length(ps) == 0
+        throw(ArgumentError("Cannot concatenate an empty vector of IntervalAmbiguitySets."))
+    end
+
+    num_actions = num_sets(ps[1])
+    for (i, p) in enumerate(ps)
+        if num_sets(p) != num_actions
+            throw(DimensionMismatch("All IntervalAmbiguitySets must have the same number of sets (actions). Expected $num_actions, was $(num_sets(p)) at index $i."))
         end
     end
 
-    return IntervalMarkovDecisionProcess{S,A}(states, actions, transition_intervals, rewards)
+    l = mapreduce(p -> p.lower, hcat, ps)
+    g = mapreduce(p -> p.gap, hcat, ps)
+
+    ambiguity_set = IntervalAmbiguitySets(l, g)
+
+    stateindices = (1,)
+    actionindices = (1,)
+    source_dims = (length(ps),)
+    action_vars = (num_actions,)
+    marginal = Marginal(ambiguity_set, stateindices, actionindices, source_dims, action_vars)
+
+    return marginal
 end

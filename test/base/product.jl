@@ -17,7 +17,7 @@ using IntervalMDP
     dfa = DFA(delta, istate, atomic_props)
 
     # imdp
-    prob1 = IntervalProbabilities(;
+    prob1 = IntervalAmbiguitySets(;
         lower = [
             0.0 0.5
             0.1 0.3
@@ -30,7 +30,7 @@ using IntervalMDP
         ],
     )
 
-    prob2 = IntervalProbabilities(;
+    prob2 = IntervalAmbiguitySets(;
         lower = [
             0.1 0.2
             0.2 0.3
@@ -43,17 +43,7 @@ using IntervalMDP
         ],
     )
 
-    prob3 = IntervalProbabilities(; lower = [
-        0.0
-        0.0
-        1.0
-    ][:, :], upper = [
-        0.0
-        0.0
-        1.0
-    ][:, :])
-
-    transition_probs = [prob1, prob2, prob3]
+    transition_probs = [prob1, prob2]
     istates = [Int32(1)]
 
     mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
@@ -103,7 +93,7 @@ end
 @testset "bellman" begin
     for N in [Float32, Float64, Rational{BigInt}]
         @testset "N = $N" begin
-            prob = IntervalProbabilities(;
+            prob = IntervalAmbiguitySets(;
                 lower = N[
                     0 5//10 0
                     1//10 3//10 0
@@ -150,7 +140,7 @@ end
 @testset "value iteration" begin
     for N in [Float32, Float64, Rational{BigInt}]
         @testset "N = $N" begin
-            prob1 = IntervalProbabilities(;
+            prob1 = IntervalAmbiguitySets(;
                 lower = N[
                     0//10 5//10
                     1//10 3//10
@@ -163,7 +153,7 @@ end
                 ],
             )
 
-            prob2 = IntervalProbabilities(;
+            prob2 = IntervalAmbiguitySets(;
                 lower = N[
                     1//10 2//10
                     2//10 3//10
@@ -176,17 +166,7 @@ end
                 ],
             )
 
-            prob3 = IntervalProbabilities(; lower = N[
-                0
-                0
-                1
-            ][:, :], upper = N[
-                0
-                0
-                1
-            ][:, :])
-
-            transition_probs = [prob1, prob2, prob3]
+            transition_probs = [prob1, prob2]
             mdp = IntervalMarkovDecisionProcess(transition_probs)
 
             # Product model - just simple reachability

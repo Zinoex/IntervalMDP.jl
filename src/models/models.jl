@@ -7,8 +7,10 @@ export num_states, num_actions, initial_states
 include("FactoredRobustMarkovDecisionProcess.jl")
 export FactoredRobustMarkovDecisionProcess, state_variables, action_variables
 
+# Convenience model constructors - they all return a FactoredRobustMarkovDecisionProcess
 include("IntervalMarkovChain.jl")
-export IntervalMarkovChain
+include("IntervalMarkovDecisionProcess.jl")
+export IntervalMarkovChain, IntervalMarkovDecisionProcess
 
 include("DeterministicAutomaton.jl")
 

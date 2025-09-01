@@ -3,8 +3,6 @@ function IntervalMDP.compute_gap(
     lower::M,
     upper::M,
 ) where {Tv, Ti, M <: CuSparseMatrixCSC{Tv, Ti}}
-    # lower = CuSparseMatrixCOO(lower)
-
     # FIXME: This is an ugly, non-robust hack.
     upper = SparseMatrixCSC(upper)
     lower = SparseMatrixCSC(lower)
