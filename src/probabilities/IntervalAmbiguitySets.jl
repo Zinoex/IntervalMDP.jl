@@ -90,32 +90,81 @@ function compute_gap(
 end
 
 function checkprobabilities(lower::AbstractMatrix, gap::AbstractMatrix)
-    @assert all(lower .>= 0) "The lower bound transition probabilities must be non-negative."
-    @assert all(gap .>= 0) "The gap transition probabilities must be non-negative."
-    @assert all(lower .+ gap .<= 1) "The sum of lower and gap transition probabilities must be less than or equal to 1."
+    if size(lower) != size(gap)
+        throw(ArgumentError("The lower and gap matrices must have the same size."))
+    end
+
+    if any(lower .< 0)
+        throw(ArgumentError("The lower bound transition probabilities must be non-negative."))
+    end
+
+    if any(lower .> 1)
+        throw(ArgumentError("The lower bound transition probabilities must be less than or equal to 1."))
+    end
+
+    if any(gap .< 0)
+        throw(ArgumentError("The gap transition probabilities must be non-negative."))
+    end
+
+    if any(gap .> 1)
+        throw(ArgumentError("The gap transition probabilities must be less than or equal to 1."))
+    end
+
+    if any(lower .+ gap .> 1)
+        throw(ArgumentError("The sum of lower and gap transition probabilities must be less than or equal to 1."))
+    end
 
     sum_lower = vec(sum(lower; dims = 1))
     max_lower_bound = maximum(sum_lower)
-    @assert max_lower_bound <= 1 "The joint lower bound transition probability per column (max is $max_lower_bound) should be less than or equal to 1."
+    if max_lower_bound > 1
+        throw(ArgumentError("The joint lower bound transition probability per column (max is $max_lower_bound) should be less than or equal to 1."))
+    end
 
-    sum_upper = vec(sum(lower + gap; dims = 1))
+    sum_upper = sum_lower .+ vec(sum(gap; dims = 1))
     max_upper_bound = minimum(sum_upper)
-    @assert max_upper_bound >= 1 "The joint upper bound transition probability per column (min is $max_upper_bound) should be greater than or equal to 1."
+    if max_upper_bound < 1
+        throw(ArgumentError("The joint upper bound transition probability per column (min is $max_upper_bound) should be greater than or equal to 1."))
+    end
 end
 
 function checkprobabilities!(lower::AbstractSparseMatrix, gap::AbstractSparseMatrix)
-    @assert all(nonzeros(lower) .>= 0) "The lower bound transition probabilities must be non-negative."
-    @assert all(nonzeros(gap) .>= 0) "The gap transition probabilities must be non-negative."
-    @assert all(nonzeros(lower) .+ nonzeros(gap) .<= 1) "The sum of lower and gap transition probabilities must be less than or equal to 1."
+    if size(lower) != size(gap)
+        throw(ArgumentError("The lower and gap matrices must have the same size."))
+    end
+
+    if any(nonzeros(lower) .< 0)
+        throw(ArgumentError("The lower bound transition probabilities must be non-negative."))
+    end
+
+    if any(nonzeros(lower) .> 1)
+        throw(ArgumentError("The lower bound transition probabilities must be less than or equal to 1."))
+    end
+
+    if any(nonzeros(gap) .< 0)
+        throw(ArgumentError("The gap transition probabilities must be non-negative."))
+    end
+
+    if any(nonzeros(gap) .> 1)
+        throw(ArgumentError("The gap transition probabilities must be less than or equal to 1."))
+    end
+
+    if any(nonzeros(lower) .+ nonzeros(gap) .> 1)
+        throw(ArgumentError("The sum of lower and gap transition probabilities must be less than or equal to 1."))
+    end
 
     sum_lower = vec(sum(lower; dims = 1))
     max_lower_bound = maximum(sum_lower)
-    @assert max_lower_bound <= 1 "The joint lower bound transition probability per column (max is $max_lower_bound) should be less than or equal to 1."
+    if max_lower_bound > 1
+        throw(ArgumentError("The joint lower bound transition probability per column (max is $max_lower_bound) should be less than or equal to 1."))
+    end
 
-    sum_upper = vec(sum(lower + gap; dims = 1))
+    sum_upper = sum_lower .+ vec(sum(gap; dims = 1))
     max_upper_bound = minimum(sum_upper)
-    @assert max_upper_bound >= 1 "The joint upper bound transition probability per column (min is $max_upper_bound) should be greater than or equal to 1."
+    if max_upper_bound < 1
+        throw(ArgumentError("The joint upper bound transition probability per column (min is $max_upper_bound) should be greater than or equal to 1."))
+    end
 end
+
 num_target(p::IntervalAmbiguitySets) = size(p.lower, 1)
 num_sets(p::IntervalAmbiguitySets) = size(p.lower, 2)
 source_shape(p::IntervalAmbiguitySets) = (num_sets(p),)

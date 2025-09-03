@@ -14,16 +14,13 @@ function IntervalMarkovDecisionProcess(marginal::Marginal{<:IntervalAmbiguitySet
 end
 
 function IntervalMarkovDecisionProcess(ambiguity_set::IntervalAmbiguitySets, num_actions::Integer, initial_states::InitialStates = AllStates())
-    state_indices = (1,)
-    action_indices = (1,)
-
     if num_sets(ambiguity_set) % num_actions != 0
         throw(ArgumentError("The number of sets in the ambiguity set must be a multiple of the number of actions."))
     end
 
     source_dims = (num_sets(ambiguity_set) ÷ num_actions,)
     action_vars = (num_actions,)
-    marginal = Marginal(ambiguity_set, state_indices, action_indices, source_dims, action_vars)
+    marginal = Marginal(ambiguity_set, source_dims, action_vars)
 
     return IntervalMarkovDecisionProcess(marginal, initial_states)
 end
@@ -55,11 +52,9 @@ function interval_prob_hcat(
 
     ambiguity_set = IntervalAmbiguitySets(l, g)
 
-    stateindices = (1,)
-    actionindices = (1,)
     source_dims = (length(ps),)
     action_vars = (num_actions,)
-    marginal = Marginal(ambiguity_set, stateindices, actionindices, source_dims, action_vars)
+    marginal = Marginal(ambiguity_set, source_dims, action_vars)
 
     return marginal
 end

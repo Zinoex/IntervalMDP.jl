@@ -39,15 +39,38 @@ function Marginal(
     return SARectangularMarginal(ambiguity_sets, state_indices_32, action_indices_32, source_dims_32, action_vars_32)
 end
 
-# Constructor if no state/action indices are given (i.e. only one state and one action variable)
+function Marginal(ambiguity_sets::A, source_dims, action_vars) where {A <: AbstractAmbiguitySets}
+    return Marginal(ambiguity_sets, (1,), (1,), source_dims, action_vars)
+end
 
 function checkindices(ambiguity_sets, state_indices, action_indices, source_dims, action_vars)
-    # TODO: More checks incl. consistency with ambiguity sets
-    @assert all(state_indices .> 0) "State indices must be positive."
-    @assert all(action_indices .> 0) "Action indices must be positive."
+    if length(state_indices) != length(source_dims)
+        throw(ArgumentError("Length of state indices must match length of source dimensions."))
+    end
 
-    @assert length(state_indices) == length(source_dims) "Length of state indices must match length of source dimensions."
-    @assert length(action_indices) == length(action_vars) "Length of action indices must match length of action dimensions."
+    if length(action_indices) != length(action_vars)
+        throw(ArgumentError("Length of action indices must match length of action dimensions."))
+    end
+
+    if any(state_indices .<= 0)
+        throw(ArgumentError("State indices must be positive."))
+    end
+
+    if any(action_indices .<= 0)
+        throw(ArgumentError("Action indices must be positive."))
+    end
+    
+    if any(source_dims .<= 0)
+        throw(ArgumentError("Source dimensions must be positive."))
+    end
+
+    if any(action_vars .<= 0)
+        throw(ArgumentError("Action dimensions must be positive."))
+    end
+
+    if prod(source_dims) * prod(action_vars) != num_sets(ambiguity_sets)
+        throw(ArgumentError("The number of ambiguity sets must match the product of source dimensions and action dimensions."))
+    end
 end
 
 ambiguity_sets(p::Marginal) = p.ambiguity_sets
