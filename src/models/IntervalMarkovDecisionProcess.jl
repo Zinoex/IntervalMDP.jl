@@ -13,7 +13,7 @@ function IntervalMarkovDecisionProcess(marginal::Marginal{<:IntervalAmbiguitySet
     )
 end
 
-function IntervalMarkovDecisionProcess(ambiguity_set::IntervalAmbiguitySets, num_actions::Int, initial_states::InitialStates = AllStates())
+function IntervalMarkovDecisionProcess(ambiguity_set::IntervalAmbiguitySets, num_actions::Integer, initial_states::InitialStates = AllStates())
     state_indices = (1,)
     action_indices = (1,)
 

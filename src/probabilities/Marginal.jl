@@ -25,10 +25,10 @@ const Marginal = SARectangularMarginal
 
 function Marginal(
     ambiguity_sets::A,
-    state_indices::NTuple{N, Int},
-    action_indices::NTuple{M, Int},
-    source_dims::NTuple{N, Int},
-    action_vars::NTuple{M, Int},
+    state_indices::NTuple{N, <:Integer},
+    action_indices::NTuple{M, <:Integer},
+    source_dims::NTuple{N, <:Integer},
+    action_vars::NTuple{M, <:Integer},
 ) where {A <: AbstractAmbiguitySets, N, M}
     state_indices_32 = Int32.(state_indices)
     action_indices_32 = Int32.(action_indices)

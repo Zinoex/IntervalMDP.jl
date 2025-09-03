@@ -4,50 +4,67 @@ using IntervalMDP, IntervalMDP.Data, SparseArrays
 # Read MDP
 mdp, tstates = read_bmdp_tool_file("data/multiObj_robotIMDP.txt")
 
-# Write it back
-new_path = tempname() * ".txt"
-write_bmdp_tool_file(new_path, mdp, tstates)
+marginal = marginals(mdp)[1]
+ambiguity_sets = marginal.ambiguity_sets
 
-# Check the file is there
-@test isfile(new_path)
+@testset "write/read model,tstates" begin
+    # Write model
+    new_path = tempname() * ".txt"
+    write_bmdp_tool_file(new_path, mdp, tstates)
 
-# Read new file and check that the models are the same
-new_mdp, new_tstates = read_bmdp_tool_file(new_path)
-rm(new_path)
+    # Check the file is there
+    @test isfile(new_path)
 
-@test num_states(mdp) == num_states(new_mdp)
+    # Read new file and check that the models are the same
+    new_mdp, new_tstates = read_bmdp_tool_file(new_path)
+    rm(new_path)
 
-transition_probabilities = transition_prob(mdp)
-new_transition_probabilities = transition_prob(new_mdp)
+    @test num_states(mdp) == num_states(new_mdp)
 
-@test size(transition_probabilities) == size(new_transition_probabilities)
-@test lower(transition_probabilities) ≈ lower(new_transition_probabilities)
-@test gap(transition_probabilities) ≈ gap(new_transition_probabilities)
+    new_marginal = marginals(new_mdp)[1]
+    new_ambiguity_sets = new_marginal.ambiguity_sets
 
-@test tstates == new_tstates
+    @test source_shape(marginal) == source_shape(new_marginal)
+    @test action_shape(marginal) == action_shape(new_marginal)
+    @test num_target(marginal) == num_target(new_marginal)
+    @test state_variables(mdp) == state_variables(new_mdp)
+    @test action_variables(mdp) == action_variables(new_mdp)
 
-# Write problem
-tstates = [CartesianIndex(207)]
-prop = FiniteTimeReachability(tstates, 10)
-spec = Specification(prop, Pessimistic, Maximize)
-problem = VerificationProblem(mdp, spec)
+    @test ambiguity_sets.lower ≈ new_ambiguity_sets.lower
+    @test ambiguity_sets.gap ≈ new_ambiguity_sets.gap
 
-new_path = tempname() * ".txt"
-write_bmdp_tool_file(new_path, problem)
+    @test tstates == new_tstates
+end
 
-# Check the file is there
-@test isfile(new_path)
+@testset "write/read problem" begin
+    # Write problem
+    tstates = [CartesianIndex(207)]
+    prop = FiniteTimeReachability(tstates, 10)
+    spec = Specification(prop, Pessimistic, Maximize)
+    problem = VerificationProblem(mdp, spec)
 
-# Read new file and check that the models represent the same system
-new_mdp, new_tstates = read_bmdp_tool_file(new_path)
+    new_path = tempname() * ".txt"
+    write_bmdp_tool_file(new_path, problem)
 
-@test num_states(mdp) == num_states(new_mdp)
+    # Check the file is there
+    @test isfile(new_path)
 
-transition_probabilities = transition_prob(mdp)
-new_transition_probabilities = transition_prob(new_mdp)
+    # Read new file and check that the models represent the same system
+    new_mdp, new_tstates = read_bmdp_tool_file(new_path)
 
-@test size(transition_probabilities) == size(new_transition_probabilities)
-@test lower(transition_probabilities) ≈ lower(new_transition_probabilities)
-@test gap(transition_probabilities) ≈ gap(new_transition_probabilities)
+    @test num_states(mdp) == num_states(new_mdp)
 
-@test tstates == new_tstates
+    new_marginal = marginals(new_mdp)[1]
+    new_ambiguity_sets = new_marginal.ambiguity_sets
+
+    @test source_shape(marginal) == source_shape(new_marginal)
+    @test action_shape(marginal) == action_shape(new_marginal)
+    @test num_target(marginal) == num_target(new_marginal)
+    @test state_variables(mdp) == state_variables(new_mdp)
+    @test action_variables(mdp) == action_variables(new_mdp)
+
+    @test ambiguity_sets.lower ≈ new_ambiguity_sets.lower
+    @test ambiguity_sets.gap ≈ new_ambiguity_sets.gap
+
+    @test tstates == new_tstates
+end

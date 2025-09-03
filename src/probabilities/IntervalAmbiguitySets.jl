@@ -38,7 +38,7 @@ sparse_prob = IntervalAmbiguitySets(;
 [1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
 
 """
-struct IntervalAmbiguitySets{R, MR <: AbstractMatrix{R}} <: AbstractAmbiguitySets
+struct IntervalAmbiguitySets{R, MR <: AbstractMatrix{R}} <: PolytopicAmbiguitySets
     lower::MR
     gap::MR
 
@@ -149,7 +149,7 @@ function Base.iterate(p::IntervalAmbiguitySets, state)
 end
 Base.length(p::IntervalAmbiguitySets) = num_sets(p)
 
-struct IntervalAmbiguitySet{R, VR <: AbstractVector{R}}
+struct IntervalAmbiguitySet{R, VR <: AbstractVector{R}} <: PolytopicAmbiguitySet
     lower::VR
     gap::VR
 end

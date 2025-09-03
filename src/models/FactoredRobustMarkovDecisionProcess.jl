@@ -26,6 +26,8 @@ struct FactoredRobustMarkovDecisionProcess{
     end
 end
 const FactoredRMDP = FactoredRobustMarkovDecisionProcess
+const FactoredIMDP{N, M} = FactoredRMDP{N, M, P} where {P <: NTuple{N, <:Marginal{<:IntervalAmbiguitySets}}}
+const IMDP{M} = FactoredIMDP{1, M}
 
 function FactoredRMDP(
     state_vars::NTuple{N, Int},

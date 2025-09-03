@@ -1,5 +1,8 @@
 abstract type AbstractAmbiguitySets end
+abstract type PolytopicAmbiguitySets <: AbstractAmbiguitySets end
+
 abstract type AbstractAmbiguitySet end
+abstract type PolytopicAmbiguitySet <: AbstractAmbiguitySet end
 
 """
     num_sets(ambiguity_sets::AbstractAmbiguitySets)
