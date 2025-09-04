@@ -30,12 +30,12 @@ const FactoredIMDP{N, M} = FactoredRMDP{N, M, P} where {P <: NTuple{N, <:Margina
 const IMDP{M} = FactoredIMDP{1, M}
 
 function FactoredRMDP(
-    state_vars::NTuple{N, Int},
-    action_vars::NTuple{M, Int},
-    source_dims::NTuple{N, Int},
-    transition::P,
+    state_vars::NTuple{N, <:Integer},
+    action_vars::NTuple{M, <:Integer},
+    source_dims::NTuple{N, <:Integer},
+    transition::NTuple{N, <:AbstractMarginal},
     initial_states::VI = AllStates(),
-) where {N, M, P <: NTuple{N, <:AbstractMarginal}, VI <: InitialStates}
+) where {N, M, VI <: InitialStates}
     state_vars_32 = Int32.(state_vars)
     action_vars_32 = Int32.(action_vars)
     source_dims_32 = Int32.(source_dims)
@@ -46,10 +46,10 @@ end
 function FactoredRMDP(
     state_vars::NTuple{N, <:Integer},
     action_vars::NTuple{M, <:Integer},
-    transition::P,
+    transition::NTuple{N, <:AbstractMarginal},
     initial_states::VI = AllStates(),
-) where {N, M, P <: NTuple{N, <:AbstractMarginal}, VI <: InitialStates}
-    return FactoredRobustMarkovDecisionProcess{N, M, P, VI}(state_vars, action_vars, state_vars, transition, initial_states)
+) where {N, M, VI <: InitialStates}
+    return FactoredRobustMarkovDecisionProcess(state_vars, action_vars, state_vars, transition, initial_states)
 end
 
 function check_rmdp(state_vars, action_vars, source_dims, transition, initial_states)
@@ -81,12 +81,14 @@ function check_transition(state_dims, action_dims, source_dims, transition)
             throw(DimensionMismatch("Marginal $i has incorrect number of target states. Expected $(state_dims[i]), got $(num_target(marginal))."))
         end
 
-        if source_shape(marginal) != getindex.(Tuple(source_dims), state_variables(marginal))   # source_dims[state_variables(marginal)]
-            throw(DimensionMismatch("Marginal $i has incorrect source shape. Expected $source_dims, got $(source_shape(marginal))."))
+        expected_source_shape = getindex.((source_dims,), state_variables(marginal))
+        if source_shape(marginal) != expected_source_shape
+            throw(DimensionMismatch("Marginal $i has incorrect source shape. Expected $expected_source_shape, got $(source_shape(marginal))."))
         end
 
-        if action_shape(marginal) != getindex.(Tuple(action_dims), action_variables(marginal))
-            throw(DimensionMismatch("Marginal $i has incorrect action shape. Expected $action_dims, got $(action_shape(marginal))."))
+        expected_action_shape = getindex.((action_dims,), action_variables(marginal))
+        if action_shape(marginal) != expected_action_shape
+            throw(DimensionMismatch("Marginal $i has incorrect action shape. Expected $expected_action_shape, got $(action_shape(marginal))."))
         end
     end
 end

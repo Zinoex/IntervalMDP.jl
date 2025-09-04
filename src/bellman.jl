@@ -61,10 +61,10 @@ Vcur = IntervalMDP.bellman(Vprev, model; upper_bound = false)
 [1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
 
 """
-function bellman(V, model; upper_bound = false, maximize = true)
+function bellman(V, model, alg=default_bellman_algorithm(model); upper_bound = false, maximize = true)
     Vres = similar(V, source_shape(model))
 
-    return bellman!(Vres, V, model; upper_bound = upper_bound, maximize = maximize)
+    return bellman!(Vres, V, model, alg; upper_bound = upper_bound, maximize = maximize)
 end
 
 """
@@ -137,8 +137,8 @@ Vres = IntervalMDP.bellman!(workspace, strategy_cache, Vres, V, model; upper_bou
 """
 function bellman! end
 
-function bellman!(Vres, V, model; upper_bound = false, maximize = true)
-    workspace = construct_workspace(model)
+function bellman!(Vres, V, model, alg=default_bellman_algorithm(model); upper_bound = false, maximize = true)
+    workspace = construct_workspace(model, alg)
     strategy_cache = construct_strategy_cache(model)
 
     return bellman!(
@@ -244,7 +244,7 @@ end
 
 # Non-threaded
 function _bellman_helper!(
-    workspace::Union{DenseIntervalWorkspace, SparseIntervalWorkspace},
+    workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
@@ -274,7 +274,7 @@ end
 
 # Threaded
 function _bellman_helper!(
-    workspace::Union{ThreadedDenseIntervalWorkspace, ThreadedSparseIntervalWorkspace},
+    workspace::Union{ThreadedDenseIntervalOMaxWorkspace, ThreadedSparseIntervalOMaxWorkspace},
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
@@ -304,7 +304,7 @@ function _bellman_helper!(
 end
 
 function bellman_precomputation!(
-    workspace::Union{DenseIntervalWorkspace, ThreadedDenseIntervalWorkspace},
+    workspace::Union{DenseIntervalOMaxWorkspace, ThreadedDenseIntervalOMaxWorkspace},
     V,
     upper_bound,
 )
@@ -313,13 +313,13 @@ function bellman_precomputation!(
 end
 
 bellman_precomputation!(
-    workspace::Union{SparseIntervalWorkspace, ThreadedSparseIntervalWorkspace},
+    workspace::Union{SparseIntervalOMaxWorkspace, ThreadedSparseIntervalOMaxWorkspace},
     V,
     upper_bound,
 ) = nothing
 
 function state_bellman!(
-    workspace::Union{DenseIntervalWorkspace, SparseIntervalWorkspace},
+    workspace::IMDPWorkspace,
     strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
@@ -335,12 +335,12 @@ function state_bellman!(
             workspace.actions[jₐ] = state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)
         end
 
-        Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, V, jₛ, action_shape(marginal), maximize)
+        Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, V, jₛ, maximize)
     end
 end
 
 function state_bellman!(
-    workspace::Union{DenseIntervalWorkspace, SparseIntervalWorkspace},
+    workspace::IMDPWorkspace,
     strategy_cache::NonOptimizingStrategyCache,
     Vres,
     V,
@@ -358,7 +358,7 @@ function state_bellman!(
 end
 
 Base.@propagate_inbounds function state_action_bellman(
-    workspace::DenseIntervalWorkspace,
+    workspace::DenseIntervalOMaxWorkspace,
     V,
     ambiguity_set,
     budget,
@@ -393,7 +393,7 @@ Base.@propagate_inbounds function gap_value(
 end
 
 Base.@propagate_inbounds function state_action_bellman(
-    workspace::SparseIntervalWorkspace,
+    workspace::SparseIntervalOMaxWorkspace,
     V,
     ambiguity_set,
     budget,
@@ -429,6 +429,175 @@ Base.@propagate_inbounds function gap_value(
 
     return res
 end
+
+##################################################
+# McCormick relaxation-based Bellman over fRMDPs #
+##################################################
+
+# Non-threaded
+function _bellman_helper!(
+    workspace::FactoredIntervalMcCormickWorkspace,
+    strategy_cache::AbstractStrategyCache,
+    Vres,
+    V,
+    model;
+    upper_bound = false,
+    maximize = true,
+)
+    for jₛ in CartesianIndices(source_shape(model))
+        state_bellman!(
+            workspace,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
+    end
+
+    return Vres
+end
+
+# Threaded
+function _bellman_helper!(
+    workspace::ThreadedFactoredIntervalMcCormickWorkspace,
+    strategy_cache::AbstractStrategyCache,
+    Vres,
+    V,
+    model;
+    upper_bound = false,
+    maximize = true,
+)
+    @threadstid tid for jₛ in CartesianIndices(source_shape(model))
+        @inbounds ws = workspace[tid]
+        state_bellman!(
+            ws,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
+    end
+
+    return Vres
+end
+
+
+function state_bellman!(
+    workspace::FactoredIntervalMcCormickWorkspace,
+    strategy_cache::OptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    jₛ,
+    upper_bound,
+    maximize,
+)
+    @inbounds begin
+        for jₐ in CartesianIndices(action_shape(model))
+            ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
+            workspace.actions[jₐ] = state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
+        end
+
+        Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, V, jₛ, maximize)
+    end
+end
+
+function state_bellman!(
+    workspace::FactoredIntervalMcCormickWorkspace,
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    jₛ,
+    upper_bound,
+    maximize,
+)
+    @inbounds begin
+        jₐ = CartesianIndex(strategy_cache[jₛ])
+        ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
+        Vres[jₛ] = state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
+    end
+end
+
+Base.@propagate_inbounds function state_action_bellman(
+    workspace::FactoredIntervalMcCormickWorkspace,
+    V::AbstractArray{R},
+    ambiguity_sets,
+    upper_bound,
+) where {R}
+    V = @view V[map(support, ambiguity_sets)...]
+
+    model = workspace.model
+    JuMP.empty!(model)
+    
+    # Recursively add McCormick variables and constraints for each ambiguity set
+    p, _, _ = mccormick_branch(model, ambiguity_sets)
+
+    if upper_bound
+        @objective(model, Max, sum(V[I] * p[I] for I in CartesianIndices(p)))
+    else
+        @objective(model, Min, sum(V[I] * p[I] for I in CartesianIndices(p)))
+    end
+
+    JuMP.optimize!(model)
+    return JuMP.objective_value(model)
+end
+
+function marginal_lp_constraints(model, ambiguity_set::IntervalAmbiguitySet{R}) where {R}
+    p = @variable(model, [1:length(support(ambiguity_set))])
+    p_lower = map(i -> lower(ambiguity_set, i), support(ambiguity_set))
+    p_upper = map(i -> upper(ambiguity_set, i), support(ambiguity_set))
+    for i in eachindex(p)
+        set_lower_bound(p[i], p_lower[i])
+        set_upper_bound(p[i], p_upper[i])
+    end
+    @constraint(model, sum(p) == one(R))
+
+    return p, p_lower, p_upper
+end
+
+function mccormick_branch(model, ambiguity_sets)
+    if length(ambiguity_sets) == 1
+        return marginal_lp_constraints(model, ambiguity_sets[1])
+    else
+        if length(ambiguity_sets) == 2
+            p, p_lower, p_upper = marginal_lp_constraints(model, ambiguity_sets[1])
+            q, q_lower, q_upper = marginal_lp_constraints(model, ambiguity_sets[2])
+        else
+            mid = fld(length(ambiguity_sets), 2) + 1
+            p, p_lower, p_upper = mccormick_branch(model, ambiguity_sets[1:mid])
+            q, q_lower, q_upper = mccormick_branch(model, ambiguity_sets[mid+1:end])
+        end
+
+        # McCormick envelopes
+        sizes = (size(p)..., size(q)...)
+        w = Array{VariableRef}(undef, sizes)
+        w_lower = Array{eltype(p_lower)}(undef, sizes)
+        w_upper = Array{eltype(p_upper)}(undef, sizes)
+        for J in CartesianIndices(q)
+            for I in CartesianIndices(p)
+                w_lower[I, J] = p_lower[I] * q_lower[J]
+                w_upper[I, J] = p_upper[I] * q_upper[J]
+
+                w[I, J] = @variable(model, lower_bound = w_lower[I, J], upper_bound = w_upper[I, J])
+                @constraint(model, w[I, J] >= p[I] * q_lower[J] + q[J] * p_lower[I] − p_lower[I] * q_lower[J])
+                @constraint(model, w[I, J] >= p[I] * q_upper[J] + q[J] * p_upper[I] − p_upper[I] * q_upper[J])
+                @constraint(model, w[I, J] <= p[I] * q_upper[J] + q[J] * p_lower[I] − p_lower[I] * q_upper[J])
+                @constraint(model, w[I, J] <= p[I] * q_lower[J] + q[J] * p_upper[I] − p_upper[I] * q_lower[J])
+            end
+        end
+        @constraint(model, sum(w) == one(eltype(p_lower)))
+
+        return w, w_lower, w_upper
+    end
+end
+
 
 # ################################################################
 # # Bellman operator for OrthogonalIntervalMarkovDecisionProcess #

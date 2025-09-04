@@ -19,7 +19,7 @@ termination_criteria(prop, finitetime::Val{false}) =
     CovergenceCriteria(convergence_eps(prop))
 
 """
-    solve(problem::AbstractIntervalMDPAlgorithm, alg::RobustValueIteration; callback=nothing)
+    solve(problem::AbstractIntervalMDPProblem, alg::RobustValueIteration; callback=nothing)
 
 Solve minimizes/maximizes optimistic/pessimistic specification problems using value iteration for interval Markov processes. 
 
@@ -102,7 +102,7 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     maximize = ismaximize(spec)
 
     # It is more efficient to use allocate first and reuse across iterations
-    workspace = construct_workspace(mp)
+    workspace = construct_workspace(mp, bellman_algorithm(alg))
     strategy_cache = construct_strategy_cache(problem)
 
     value_function = ValueFunction(problem)

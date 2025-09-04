@@ -5,7 +5,7 @@ test_files = [
     "imdp.jl",
     "synthesis.jl",
     "specification.jl",
-    # "orthogonal.jl",
+    "factored.jl",
     # "mixture.jl",
     "labelling.jl",
     "dfa.jl",

@@ -7,6 +7,8 @@ export solve
 
 # Import necessary libraries
 using LinearAlgebra, SparseArrays
+using JuMP, HiGHS
+using Combinatorics: permutations, Permutations
 
 ### Utilities
 const UnionIndex = Union{<:Integer, <:Tuple}
@@ -47,14 +49,15 @@ export value_function, residual, num_iterations
 include("cuda.jl")
 
 ### Solving
+include("algorithms.jl")
+export OMaximization, LPMcCormickRelaxation
+export RobustValueIteration
+
 include("utils.jl")
 include("threading.jl")
 include("workspace.jl")
 include("strategy_cache.jl")
 include("bellman.jl")
-
-include("algorithms.jl")
-export RobustValueIteration
 
 include("robust_value_iteration.jl")
 

@@ -86,8 +86,8 @@ end
 
 sub2ind(p::Marginal, action::CartesianIndex, source::CartesianIndex) = sub2ind(p, Tuple(action), Tuple(source))
 function sub2ind(p::Marginal, action::NTuple{M, <:Integer}, source::NTuple{N, <:Integer}) where {N, M}
-    action = getindex.(Tuple(action), p.action_indices)
-    source = getindex.(Tuple(source), p.state_indices)
+    action = getindex.((action,), p.action_indices)
+    source = getindex.((source,), p.state_indices)
     j = p.linear_index[action..., source...]
 
     return j

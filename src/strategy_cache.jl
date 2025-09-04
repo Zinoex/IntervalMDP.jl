@@ -25,7 +25,7 @@ end
 construct_strategy_cache(::VerificationProblem{S, F, <:NoStrategy}) where {S, F} =
     NoStrategyCache()
 
-function extract_strategy!(::NoStrategyCache, values, V, j, action_shape, maximize)
+function extract_strategy!(::NoStrategyCache, values, V, j, maximize)
     return maximize ? maximum(values) : minimum(values)
 end
 step_postprocess_strategy_cache!(::NoStrategyCache) = nothing
@@ -77,14 +77,13 @@ function extract_strategy!(
     values::AbstractArray{R},
     V,
     jₛ,
-    action_shape,
     maximize,
 ) where {R <: Real}
     opt_val = maximize ? typemin(R) : typemax(R)
-    opt_index = ntuple(_ -> 1, length(action_shape))
+    opt_index = ntuple(_ -> 1, ndims(values))
     neutral = (opt_val, opt_index)
 
-    return _extract_strategy!(strategy_cache.cur_strategy, values, neutral, jₛ, action_shape, maximize)
+    return _extract_strategy!(strategy_cache.cur_strategy, values, neutral, jₛ, maximize)
 end
 function step_postprocess_strategy_cache!(strategy_cache::TimeVaryingStrategyCache)
     push!(strategy_cache.strategy, copy(strategy_cache.cur_strategy))
@@ -113,7 +112,6 @@ function extract_strategy!(
     values::AbstractArray{R},
     V,
     jₛ,
-    action_shape,
     maximize,
 ) where {R <: Real}
     neutral = if all(iszero.(strategy_cache.strategy[jₛ]))
@@ -122,17 +120,17 @@ function extract_strategy!(
         V[jₛ], strategy_cache.strategy[jₛ]
     end
 
-    return _extract_strategy!(strategy_cache.strategy, values, neutral, jₛ, action_shape, maximize)
+    return _extract_strategy!(strategy_cache.strategy, values, neutral, jₛ, maximize)
 end
 step_postprocess_strategy_cache!(::StationaryStrategyCache) = nothing
 
 # Shared between stationary and time-varying strategies
-function _extract_strategy!(cur_strategy, values, neutral, jₛ, action_shape, maximize)
+function _extract_strategy!(cur_strategy, values, neutral, jₛ, maximize)
     gt = maximize ? (>) : (<)
 
     opt_val, opt_index = neutral
 
-    for jₐ in CartesianIndices(action_shape)
+    for jₐ in CartesianIndices(values)
         v = values[jₐ]
         if gt(v, opt_val)
             opt_val = v

@@ -203,6 +203,8 @@ struct IntervalAmbiguitySet{R, VR <: AbstractVector{R}} <: PolytopicAmbiguitySet
     gap::VR
 end
 
+num_target(p::IntervalAmbiguitySet) = length(p.lower)
+
 lower(p::IntervalAmbiguitySet) = p.lower
 lower(p::IntervalAmbiguitySet, destination) = p.lower[destination]
 
@@ -218,3 +220,68 @@ support(p::IntervalAmbiguitySet{R, <:ColumnView{R}}) where {R} = eachindex(p.gap
 const SparseColumnView{Tv, Ti} = SubArray{Tv, 1, <:SparseArrays.AbstractSparseMatrixCSC{Tv, Ti}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}
 support(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = rowvals(p.gap)
 SparseArrays.nnz(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = nnz(p.gap)
+
+# Vertex iterator for IntervalAmbiguitySet
+struct IntervalAmbiguitySetVertexIterator{R, VR <: AbstractVector{R}, P <: Permutations}
+    set::IntervalAmbiguitySet{R, VR}
+    perm::P
+end
+
+function IntervalAmbiguitySetVertexIterator(set::IntervalAmbiguitySet)
+    perm = permutations(support(set))
+    return IntervalAmbiguitySetVertexIterator(set, perm)
+end
+Base.IteratorEltype(::Type{<:IntervalAmbiguitySetVertexIterator}) = Base.HasEltype()
+Base.eltype(::IntervalAmbiguitySetVertexIterator{R}) where {R} = Vector{R}
+Base.IteratorSize(::Type{<:IntervalAmbiguitySetVertexIterator}) = Base.HasLength()
+Base.length(it::IntervalAmbiguitySetVertexIterator) = length(it.perm)
+
+function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}) where {R, VR <: AbstractVector{R}}
+    res = iterate(it.perm)
+
+    if isnothing(res)
+        throw(ArgumentError("The iterator is empty."))
+    end
+
+    (permutation, state) = res
+
+    v = copy(lower(it.set))
+    budget = 1.0 - sum(v)
+    for i in permutation
+        if budget <= gap(it.set, i)
+            v[i] += budget
+            break
+        else
+            v[i] += gap(it.set, i)
+            budget -= gap(it.set, i)
+        end
+    end
+
+    return v, state
+end
+
+function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}, state) where {R, VR <: AbstractVector{R}}
+    res = iterate(it.perm, state)
+
+    if isnothing(res)
+        return nothing
+    end
+
+    (permutation, state) = res
+    v = copy(lower(it.set))
+    budget = 1.0 - sum(v)
+    for i in permutation
+        if budget <= gap(it.set, i)
+            v[i] += budget
+            break
+        else
+            v[i] += gap(it.set, i)
+            budget -= gap(it.set, i)
+        end
+    end
+
+    return v, state
+end
+
+vertex_generator(p::IntervalAmbiguitySet) = IntervalAmbiguitySetVertexIterator(p)
+vertices(p::IntervalAmbiguitySet) = collect(vertex_generator(p))

@@ -4,8 +4,11 @@ authors = ["Frederik Baymler Mathiesen <frederik@baymler.com> and contributors"]
 version = "0.6.0"
 
 [deps]
+Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
 CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
+HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
+JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 NCDatasets = "85f8d34a-cbdd-5861-8df4-14fed0d494ab"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
@@ -16,15 +19,15 @@ CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
 
-# [extensions]
-# IntervalMDPCudaExt = ["Adapt", "CUDA", "GPUArrays", "LLVM"]
-
 [compat]
 Adapt = "4"
 CUDA = "5.1"
+Combinatorics = "1.0.3"
 CommonSolve = "0.2.4"
 GPUArrays = "10, 11"
+HiGHS = "1.19.0"
 JSON = "0.21.4"
+JuMP = "1.29.0"
 LLVM = "7, 8, 9"
 NCDatasets = "0.13, 0.14"
 julia = "1.9"
