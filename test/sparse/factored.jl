@@ -160,24 +160,24 @@ using Random: MersenneTwister
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres_first = zeros(N, 2, 3)
+            Vres_first_McCormick = zeros(N, 2, 3)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
-                Vres_first,
+                Vres_first_McCormick,
                 V,
                 mdp;
                 upper_bound = true,
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test all(Vres_first .>= 0.0)
-            @test all(Vres_first .<= maximum(V))
-            @test all(Vres_first .+ epsilon .>= V_vertex)
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .+ epsilon .>= V_vertex)
 
             ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -186,11 +186,11 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = true,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -199,7 +199,50 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = true,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .+ epsilon .>= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+            @test Vres ≈ Vres_first_OMax
         end
 
         #### Minimization
@@ -216,24 +259,24 @@ using Random: MersenneTwister
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres_first = zeros(N, 2, 3)
+            Vres_first_McCormick = zeros(N, 2, 3)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
-                Vres_first,
+                Vres_first_McCormick,
                 V,
                 mdp;
                 upper_bound = false,
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test all(Vres_first .>= 0.0)
-            @test all(Vres_first .<= maximum(V))
-            @test all(Vres_first .- epsilon .<= V_vertex)
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .- epsilon .<= V_vertex)
 
             ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -242,11 +285,11 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = false,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -255,38 +298,82 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = false,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .- epsilon .<= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+            @test Vres ≈ Vres_first_OMax
         end
     end
 
+    
+
     @testset "bellman 2d partial dependence" begin
         state_vars = (2, 3)
-        action_vars = (1,)
-        jₐ = CartesianIndex(1)
+        action_vars = (1, 2)
 
         marginal1 = Marginal(IntervalAmbiguitySets(;
-            lower = sparse(N[
+            lower = N[
                 0  7//30  0  13//30  4//15  1//6
-                2//5   7//30  0  11//30  2//15  1//10
-            ]),
-            upper = sparse(N[
+                2//5   7//30  0  11//30  2//15  0
+            ],
+            upper = N[
                 17//30   7//10  2//3   4//5  7//10   2//3
                 9//10  13//15  9//10  5//6  4//5   14//15
-            ])
+            ]
         ), (1, 2), (1,), (2, 3), (1,))
 
         marginal2 = Marginal(IntervalAmbiguitySets(;
-            lower = sparse(N[
-                1//30  1//3   1//6
-                4//15  1//4   1//6
-                2//15  7//30  0
-            ]),
-            upper = sparse(N[
-                2//3   7//15   4//5
-                23//30  4//5   23//30
-                7//15  4//5   23//30
-            ])
-        ), (2,), (1,), (3,), (1,))
+            lower = N[
+                0  1//3   1//6   1//15  2//5   2//15
+                4//15  1//4   1//6   0  2//15  0
+                2//15  7//30  0 7//30  7//15  1//5
+            ],
+            upper = N[
+                2//3   7//15   4//5   11//30  19//30   1//2
+                23//30  4//5   23//30   3//5    7//10   8//15
+                7//15  4//5   23//30   7//10   7//15  23//30
+            ]
+        ), (2,), (2,), (3,), (2,))
 
         mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, marginal2))
 
@@ -297,37 +384,40 @@ using Random: MersenneTwister
         eval_vertices(p, q) = sum(V[I] * p[I[1]] * q[I[2]] for I in CartesianIndices(state_vars))
 
         #### Maximization
-        @testset "maximization" begin
+        @testset "max/max" begin
             V_vertex = [
                 maximum(
-                    splat(eval_vertices), 
-                    Iterators.product(
-                        IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
-                        IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
-                    )
+                    maximum(
+                        splat(eval_vertices), 
+                        Iterators.product(
+                            IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
+                            IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
+                        )
+                    ) for jₐ in CartesianIndices(action_vars)
                 ) for jₛ in CartesianIndices(state_vars)
-            ] # The maximum will always be a vertex
+            ] # The (inner) maximum will always be a vertex
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres_first = zeros(N, 2, 3)
+            Vres_first_McCormick = zeros(N, 2, 3)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
-                Vres_first,
+                Vres_first_McCormick,
                 V,
                 mdp;
                 upper_bound = true,
+                maximize = true,
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test all(Vres_first .>= 0.0)
-            @test all(Vres_first .<= maximum(V))
-            @test all(Vres_first .+ epsilon .>= V_vertex)
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .+ epsilon .>= V_vertex)
 
             ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -335,12 +425,13 @@ using Random: MersenneTwister
                 V,
                 mdp;
                 upper_bound = true,
+                maximize = true,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -348,42 +439,198 @@ using Random: MersenneTwister
                 V,
                 mdp;
                 upper_bound = true,
+                maximize = true,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = true,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .+ epsilon .>= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = true,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = true,
+            )
+            @test Vres ≈ Vres_first_OMax
+        end
+
+        @testset "min/max" begin
+            V_vertex = [
+                minimum(
+                    maximum(
+                        splat(eval_vertices), 
+                        Iterators.product(
+                            IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
+                            IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
+                        )
+                    ) for jₐ in CartesianIndices(action_vars)
+                ) for jₛ in CartesianIndices(state_vars)
+            ] # The (inner) maximum will always be a vertex
+
+            ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_McCormick = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_McCormick,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = false,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .+ epsilon .>= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_McCormick)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = false,
+            )
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_McCormick)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = false,
+            )
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = false,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .+ epsilon .>= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = false,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = false,
+            )
+            @test Vres ≈ Vres_first_OMax
         end
 
         #### Minimization
-        @testset "minimization" begin
+        @testset "min/min" begin
             V_vertex = [
                 minimum(
-                    splat(eval_vertices), 
-                    Iterators.product(
-                        IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
-                        IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
-                    )
+                    minimum(
+                        splat(eval_vertices), 
+                        Iterators.product(
+                            IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
+                            IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
+                        )
+                    ) for jₐ in CartesianIndices(action_vars)
                 ) for jₛ in CartesianIndices(state_vars)
-            ] # The minimum will always be a vertex
+            ] # The (inner) minimum will always be a vertex
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres_first = zeros(N, 2, 3)
-            IntervalMDP._bellman_helper!(
+            Vres_first_McCormick = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
-                Vres_first,
+                Vres_first_McCormick,
                 V,
                 mdp;
                 upper_bound = false,
+                maximize = false,
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test all(Vres_first .>= 0.0)
-            @test all(Vres_first .<= maximum(V))
-            @test all(Vres_first .- epsilon .<= V_vertex)
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .- epsilon .<= V_vertex)
 
             ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -391,12 +638,13 @@ using Random: MersenneTwister
                 V,
                 mdp;
                 upper_bound = false,
+                maximize = false,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -404,8 +652,161 @@ using Random: MersenneTwister
                 V,
                 mdp;
                 upper_bound = false,
+                maximize = false,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = false,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .- epsilon .<= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = false,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = false,
+            )
+            @test Vres ≈ Vres_first_OMax
+        end
+
+        @testset "max/min" begin
+            V_vertex = [
+                maximum(
+                    minimum(
+                        splat(eval_vertices), 
+                        Iterators.product(
+                            IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
+                            IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
+                        )
+                    ) for jₐ in CartesianIndices(action_vars)
+                ) for jₛ in CartesianIndices(state_vars)
+            ] # The (inner) minimum will always be a vertex
+
+            ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_McCormick = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_McCormick,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = true,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .- epsilon .<= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_McCormick)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = true,
+            )
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_McCormick)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = true,
+            )
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = true,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .- epsilon .<= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = true,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = true,
+            )
+            @test Vres ≈ Vres_first_OMax
         end
     end
 
@@ -504,24 +905,24 @@ using Random: MersenneTwister
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres_first = zeros(N, 3, 3, 3)
+            Vres_first_McCormick = zeros(N, 3, 3, 3)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
-                Vres_first,
+                Vres_first_McCormick,
                 V,
                 mdp;
                 upper_bound = true,
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test all(Vres_first .>= 0.0)
-            @test all(Vres_first .<= maximum(V))
-            @test all(Vres_first .+ epsilon .>= V_vertex)
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .+ epsilon .>= V_vertex)
 
             ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -530,11 +931,11 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = true,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -543,7 +944,50 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = true,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 3, 3, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .+ epsilon .>= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+            @test Vres ≈ Vres_first_OMax
         end
 
         #### Minimization
@@ -561,24 +1005,24 @@ using Random: MersenneTwister
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres_first = zeros(N, 3, 3, 3)
-            IntervalMDP._bellman_helper!(
+            Vres_first_McCormick = zeros(N, 3, 3, 3)
+            IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
-                Vres_first,
+                Vres_first_McCormick,
                 V,
                 mdp;
                 upper_bound = false,
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test all(Vres_first .>= 0.0)
-            @test all(Vres_first .<= maximum(V))
-            @test all(Vres_first .- epsilon .<= V_vertex)
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .- epsilon .<= V_vertex)
 
             ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -587,11 +1031,11 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = false,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -600,7 +1044,50 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = false,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 3, 3, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .- epsilon .<= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+            @test Vres ≈ Vres_first_OMax
         end
     end
 
@@ -699,24 +1186,24 @@ using Random: MersenneTwister
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres_first = zeros(N, 3, 3, 3)
+            Vres_first_McCormick = zeros(N, 3, 3, 3)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
-                Vres_first,
+                Vres_first_McCormick,
                 V,
                 mdp;
                 upper_bound = true,
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test all(Vres_first .>= 0.0)
-            @test all(Vres_first .<= maximum(V))
-            @test all(Vres_first .+ epsilon .>= V_vertex)
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .+ epsilon .>= V_vertex)
 
             ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -725,11 +1212,11 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = true,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -738,7 +1225,50 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = true,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 3, 3, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .+ epsilon .>= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+            @test Vres ≈ Vres_first_OMax
         end
 
         #### Minimization
@@ -756,24 +1286,24 @@ using Random: MersenneTwister
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres_first = zeros(N, 3, 3, 3)
-            IntervalMDP._bellman_helper!(
+            Vres_first_McCormick = zeros(N, 3, 3, 3)
+            IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
-                Vres_first,
+                Vres_first_McCormick,
                 V,
                 mdp;
                 upper_bound = false,
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test all(Vres_first .>= 0.0)
-            @test all(Vres_first .<= maximum(V))
-            @test all(Vres_first .- epsilon .<= V_vertex)
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .- epsilon .<= V_vertex)
 
             ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -782,11 +1312,11 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = false,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -795,7 +1325,50 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = false,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 3, 3, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .- epsilon .<= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+            @test Vres ≈ Vres_first_OMax
         end
     end
 

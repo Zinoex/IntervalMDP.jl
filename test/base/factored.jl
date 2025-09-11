@@ -160,24 +160,24 @@ using Random: MersenneTwister
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres_first = zeros(N, 2, 3)
+            Vres_first_McCormick = zeros(N, 2, 3)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
-                Vres_first,
+                Vres_first_McCormick,
                 V,
                 mdp;
                 upper_bound = true,
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test all(Vres_first .>= 0.0)
-            @test all(Vres_first .<= maximum(V))
-            @test all(Vres_first .+ epsilon .>= V_vertex)
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .+ epsilon .>= V_vertex)
 
             ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -186,11 +186,11 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = true,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -199,7 +199,50 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = true,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .+ epsilon .>= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+            @test Vres ≈ Vres_first_OMax
         end
 
         #### Minimization
@@ -216,24 +259,24 @@ using Random: MersenneTwister
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres_first = zeros(N, 2, 3)
+            Vres_first_McCormick = zeros(N, 2, 3)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
-                Vres_first,
+                Vres_first_McCormick,
                 V,
                 mdp;
                 upper_bound = false,
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test all(Vres_first .>= 0.0)
-            @test all(Vres_first .<= maximum(V))
-            @test all(Vres_first .- epsilon .<= V_vertex)
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .- epsilon .<= V_vertex)
 
             ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -242,11 +285,11 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = false,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -255,14 +298,56 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = false,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .- epsilon .<= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+            @test Vres ≈ Vres_first_OMax
         end
     end
 
     @testset "bellman 2d partial dependence" begin
         state_vars = (2, 3)
-        action_vars = (1,)
-        jₐ = CartesianIndex(1)
+        action_vars = (1, 2)
 
         marginal1 = Marginal(IntervalAmbiguitySets(;
             lower = N[
@@ -277,16 +362,16 @@ using Random: MersenneTwister
 
         marginal2 = Marginal(IntervalAmbiguitySets(;
             lower = N[
-                1//30  1//3   1//6
-                4//15  1//4   1//6
-                2//15  7//30  1//10
+                1//30  1//3   1//6   1//15  2//5   2//15
+                4//15  1//4   1//6   1//30  2//15  1//30
+                2//15  7//30  1//10  7//30  7//15  1//5
             ],
             upper = N[
-                2//3   7//15   4//5
-                23//30  4//5   23//30
-                7//15  4//5   23//30
+                2//3   7//15   4//5   11//30  19//30   1//2
+                23//30  4//5   23//30   3//5    7//10   8//15
+                7//15  4//5   23//30   7//10   7//15  23//30
             ]
-        ), (2,), (1,), (3,), (1,))
+        ), (2,), (2,), (3,), (2,))
 
         mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, marginal2))
 
@@ -297,37 +382,40 @@ using Random: MersenneTwister
         eval_vertices(p, q) = sum(V[I] * p[I[1]] * q[I[2]] for I in CartesianIndices(state_vars))
 
         #### Maximization
-        @testset "maximization" begin
+        @testset "max/max" begin
             V_vertex = [
                 maximum(
-                    splat(eval_vertices), 
-                    Iterators.product(
-                        IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
-                        IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
-                    )
+                    maximum(
+                        splat(eval_vertices), 
+                        Iterators.product(
+                            IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
+                            IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
+                        )
+                    ) for jₐ in CartesianIndices(action_vars)
                 ) for jₛ in CartesianIndices(state_vars)
-            ] # The maximum will always be a vertex
+            ] # The (inner) maximum will always be a vertex
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres_first = zeros(N, 2, 3)
+            Vres_first_McCormick = zeros(N, 2, 3)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
-                Vres_first,
+                Vres_first_McCormick,
                 V,
                 mdp;
                 upper_bound = true,
+                maximize = true,
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test all(Vres_first .>= 0.0)
-            @test all(Vres_first .<= maximum(V))
-            @test all(Vres_first .+ epsilon .>= V_vertex)
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .+ epsilon .>= V_vertex)
 
             ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -335,12 +423,13 @@ using Random: MersenneTwister
                 V,
                 mdp;
                 upper_bound = true,
+                maximize = true,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -348,42 +437,198 @@ using Random: MersenneTwister
                 V,
                 mdp;
                 upper_bound = true,
+                maximize = true,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = true,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .+ epsilon .>= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = true,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = true,
+            )
+            @test Vres ≈ Vres_first_OMax
+        end
+
+        @testset "min/max" begin
+            V_vertex = [
+                minimum(
+                    maximum(
+                        splat(eval_vertices), 
+                        Iterators.product(
+                            IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
+                            IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
+                        )
+                    ) for jₐ in CartesianIndices(action_vars)
+                ) for jₛ in CartesianIndices(state_vars)
+            ] # The (inner) maximum will always be a vertex
+
+            ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_McCormick = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_McCormick,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = false,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .+ epsilon .>= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_McCormick)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = false,
+            )
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_McCormick)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = false,
+            )
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = false,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .+ epsilon .>= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = false,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = false,
+            )
+            @test Vres ≈ Vres_first_OMax
         end
 
         #### Minimization
-        @testset "minimization" begin
+        @testset "min/min" begin
             V_vertex = [
                 minimum(
-                    splat(eval_vertices), 
-                    Iterators.product(
-                        IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
-                        IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
-                    )
+                    minimum(
+                        splat(eval_vertices), 
+                        Iterators.product(
+                            IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
+                            IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
+                        )
+                    ) for jₐ in CartesianIndices(action_vars)
                 ) for jₛ in CartesianIndices(state_vars)
-            ] # The minimum will always be a vertex
+            ] # The (inner) minimum will always be a vertex
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres_first = zeros(N, 2, 3)
-            IntervalMDP._bellman_helper!(
+            Vres_first_McCormick = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
-                Vres_first,
+                Vres_first_McCormick,
                 V,
                 mdp;
                 upper_bound = false,
+                maximize = false,
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test all(Vres_first .>= 0.0)
-            @test all(Vres_first .<= maximum(V))
-            @test all(Vres_first .- epsilon .<= V_vertex)
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .- epsilon .<= V_vertex)
 
             ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -391,12 +636,13 @@ using Random: MersenneTwister
                 V,
                 mdp;
                 upper_bound = false,
+                maximize = false,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -404,8 +650,161 @@ using Random: MersenneTwister
                 V,
                 mdp;
                 upper_bound = false,
+                maximize = false,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = false,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .- epsilon .<= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = false,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = false,
+            )
+            @test Vres ≈ Vres_first_OMax
+        end
+
+        @testset "max/min" begin
+            V_vertex = [
+                maximum(
+                    minimum(
+                        splat(eval_vertices), 
+                        Iterators.product(
+                            IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
+                            IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
+                        )
+                    ) for jₐ in CartesianIndices(action_vars)
+                ) for jₛ in CartesianIndices(state_vars)
+            ] # The (inner) minimum will always be a vertex
+
+            ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_McCormick = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_McCormick,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = true,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .- epsilon .<= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_McCormick)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = true,
+            )
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_McCormick)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = true,
+            )
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = true,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .- epsilon .<= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = true,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = true,
+            )
+            @test Vres ≈ Vres_first_OMax
         end
     end
 
@@ -504,24 +903,24 @@ using Random: MersenneTwister
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres_first = zeros(N, 3, 3, 3)
+            Vres_first_McCormick = zeros(N, 3, 3, 3)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
-                Vres_first,
+                Vres_first_McCormick,
                 V,
                 mdp;
                 upper_bound = true,
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test all(Vres_first .>= 0.0)
-            @test all(Vres_first .<= maximum(V))
-            @test all(Vres_first .+ epsilon .>= V_vertex)
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .+ epsilon .>= V_vertex)
 
             ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -530,11 +929,11 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = true,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -543,7 +942,50 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = true,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 3, 3, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .+ epsilon .>= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = true,
+            )
+            @test Vres ≈ Vres_first_OMax
         end
 
         #### Minimization
@@ -561,24 +1003,24 @@ using Random: MersenneTwister
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres_first = zeros(N, 3, 3, 3)
-            IntervalMDP._bellman_helper!(
+            Vres_first_McCormick = zeros(N, 3, 3, 3)
+            IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
-                Vres_first,
+                Vres_first_McCormick,
                 V,
                 mdp;
                 upper_bound = false,
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test all(Vres_first .>= 0.0)
-            @test all(Vres_first .<= maximum(V))
-            @test all(Vres_first .- epsilon .<= V_vertex)
+            @test all(Vres_first_McCormick .>= 0.0)
+            @test all(Vres_first_McCormick .<= maximum(V))
+            @test all(Vres_first_McCormick .- epsilon .<= V_vertex)
 
             ws = IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -587,11 +1029,11 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = false,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
-            Vres = similar(Vres_first)
+            Vres = similar(Vres_first_McCormick)
             IntervalMDP.bellman!(
                 ws,
                 strategy_cache,
@@ -600,444 +1042,489 @@ using Random: MersenneTwister
                 mdp;
                 upper_bound = false,
             )
-            @test Vres ≈ Vres_first
+            @test Vres ≈ Vres_first_McCormick
+
+            ws = IntervalMDP.construct_workspace(mdp, OMaximization())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres_first_OMax = zeros(N, 3, 3, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres_first_OMax,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+
+            epsilon = N == Float32 ? 1e-5 : 1e-8
+            @test all(Vres_first_OMax .>= 0.0)
+            @test all(Vres_first_OMax .<= maximum(V))
+            @test all(Vres_first_OMax .- epsilon .<= V_vertex)
+
+            ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+            @test Vres ≈ Vres_first_OMax
+
+            ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            Vres = similar(Vres_first_OMax)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+            @test Vres ≈ Vres_first_OMax
         end
     end
 
-    @testset "implicit sink state" begin
-        @testset "first dimension" begin
-            state_indices = (1, 2, 3)
-            action_indices = (1,)
-            state_vars = (3, 3, 3)
-            source_dims = (2, 3, 3)
-            action_vars = (1,)
+    @testset for alg in [RobustValueIteration(LPMcCormickRelaxation()), RobustValueIteration(OMaximization())]
+        @testset "implicit sink state" begin
+            @testset "first dimension" begin
+                state_indices = (1, 2, 3)
+                action_indices = (1,)
+                state_vars = (3, 3, 3)
+                source_dims = (2, 3, 3)
+                action_vars = (1,)
 
-            # Explicit
-            marginal1 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    1//15 3//10 0 1//15 3//10 0 1//30 1//3 0 7//30 4//15 0 1//6 1//5 0 1//10 1//5 0 0 7//30 0 7//30 1//5 0 2//15 1//6 0
-                    1//5 4//15 0 1//10 1//5 0 3//10 3//10 0 1//10 1//15 0 3//10 3//10 0 7//30 1//5 0 1//10 1//5 0 1//5 1//30 0 1//5 3//10 0
-                    4//15 1//30 1 1//5 1//5 1 7//30 4//15 1 2//15 7//30 1 1//5 1//3 1 2//15 1//6 1 1//6 1//3 1 4//15 3//10 1 1//30 3//10 1
-                ],
-                upper = N[
-                    7//15 17//30 0 13//30 3//5 0 17//30 17//30 0 17//30 13//30 0 3//5 2//3 0 11//30 7//15 0 0 1//2 0 17//30 13//30 0 7//15 13//30 0
-                    8//15 1//2 0 3//5 7//15 0 8//15 17//30 0 2//3 17//30 0 11//30 7//15 0 19//30 19//30 0 13//15 1//2 0 17//30 13//30 0 3//5 11//30 0
-                    11//30 1//3 1 2//5 8//15 1 7//15 3//5 1 2//3 17//30 1 2//3 8//15 1 2//15 3//5 1 2//3 3//5 1 17//30 2//3 1 7//15 8//15 1
-                ]
-            ), state_indices, action_indices, state_vars, action_vars)
+                # Explicit
+                marginal1 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        1//15 3//10 0 1//15 3//10 0 1//30 1//3 0 7//30 4//15 0 1//6 1//5 0 1//10 1//5 0 0 7//30 0 7//30 1//5 0 2//15 1//6 0
+                        1//5 4//15 0 1//10 1//5 0 3//10 3//10 0 1//10 1//15 0 3//10 3//10 0 7//30 1//5 0 1//10 1//5 0 1//5 1//30 0 1//5 3//10 0
+                        4//15 1//30 1 1//5 1//5 1 7//30 4//15 1 2//15 7//30 1 1//5 1//3 1 2//15 1//6 1 1//6 1//3 1 4//15 3//10 1 1//30 3//10 1
+                    ],
+                    upper = N[
+                        7//15 17//30 0 13//30 3//5 0 17//30 17//30 0 17//30 13//30 0 3//5 2//3 0 11//30 7//15 0 0 1//2 0 17//30 13//30 0 7//15 13//30 0
+                        8//15 1//2 0 3//5 7//15 0 8//15 17//30 0 2//3 17//30 0 11//30 7//15 0 19//30 19//30 0 13//15 1//2 0 17//30 13//30 0 3//5 11//30 0
+                        11//30 1//3 1 2//5 8//15 1 7//15 3//5 1 2//3 17//30 1 2//3 8//15 1 2//15 3//5 1 2//3 3//5 1 17//30 2//3 1 7//15 8//15 1
+                    ]
+                ), state_indices, action_indices, state_vars, action_vars)
 
-            marginal2 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    1//10 1//15 1 3//10 0 0 1//6 1//15 0 1//15 1//6 1 1//6 1//30 0 1//10 1//10 0 1//3 2//15 1 3//10 4//15 0 2//15 2//15 0
-                    3//10 1//5 0 3//10 2//15 1 0 1//30 0 0 1//15 0 1//30 7//30 1 1//30 1//15 0 7//30 1//15 0 1//6 1//30 1 1//10 1//15 0
-                    3//10 4//15 0 1//10 3//10 0 2//15 1//3 1 3//10 1//10 0 1//6 3//10 0 7//30 1//6 1 1//15 1//15 0 1//10 1//5 0 1//5 4//15 1
-                ],
-                upper = N[
-                    2//5 17//30 1 3//5 11//30 0 3//5 7//15 0 19//30 2//5 1 3//5 2//3 0 2//3 8//15 0 8//15 19//30 1 8//15 8//15 0 13//30 13//30 0
-                    1//3 13//30 0 11//30 2//5 1 2//3 2//3 0 0 13//30 0 1//2 17//30 1 17//30 1//3 0 2//5 1//3 0 13//30 11//30 1 8//15 1//3 0
-                    17//30 3//5 0 8//15 1//2 0 7//15 1//2 1 2//3 17//30 0 11//30 2//5 0 1//2 7//15 1 2//5 17//30 0 11//30 2//5 0 11//30 2//3 1
-                ]
-            ), state_indices, action_indices, state_vars, action_vars)
+                marginal2 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        1//10 1//15 1 3//10 0 0 1//6 1//15 0 1//15 1//6 1 1//6 1//30 0 1//10 1//10 0 1//3 2//15 1 3//10 4//15 0 2//15 2//15 0
+                        3//10 1//5 0 3//10 2//15 1 0 1//30 0 0 1//15 0 1//30 7//30 1 1//30 1//15 0 7//30 1//15 0 1//6 1//30 1 1//10 1//15 0
+                        3//10 4//15 0 1//10 3//10 0 2//15 1//3 1 3//10 1//10 0 1//6 3//10 0 7//30 1//6 1 1//15 1//15 0 1//10 1//5 0 1//5 4//15 1
+                    ],
+                    upper = N[
+                        2//5 17//30 1 3//5 11//30 0 3//5 7//15 0 19//30 2//5 1 3//5 2//3 0 2//3 8//15 0 8//15 19//30 1 8//15 8//15 0 13//30 13//30 0
+                        1//3 13//30 0 11//30 2//5 1 2//3 2//3 0 0 13//30 0 1//2 17//30 1 17//30 1//3 0 2//5 1//3 0 13//30 11//30 1 8//15 1//3 0
+                        17//30 3//5 0 8//15 1//2 0 7//15 1//2 1 2//3 17//30 0 11//30 2//5 0 1//2 7//15 1 2//5 17//30 0 11//30 2//5 0 11//30 2//3 1
+                    ]
+                ), state_indices, action_indices, state_vars, action_vars)
 
-            marginal3 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    4//15 1//5 1 3//10 3//10 1 4//15 7//30 1 1//5 4//15 0 7//30 1//6 0 1//5 0 0 1//15 1//30 0 3//10 1//3 0 2//15 1//15 0
-                    2//15 4//15 0 1//10 1//30 0 7//30 2//15 0 1//15 1//30 1 3//10 1//3 1 1//5 1//10 1 2//15 1//30 0 2//15 4//15 0 0 4//15 0
-                    1//5 1//3 0 3//10 1//10 0 1//15 1//10 0 1//30 1//5 0 2//15 7//30 0 1//3 2//15 0 1//10 1//6 1 3//10 1//5 1 7//30 1//30 1
-                ],
-                upper = N[
-                    3//5 17//30 1 1//2 3//5 1 19//30 2//5 1 8//15 1//3 0 11//30 2//5 0 17//30 13//30 0 2//5 3//5 0 3//5 11//30 0 1//2 11//30 0
-                    3//5 2//3 0 13//30 19//30 0 1//3 2//5 0 17//30 7//15 1 11//30 3//5 1 19//30 7//15 1 2//5 8//15 0 17//30 11//30 0 19//30 13//30 0
-                    3//5 2//3 0 1//2 1//2 0 2//3 7//15 0 3//5 3//5 0 1//2 1//3 0 2//5 8//15 0 2//5 11//30 1 1//3 8//15 1 7//15 13//30 1
-                ]
-            ), state_indices, action_indices, state_vars, action_vars)
+                marginal3 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        4//15 1//5 1 3//10 3//10 1 4//15 7//30 1 1//5 4//15 0 7//30 1//6 0 1//5 0 0 1//15 1//30 0 3//10 1//3 0 2//15 1//15 0
+                        2//15 4//15 0 1//10 1//30 0 7//30 2//15 0 1//15 1//30 1 3//10 1//3 1 1//5 1//10 1 2//15 1//30 0 2//15 4//15 0 0 4//15 0
+                        1//5 1//3 0 3//10 1//10 0 1//15 1//10 0 1//30 1//5 0 2//15 7//30 0 1//3 2//15 0 1//10 1//6 1 3//10 1//5 1 7//30 1//30 1
+                    ],
+                    upper = N[
+                        3//5 17//30 1 1//2 3//5 1 19//30 2//5 1 8//15 1//3 0 11//30 2//5 0 17//30 13//30 0 2//5 3//5 0 3//5 11//30 0 1//2 11//30 0
+                        3//5 2//3 0 13//30 19//30 0 1//3 2//5 0 17//30 7//15 1 11//30 3//5 1 19//30 7//15 1 2//5 8//15 0 17//30 11//30 0 19//30 13//30 0
+                        3//5 2//3 0 1//2 1//2 0 2//3 7//15 0 3//5 3//5 0 1//2 1//3 0 2//5 8//15 0 2//5 11//30 1 1//3 8//15 1 7//15 13//30 1
+                    ]
+                ), state_indices, action_indices, state_vars, action_vars)
 
-            mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, marginal2, marginal3))
+                mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, marginal2, marginal3))
 
-            # Implicit
-            marginal1 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    1//15 3//10 1//15 3//10 1//30 1//3 7//30 4//15 1//6 1//5 1//10 1//5 0 7//30 7//30 1//5 2//15 1//6
-                    1//5 4//15 1//10 1//5 3//10 3//10 1//10 1//15 3//10 3//10 7//30 1//5 1//10 1//5 1//5 1//30 1//5 3//10
-                    4//15 1//30 1//5 1//5 7//30 4//15 2//15 7//30 1//5 1//3 2//15 1//6 1//6 1//3 4//15 3//10 1//30 3//10
-                ],
-                upper = N[
-                    7//15 17//30 13//30 3//5 17//30 17//30 17//30 13//30 3//5 2//3 11//30 7//15 0 1//2 17//30 13//30 7//15 13//30
-                    8//15 1//2 3//5 7//15 8//15 17//30 2//3 17//30 11//30 7//15 19//30 19//30 13//15 1//2 17//30 13//30 3//5 11//30
-                    11//30 1//3 2//5 8//15 7//15 3//5 2//3 17//30 2//3 8//15 2//15 3//5 2//3 3//5 17//30 2//3 7//15 8//15
-                ]
-            ), state_indices, action_indices, source_dims, action_vars)
+                # Implicit
+                marginal1 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        1//15 3//10 1//15 3//10 1//30 1//3 7//30 4//15 1//6 1//5 1//10 1//5 0 7//30 7//30 1//5 2//15 1//6
+                        1//5 4//15 1//10 1//5 3//10 3//10 1//10 1//15 3//10 3//10 7//30 1//5 1//10 1//5 1//5 1//30 1//5 3//10
+                        4//15 1//30 1//5 1//5 7//30 4//15 2//15 7//30 1//5 1//3 2//15 1//6 1//6 1//3 4//15 3//10 1//30 3//10
+                    ],
+                    upper = N[
+                        7//15 17//30 13//30 3//5 17//30 17//30 17//30 13//30 3//5 2//3 11//30 7//15 0 1//2 17//30 13//30 7//15 13//30
+                        8//15 1//2 3//5 7//15 8//15 17//30 2//3 17//30 11//30 7//15 19//30 19//30 13//15 1//2 17//30 13//30 3//5 11//30
+                        11//30 1//3 2//5 8//15 7//15 3//5 2//3 17//30 2//3 8//15 2//15 3//5 2//3 3//5 17//30 2//3 7//15 8//15
+                    ]
+                ), state_indices, action_indices, source_dims, action_vars)
 
-            marginal2 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    1//10 1//15 3//10 0 1//6 1//15 1//15 1//6 1//6 1//30 1//10 1//10 1//3 2//15 3//10 4//15 2//15 2//15
-                    3//10 1//5 3//10 2//15 0 1//30 0 1//15 1//30 7//30 1//30 1//15 7//30 1//15 1//6 1//30 1//10 1//15
-                    3//10 4//15 1//10 3//10 2//15 1//3 3//10 1//10 1//6 3//10 7//30 1//6 1//15 1//15 1//10 1//5 1//5 4//15
-                ],
-                upper = N[
-                    2//5 17//30 3//5 11//30 3//5 7//15 19//30 2//5 3//5 2//3 2//3 8//15 8//15 19//30 8//15 8//15 13//30 13//30
-                    1//3 13//30 11//30 2//5 2//3 2//3 0 13//30 1//2 17//30 17//30 1//3 2//5 1//3 13//30 11//30 8//15 1//3
-                    17//30 3//5 8//15 1//2 7//15 1//2 2//3 17//30 11//30 2//5 1//2 7//15 2//5 17//30 11//30 2//5 11//30 2//3
-                ]
-            ), state_indices, action_indices, source_dims, action_vars)
-            
-            marginal3 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    4//15 1//5 3//10 3//10 4//15 7//30 1//5 4//15 7//30 1//6 1//5 0 1//15 1//30 3//10 1//3 2//15 1//15
-                    2//15 4//15 1//10 1//30 7//30 2//15 1//15 1//30 3//10 1//3 1//5 1//10 2//15 1//30 2//15 4//15 0 4//15
-                    1//5 1//3 3//10 1//10 1//15 1//10 1//30 1//5 2//15 7//30 1//3 2//15 1//10 1//6 3//10 1//5 7//30 1//30
-                ],
-                upper = N[
-                    3//5 17//30 1//2 3//5 19//30 2//5 8//15 1//3 11//30 2//5 17//30 13//30 2//5 3//5 3//5 11//30 1//2 11//30
-                    3//5 2//3 13//30 19//30 1//3 2//5 17//30 7//15 11//30 3//5 19//30 7//15 2//5 8//15 17//30 11//30 19//30 13//30
-                    3//5 2//3 1//2 1//2 2//3 7//15 3//5 3//5 1//2 1//3 2//5 8//15 2//5 11//30 1//3 8//15 7//15 13//30
-                ]
-            ), state_indices, action_indices, source_dims, action_vars)
+                marginal2 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        1//10 1//15 3//10 0 1//6 1//15 1//15 1//6 1//6 1//30 1//10 1//10 1//3 2//15 3//10 4//15 2//15 2//15
+                        3//10 1//5 3//10 2//15 0 1//30 0 1//15 1//30 7//30 1//30 1//15 7//30 1//15 1//6 1//30 1//10 1//15
+                        3//10 4//15 1//10 3//10 2//15 1//3 3//10 1//10 1//6 3//10 7//30 1//6 1//15 1//15 1//10 1//5 1//5 4//15
+                    ],
+                    upper = N[
+                        2//5 17//30 3//5 11//30 3//5 7//15 19//30 2//5 3//5 2//3 2//3 8//15 8//15 19//30 8//15 8//15 13//30 13//30
+                        1//3 13//30 11//30 2//5 2//3 2//3 0 13//30 1//2 17//30 17//30 1//3 2//5 1//3 13//30 11//30 8//15 1//3
+                        17//30 3//5 8//15 1//2 7//15 1//2 2//3 17//30 11//30 2//5 1//2 7//15 2//5 17//30 11//30 2//5 11//30 2//3
+                    ]
+                ), state_indices, action_indices, source_dims, action_vars)
+                
+                marginal3 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        4//15 1//5 3//10 3//10 4//15 7//30 1//5 4//15 7//30 1//6 1//5 0 1//15 1//30 3//10 1//3 2//15 1//15
+                        2//15 4//15 1//10 1//30 7//30 2//15 1//15 1//30 3//10 1//3 1//5 1//10 2//15 1//30 2//15 4//15 0 4//15
+                        1//5 1//3 3//10 1//10 1//15 1//10 1//30 1//5 2//15 7//30 1//3 2//15 1//10 1//6 3//10 1//5 7//30 1//30
+                    ],
+                    upper = N[
+                        3//5 17//30 1//2 3//5 19//30 2//5 8//15 1//3 11//30 2//5 17//30 13//30 2//5 3//5 3//5 11//30 1//2 11//30
+                        3//5 2//3 13//30 19//30 1//3 2//5 17//30 7//15 11//30 3//5 19//30 7//15 2//5 8//15 17//30 11//30 19//30 13//30
+                        3//5 2//3 1//2 1//2 2//3 7//15 3//5 3//5 1//2 1//3 2//5 8//15 2//5 11//30 1//3 8//15 7//15 13//30
+                    ]
+                ), state_indices, action_indices, source_dims, action_vars)
 
-            implicit_mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, source_dims, (marginal1, marginal2, marginal3))
+                implicit_mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, source_dims, (marginal1, marginal2, marginal3))
 
-            prop = FiniteTimeSafety([(3, i, j) for i in 1:3 for j in 1:3], 10)
-            spec = Specification(prop, Pessimistic, Maximize)
-            prob = VerificationProblem(mdp, spec)
-            implicit_prob = VerificationProblem(implicit_mdp, spec)
+                prop = FiniteTimeSafety([(3, i, j) for i in 1:3 for j in 1:3], 10)
+                spec = Specification(prop, Pessimistic, Maximize)
+                prob = VerificationProblem(mdp, spec)
+                implicit_prob = VerificationProblem(implicit_mdp, spec)
 
-            V, k, res = solve(prob)
-            V_implicit, k_implicit, res_implicit = solve(implicit_prob)
+                V, k, res = solve(prob, alg)
+                V_implicit, k_implicit, res_implicit = solve(implicit_prob, alg)
 
-            @test V ≈ V_implicit
-            @test k == k_implicit
-            @test res ≈ res_implicit
-        end
+                @test V ≈ V_implicit
+                @test k == k_implicit
+                @test res ≈ res_implicit
+            end
 
-        @testset "second dimension" begin
-            state_indices = (1, 2, 3)
-            action_indices = (1,)
-            state_vars = (3, 3, 3)
-            source_dims = (3, 2, 3)
-            action_vars = (1,)
+            @testset "second dimension" begin
+                state_indices = (1, 2, 3)
+                action_indices = (1,)
+                state_vars = (3, 3, 3)
+                source_dims = (3, 2, 3)
+                action_vars = (1,)
 
-            # Explicit
-            marginal1 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    1//15 3//10 1//15 3//10 1//30 1//3 1 0 0 7//30 4//15 1//6 1//5 1//10 1//5 1 0 0 0 7//30 7//30 1//5 2//15 1//6 1 0 0
-                    1//5 4//15 1//10 1//5 3//10 3//10 0 1 0 1//10 1//15 3//10 3//10 7//30 1//5 0 1 0 1//10 1//5 1//5 1//30 1//5 3//10 0 1 0
-                    4//15 1//30 1//5 1//5 7//30 4//15 0 0 1 2//15 7//30 1//5 1//3 2//15 1//6 0 0 1 1//6 1//3 4//15 3//10 1//30 3//10 0 0 1
-                ],
-                upper = N[
-                    7//15 17//30 13//30 3//5 17//30 17//30 1 0 0 17//30 13//30 3//5 2//3 11//30 7//15 1 0 0 0 1//2 17//30 13//30 7//15 13//30 1 0 0
-                    8//15 1//2 3//5 7//15 8//15 17//30 0 1 0 2//3 17//30 11//30 7//15 19//30 19//30 0 1 0 13//15 1//2 17//30 13//30 3//5 11//30 0 1 0
-                    11//30 1//3 2//5 8//15 7//15 3//5 0 0 1 2//3 17//30 2//3 8//15 2//15 3//5 0 0 1 2//3 3//5 17//30 2//3 7//15 8//15 0 0 1
-                ]
-            ), state_indices, action_indices, state_vars, action_vars)
-            
-            marginal2 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    1//10 1//15 3//10 0 1//6 1//15 0 0 0 1//15 1//6 1//6 1//30 1//10 1//10 0 0 0 1//3 2//15 3//10 4//15 2//15 2//15 0 0 0
-                    3//10 1//5 3//10 2//15 0 1//30 0 0 0 0 1//15 1//30 7//30 1//30 1//15 0 0 0 7//30 1//15 1//6 1//30 1//10 1//15 0 0 0
-                    3//10 4//15 1//10 3//10 2//15 1//3 1 1 1 3//10 1//10 1//6 3//10 7//30 1//6 1 1 1 1//15 1//15 1//10 1//5 1//5 4//15 1 1 1
-                ],
-                upper = N[
-                    2//5 17//30 3//5 11//30 3//5 7//15 0 0 0 19//30 2//5 3//5 2//3 2//3 8//15 0 0 0 8//15 19//30 8//15 8//15 13//30 13//30 0 0 0
-                    1//3 13//30 11//30 2//5 2//3 2//3 0 0 0 0 13//30 1//2 17//30 17//30 1//3 0 0 0 2//5 1//3 13//30 11//30 8//15 1//3 0 0 0
-                    17//30 3//5 8//15 1//2 7//15 1//2 1 1 1 2//3 17//30 11//30 2//5 1//2 7//15 1 1 1 2//5 17//30 11//30 2//5 11//30 2//3 1 1 1
-                ]
-            ), state_indices, action_indices, state_vars, action_vars)
-            
-            marginal3 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    4//15 1//5 3//10 3//10 4//15 7//30 1 1 1 1//5 4//15 7//30 1//6 1//5 0 0 0 0 1//15 1//30 3//10 1//3 2//15 1//15 0 0 0
-                    2//15 4//15 1//10 1//30 7//30 2//15 0 0 0 1//15 1//30 3//10 1//3 1//5 1//10 1 1 1 2//15 1//30 2//15 4//15 0 4//15 0 0 0
-                    1//5 1//3 3//10 1//10 1//15 1//10 0 0 0 1//30 1//5 2//15 7//30 1//3 2//15 0 0 0 1//10 1//6 3//10 1//5 7//30 1//30 1 1 1
-                ],
-                upper = N[
-                    3//5 17//30 1//2 3//5 19//30 2//5 1 1 1 8//15 1//3 11//30 2//5 17//30 13//30 0 0 0 2//5 3//5 3//5 11//30 1//2 11//30 0 0 0
-                    3//5 2//3 13//30 19//30 1//3 2//5 0 0 0 17//30 7//15 11//30 3//5 19//30 7//15 1 1 1 2//5 8//15 17//30 11//30 19//30 13//30 0 0 0
-                    3//5 2//3 1//2 1//2 2//3 7//15 0 0 0 3//5 3//5 1//2 1//3 2//5 8//15 0 0 0 2//5 11//30 1//3 8//15 7//15 13//30 1 1 1
-                ]
-            ), state_indices, action_indices, state_vars, action_vars)
+                # Explicit
+                marginal1 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        1//15 3//10 1//15 3//10 1//30 1//3 1 0 0 7//30 4//15 1//6 1//5 1//10 1//5 1 0 0 0 7//30 7//30 1//5 2//15 1//6 1 0 0
+                        1//5 4//15 1//10 1//5 3//10 3//10 0 1 0 1//10 1//15 3//10 3//10 7//30 1//5 0 1 0 1//10 1//5 1//5 1//30 1//5 3//10 0 1 0
+                        4//15 1//30 1//5 1//5 7//30 4//15 0 0 1 2//15 7//30 1//5 1//3 2//15 1//6 0 0 1 1//6 1//3 4//15 3//10 1//30 3//10 0 0 1
+                    ],
+                    upper = N[
+                        7//15 17//30 13//30 3//5 17//30 17//30 1 0 0 17//30 13//30 3//5 2//3 11//30 7//15 1 0 0 0 1//2 17//30 13//30 7//15 13//30 1 0 0
+                        8//15 1//2 3//5 7//15 8//15 17//30 0 1 0 2//3 17//30 11//30 7//15 19//30 19//30 0 1 0 13//15 1//2 17//30 13//30 3//5 11//30 0 1 0
+                        11//30 1//3 2//5 8//15 7//15 3//5 0 0 1 2//3 17//30 2//3 8//15 2//15 3//5 0 0 1 2//3 3//5 17//30 2//3 7//15 8//15 0 0 1
+                    ]
+                ), state_indices, action_indices, state_vars, action_vars)
+                
+                marginal2 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        1//10 1//15 3//10 0 1//6 1//15 0 0 0 1//15 1//6 1//6 1//30 1//10 1//10 0 0 0 1//3 2//15 3//10 4//15 2//15 2//15 0 0 0
+                        3//10 1//5 3//10 2//15 0 1//30 0 0 0 0 1//15 1//30 7//30 1//30 1//15 0 0 0 7//30 1//15 1//6 1//30 1//10 1//15 0 0 0
+                        3//10 4//15 1//10 3//10 2//15 1//3 1 1 1 3//10 1//10 1//6 3//10 7//30 1//6 1 1 1 1//15 1//15 1//10 1//5 1//5 4//15 1 1 1
+                    ],
+                    upper = N[
+                        2//5 17//30 3//5 11//30 3//5 7//15 0 0 0 19//30 2//5 3//5 2//3 2//3 8//15 0 0 0 8//15 19//30 8//15 8//15 13//30 13//30 0 0 0
+                        1//3 13//30 11//30 2//5 2//3 2//3 0 0 0 0 13//30 1//2 17//30 17//30 1//3 0 0 0 2//5 1//3 13//30 11//30 8//15 1//3 0 0 0
+                        17//30 3//5 8//15 1//2 7//15 1//2 1 1 1 2//3 17//30 11//30 2//5 1//2 7//15 1 1 1 2//5 17//30 11//30 2//5 11//30 2//3 1 1 1
+                    ]
+                ), state_indices, action_indices, state_vars, action_vars)
+                
+                marginal3 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        4//15 1//5 3//10 3//10 4//15 7//30 1 1 1 1//5 4//15 7//30 1//6 1//5 0 0 0 0 1//15 1//30 3//10 1//3 2//15 1//15 0 0 0
+                        2//15 4//15 1//10 1//30 7//30 2//15 0 0 0 1//15 1//30 3//10 1//3 1//5 1//10 1 1 1 2//15 1//30 2//15 4//15 0 4//15 0 0 0
+                        1//5 1//3 3//10 1//10 1//15 1//10 0 0 0 1//30 1//5 2//15 7//30 1//3 2//15 0 0 0 1//10 1//6 3//10 1//5 7//30 1//30 1 1 1
+                    ],
+                    upper = N[
+                        3//5 17//30 1//2 3//5 19//30 2//5 1 1 1 8//15 1//3 11//30 2//5 17//30 13//30 0 0 0 2//5 3//5 3//5 11//30 1//2 11//30 0 0 0
+                        3//5 2//3 13//30 19//30 1//3 2//5 0 0 0 17//30 7//15 11//30 3//5 19//30 7//15 1 1 1 2//5 8//15 17//30 11//30 19//30 13//30 0 0 0
+                        3//5 2//3 1//2 1//2 2//3 7//15 0 0 0 3//5 3//5 1//2 1//3 2//5 8//15 0 0 0 2//5 11//30 1//3 8//15 7//15 13//30 1 1 1
+                    ]
+                ), state_indices, action_indices, state_vars, action_vars)
 
-            mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, marginal2, marginal3))
+                mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, marginal2, marginal3))
 
-            # Implicit
-            marginal1 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    1//15 3//10 1//15 3//10 1//30 1//3 7//30 4//15 1//6 1//5 1//10 1//5 0 7//30 7//30 1//5 2//15 1//6
-                    1//5 4//15 1//10 1//5 3//10 3//10 1//10 1//15 3//10 3//10 7//30 1//5 1//10 1//5 1//5 1//30 1//5 3//10
-                    4//15 1//30 1//5 1//5 7//30 4//15 2//15 7//30 1//5 1//3 2//15 1//6 1//6 1//3 4//15 3//10 1//30 3//10
-                ],
-                upper = N[
-                    7//15 17//30 13//30 3//5 17//30 17//30 17//30 13//30 3//5 2//3 11//30 7//15 0 1//2 17//30 13//30 7//15 13//30
-                    8//15 1//2 3//5 7//15 8//15 17//30 2//3 17//30 11//30 7//15 19//30 19//30 13//15 1//2 17//30 13//30 3//5 11//30
-                    11//30 1//3 2//5 8//15 7//15 3//5 2//3 17//30 2//3 8//15 2//15 3//5 2//3 3//5 17//30 2//3 7//15 8//15
-                ]   
-            ), state_indices, action_indices, source_dims, action_vars)
+                # Implicit
+                marginal1 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        1//15 3//10 1//15 3//10 1//30 1//3 7//30 4//15 1//6 1//5 1//10 1//5 0 7//30 7//30 1//5 2//15 1//6
+                        1//5 4//15 1//10 1//5 3//10 3//10 1//10 1//15 3//10 3//10 7//30 1//5 1//10 1//5 1//5 1//30 1//5 3//10
+                        4//15 1//30 1//5 1//5 7//30 4//15 2//15 7//30 1//5 1//3 2//15 1//6 1//6 1//3 4//15 3//10 1//30 3//10
+                    ],
+                    upper = N[
+                        7//15 17//30 13//30 3//5 17//30 17//30 17//30 13//30 3//5 2//3 11//30 7//15 0 1//2 17//30 13//30 7//15 13//30
+                        8//15 1//2 3//5 7//15 8//15 17//30 2//3 17//30 11//30 7//15 19//30 19//30 13//15 1//2 17//30 13//30 3//5 11//30
+                        11//30 1//3 2//5 8//15 7//15 3//5 2//3 17//30 2//3 8//15 2//15 3//5 2//3 3//5 17//30 2//3 7//15 8//15
+                    ]   
+                ), state_indices, action_indices, source_dims, action_vars)
 
-            marginal2 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    1//10 1//15 3//10 0 1//6 1//15 1//15 1//6 1//6 1//30 1//10 1//10 1//3 2//15 3//10 4//15 2//15 2//15
-                    3//10 1//5 3//10 2//15 0 1//30 0 1//15 1//30 7//30 1//30 1//15 7//30 1//15 1//6 1//30 1//10 1//15
-                    3//10 4//15 1//10 3//10 2//15 1//3 3//10 1//10 1//6 3//10 7//30 1//6 1//15 1//15 1//10 1//5 1//5 4//15
-                ],
-                upper = N[
-                    2//5 17//30 3//5 11//30 3//5 7//15 19//30 2//5 3//5 2//3 2//3 8//15 8//15 19//30 8//15 8//15 13//30 13//30
-                    1//3 13//30 11//30 2//5 2//3 2//3 0 13//30 1//2 17//30 17//30 1//3 2//5 1//3 13//30 11//30 8//15 1//3
-                    17//30 3//5 8//15 1//2 7//15 1//2 2//3 17//30 11//30 2//5 1//2 7//15 2//5 17//30 11//30 2//5 11//30 2//3
-                ]
-            ), state_indices, action_indices, source_dims, action_vars)
+                marginal2 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        1//10 1//15 3//10 0 1//6 1//15 1//15 1//6 1//6 1//30 1//10 1//10 1//3 2//15 3//10 4//15 2//15 2//15
+                        3//10 1//5 3//10 2//15 0 1//30 0 1//15 1//30 7//30 1//30 1//15 7//30 1//15 1//6 1//30 1//10 1//15
+                        3//10 4//15 1//10 3//10 2//15 1//3 3//10 1//10 1//6 3//10 7//30 1//6 1//15 1//15 1//10 1//5 1//5 4//15
+                    ],
+                    upper = N[
+                        2//5 17//30 3//5 11//30 3//5 7//15 19//30 2//5 3//5 2//3 2//3 8//15 8//15 19//30 8//15 8//15 13//30 13//30
+                        1//3 13//30 11//30 2//5 2//3 2//3 0 13//30 1//2 17//30 17//30 1//3 2//5 1//3 13//30 11//30 8//15 1//3
+                        17//30 3//5 8//15 1//2 7//15 1//2 2//3 17//30 11//30 2//5 1//2 7//15 2//5 17//30 11//30 2//5 11//30 2//3
+                    ]
+                ), state_indices, action_indices, source_dims, action_vars)
 
-            marginal3 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    4//15 1//5 3//10 3//10 4//15 7//30 1//5 4//15 7//30 1//6 1//5 0 1//15 1//30 3//10 1//3 2//15 1//15
-                    2//15 4//15 1//10 1//30 7//30 2//15 1//15 1//30 3//10 1//3 1//5 1//10 2//15 1//30 2//15 4//15 0 4//15
-                    1//5 1//3 3//10 1//10 1//15 1//10 1//30 1//5 2//15 7//30 1//3 2//15 1//10 1//6 3//10 1//5 7//30 1//30
-                ],
-                upper = N[
-                    3//5 17//30 1//2 3//5 19//30 2//5 8//15 1//3 11//30 2//5 17//30 13//30 2//5 3//5 3//5 11//30 1//2 11//30
-                    3//5 2//3 13//30 19//30 1//3 2//5 17//30 7//15 11//30 3//5 19//30 7//15 2//5 8//15 17//30 11//30 19//30 13//30
-                    3//5 2//3 1//2 1//2 2//3 7//15 3//5 3//5 1//2 1//3 2//5 8//15 2//5 11//30 1//3 8//15 7//15 13//30
-                ]
-            ), state_indices, action_indices, source_dims, action_vars)
+                marginal3 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        4//15 1//5 3//10 3//10 4//15 7//30 1//5 4//15 7//30 1//6 1//5 0 1//15 1//30 3//10 1//3 2//15 1//15
+                        2//15 4//15 1//10 1//30 7//30 2//15 1//15 1//30 3//10 1//3 1//5 1//10 2//15 1//30 2//15 4//15 0 4//15
+                        1//5 1//3 3//10 1//10 1//15 1//10 1//30 1//5 2//15 7//30 1//3 2//15 1//10 1//6 3//10 1//5 7//30 1//30
+                    ],
+                    upper = N[
+                        3//5 17//30 1//2 3//5 19//30 2//5 8//15 1//3 11//30 2//5 17//30 13//30 2//5 3//5 3//5 11//30 1//2 11//30
+                        3//5 2//3 13//30 19//30 1//3 2//5 17//30 7//15 11//30 3//5 19//30 7//15 2//5 8//15 17//30 11//30 19//30 13//30
+                        3//5 2//3 1//2 1//2 2//3 7//15 3//5 3//5 1//2 1//3 2//5 8//15 2//5 11//30 1//3 8//15 7//15 13//30
+                    ]
+                ), state_indices, action_indices, source_dims, action_vars)
 
-            implicit_mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, source_dims, (marginal1, marginal2, marginal3))
+                implicit_mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, source_dims, (marginal1, marginal2, marginal3))
 
-            prop = FiniteTimeSafety([(i, 3, j) for i in 1:3 for j in 1:3], 10)
-            spec = Specification(prop, Pessimistic, Maximize)
-            prob = VerificationProblem(mdp, spec)
-            implicit_prob = VerificationProblem(implicit_mdp, spec)
+                prop = FiniteTimeSafety([(i, 3, j) for i in 1:3 for j in 1:3], 10)
+                spec = Specification(prop, Pessimistic, Maximize)
+                prob = VerificationProblem(mdp, spec)
+                implicit_prob = VerificationProblem(implicit_mdp, spec)
 
-            V, k, res = solve(prob)
-            V_implicit, k_implicit, res_implicit = solve(implicit_prob)
+                V, k, res = solve(prob, alg)
+                V_implicit, k_implicit, res_implicit = solve(implicit_prob, alg)
 
-            @test V ≈ V_implicit
-            @test k == k_implicit
-            @test res ≈ res_implicit
-        end
+                @test V ≈ V_implicit
+                @test k == k_implicit
+                @test res ≈ res_implicit
+            end
 
-        @testset "last dimension" begin
-            state_indices = (1, 2, 3)
-            action_indices = (1,)
-            state_vars = (3, 3, 3)
-            source_dims = (3, 3, 2)
-            action_vars = (1,)
+            @testset "last dimension" begin
+                state_indices = (1, 2, 3)
+                action_indices = (1,)
+                state_vars = (3, 3, 3)
+                source_dims = (3, 3, 2)
+                action_vars = (1,)
 
-            # Explicit
-            marginal1 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    1//15 3//10 1//15 3//10 1//30 1//3 7//30 4//15 1//6 1//5 1//10 1//5 0 7//30 7//30 1//5 2//15 1//6 1 0 0 1 0 0 1 0 0
-                    1//5 4//15 1//10 1//5 3//10 3//10 1//10 1//15 3//10 3//10 7//30 1//5 1//10 1//5 1//5 1//30 1//5 3//10 0 1 0 0 1 0 0 1 0
-                    4//15 1//30 1//5 1//5 7//30 4//15 2//15 7//30 1//5 1//3 2//15 1//6 1//6 1//3 4//15 3//10 1//30 3//10 0 0 1 0 0 1 0 0 1
-                ],
-                upper = N[
-                    7//15 17//30 13//30 3//5 17//30 17//30 17//30 13//30 3//5 2//3 11//30 7//15 0 1//2 17//30 13//30 7//15 13//30 1 0 0 1 0 0 1 0 0
-                    8//15 1//2 3//5 7//15 8//15 17//30 2//3 17//30 11//30 7//15 19//30 19//30 13//15 1//2 17//30 13//30 3//5 11//30 0 1 0 0 1 0 0 1 0
-                    11//30 1//3 2//5 8//15 7//15 3//5 2//3 17//30 2//3 8//15 2//15 3//5 2//3 3//5 17//30 2//3 7//15 8//15 0 0 1 0 0 1 0 0 1
-                ]
-            ), state_indices, action_indices, state_vars, action_vars)
+                # Explicit
+                marginal1 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        1//15 3//10 1//15 3//10 1//30 1//3 7//30 4//15 1//6 1//5 1//10 1//5 0 7//30 7//30 1//5 2//15 1//6 1 0 0 1 0 0 1 0 0
+                        1//5 4//15 1//10 1//5 3//10 3//10 1//10 1//15 3//10 3//10 7//30 1//5 1//10 1//5 1//5 1//30 1//5 3//10 0 1 0 0 1 0 0 1 0
+                        4//15 1//30 1//5 1//5 7//30 4//15 2//15 7//30 1//5 1//3 2//15 1//6 1//6 1//3 4//15 3//10 1//30 3//10 0 0 1 0 0 1 0 0 1
+                    ],
+                    upper = N[
+                        7//15 17//30 13//30 3//5 17//30 17//30 17//30 13//30 3//5 2//3 11//30 7//15 0 1//2 17//30 13//30 7//15 13//30 1 0 0 1 0 0 1 0 0
+                        8//15 1//2 3//5 7//15 8//15 17//30 2//3 17//30 11//30 7//15 19//30 19//30 13//15 1//2 17//30 13//30 3//5 11//30 0 1 0 0 1 0 0 1 0
+                        11//30 1//3 2//5 8//15 7//15 3//5 2//3 17//30 2//3 8//15 2//15 3//5 2//3 3//5 17//30 2//3 7//15 8//15 0 0 1 0 0 1 0 0 1
+                    ]
+                ), state_indices, action_indices, state_vars, action_vars)
 
-            marginal2 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    1//10 1//15 3//10 0 1//6 1//15 1//15 1//6 1//6 1//30 1//10 1//10 1//3 2//15 3//10 4//15 2//15 2//15 1 1 1 0 0 0 0 0 0
-                    3//10 1//5 3//10 2//15 0 1//30 0 1//15 1//30 7//30 1//30 1//15 7//30 1//15 1//6 1//30 1//10 1//15 0 0 0 1 1 1 0 0 0
-                    3//10 4//15 1//10 3//10 2//15 1//3 3//10 1//10 1//6 3//10 7//30 1//6 1//15 1//15 1//10 1//5 1//5 4//15 0 0 0 0 0 0 1 1 1
-                ],
-                upper = N[
-                    2//5 17//30 3//5 11//30 3//5 7//15 19//30 2//5 3//5 2//3 2//3 8//15 8//15 19//30 8//15 8//15 13//30 13//30 1 1 1 0 0 0 0 0 0
-                    1//3 13//30 11//30 2//5 2//3 2//3 0 13//30 1//2 17//30 17//30 1//3 2//5 1//3 13//30 11//30 8//15 1//3 0 0 0 1 1 1 0 0 0
-                    17//30 3//5 8//15 1//2 7//15 1//2 2//3 17//30 11//30 2//5 1//2 7//15 2//5 17//30 11//30 2//5 11//30 2//3 0 0 0 0 0 0 1 1 1
-                ]
-            ), state_indices, action_indices, state_vars, action_vars)
+                marginal2 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        1//10 1//15 3//10 0 1//6 1//15 1//15 1//6 1//6 1//30 1//10 1//10 1//3 2//15 3//10 4//15 2//15 2//15 1 1 1 0 0 0 0 0 0
+                        3//10 1//5 3//10 2//15 0 1//30 0 1//15 1//30 7//30 1//30 1//15 7//30 1//15 1//6 1//30 1//10 1//15 0 0 0 1 1 1 0 0 0
+                        3//10 4//15 1//10 3//10 2//15 1//3 3//10 1//10 1//6 3//10 7//30 1//6 1//15 1//15 1//10 1//5 1//5 4//15 0 0 0 0 0 0 1 1 1
+                    ],
+                    upper = N[
+                        2//5 17//30 3//5 11//30 3//5 7//15 19//30 2//5 3//5 2//3 2//3 8//15 8//15 19//30 8//15 8//15 13//30 13//30 1 1 1 0 0 0 0 0 0
+                        1//3 13//30 11//30 2//5 2//3 2//3 0 13//30 1//2 17//30 17//30 1//3 2//5 1//3 13//30 11//30 8//15 1//3 0 0 0 1 1 1 0 0 0
+                        17//30 3//5 8//15 1//2 7//15 1//2 2//3 17//30 11//30 2//5 1//2 7//15 2//5 17//30 11//30 2//5 11//30 2//3 0 0 0 0 0 0 1 1 1
+                    ]
+                ), state_indices, action_indices, state_vars, action_vars)
 
-            marginal3 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    4//15 1//5 3//10 3//10 4//15 7//30 1//5 4//15 7//30 1//6 1//5 0 1//15 1//30 3//10 1//3 2//15 1//15 0 0 0 0 0 0 0 0 0
-                    2//15 4//15 1//10 1//30 7//30 2//15 1//15 1//30 3//10 1//3 1//5 1//10 2//15 1//30 2//15 4//15 0 4//15 0 0 0 0 0 0 0 0 0
-                    1//5 1//3 3//10 1//10 1//15 1//10 1//30 1//5 2//15 7//30 1//3 2//15 1//10 1//6 3//10 1//5 7//30 1//30 1 1 1 1 1 1 1 1 1
-                ],
-                upper = N[
-                    3//5 17//30 1//2 3//5 19//30 2//5 8//15 1//3 11//30 2//5 17//30 13//30 2//5 3//5 3//5 11//30 1//2 11//30 0 0 0 0 0 0 0 0 0
-                    3//5 2//3 13//30 19//30 1//3 2//5 17//30 7//15 11//30 3//5 19//30 7//15 2//5 8//15 17//30 11//30 19//30 13//30 0 0 0 0 0 0 0 0 0
-                    3//5 2//3 1//2 1//2 2//3 7//15 3//5 3//5 1//2 1//3 2//5 8//15 2//5 11//30 1//3 8//15 7//15 13//30 1 1 1 1 1 1 1 1 1
-                ]
-            ), state_indices, action_indices, state_vars, action_vars)
+                marginal3 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        4//15 1//5 3//10 3//10 4//15 7//30 1//5 4//15 7//30 1//6 1//5 0 1//15 1//30 3//10 1//3 2//15 1//15 0 0 0 0 0 0 0 0 0
+                        2//15 4//15 1//10 1//30 7//30 2//15 1//15 1//30 3//10 1//3 1//5 1//10 2//15 1//30 2//15 4//15 0 4//15 0 0 0 0 0 0 0 0 0
+                        1//5 1//3 3//10 1//10 1//15 1//10 1//30 1//5 2//15 7//30 1//3 2//15 1//10 1//6 3//10 1//5 7//30 1//30 1 1 1 1 1 1 1 1 1
+                    ],
+                    upper = N[
+                        3//5 17//30 1//2 3//5 19//30 2//5 8//15 1//3 11//30 2//5 17//30 13//30 2//5 3//5 3//5 11//30 1//2 11//30 0 0 0 0 0 0 0 0 0
+                        3//5 2//3 13//30 19//30 1//3 2//5 17//30 7//15 11//30 3//5 19//30 7//15 2//5 8//15 17//30 11//30 19//30 13//30 0 0 0 0 0 0 0 0 0
+                        3//5 2//3 1//2 1//2 2//3 7//15 3//5 3//5 1//2 1//3 2//5 8//15 2//5 11//30 1//3 8//15 7//15 13//30 1 1 1 1 1 1 1 1 1
+                    ]
+                ), state_indices, action_indices, state_vars, action_vars)
 
-            mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, marginal2, marginal3))
+                mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, marginal2, marginal3))
 
-            # Implicit
-            marginal1 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    1//15 3//10 1//15 3//10 1//30 1//3 7//30 4//15 1//6 1//5 1//10 1//5 0 7//30 7//30 1//5 2//15 1//6
-                    1//5 4//15 1//10 1//5 3//10 3//10 1//10 1//15 3//10 3//10 7//30 1//5 1//10 1//5 1//5 1//30 1//5 3//10
-                    4//15 1//30 1//5 1//5 7//30 4//15 2//15 7//30 1//5 1//3 2//15 1//6 1//6 1//3 4//15 3//10 1//30 3//10
-                ],
-                upper = N[
-                    7//15 17//30 13//30 3//5 17//30 17//30 17//30 13//30 3//5 2//3 11//30 7//15 0 1//2 17//30 13//30 7//15 13//30
-                    8//15 1//2 3//5 7//15 8//15 17//30 2//3 17//30 11//30 7//15 19//30 19//30 13//15 1//2 17//30 13//30 3//5 11//30
-                    11//30 1//3 2//5 8//15 7//15 3//5 2//3 17//30 2//3 8//15 2//15 3//5 2//3 3//5 17//30 2//3 7//15 8//15
-                ]
-            ), state_indices, action_indices, source_dims, action_vars)
+                # Implicit
+                marginal1 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        1//15 3//10 1//15 3//10 1//30 1//3 7//30 4//15 1//6 1//5 1//10 1//5 0 7//30 7//30 1//5 2//15 1//6
+                        1//5 4//15 1//10 1//5 3//10 3//10 1//10 1//15 3//10 3//10 7//30 1//5 1//10 1//5 1//5 1//30 1//5 3//10
+                        4//15 1//30 1//5 1//5 7//30 4//15 2//15 7//30 1//5 1//3 2//15 1//6 1//6 1//3 4//15 3//10 1//30 3//10
+                    ],
+                    upper = N[
+                        7//15 17//30 13//30 3//5 17//30 17//30 17//30 13//30 3//5 2//3 11//30 7//15 0 1//2 17//30 13//30 7//15 13//30
+                        8//15 1//2 3//5 7//15 8//15 17//30 2//3 17//30 11//30 7//15 19//30 19//30 13//15 1//2 17//30 13//30 3//5 11//30
+                        11//30 1//3 2//5 8//15 7//15 3//5 2//3 17//30 2//3 8//15 2//15 3//5 2//3 3//5 17//30 2//3 7//15 8//15
+                    ]
+                ), state_indices, action_indices, source_dims, action_vars)
 
-            marginal2 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    1//10 1//15 3//10 0 1//6 1//15 1//15 1//6 1//6 1//30 1//10 1//10 1//3 2//15 3//10 4//15 2//15 2//15
-                    3//10 1//5 3//10 2//15 0 1//30 0 1//15 1//30 7//30 1//30 1//15 7//30 1//15 1//6 1//30 1//10 1//15
-                    3//10 4//15 1//10 3//10 2//15 1//3 3//10 1//10 1//6 3//10 7//30 1//6 1//15 1//15 1//10 1//5 1//5 4//15
-                ],
-                upper = N[
-                    2//5 17//30 3//5 11//30 3//5 7//15 19//30 2//5 3//5 2//3 2//3 8//15 8//15 19//30 8//15 8//15 13//30 13//30
-                    1//3 13//30 11//30 2//5 2//3 2//3 0 13//30 1//2 17//30 17//30 1//3 2//5 1//3 13//30 11//30 8//15 1//3
-                    17//30 3//5 8//15 1//2 7//15 1//2 2//3 17//30 11//30 2//5 1//2 7//15 2//5 17//30 11//30 2//5 11//30 2//3
-                ]
-            ), state_indices, action_indices, source_dims, action_vars)
+                marginal2 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        1//10 1//15 3//10 0 1//6 1//15 1//15 1//6 1//6 1//30 1//10 1//10 1//3 2//15 3//10 4//15 2//15 2//15
+                        3//10 1//5 3//10 2//15 0 1//30 0 1//15 1//30 7//30 1//30 1//15 7//30 1//15 1//6 1//30 1//10 1//15
+                        3//10 4//15 1//10 3//10 2//15 1//3 3//10 1//10 1//6 3//10 7//30 1//6 1//15 1//15 1//10 1//5 1//5 4//15
+                    ],
+                    upper = N[
+                        2//5 17//30 3//5 11//30 3//5 7//15 19//30 2//5 3//5 2//3 2//3 8//15 8//15 19//30 8//15 8//15 13//30 13//30
+                        1//3 13//30 11//30 2//5 2//3 2//3 0 13//30 1//2 17//30 17//30 1//3 2//5 1//3 13//30 11//30 8//15 1//3
+                        17//30 3//5 8//15 1//2 7//15 1//2 2//3 17//30 11//30 2//5 1//2 7//15 2//5 17//30 11//30 2//5 11//30 2//3
+                    ]
+                ), state_indices, action_indices, source_dims, action_vars)
 
-            marginal3 = Marginal(IntervalAmbiguitySets(;
-                lower = N[
-                    4//15 1//5 3//10 3//10 4//15 7//30 1//5 4//15 7//30 1//6 1//5 0 1//15 1//30 3//10 1//3 2//15 1//15
-                    2//15 4//15 1//10 1//30 7//30 2//15 1//15 1//30 3//10 1//3 1//5 1//10 2//15 1//30 2//15 4//15 0 4//15
-                    1//5 1//3 3//10 1//10 1//15 1//10 1//30 1//5 2//15 7//30 1//3 2//15 1//10 1//6 3//10 1//5 7//30 1//30
-                ],
-                upper = N[
-                    3//5 17//30 1//2 3//5 19//30 2//5 8//15 1//3 11//30 2//5 17//30 13//30 2//5 3//5 3//5 11//30 1//2 11//30
-                    3//5 2//3 13//30 19//30 1//3 2//5 17//30 7//15 11//30 3//5 19//30 7//15 2//5 8//15 17//30 11//30 19//30 13//30
-                    3//5 2//3 1//2 1//2 2//3 7//15 3//5 3//5 1//2 1//3 2//5 8//15 2//5 11//30 1//3 8//15 7//15 13//30
-                ]
-            ), state_indices, action_indices, source_dims, action_vars)
+                marginal3 = Marginal(IntervalAmbiguitySets(;
+                    lower = N[
+                        4//15 1//5 3//10 3//10 4//15 7//30 1//5 4//15 7//30 1//6 1//5 0 1//15 1//30 3//10 1//3 2//15 1//15
+                        2//15 4//15 1//10 1//30 7//30 2//15 1//15 1//30 3//10 1//3 1//5 1//10 2//15 1//30 2//15 4//15 0 4//15
+                        1//5 1//3 3//10 1//10 1//15 1//10 1//30 1//5 2//15 7//30 1//3 2//15 1//10 1//6 3//10 1//5 7//30 1//30
+                    ],
+                    upper = N[
+                        3//5 17//30 1//2 3//5 19//30 2//5 8//15 1//3 11//30 2//5 17//30 13//30 2//5 3//5 3//5 11//30 1//2 11//30
+                        3//5 2//3 13//30 19//30 1//3 2//5 17//30 7//15 11//30 3//5 19//30 7//15 2//5 8//15 17//30 11//30 19//30 13//30
+                        3//5 2//3 1//2 1//2 2//3 7//15 3//5 3//5 1//2 1//3 2//5 8//15 2//5 11//30 1//3 8//15 7//15 13//30
+                    ]
+                ), state_indices, action_indices, source_dims, action_vars)
 
-            implicit_mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, source_dims, (marginal1, marginal2, marginal3))
+                implicit_mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, source_dims, (marginal1, marginal2, marginal3))
 
-            prop = FiniteTimeSafety([(i, j, 3) for i in 1:3 for j in 1:3], 10)
-            spec = Specification(prop, Pessimistic, Maximize)
-            prob = VerificationProblem(mdp, spec)
-            implicit_prob = VerificationProblem(implicit_mdp, spec)
+                prop = FiniteTimeSafety([(i, j, 3) for i in 1:3 for j in 1:3], 10)
+                spec = Specification(prop, Pessimistic, Maximize)
+                prob = VerificationProblem(mdp, spec)
+                implicit_prob = VerificationProblem(implicit_mdp, spec)
 
-            V, k, res = solve(prob)
-            V_implicit, k_implicit, res_implicit = solve(implicit_prob)
+                V, k, res = solve(prob, alg)
+                V_implicit, k_implicit, res_implicit = solve(implicit_prob, alg)
 
-            @test V ≈ V_implicit
-            @test k == k_implicit
-            @test res ≈ res_implicit
-        end
-    end
-
-    # 4-D abstraction
-    @testset "4D abstraction" begin
-        rng = MersenneTwister(995)
-
-        prob_lower = [rand(rng, N, 3, 81) ./ N(3) for _ in 1:4]
-        prob_upper = [(rand(rng, N, 3, 81) .+ N(1)) ./ N(3) for _ in 1:4]
-
-        ambiguity_sets = ntuple(
-            i -> IntervalAmbiguitySets(;
-                lower = prob_lower[i],
-                upper = prob_upper[i],
-            ),
-            4,
-        )
-
-        marginals = ntuple(
-            i -> Marginal(ambiguity_sets[i], (1, 2, 3, 4), (1,), (3, 3, 3, 3), (1,)),
-            4,
-        )
-
-        mdp = FactoredRobustMarkovDecisionProcess((3, 3, 3, 3), (1,), marginals)
-
-        prop = FiniteTimeReachability([(3, 3, 3, 3)], 10)
-        spec = Specification(prop, Pessimistic, Maximize)
-        prob = VerificationProblem(mdp, spec)
-
-        V_ortho, it_ortho, res_ortho = solve(prob)
-
-        @test V_ortho[3, 3, 3, 3] ≈ one(N)
-        @test all(V_ortho .>= zero(N))
-        @test all(V_ortho .<= one(N))
-
-        # Test against the naive construction
-        prob_lower_simple = zeros(N, 81, 81)
-        prob_upper_simple = zeros(N, 81, 81)
-
-        lin = LinearIndices((3, 3, 3, 3))
-        act_idx = CartesianIndex(1)
-        for I in CartesianIndices((3, 3, 3, 3))
-            for J in CartesianIndices((3, 3, 3, 3))
-                marginal_ambiguity_sets = map(marginal -> marginal[act_idx, I], marginals)
-
-                prob_lower_simple[lin[J], lin[I]] = prod(
-                    lower(marginal_ambiguity_sets[i], J[i]) for i in 1:4
-                )
-
-                prob_upper_simple[lin[J], lin[I]] = prod(
-                    upper(marginal_ambiguity_sets[i], J[i]) for i in 1:4
-                )
+                @test V ≈ V_implicit
+                @test k == k_implicit
+                @test res ≈ res_implicit
             end
         end
 
-        ambiguity_set = IntervalAmbiguitySets(;
-            lower = prob_lower_simple,
-            upper = prob_upper_simple,
-        )
+        # 4-D abstraction
+        @testset "4D abstraction" begin
+            rng = MersenneTwister(995)
 
-        imc = IntervalMarkovChain(ambiguity_set)
+            prob_lower = [rand(rng, N, 3, 81) ./ N(3) for _ in 1:4]
+            prob_upper = [(rand(rng, N, 3, 81) .+ N(1)) ./ N(3) for _ in 1:4]
 
-        prop = FiniteTimeReachability([81], 10)
-        spec = Specification(prop, Pessimistic, Maximize)
-        prob = VerificationProblem(imc, spec)
+            ambiguity_sets = ntuple(
+                i -> IntervalAmbiguitySets(;
+                    lower = prob_lower[i],
+                    upper = prob_upper[i],
+                ),
+                4,
+            )
 
-        V_direct, it_direct, res_direct = solve(prob)
-        @test V_direct[81] ≈ one(N)
-        @test all(V_ortho .≥ reshape(V_direct, 3, 3, 3, 3))
-    end
+            marginals = ntuple(
+                i -> Marginal(ambiguity_sets[i], (1, 2, 3, 4), (1,), (3, 3, 3, 3), (1,)),
+                4,
+            )
 
-    @testset "synthesis" begin
-        rng = MersenneTwister(3286)
+            mdp = FactoredRobustMarkovDecisionProcess((3, 3, 3, 3), (1,), marginals)
 
-        num_states_per_axis = 3
-        num_axis = 3
-        num_states = num_states_per_axis^num_axis
-        num_actions = 2
-        num_choices = num_states * num_actions
-        state_indices = (1, 2, 3)
-        action_indices = (1,)
-        state_vars = ntuple(_ -> num_states_per_axis, num_axis)
-        action_vars = (num_actions,)
+            prop = FiniteTimeReachability([(3, 3, 3, 3)], 10)
+            spec = Specification(prop, Pessimistic, Maximize)
+            prob = VerificationProblem(mdp, spec)
 
-        prob_lower = [
-            rand(rng, N, num_states_per_axis, num_choices) ./ num_states_per_axis
-            for _ in 1:num_axis
-        ]
-        prob_upper = [
-            (rand(rng, N, num_states_per_axis, num_choices) .+ N(1)) ./
-            num_states_per_axis for _ in 1:num_axis
-        ]
+            V_ortho, it_ortho, res_ortho = solve(prob, alg)
 
-        ambiguity_sets = ntuple(
-            i -> IntervalAmbiguitySets(;
-                lower = prob_lower[i],
-                upper = prob_upper[i],
-            ),
-            num_axis,
-        )
+            @test V_ortho[3, 3, 3, 3] ≈ one(N)
+            @test all(V_ortho .>= zero(N))
+            @test all(V_ortho .<= one(N))
 
-        marginals = ntuple(
-            i -> Marginal(ambiguity_sets[i], state_indices, action_indices, state_vars, action_vars),
-            num_axis,
-        )
+            # Test against the naive construction
+            prob_lower_simple = zeros(N, 81, 81)
+            prob_upper_simple = zeros(N, 81, 81)
 
-        mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, marginals)
+            lin = LinearIndices((3, 3, 3, 3))
+            act_idx = CartesianIndex(1)
+            for I in CartesianIndices((3, 3, 3, 3))
+                for J in CartesianIndices((3, 3, 3, 3))
+                    marginal_ambiguity_sets = map(marginal -> marginal[act_idx, I], marginals)
 
-        prop = FiniteTimeReachability(
-            [(num_states_per_axis, num_states_per_axis, num_states_per_axis)],
-            10,
-        )
-        spec = Specification(prop, Pessimistic, Maximize)
-        prob = ControlSynthesisProblem(mdp, spec)
+                    prob_lower_simple[lin[J], lin[I]] = prod(
+                        lower(marginal_ambiguity_sets[i], J[i]) for i in 1:4
+                    )
 
-        policy, V, it, res = solve(prob)
-        @test it == 10
-        @test all(V .≥ 0.0)
+                    prob_upper_simple[lin[J], lin[I]] = prod(
+                        upper(marginal_ambiguity_sets[i], J[i]) for i in 1:4
+                    )
+                end
+            end
 
-        # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
-        prob = VerificationProblem(mdp, spec, policy)
-        V_mc, k, res = solve(prob)
-        @test V ≈ V_mc
+            ambiguity_set = IntervalAmbiguitySets(;
+                lower = prob_lower_simple,
+                upper = prob_upper_simple,
+            )
+
+            imc = IntervalMarkovChain(ambiguity_set)
+
+            prop = FiniteTimeReachability([81], 10)
+            spec = Specification(prop, Pessimistic, Maximize)
+            prob = VerificationProblem(imc, spec)
+
+            V_direct, it_direct, res_direct = solve(prob, alg)
+            @test V_direct[81] ≈ one(N)
+            @test all(V_ortho .≥ reshape(V_direct, 3, 3, 3, 3))
+        end
+
+        @testset "synthesis" begin
+            rng = MersenneTwister(3286)
+
+            num_states_per_axis = 3
+            num_axis = 3
+            num_states = num_states_per_axis^num_axis
+            num_actions = 2
+            num_choices = num_states * num_actions
+            state_indices = (1, 2, 3)
+            action_indices = (1,)
+            state_vars = ntuple(_ -> num_states_per_axis, num_axis)
+            action_vars = (num_actions,)
+
+            prob_lower = [
+                rand(rng, N, num_states_per_axis, num_choices) ./ num_states_per_axis
+                for _ in 1:num_axis
+            ]
+            prob_upper = [
+                (rand(rng, N, num_states_per_axis, num_choices) .+ N(1)) ./
+                num_states_per_axis for _ in 1:num_axis
+            ]
+
+            ambiguity_sets = ntuple(
+                i -> IntervalAmbiguitySets(;
+                    lower = prob_lower[i],
+                    upper = prob_upper[i],
+                ),
+                num_axis,
+            )
+
+            marginals = ntuple(
+                i -> Marginal(ambiguity_sets[i], state_indices, action_indices, state_vars, action_vars),
+                num_axis,
+            )
+
+            mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, marginals)
+
+            prop = FiniteTimeReachability(
+                [(num_states_per_axis, num_states_per_axis, num_states_per_axis)],
+                10,
+            )
+            spec = Specification(prop, Pessimistic, Maximize)
+            prob = ControlSynthesisProblem(mdp, spec)
+
+            policy, V, it, res = solve(prob, alg)
+            @test it == 10
+            @test all(V .≥ 0.0)
+
+            # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
+            prob = VerificationProblem(mdp, spec, policy)
+            V_mc, k, res = solve(prob, alg)
+            @test V ≈ V_mc
+        end
     end
 end
 

@@ -108,15 +108,16 @@ function check_initial_states(state_vars, initial_states)
     end
 end
 
-state_variables(rmdp::FactoredRobustMarkovDecisionProcess) = rmdp.state_vars
-action_variables(rmdp::FactoredRobustMarkovDecisionProcess) = rmdp.action_vars
-num_states(rmdp::FactoredRobustMarkovDecisionProcess) = prod(state_variables(rmdp))
-num_actions(rmdp::FactoredRobustMarkovDecisionProcess) = prod(action_variables(rmdp))
-marginals(rmdp::FactoredRobustMarkovDecisionProcess) = rmdp.transition
-initial_states(rmdp::FactoredRobustMarkovDecisionProcess) = rmdp.initial_states
+state_variables(rmdp::FactoredRMDP) = rmdp.state_vars
+state_variables(rmdp::FactoredRMDP, r) = rmdp.state_vars[r]
+action_variables(rmdp::FactoredRMDP) = rmdp.action_vars
+num_states(rmdp::FactoredRMDP) = prod(state_variables(rmdp))
+num_actions(rmdp::FactoredRMDP) = prod(action_variables(rmdp))
+marginals(rmdp::FactoredRMDP) = rmdp.transition
+initial_states(rmdp::FactoredRMDP) = rmdp.initial_states
 
-source_shape(m::FactoredRobustMarkovDecisionProcess) = m.source_dims
-action_shape(m::FactoredRobustMarkovDecisionProcess) = m.action_vars
+source_shape(m::FactoredRMDP) = m.source_dims
+action_shape(m::FactoredRMDP) = m.action_vars
 
 function Base.getindex(rmdp::FactoredRMDP, r)
     return rmdp.transition[r]

@@ -26,8 +26,6 @@ end
 
 construct_workspace(mdp::FactoredRMDP, bellman_alg; kwargs...) = construct_workspace(mdp, modeltype(mdp), bellman_alg; kwargs...)
 
-abstract type IMDPWorkspace end
-
 function construct_workspace(
     sys::FactoredRMDP,
     ::IsIMDP,
@@ -40,7 +38,7 @@ function construct_workspace(
 end
 
 # Dense
-struct DenseIntervalOMaxWorkspace{T <: Real} <: IMDPWorkspace
+struct DenseIntervalOMaxWorkspace{T <: Real}
     budget::Vector{T}
     scratch::Vector{Int32}
     permutation::Vector{Int32}
@@ -58,7 +56,7 @@ end
 permutation(ws::DenseIntervalOMaxWorkspace) = ws.permutation
 scratch(ws::DenseIntervalOMaxWorkspace) = ws.scratch
 
-struct ThreadedDenseIntervalOMaxWorkspace{T <: Real} <: IMDPWorkspace
+struct ThreadedDenseIntervalOMaxWorkspace{T <: Real}
     thread_workspaces::Vector{DenseIntervalOMaxWorkspace{T}}
 end
 
@@ -93,7 +91,7 @@ function construct_workspace(
 end
 
 # Sparse
-struct SparseIntervalOMaxWorkspace{T <: Real} <: IMDPWorkspace
+struct SparseIntervalOMaxWorkspace{T <: Real}
     budget::Vector{T}
     scratch::Vector{Tuple{T, T}}
     values_gaps::Vector{Tuple{T, T}}
@@ -112,7 +110,7 @@ end
 
 scratch(ws::SparseIntervalOMaxWorkspace) = ws.scratch
 
-struct ThreadedSparseIntervalOMaxWorkspace{T <: Real} <: IMDPWorkspace
+struct ThreadedSparseIntervalOMaxWorkspace{T <: Real}
     thread_workspaces::Vector{SparseIntervalOMaxWorkspace{T}}
 end
 
@@ -154,7 +152,7 @@ function FactoredIntervalMcCormickWorkspace(sys, alg)
     return FactoredIntervalMcCormickWorkspace(model, actions)
 end
 
-struct ThreadedFactoredIntervalMcCormickWorkspace{M <: JuMP.Model, T <: Real, AT <: AbstractArray{T}} <: IMDPWorkspace
+struct ThreadedFactoredIntervalMcCormickWorkspace{M <: JuMP.Model, T <: Real, AT <: AbstractArray{T}}
     thread_workspaces::Vector{FactoredIntervalMcCormickWorkspace{M, T, AT}}
 end
 
@@ -176,5 +174,57 @@ function construct_workspace(
         return FactoredIntervalMcCormickWorkspace(sys, alg)
     else
         return ThreadedFactoredIntervalMcCormickWorkspace(sys, alg)
+    end
+end
+
+# Factored interval o-max workspace
+struct FactoredIntervalOMaxWorkspace{N, M, T <: Real, AT <: AbstractArray{T}}
+    expectation_cache::NTuple{M, Vector{T}}
+    values_gaps::Vector{Tuple{T, T}}
+    scratch::Vector{Tuple{T, T}}
+    budgets::NTuple{N, Vector{T}}
+    actions::AT
+end
+
+function FactoredIntervalOMaxWorkspace(sys::FactoredRMDP)
+    N = length(marginals(sys))
+    R = valuetype(sys)
+
+    max_support_per_marginal = Tuple(maximum(map(length ∘ support, ambiguity_sets(marginal))) for marginal in marginals(sys))
+    max_support = maximum(max_support_per_marginal)
+
+    expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in max_support_per_marginal[2:end])
+    values_gaps = Vector{Tuple{R, R}}(undef, max_support)
+    scratch = Vector{Tuple{R, R}}(undef, max_support)
+
+    budgets = ntuple(r -> one(R) .- vec(sum(ambiguity_sets(sys[r]).lower; dims = 1)), N)
+    actions = Array{R}(undef, action_shape(sys))
+
+    return FactoredIntervalOMaxWorkspace(expectation_cache, values_gaps, scratch, budgets, actions)
+end
+scratch(ws::FactoredIntervalOMaxWorkspace) = ws.scratch
+
+struct ThreadedFactoredIntervalOMaxWorkspace{N, M, T <: Real, AT <: AbstractArray{T}}
+    thread_workspaces::Vector{FactoredIntervalOMaxWorkspace{N, M, T, AT}}
+end
+
+function ThreadedFactoredIntervalOMaxWorkspace(sys::FactoredRMDP)
+    nthreads = Threads.nthreads()
+    thread_workspaces = [FactoredIntervalOMaxWorkspace(sys) for _ in 1:nthreads]
+    return ThreadedFactoredIntervalOMaxWorkspace(thread_workspaces)
+end
+Base.getindex(ws::ThreadedFactoredIntervalOMaxWorkspace, i) = ws.thread_workspaces[i]
+
+function construct_workspace(
+    sys::FactoredRMDP,
+    ::IsFIMDP,
+    ::OMaximization;
+    threshold = 10,
+    kwargs...
+)
+    if Threads.nthreads() == 1 || num_states(sys) <= threshold
+        return FactoredIntervalOMaxWorkspace(sys)
+    else
+        return ThreadedFactoredIntervalOMaxWorkspace(sys)
     end
 end
