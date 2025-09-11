@@ -4,7 +4,7 @@ test_files = [
     "vi.jl",
     "imdp.jl",
     "synthesis.jl",
-    # "orthogonal.jl"
+    "factored.jl"
 ]
 
 for f in test_files
