@@ -18,14 +18,36 @@ struct FactoredRobustMarkovDecisionProcess{
         action_vars::NTuple{M, Int32},
         source_dims::NTuple{N, Int32},
         transition::P,
-        initial_states::VI = nothing,
+        initial_states::VI,
+        check::Val{true},
     ) where {N, M, P <: NTuple{N, Marginal}, VI <: InitialStates}
         check_rmdp(state_vars, action_vars, source_dims, transition, initial_states)
 
         return new{N, M, P, VI}(state_vars, action_vars, source_dims, transition, initial_states)
     end
+
+    function FactoredRobustMarkovDecisionProcess(
+        state_vars::NTuple{N, Int32},
+        action_vars::NTuple{M, Int32},
+        source_dims::NTuple{N, Int32},
+        transition::P,
+        initial_states::VI,
+        check::Val{false},
+    ) where {N, M, P <: NTuple{N, Marginal}, VI <: InitialStates}
+        return new{N, M, P, VI}(state_vars, action_vars, source_dims, transition, initial_states)
+    end
 end
 const FactoredRMDP = FactoredRobustMarkovDecisionProcess
+
+function FactoredRMDP(
+    state_vars::NTuple{N, Int32},
+    action_vars::NTuple{M, Int32},
+    source_dims::NTuple{N, Int32},
+    transition::P,
+    initial_states::VI = AllStates(),
+) where {N, M, P <: NTuple{N, Marginal}, VI <: InitialStates}
+    return FactoredRobustMarkovDecisionProcess(state_vars, action_vars, source_dims, transition, initial_states, Val(true))
+end
 
 function FactoredRMDP(
     state_vars::NTuple{N, <:Integer},

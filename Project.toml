@@ -19,6 +19,9 @@ CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
 
+[extensions]
+IntervalMDPCudaExt = ["Adapt", "CUDA", "GPUArrays", "LLVM"]
+
 [compat]
 Adapt = "4"
 CUDA = "5.1"

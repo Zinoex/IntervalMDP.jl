@@ -42,12 +42,18 @@ struct IntervalAmbiguitySets{R, MR <: AbstractMatrix{R}} <: PolytopicAmbiguitySe
     lower::MR
     gap::MR
 
-    function IntervalAmbiguitySets(lower::MR, gap::MR) where {R, MR <: AbstractMatrix{R}}
+    function IntervalAmbiguitySets(lower::MR, gap::MR, check::Val{true}) where {R, MR <: AbstractMatrix{R}}
         checkprobabilities(lower, gap)
 
         return new{R, MR}(lower, gap)
     end
+
+    function IntervalAmbiguitySets(lower::MR, gap::MR, check::Val{false}) where {R, MR <: AbstractMatrix{R}}
+        return new{R, MR}(lower, gap)
+    end
 end
+
+IntervalAmbiguitySets(lower::MR, gap::MR) where {R, MR <: AbstractMatrix{R}} = IntervalAmbiguitySets(lower, gap, Val(true))
 
 # Keyword constructor from lower and upper
 function IntervalAmbiguitySets(; lower::MR, upper::MR) where {MR <: AbstractMatrix}
@@ -171,7 +177,7 @@ source_shape(p::IntervalAmbiguitySets) = (num_sets(p),)
 action_shape(::IntervalAmbiguitySets) = (1,)
 marginals(p::IntervalAmbiguitySets) = (p,)
 
-function Base.getindex(p::IntervalAmbiguitySets, j)
+function Base.getindex(p::IntervalAmbiguitySets, j::Integer)
     # Select by columns only! 
     l = @view p.lower[:, j]
     g = @view p.gap[:, j]
@@ -179,14 +185,9 @@ function Base.getindex(p::IntervalAmbiguitySets, j)
     return IntervalAmbiguitySet(l, g)
 end
 
-sub2ind(::IntervalAmbiguitySets, jₐ, jₛ) = jₛ
-function Base.getindex(p::IntervalAmbiguitySets, jₐ, jₛ)
-    # Select by columns only! 
-    l = @view p.lower[:, jₛ]
-    g = @view p.gap[:, jₛ]
-
-    return p[jₛ]
-end
+sub2ind(::IntervalAmbiguitySets, jₐ::NTuple{M, T}, jₛ::NTuple{N, T}) where {N, M, T <: Integer} = T(jₛ[1])
+sub2ind(p::IntervalAmbiguitySets, jₐ::CartesianIndex, jₛ::CartesianIndex) = sub2ind(p, Tuple(jₐ), Tuple(jₛ))
+Base.getindex(p::IntervalAmbiguitySets, jₐ, jₛ) = p[sub2ind(p, jₐ, jₛ)]
 
 Base.iterate(p::IntervalAmbiguitySets) = (p[1], 2)
 function Base.iterate(p::IntervalAmbiguitySets, state)
@@ -216,10 +217,11 @@ gap(p::IntervalAmbiguitySet, destination) = p.gap[destination]
 
 const ColumnView{Tv} = SubArray{Tv, 1, <:AbstractMatrix{Tv}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}
 support(p::IntervalAmbiguitySet{R, <:ColumnView{R}}) where {R} = eachindex(p.gap)
+supportsize(p::IntervalAmbiguitySet{R, <:ColumnView{R}}) where {R} = length(p.gap)
 
 const SparseColumnView{Tv, Ti} = SubArray{Tv, 1, <:SparseArrays.AbstractSparseMatrixCSC{Tv, Ti}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}
 support(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = rowvals(p.gap)
-SparseArrays.nnz(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = nnz(p.gap)
+supportsize(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = nnz(p.gap)
 
 # Vertex iterator for IntervalAmbiguitySet
 struct IntervalAmbiguitySetVertexIterator{R, VR <: AbstractVector{R}, P <: Permutations}

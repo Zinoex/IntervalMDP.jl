@@ -395,7 +395,7 @@ Base.@propagate_inbounds function state_action_bellman(
     budget,
     upper_bound,
 )
-    Vp_workspace = @view workspace.values_gaps[1:nnz(ambiguity_set)]
+    Vp_workspace = @view workspace.values_gaps[1:supportsize(ambiguity_set)]
     Vnonzero = @view V[support(ambiguity_set)]
     for (i, (v, p)) in enumerate(zip(Vnonzero, nonzeros(gap(ambiguity_set))))
         Vp_workspace[i] = (v, p)
@@ -546,7 +546,7 @@ Base.@propagate_inbounds function state_action_bellman(
 end
 
 function marginal_lp_constraints(model, ambiguity_set::IntervalAmbiguitySet{R}) where {R}
-    p = @variable(model, [1:length(support(ambiguity_set))])
+    p = @variable(model, [1:supportsize(ambiguity_set)])
     p_lower = map(i -> lower(ambiguity_set, i), support(ambiguity_set))
     p_upper = map(i -> upper(ambiguity_set, i), support(ambiguity_set))
     for i in eachindex(p)
@@ -743,7 +743,7 @@ Base.@propagate_inbounds function orthogonal_inner_bellman!(
     budget,
     upper_bound::Bool,
 )
-    Vp_workspace = @view workspace.values_gaps[1:length(support(ambiguity_set))]
+    Vp_workspace = @view workspace.values_gaps[1:supportsize(ambiguity_set)]
     @inbounds for (i, j) in enumerate(support(ambiguity_set))
         Vp_workspace[i] = (V[j], gap(ambiguity_set, j))
     end

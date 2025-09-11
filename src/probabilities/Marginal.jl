@@ -7,19 +7,19 @@ struct Marginal{A <: AbstractAmbiguitySets, N, M, I <: LinearIndices}
     source_dims::NTuple{N, Int32}
     action_vars::NTuple{M, Int32}
     linear_index::I
+end
 
-    function Marginal(
-        ambiguity_sets::A,
-        state_indices::NTuple{N, Int32},
-        action_indices::NTuple{M, Int32},
-        source_dims::NTuple{N, Int32},
-        action_vars::NTuple{M, Int32},
-    ) where {A <: AbstractAmbiguitySets, N, M}
-        checkindices(ambiguity_sets, state_indices, action_indices, source_dims, action_vars)
+function Marginal(
+    ambiguity_sets::A,
+    state_indices::NTuple{N, Int32},
+    action_indices::NTuple{M, Int32},
+    source_dims::NTuple{N, Int32},
+    action_vars::NTuple{M, Int32},
+) where {A <: AbstractAmbiguitySets, N, M}
+    checkindices(ambiguity_sets, state_indices, action_indices, source_dims, action_vars)
 
-        linear_index = LinearIndices((action_vars..., source_dims...))
-        return new{A, N, M, typeof(linear_index)}(ambiguity_sets, state_indices, action_indices, source_dims, action_vars, linear_index)
-    end
+    linear_index = LinearIndices((action_vars..., source_dims...))
+    return Marginal(ambiguity_sets, state_indices, action_indices, source_dims, action_vars, linear_index)
 end
 
 function Marginal(
@@ -79,15 +79,13 @@ source_shape(p::Marginal) = p.source_dims
 action_shape(p::Marginal) = p.action_vars
 num_target(p::Marginal) = num_target(ambiguity_sets(p))
 
-function Base.getindex(p::Marginal, source, action)
-    return ambiguity_sets(p)[sub2ind(p, source, action)]
-end
+Base.getindex(p::Marginal, source, action) = ambiguity_sets(p)[sub2ind(p, source, action)]
 
 sub2ind(p::Marginal, action::CartesianIndex, source::CartesianIndex) = sub2ind(p, Tuple(action), Tuple(source))
-function sub2ind(p::Marginal, action::NTuple{M, <:Integer}, source::NTuple{N, <:Integer}) where {N, M}
+function sub2ind(p::Marginal, action::NTuple{M, T}, source::NTuple{N, T}) where {N, M, T <: Integer}
     action = getindex.((action,), p.action_indices)
     source = getindex.((source,), p.state_indices)
     j = p.linear_index[action..., source...]
 
-    return j
+    return T(j)
 end

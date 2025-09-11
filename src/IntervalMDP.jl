@@ -47,6 +47,7 @@ export VerificationProblem, ControlSynthesisProblem
 export value_function, residual, num_iterations
 
 include("cuda.jl")
+public cu, cpu
 
 ### Solving
 include("algorithms.jl")

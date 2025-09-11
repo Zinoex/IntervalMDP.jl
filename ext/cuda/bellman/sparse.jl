@@ -1,5 +1,5 @@
 function IntervalMDP._bellman_helper!(
-    workspace::CuSparseWorkspace,
+    workspace::CuSparseOMaxWorkspace,
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres,
     V,
@@ -77,7 +77,7 @@ function IntervalMDP._bellman_helper!(
 end
 
 function try_small_sparse_bellman!(
-    workspace::CuSparseWorkspace,
+    workspace::CuSparseOMaxWorkspace,
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres,
     V,
@@ -422,7 +422,7 @@ end
 function try_large_sparse_bellman!(
     ::Type{T1},
     ::Type{T2},
-    workspace::CuSparseWorkspace,
+    workspace::CuSparseOMaxWorkspace,
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres,
     V,

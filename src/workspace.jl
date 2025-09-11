@@ -99,7 +99,7 @@ struct SparseIntervalOMaxWorkspace{T <: Real}
 end
 
 function SparseIntervalOMaxWorkspace(ambiguity_sets::IntervalAmbiguitySets{R}, nactions) where {R <: Real}
-    max_support = maximum(nnz, ambiguity_sets)
+    max_support = maximum(supportsize, ambiguity_sets)
 
     budget = 1 .- vec(sum(ambiguity_sets.lower; dims = 1))
     scratch = Vector{Tuple{R, R}}(undef, max_support)

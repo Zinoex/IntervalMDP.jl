@@ -1,25 +1,29 @@
 function IntervalMDP._bellman_helper!(
-    workspace::CuDenseWorkspace,
+    workspace::CuDenseOMaxWorkspace,
     strategy_cache::IntervalMDP.AbstractStrategyCache,
-    Vres,
-    V,
-    prob::IntervalProbabilities{Tv},
-    stateptr;
+    Vres::AbstractVector{Tv},
+    V::AbstractVector{Tv},
+    model;
     upper_bound = false,
     maximize = true,
 ) where {Tv}
-    max_states_per_block = 32
-    shmem =
-        length(V) * (sizeof(Int32) + sizeof(Tv)) +
-        max_states_per_block * workspace.max_actions * sizeof(Tv)
+    n_actions = isa(strategy_cache, IntervalMDP.OptimizingStrategyCache) ? workspace.num_actions : 1
+    marginal = marginals(model)[1]
+    n_states = source_shape(marginal)[1]
+
+    if IntervalMDP.valuetype(marginal) != Tv
+        throw(ArgumentError("Value type of the model ($(IntervalMDP.valuetype(marginal))) does not match the value type of the input vector ($Tv)."))
+    end
+
+    max_states_per_block = 32 # == num_warps
+    shmem = length(V) * (sizeof(Int32) + sizeof(Tv)) + max_states_per_block * n_actions * sizeof(Tv)
 
     kernel = @cuda launch = false dense_bellman_kernel!(
         workspace,
         active_cache(strategy_cache),
         Vres,
         V,
-        prob,
-        stateptr,
+        marginal,
         upper_bound ? (>=) : (<=),
         maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv)),
     )
@@ -28,27 +32,23 @@ function IntervalMDP._bellman_helper!(
     max_threads = prevwarp(device(), config.threads)
 
     # Execution plan:
-    # - value assignment: 1 warp per state
+    # - value assignment: 1 warp per state/action pair
+    # - reduce over actions in the first warp for each state
     # - squeeze as many states as possible in a block
     # - use shared memory to store the values and permutation
     # - use bitonic sort to sort the values for all states in a block
-    num_states = length(stateptr) - one(Int32)
-    wanted_threads = min(1024, 32 * num_states)
-
-    threads = min(max_threads, wanted_threads)
-    warps = div(threads, 32)
-    blocks = min(2^16 - 1, cld(num_states, warps))
-    shmem =
-        length(V) * (sizeof(Int32) + sizeof(Tv)) +
-        warps * workspace.max_actions * sizeof(Tv)
+    threads_per_state = min(max_threads, 32 * n_actions)
+    states_per_block = min(n_states, div(max_threads, threads_per_state))
+    threads = threads_per_state * states_per_block
+    blocks = min(2^16 - 1, cld(n_states, states_per_block))
+    shmem = length(V) * (sizeof(Int32) + sizeof(Tv)) + states_per_block * n_actions * sizeof(Tv)
 
     kernel(
         workspace,
         active_cache(strategy_cache),
         Vres,
         V,
-        prob,
-        stateptr,
+        marginal,
         upper_bound ? (>=) : (<=),
         maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv));
         blocks = blocks,
@@ -62,28 +62,21 @@ end
 function dense_bellman_kernel!(
     workspace,
     strategy_cache,
-    Vres,
+    Vres::AbstractVector{Tv},
     V,
-    prob::IntervalProbabilities{Tv},
-    stateptr,
+    marginal,
     value_lt,
     action_reduce,
 ) where {Tv}
-    assume(warpsize() == 32)
-    nwarps = div(blockDim().x, warpsize())
-    wid = fld1(threadIdx().x, warpsize())
-
     # Prepare action workspace shared memory
-    action_workspace = CuDynamicSharedArray(Tv, (workspace.max_actions, nwarps))
-    @inbounds action_workspace = @view action_workspace[:, wid]
+    tps = threads_per_state(workspace, strategy_cache)
+    states_per_block = div(blockDim().x, tps)
+    sid = fld1(threadIdx().x, tps)
+
+    action_workspace = initialize_action_workspace(workspace, strategy_cache, V, states_per_block, sid)
 
     # Prepare sorting shared memory
-    value = CuDynamicSharedArray(Tv, length(V), nwarps * workspace.max_actions * sizeof(Tv))
-    perm = CuDynamicSharedArray(
-        Int32,
-        length(V),
-        (nwarps * workspace.max_actions + length(V)) * sizeof(Tv),
-    )
+    value, perm = initialize_value_and_perm(workspace, strategy_cache, V, marginal, states_per_block)
 
     # Perform sorting
     dense_initialize_sorting_shared_memory!(V, value, perm)
@@ -91,17 +84,82 @@ function dense_bellman_kernel!(
 
     # O-maxmization
     dense_omaximization!(
+        workspace,
         action_workspace,
         strategy_cache,
         Vres,
+        V,
+        marginal,
         value,
         perm,
-        prob,
-        stateptr,
+        states_per_block,
+        sid,
         action_reduce,
     )
 
     return nothing
+end
+
+@inline function initialize_action_workspace(
+    workspace,
+    ::OptimizingActiveCache,
+    marginal,
+    states_per_block,
+    sid,
+)
+    action_workspace = CuDynamicSharedArray(IntervalMDP.valuetype(marginal), (workspace.num_actions, states_per_block))
+    @inbounds return @view action_workspace[:, sid]
+end
+
+@inline function initialize_action_workspace(
+    workspace,
+    ::NonOptimizingActiveCache,
+    marginal,
+    states_per_block,
+    sid,
+)
+    return nothing
+end
+
+@inline function initialize_value_and_perm(
+    workspace,
+    ::OptimizingActiveCache,
+    V::AbstractVector{Tv},
+    marginal,
+    states_per_block,
+) where {Tv}
+    Tv2 = IntervalMDP.valuetype(marginal)
+    value = CuDynamicSharedArray(Tv, length(V), workspace.num_actions * states_per_block * sizeof(Tv2))
+    perm = CuDynamicSharedArray(Int32, length(V), workspace.num_actions * states_per_block * sizeof(Tv2) + length(V) * sizeof(Tv))
+    return value, perm
+end
+
+@inline function initialize_value_and_perm(
+    workspace,
+    ::NonOptimizingActiveCache,
+    V::AbstractVector{Tv},
+    marginal,
+    states_per_block,
+) where {Tv}
+    value = CuDynamicSharedArray(Tv, length(V))
+    perm = CuDynamicSharedArray(Int32, length(V), length(V) * sizeof(Tv))
+    return value, perm
+end
+
+@inline function threads_per_state(
+    workspace,
+    ::OptimizingActiveCache,
+)
+    assume(warpsize() == 32)
+    return min(blockDim().x, warpsize() * workspace.num_actions)
+end
+
+@inline function threads_per_state(
+    workspace,
+    ::NonOptimizingActiveCache,
+)
+    assume(warpsize() == 32)
+    return warpsize()
 end
 
 @inline function dense_initialize_sorting_shared_memory!(V, value, perm)
@@ -118,106 +176,104 @@ end
 end
 
 @inline function dense_omaximization!(
+    workspace,
     action_workspace,
     strategy_cache,
     Vres,
+    V,
+    marginal,
     value,
     perm,
-    prob,
-    stateptr,
+    states_per_block,
+    sid,
     action_reduce,
 )
-    assume(warpsize() == 32)
-
-    warps = div(blockDim().x, warpsize())
-    wid = fld1(threadIdx().x, warpsize())
-
-    num_states = length(stateptr) - one(Int32)
-    j = wid + (blockIdx().x - one(Int32)) * warps
-    @inbounds while j <= num_states
+    jₛ = sid + (blockIdx().x - one(Int32)) * states_per_block
+    @inbounds while jₛ <= source_shape(marginal)[1]  # Grid-stride loop
         state_dense_omaximization!(
+            workspace,
             action_workspace,
             strategy_cache,
             Vres,
+            V,
+            marginal,
             value,
             perm,
-            prob,
-            stateptr,
+            jₛ,
             action_reduce,
-            j,
         )
-        j += gridDim().x * warps
+        jₛ += gridDim().x * states_per_block
     end
 
     return nothing
 end
 
 @inline function state_dense_omaximization!(
+    workspace,
     action_workspace,
     strategy_cache::OptimizingActiveCache,
-    Vres,
+    Vres::AbstractVector{Tv},
+    V,
+    marginal,
     value,
     perm,
-    prob::IntervalProbabilities{Tv},
-    stateptr,
-    action_reduce,
     jₛ,
+    action_reduce,
 ) where {Tv}
-    lane = mod1(threadIdx().x, warpsize())
+    assume(warpsize() == 32)
 
-    s₁, s₂ = stateptr[jₛ], stateptr[jₛ + one(Int32)]
-    nactions = s₂ - s₁
-    @inbounds action_values = @view action_workspace[1:nactions]
+    tps = threads_per_state(workspace, strategy_cache)
+    nwarps_per_state = div(tps, warpsize())
 
-    k = one(Int32)
-    @inbounds while k <= nactions
-        jₐ = s₁ + k - one(Int32)
-        lowerⱼ = @view lower(prob)[:, jₐ]
-        gapⱼ = @view gap(prob)[:, jₐ]
-        sum_lowerⱼ = sum_lower(prob)[jₐ]
+    warp, lane = fldmod1(threadIdx().x, warpsize())
+    state_warp = mod1(warp, nwarps_per_state)
+
+    jₐ = state_warp
+    @inbounds while jₐ <= action_shape(marginal)[1]
+        ambiguity_set = marginal[(jₐ,), (jₛ,)]
 
         # Use O-maxmization to find the value for the action
-        v = state_action_dense_omaximization!(value, perm, lowerⱼ, gapⱼ, sum_lowerⱼ, lane)
+        v = state_action_dense_omaximization!(V, value, perm, ambiguity_set, lane)
 
         if lane == one(Int32)
-            action_values[k] = v
+            action_workspace[jₐ] = v
         end
         sync_warp()
 
-        k += one(Int32)
+        jₐ += nwarps_per_state
     end
 
     # Find the best action
-    v = extract_strategy_warp!(strategy_cache, action_values, Vres, jₛ, action_reduce, lane)
+    if state_warp == one(Int32)
+        v = extract_strategy_warp!(strategy_cache, action_workspace, Vres, jₛ, action_reduce, lane)
 
-    if lane == one(Int32)
-        Vres[jₛ] = v
+        if lane == one(Int32)
+            Vres[jₛ] = v
+        end
     end
-    sync_warp()
+    sync_threads()
 end
 
 @inline function state_dense_omaximization!(
+    workspace,
     action_workspace,
     strategy_cache::NonOptimizingActiveCache,
-    Vres,
+    Vres::AbstractVector{Tv},
+    V,
+    marginal,
     value,
     perm,
-    prob::IntervalProbabilities{Tv},
-    stateptr,
-    action_reduce,
     jₛ,
+    action_reduce,
 ) where {Tv}
     lane = mod1(threadIdx().x, warpsize())
 
     @inbounds begin
-        s₁ = stateptr[jₛ]
-        jₐ = s₁ + strategy_cache[jₛ] - one(Int32)
-        lowerⱼ = @view lower(prob)[:, jₐ]
-        gapⱼ = @view gap(prob)[:, jₐ]
-        sum_lowerⱼ = sum_lower(prob)[jₐ]
+        jₐ = Int32.(strategy_cache[jₛ])
+        ambiguity_set = marginal[jₐ, (jₛ,)]
 
         # Use O-maxmization to find the value for the action
-        v = state_action_dense_omaximization!(value, perm, lowerⱼ, gapⱼ, sum_lowerⱼ, lane)
+        v = state_action_dense_omaximization!(V, value, perm, ambiguity_set, lane)
 
         if lane == one(Int32)
             Vres[jₛ] = v
@@ -227,42 +283,42 @@ end
 end
 
 @inline function state_action_dense_omaximization!(
+    V,
     value,
     perm,
-    lower,
-    gap,
-    sum_lower::Tv,
+    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{R, MR},
     lane,
-) where {Tv}
+) where {R, MR <: AbstractArray}
     assume(warpsize() == 32)
 
-    warp_aligned_length = kernel_nextwarp(length(lower))
-    remaining = one(Tv) - sum_lower
-    gap_value = zero(Tv)
+    warp_aligned_length = kernel_nextwarp(IntervalMDP.supportsize(ambiguity_set))
+    used = zero(R)
+    gap_value = zero(R)
 
     # Add the lower bound multiplied by the value
     s = lane
     @inbounds while s <= warp_aligned_length
         # Find index of the permutation, and lookup the corresponding lower bound and multipy by the value
-        if s <= length(lower)
-            p = perm[s]
-
-            gap_value += lower[p] * value[s]
+        if s <= IntervalMDP.supportsize(ambiguity_set)
+            gap_value += lower(ambiguity_set, s) * V[s]
+            used += lower(ambiguity_set, s)
         end
-
         s += warpsize()
     end
+    used = CUDA.reduce_warp(+, used)
+    used = shfl_sync(0xffffffff, used, one(Int32))
+    remaining = one(R) - used
     sync_warp()
 
     # Add the gap multiplied by the value
     s = lane
     @inbounds while s <= warp_aligned_length
         # Find index of the permutation, and lookup the corresponding gap
-        g = if s <= length(gap)
-            gap[perm[s]]
+        g = if s <= IntervalMDP.supportsize(ambiguity_set)
+            gap(ambiguity_set, perm[s])
         else
             # 0 gap is a neural element
-            zero(Tv)
+            zero(R)
         end
 
         # Cummulatively sum the gap with a tree reduction
@@ -273,8 +329,8 @@ end
         remaining += g
 
         # Update the probability
-        if s <= length(gap)
-            g = clamp(remaining, zero(Tv), g)
+        if s <= IntervalMDP.supportsize(ambiguity_set)
+            g = clamp(remaining, zero(R), g)
             gap_value += g * value[s]
             remaining -= g
         end
@@ -283,7 +339,7 @@ end
         remaining = shfl_sync(0xffffffff, remaining, warpsize())
 
         # Early exit if the remaining probability is zero
-        if remaining <= zero(Tv)
+        if remaining <= zero(R)
             break
         end
 
