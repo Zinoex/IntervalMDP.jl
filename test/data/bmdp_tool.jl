@@ -5,7 +5,7 @@ using IntervalMDP, IntervalMDP.Data, SparseArrays
 mdp, tstates = read_bmdp_tool_file("data/multiObj_robotIMDP.txt")
 
 marginal = marginals(mdp)[1]
-ambiguity_sets = marginal.ambiguity_sets
+as = ambiguity_sets(marginal)
 
 @testset "write/read model,tstates" begin
     # Write model
@@ -22,7 +22,7 @@ ambiguity_sets = marginal.ambiguity_sets
     @test num_states(mdp) == num_states(new_mdp)
 
     new_marginal = marginals(new_mdp)[1]
-    new_ambiguity_sets = new_marginal.ambiguity_sets
+    new_as = ambiguity_sets(new_marginal)
 
     @test source_shape(marginal) == source_shape(new_marginal)
     @test action_shape(marginal) == action_shape(new_marginal)
@@ -30,8 +30,8 @@ ambiguity_sets = marginal.ambiguity_sets
     @test state_variables(mdp) == state_variables(new_mdp)
     @test action_variables(mdp) == action_variables(new_mdp)
 
-    @test ambiguity_sets.lower ≈ new_ambiguity_sets.lower
-    @test ambiguity_sets.gap ≈ new_ambiguity_sets.gap
+    @test as.lower ≈ new_as.lower
+    @test as.gap ≈ new_as.gap
 
     @test tstates == new_tstates
 end
@@ -55,7 +55,7 @@ end
     @test num_states(mdp) == num_states(new_mdp)
 
     new_marginal = marginals(new_mdp)[1]
-    new_ambiguity_sets = new_marginal.ambiguity_sets
+    new_as = ambiguity_sets(new_marginal)
 
     @test source_shape(marginal) == source_shape(new_marginal)
     @test action_shape(marginal) == action_shape(new_marginal)
@@ -63,8 +63,8 @@ end
     @test state_variables(mdp) == state_variables(new_mdp)
     @test action_variables(mdp) == action_variables(new_mdp)
 
-    @test ambiguity_sets.lower ≈ new_ambiguity_sets.lower
-    @test ambiguity_sets.gap ≈ new_ambiguity_sets.gap
+    @test as.lower ≈ new_as.lower
+    @test as.gap ≈ new_as.gap
 
     @test tstates == new_tstates
 end

@@ -4,10 +4,11 @@ Base.@kwdef struct LPMcCormickRelaxation{O} <: BellmanAlgorithm
     lp_optimizer::O = HiGHS.Optimizer
 end
 
-default_bellman_algorithm(::IMDP) = OMaximization()
-default_bellman_algorithm(::IntervalAmbiguitySets) = OMaximization()
-default_bellman_algorithm(::FactoredRMDP{N, M, <:NTuple{N, <:Marginal{<:PolytopicAmbiguitySets}}}) where {N, M} = LPMcCormickRelaxation()
 default_bellman_algorithm(pp::ProductProcess) = default_bellman_algorithm(markov_process(pp))
+default_bellman_algorithm(mdp::FactoredRMDP) = default_bellman_algorithm(mdp, modeltype(mdp))
+default_bellman_algorithm(::FactoredRMDP, ::IsIMDP) = OMaximization()
+default_bellman_algorithm(::FactoredRMDP, ::IsFIMDP) = LPMcCormickRelaxation()
+default_bellman_algorithm(::IntervalAmbiguitySets) = OMaximization()
 
 abstract type ModelCheckingAlgorithm end
 

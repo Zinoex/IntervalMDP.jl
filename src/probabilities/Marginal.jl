@@ -1,4 +1,4 @@
-struct SARectangularMarginal{A <: AbstractAmbiguitySets, N, M, I <: LinearIndices} <: AbstractMarginal
+struct Marginal{A <: AbstractAmbiguitySets, N, M, I <: LinearIndices}
     ambiguity_sets::A
 
     state_indices::NTuple{N, Int32}
@@ -8,7 +8,7 @@ struct SARectangularMarginal{A <: AbstractAmbiguitySets, N, M, I <: LinearIndice
     action_vars::NTuple{M, Int32}
     linear_index::I
 
-    function SARectangularMarginal(
+    function Marginal(
         ambiguity_sets::A,
         state_indices::NTuple{N, Int32},
         action_indices::NTuple{M, Int32},
@@ -21,7 +21,6 @@ struct SARectangularMarginal{A <: AbstractAmbiguitySets, N, M, I <: LinearIndice
         return new{A, N, M, typeof(linear_index)}(ambiguity_sets, state_indices, action_indices, source_dims, action_vars, linear_index)
     end
 end
-const Marginal = SARectangularMarginal
 
 function Marginal(
     ambiguity_sets::A,
@@ -36,7 +35,7 @@ function Marginal(
     source_dims_32 = Int32.(source_dims)
     action_vars_32 = Int32.(action_vars)
 
-    return SARectangularMarginal(ambiguity_sets, state_indices_32, action_indices_32, source_dims_32, action_vars_32)
+    return Marginal(ambiguity_sets, state_indices_32, action_indices_32, source_dims_32, action_vars_32)
 end
 
 function Marginal(ambiguity_sets::A, source_dims, action_vars) where {A <: AbstractAmbiguitySets}

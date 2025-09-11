@@ -21,8 +21,8 @@ write_intervalmdp_jl_model("data/multiObj_robotIMDP.nc", mdp)
     marginal = marginals(mdp)[1]
     new_marginal = marginals(new_mdp)[1]
 
-    ambiguity_sets = marginal.ambiguity_sets
-    new_ambiguity_sets = new_marginal.ambiguity_sets
+    as = ambiguity_sets(marginal)
+    new_as = ambiguity_sets(new_marginal)
 
     @test source_shape(marginal) == source_shape(new_marginal)
     @test action_shape(marginal) == action_shape(new_marginal)
@@ -30,8 +30,8 @@ write_intervalmdp_jl_model("data/multiObj_robotIMDP.nc", mdp)
     @test state_variables(mdp) == state_variables(new_mdp)
     @test action_variables(mdp) == action_variables(new_mdp)
 
-    @test ambiguity_sets.lower ≈ new_ambiguity_sets.lower
-    @test ambiguity_sets.gap ≈ new_ambiguity_sets.gap
+    @test as.lower ≈ new_as.lower
+    @test as.gap ≈ new_as.gap
 end
 
 @testset "io specification" begin

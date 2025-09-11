@@ -34,7 +34,7 @@ function checkdevice(v::AbstractArray, system::FactoredRMDP)
 end
 
 function checkdevice(v::AbstractArray, marginal::Marginal)
-    checkdevice(v, marginal.ambiguity_sets)
+    checkdevice(v, ambiguity_sets(marginal))
 end
 
 function checkdevice(v::AbstractArray, p::IntervalAmbiguitySets)

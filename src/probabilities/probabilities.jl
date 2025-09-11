@@ -1,5 +1,13 @@
+# Ambiguity sets
 abstract type AbstractAmbiguitySets end
 abstract type PolytopicAmbiguitySets <: AbstractAmbiguitySets end
+
+abstract type AbstractIsPolytopic end
+struct IsPolytopic <: AbstractIsPolytopic end
+struct IsNotPolytopic <: AbstractIsPolytopic end
+
+ispolytopic(::AbstractAmbiguitySets) = IsNotPolytopic()
+ispolytopic(::PolytopicAmbiguitySets) = IsPolytopic()
 
 abstract type AbstractAmbiguitySet end
 abstract type PolytopicAmbiguitySet <: AbstractAmbiguitySet end
@@ -23,10 +31,21 @@ export support
 include("IntervalAmbiguitySets.jl")
 export IntervalAmbiguitySets, lower, upper, gap
 
-abstract type AbstractMarginal end
+abstract type AbstractIsInterval end
+struct IsInterval <: AbstractIsInterval end
+struct IsNotInterval <: AbstractIsInterval end
+
+isinterval(::AbstractAmbiguitySets) = IsNotInterval()
+isinterval(::IntervalAmbiguitySets) = IsInterval()
+
+# Marginals
 include("Marginal.jl")
 export SARectangularMarginal, Marginal, ambiguity_sets, state_variables, action_variables, source_shape, action_shape, num_target
 
+ispolytopic(marginal::Marginal) = ispolytopic(ambiguity_sets(marginal))
+isinterval(marginal::Marginal) = isinterval(ambiguity_sets(marginal))
+
+# DFA
 include("TransitionFunction.jl")
 export TransitionFunction, transition
 

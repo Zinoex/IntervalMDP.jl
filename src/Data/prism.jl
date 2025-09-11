@@ -45,15 +45,16 @@ function write_prism_file(
     lab_path,
     srew_path,
     pctl_path,
-    mdp::IntervalMDP.IMDP{M},
+    mdp::IntervalMDP.FactoredRMDP,
     spec,
-) where {M}
+)
     write_prism_states_file(sta_path, mdp)
     write_prism_transitions_file(tra_path, mdp)
     write_prism_spec(lab_path, srew_path, pctl_path, mdp, spec)
 end
 
-function write_prism_states_file(sta_path, mdp::IntervalMDP.IMDP{M}) where {M}
+write_prism_states_file(sta_path, mdp::IntervalMDP.FactoredRMDP) = _write_prism_states_file(sta_path, mdp, IntervalMDP.modeltype(mdp))
+function _write_prism_states_file(sta_path, mdp::IntervalMDP.FactoredRMDP, ::IntervalMDP.NonFactored)
     number_states = num_states(mdp)
 
     open(sta_path, "w") do io
@@ -66,10 +67,13 @@ function write_prism_states_file(sta_path, mdp::IntervalMDP.IMDP{M}) where {M}
     end
 end
 
-function write_prism_transitions_file(tra_path, mdp::IntervalMDP.IMDP{M}; lb_threshold = 1e-12) where {M}
+write_prism_transitions_file(tra_path, mdp::IntervalMDP.FactoredRMDP; lb_threshold = 1e-12) = 
+    _write_prism_transitions_file(tra_path, mdp, IntervalMDP.modeltype(mdp); lb_threshold = lb_threshold)
+
+function _write_prism_transitions_file(tra_path, mdp::IntervalMDP.FactoredRMDP, ::IntervalMDP.IsIMDP; lb_threshold)
     marginal = marginals(mdp)[1]
 
-    num_transitions = nnz(marginal.ambiguity_sets.lower)  # Number of non-zero entries in the lower bound matrix
+    num_transitions = nnz(ambiguity_sets(marginal).lower)  # Number of non-zero entries in the lower bound matrix
     num_choices = source_shape(marginal)[1] * action_shape(marginal)[1]
 
     open(tra_path, "w") do io

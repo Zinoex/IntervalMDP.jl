@@ -2,7 +2,7 @@
 struct FactoredRobustMarkovDecisionProcess{
     N,
     M,
-    P <: NTuple{N, <:AbstractMarginal},
+    P <: NTuple{N, Marginal},
     VI <: InitialStates,
 } <: IntervalMarkovProcess
     state_vars::NTuple{N, Int32}   # N is the number of state variables and state_vars[n] is the number of states for state variable n
@@ -19,21 +19,19 @@ struct FactoredRobustMarkovDecisionProcess{
         source_dims::NTuple{N, Int32},
         transition::P,
         initial_states::VI = nothing,
-    ) where {N, M, P <: NTuple{N, <:AbstractMarginal}, VI <: InitialStates}
+    ) where {N, M, P <: NTuple{N, Marginal}, VI <: InitialStates}
         check_rmdp(state_vars, action_vars, source_dims, transition, initial_states)
 
         return new{N, M, P, VI}(state_vars, action_vars, source_dims, transition, initial_states)
     end
 end
 const FactoredRMDP = FactoredRobustMarkovDecisionProcess
-const FactoredIMDP{N, M} = FactoredRMDP{N, M, P} where {P <: NTuple{N, <:Marginal{<:IntervalAmbiguitySets}}}
-const IMDP{M} = FactoredIMDP{1, M}
 
 function FactoredRMDP(
     state_vars::NTuple{N, <:Integer},
     action_vars::NTuple{M, <:Integer},
     source_dims::NTuple{N, <:Integer},
-    transition::NTuple{N, <:AbstractMarginal},
+    transition::NTuple{N, Marginal},
     initial_states::VI = AllStates(),
 ) where {N, M, VI <: InitialStates}
     state_vars_32 = Int32.(state_vars)
@@ -46,7 +44,7 @@ end
 function FactoredRMDP(
     state_vars::NTuple{N, <:Integer},
     action_vars::NTuple{M, <:Integer},
-    transition::NTuple{N, <:AbstractMarginal},
+    transition::NTuple{N, Marginal},
     initial_states::VI = AllStates(),
 ) where {N, M, VI <: InitialStates}
     return FactoredRobustMarkovDecisionProcess(state_vars, action_vars, state_vars, transition, initial_states)
@@ -123,3 +121,33 @@ action_shape(m::FactoredRobustMarkovDecisionProcess) = m.action_vars
 function Base.getindex(rmdp::FactoredRMDP, r)
     return rmdp.transition[r]
 end
+
+### Model type analysis
+abstract type ModelType end
+
+abstract type NonFactored <: ModelType end
+struct IsIMDP <: NonFactored end # Interval MDP
+struct IsRMDP <: NonFactored end # Robust MDP
+
+abstract type Factored <: ModelType end
+struct IsFIMDP <: ModelType end # Factored Interval MDP
+struct IsFPMDP <: ModelType end # Factored Polytopic MDP
+struct IsFRMDP <: ModelType end # Factored Robust MDP
+
+# Single marginal - special case
+modeltype(rmdp::FactoredRMDP{1}) = modeltype(rmdp, isinterval(rmdp.transition[1]))
+modeltype(::FactoredRMDP{1}, ::IsInterval) = IsIMDP()
+modeltype(::FactoredRMDP{1}, ::IsNotInterval) = IsRMDP()
+
+# General factored case
+
+# Check if all marginals are interval ambiguity sets
+modeltype(rmdp::FactoredRMDP{N}) where {N} = modeltype(rmdp, isinterval.(rmdp.transition))
+modeltype(::FactoredRMDP{N}, ::NTuple{N, IsInterval}) where {N} = IsFIMDP()
+
+# If not, check if all marginals are polytopic ambiguity sets
+modeltype(::FactoredRMDP{N}, ::NTuple{N, AbstractIsInterval}) where {N} = modeltype(rmdp, ispolytopic.(rmdp.transition))
+modeltype(::FactoredRMDP{N}, ::NTuple{N, IsPolytopic}) where {N} = IsFPMDP()
+
+# Otherwise, it is a general factored robust MDP
+modeltype(::FactoredRMDP{N}, ::NTuple{N, AbstractIsPolytopic}) where {N} = IsFRMDP()

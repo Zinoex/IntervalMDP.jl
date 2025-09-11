@@ -173,7 +173,10 @@ Write an `IntervalMarkovDecisionProcess` to an IntervalMDP.jl system file (netCD
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-function write_intervalmdp_jl_model(model_path, mdp::IntervalMDP.IMDP{M}; deflate_level = 5) where {M}
+write_intervalmdp_jl_model(model_path, mdp::IntervalMDP.FactoredRMDP; deflate_level = 5) =
+    _write_intervalmdp_jl_model(model_path, mdp, IntervalMDP.modeltype(mdp); deflate_level = deflate_level)
+
+function _write_intervalmdp_jl_model(model_path, mdp::IntervalMDP.FactoredRMDP, ::IntervalMDP.IsIMDP; deflate_level)
     Dataset(model_path, "c") do dataset
         dataset.attrib["model"] = "imdp"
         dataset.attrib["format"] = "sparse_csc"
@@ -190,9 +193,9 @@ function write_intervalmdp_jl_model(model_path, mdp::IntervalMDP.IMDP{M}; deflat
         v[:] = istates
 
         marginal = marginals(mdp)[1]
-        ambiguity_sets = marginal.ambiguity_sets
-        l = ambiguity_sets.lower
-        g = ambiguity_sets.gap
+        as = ambiguity_sets(marginal)
+        l = as.lower
+        g = as.gap
 
         defDim(dataset, "lower_colptr", length(l.colptr))
         v = defVar(dataset, "lower_colptr", Int32, ("lower_colptr",); deflatelevel = deflate_level)

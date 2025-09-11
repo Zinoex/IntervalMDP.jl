@@ -171,11 +171,18 @@ write_bmdp_tool_file(
 """
     write_bmdp_tool_file(path, mdp::IMDP, terminal_states::Vector{<:CartesianIndex})
 """
-function write_bmdp_tool_file(
+write_bmdp_tool_file(
     path,
-    mdp::IntervalMDP.IMDP{M},
+    mdp::IntervalMDP.FactoredRMDP,
     terminal_states::Vector{<:CartesianIndex},
-) where {M}
+) = _write_bmdp_tool_file(path, mdp, IntervalMDP.modeltype(mdp), terminal_states)
+
+function _write_bmdp_tool_file(
+    path,
+    mdp::IntervalMDP.FactoredRMDP,
+    ::IntervalMDP.IsIMDP,
+    terminal_states::Vector{<:CartesianIndex},
+)
     marginal = marginals(mdp)[1]
 
     number_states = num_states(mdp)

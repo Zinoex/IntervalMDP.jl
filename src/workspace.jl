@@ -24,7 +24,20 @@ function construct_workspace(proc::ProductProcess, alg; kwargs...)
     return ProductWorkspace(underlying_workspace, intermediate_values)
 end
 
+construct_workspace(mdp::FactoredRMDP, bellman_alg; kwargs...) = construct_workspace(mdp, modeltype(mdp), bellman_alg; kwargs...)
+
 abstract type IMDPWorkspace end
+
+function construct_workspace(
+    sys::FactoredRMDP,
+    ::IsIMDP,
+    ::OMaximization;
+    threshold = 10,
+    kwargs...
+)
+    prob = ambiguity_sets(marginals(sys)[1])
+    return construct_workspace(prob, OMaximization(); threshold = threshold, num_actions = num_actions(sys), kwargs...)
+end
 
 # Dense
 struct DenseIntervalOMaxWorkspace{T <: Real} <: IMDPWorkspace
@@ -70,26 +83,12 @@ scratch(ws::ThreadedDenseIntervalOMaxWorkspace) = scratch(first(ws.thread_worksp
 function construct_workspace(
     prob::IntervalAmbiguitySets{R, MR},
     ::OMaximization;
-    threshold = 10, kwargs...
+    threshold = 10, num_actions = 1, kwargs...
 ) where {R, MR <: AbstractMatrix{R}}
     if Threads.nthreads() == 1 || num_sets(prob) <= threshold
-        return DenseIntervalOMaxWorkspace(prob, 1)
+        return DenseIntervalOMaxWorkspace(prob, num_actions)
     else
-        return ThreadedDenseIntervalOMaxWorkspace(prob, 1)
-    end
-end
-
-function construct_workspace(
-    sys::FactoredRMDP{N, M, <:Tuple{<:Marginal{<:IntervalAmbiguitySets{R, MR}}}},
-    ::OMaximization;
-    threshold = 10,
-    kwargs...
-) where {N, M, R, MR <: AbstractMatrix{R}}
-    prob = sys.transition[1].ambiguity_sets
-    if Threads.nthreads() == 1 || num_states(sys) <= threshold
-        return DenseIntervalOMaxWorkspace(prob, num_actions(sys))
-    else
-        return ThreadedDenseIntervalOMaxWorkspace(prob, num_actions(sys))
+        return ThreadedDenseIntervalOMaxWorkspace(prob, num_actions)
     end
 end
 
@@ -129,25 +128,13 @@ function construct_workspace(
     prob::IntervalAmbiguitySets{R, MR},
     ::OMaximization;
     threshold = 10,
+    num_actions = 1,
     kwargs...
 ) where {R, MR <: AbstractSparseMatrix{R}}
     if Threads.nthreads() == 1 || num_sets(prob) <= threshold
-        return SparseIntervalOMaxWorkspace(prob, 1)
+        return SparseIntervalOMaxWorkspace(prob, num_actions)
     else
-        return ThreadedSparseIntervalOMaxWorkspace(prob, 1)
-    end
-end
-
-function construct_workspace(
-    sys::FactoredRMDP{N, M, <:Tuple{<:Marginal{<:IntervalAmbiguitySets{R, MR}}}},
-    ::OMaximization;
-    threshold = 10,
-) where {N, M, R, MR <: AbstractSparseMatrix{R}}
-    prob = sys.transition[1].ambiguity_sets
-    if Threads.nthreads() == 1 || num_states(sys) <= threshold
-        return SparseIntervalOMaxWorkspace(prob, num_actions(sys))
-    else
-        return ThreadedSparseIntervalOMaxWorkspace(prob, num_actions(sys))
+        return ThreadedSparseIntervalOMaxWorkspace(prob, num_actions)
     end
 end
 
@@ -179,11 +166,12 @@ end
 Base.getindex(ws::ThreadedFactoredIntervalMcCormickWorkspace, i) = ws.thread_workspaces[i]
 
 function construct_workspace(
-    sys::FactoredRMDP{N, M, <:NTuple{N, <:Marginal{<:IntervalAmbiguitySets}}},
+    sys::FactoredRMDP,
+    ::Union{IsFIMDP, IsIMDP},
     alg::LPMcCormickRelaxation;
     threshold = 10,
     kwargs...
-) where {N, M}
+)
     if Threads.nthreads() == 1 || num_states(sys) <= threshold
         return FactoredIntervalMcCormickWorkspace(sys, alg)
     else
