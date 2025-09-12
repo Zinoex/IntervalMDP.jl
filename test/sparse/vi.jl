@@ -1,9 +1,6 @@
 using Revise, Test
 using IntervalMDP, SparseArrays
 
-using Revise, Test
-using IntervalMDP
-
 @testset for N in [Float32, Float64, Rational{BigInt}]
     prob = IntervalAmbiguitySets(;
         lower = sparse_hcat(

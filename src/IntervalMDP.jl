@@ -9,6 +9,7 @@ export solve
 using LinearAlgebra, SparseArrays
 using JuMP, HiGHS
 using Combinatorics: permutations, Permutations
+using StyledStrings
 
 ### Utilities
 const UnionIndex = Union{<:Integer, <:Tuple}

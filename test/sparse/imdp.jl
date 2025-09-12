@@ -1,5 +1,5 @@
 using Revise, Test
-using IntervalMDP
+using IntervalMDP, SparseArrays
 
 
 @testset for N in [Float32, Float64, Rational{BigInt}]

@@ -130,19 +130,19 @@ function check_initial_states(state_vars, initial_states)
     end
 end
 
-state_variables(rmdp::FactoredRMDP) = rmdp.state_vars
-state_variables(rmdp::FactoredRMDP, r) = rmdp.state_vars[r]
-action_variables(rmdp::FactoredRMDP) = rmdp.action_vars
-num_states(rmdp::FactoredRMDP) = prod(state_variables(rmdp))
-num_actions(rmdp::FactoredRMDP) = prod(action_variables(rmdp))
-marginals(rmdp::FactoredRMDP) = rmdp.transition
-initial_states(rmdp::FactoredRMDP) = rmdp.initial_states
+state_variables(mdp::FactoredRMDP) = mdp.state_vars
+state_variables(mdp::FactoredRMDP, r) = mdp.state_vars[r]
+action_variables(mdp::FactoredRMDP) = mdp.action_vars
+num_states(mdp::FactoredRMDP) = prod(state_variables(mdp))
+num_actions(mdp::FactoredRMDP) = prod(action_variables(mdp))
+marginals(mdp::FactoredRMDP) = mdp.transition
+initial_states(mdp::FactoredRMDP) = mdp.initial_states
 
 source_shape(m::FactoredRMDP) = m.source_dims
 action_shape(m::FactoredRMDP) = m.action_vars
 
-function Base.getindex(rmdp::FactoredRMDP, r)
-    return rmdp.transition[r]
+function Base.getindex(mdp::FactoredRMDP, r)
+    return mdp.transition[r]
 end
 
 ### Model type analysis
@@ -158,19 +158,114 @@ struct IsFPMDP <: ModelType end # Factored Polytopic MDP
 struct IsFRMDP <: ModelType end # Factored Robust MDP
 
 # Single marginal - special case
-modeltype(rmdp::FactoredRMDP{1}) = modeltype(rmdp, isinterval(rmdp.transition[1]))
+modeltype(mdp::FactoredRMDP{1}) = modeltype(mdp, isinterval(mdp.transition[1]))
 modeltype(::FactoredRMDP{1}, ::IsInterval) = IsIMDP()
 modeltype(::FactoredRMDP{1}, ::IsNotInterval) = IsRMDP()
 
 # General factored case
 
 # Check if all marginals are interval ambiguity sets
-modeltype(rmdp::FactoredRMDP{N}) where {N} = modeltype(rmdp, isinterval.(rmdp.transition))
+modeltype(mdp::FactoredRMDP{N}) where {N} = modeltype(mdp, isinterval.(mdp.transition))
 modeltype(::FactoredRMDP{N}, ::NTuple{N, IsInterval}) where {N} = IsFIMDP()
 
 # If not, check if all marginals are polytopic ambiguity sets
-modeltype(::FactoredRMDP{N}, ::NTuple{N, AbstractIsInterval}) where {N} = modeltype(rmdp, ispolytopic.(rmdp.transition))
+modeltype(::FactoredRMDP{N}, ::NTuple{N, AbstractIsInterval}) where {N} = modeltype(mdp, ispolytopic.(mdp.transition))
 modeltype(::FactoredRMDP{N}, ::NTuple{N, IsPolytopic}) where {N} = IsFPMDP()
 
 # Otherwise, it is a general factored robust MDP
 modeltype(::FactoredRMDP{N}, ::NTuple{N, AbstractIsPolytopic}) where {N} = IsFRMDP()
+
+
+### Pretty printing
+function Base.show(io::IO, mime::MIME"text/plain", mdp::FactoredRMDP{N, M}) where {N, M}
+    println(io, styled"{code:FactoredRobustMarkovDecisionProcess}")
+    println(io, "├─ ", N, styled" state variables with cardinality: {magenta:$(state_variables(mdp))}")
+    println(io, "├─ ", M, styled" action variables with cardinality: {magenta:$(action_variables(mdp))}")
+    if initial_states(mdp) isa AllStates
+        println(io, "├─ ", styled"Initial states: {magenta:All states}")
+    else
+        println(io, "├─ ", styled"Initial states: {magenta:$(initial_states(mdp))}")
+    end
+
+    println(io, "├─ ", styled"Transition marginals:")
+    prefix = "│  "
+    for (i, marginal) in enumerate(mdp.transition[1:end - 1])
+        println(io, prefix, "├─ Marginal $i: ")
+        showmarginal(io, prefix * "│  ", marginal)
+    end
+    println(io, prefix, "└─ Marginal $(length(mdp.transition)): ")
+    showmarginal(io, prefix * "   ", mdp.transition[end])
+
+    showinferred(io, mdp)
+end
+
+function showmarginal(io::IO, prefix, marginal::Marginal{<:IntervalAmbiguitySets{R, MR}}) where {R, MR <: AbstractMatrix}
+    println(io, prefix, styled"├─ Ambiguity set type: Interval (dense, {code:$MR})")
+    println(io, prefix, styled"└─ Conditional variables: {magenta:states = $(state_variables(marginal)), actions = $(action_variables(marginal))}")
+end
+
+function showmarginal(io::IO, prefix, marginal::Marginal{<:IntervalAmbiguitySets{R, MR}}) where {R, MR <: AbstractSparseMatrix}
+    println(io, prefix, styled"├─ Ambiguity set type: Interval (sparse, {code:$MR})")
+    println(io, prefix, styled"├─ Conditional variables: {magenta:states = $(state_variables(marginal)), actions = $(action_variables(marginal))}")
+    num_transitions = nnz(ambiguity_sets(marginal).gap)
+    max_support = maximum(supportsize, ambiguity_sets(marginal))
+    println(io, prefix, styled"└─ Transitions: {magenta: $num_transitions (max support: $max_support)}")
+end
+
+function showinferred(io::IO, mdp::FactoredRMDP)
+    println(io, "└─", styled"{red:Inferred properties}")
+    prefix = "   "
+    showmodeltype(io, prefix, mdp)
+    println(io, prefix, "├─", styled"Number of states: {green:$(num_states(mdp))}")
+    println(io, prefix, "├─", styled"Number of actions: {green:$(num_actions(mdp))}")
+
+    default_alg = default_algorithm(mdp)
+    showmcalgorithm(io, prefix, default_alg)
+    showbellmanalg(io, prefix, modeltype(mdp), bellman_algorithm(default_alg))
+end
+
+showmodeltype(io::IO, prefix, mdp::FactoredRMDP) = showmodeltype(io, prefix, modeltype(mdp))
+
+function showmodeltype(io::IO, prefix, ::IsFIMDP)
+    println(io, prefix, "├─", styled"Model type: {green:Factored Interval MDP}")
+end
+
+function showmodeltype(io::IO, prefix, ::IsFPMDP)
+    println(io, prefix, "├─", styled"Model type: {green:Factored Polytopic MDP}")
+end
+
+function showmodeltype(io::IO, prefix, ::IsFRMDP)
+    println(io, prefix, "├─", styled"Model type: {green:Factored Robust MDP}")
+end
+
+function showmodeltype(io::IO, prefix, ::IsIMDP)
+    println(io, prefix, "├─", styled"Model type: {green:Interval MDP}")
+end
+
+function showmodeltype(io::IO, prefix, ::IsRMDP)
+    println(io, prefix, "├─", styled"Model type: {green:Robust MDP}")
+end
+
+function showmcalgorithm(io::IO, prefix, ::RobustValueIteration)
+    println(io, prefix,"├─", styled"Default model checking algorithm: {green:Robust Value Iteration}")
+end
+
+function showmcalgorithm(io::IO, prefix, _)
+    println(io, prefix,"├─", styled"Default model checking algorithm: {green:None}")
+end
+
+function showbellmanalg(io::IO, prefix, ::IsIMDP,::OMaximization)
+    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:O-Maximization}")
+end
+
+function showbellmanalg(io::IO, prefix, ::IsFIMDP,::OMaximization)
+    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:Recursive O-Maximization}")
+end
+
+function showbellmanalg(io::IO, prefix, ::IsFIMDP, ::LPMcCormickRelaxation)
+    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:Binary tree LP McCormick Relaxation}")
+end
+
+function showbellmanalg(io::IO, prefix, _, _)
+    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:None}")
+end

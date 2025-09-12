@@ -37,7 +37,8 @@ struct IntervalValueIteration <: ModelCheckingAlgorithm end
 # TODO: Consider topological value iteration as an alternative algorithm (infinite time only).
 
 ##### Default algorithm for solving Interval MDP problems
-default_algorithm(problem::AbstractIntervalMDPProblem) = RobustValueIteration(default_bellman_algorithm(system(problem)))
+default_algorithm(problem::AbstractIntervalMDPProblem) = default_algorithm(system(problem))
+default_algorithm(system::StochasticProcess) = RobustValueIteration(default_bellman_algorithm(system))
 
 solve(problem::AbstractIntervalMDPProblem; kwargs...) =
     solve(problem, default_algorithm(problem); kwargs...)
