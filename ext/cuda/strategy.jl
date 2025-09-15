@@ -47,7 +47,7 @@ Base.@propagate_inbounds Base.getindex(cache::GivenStrategyActiveCache, j) =
     action_min, action_neutral = action_reduce[1], action_reduce[3]
 
     warp_aligned_length = kernel_nextwarp(length(values))
-    @inbounds opt_val = action_neutral
+    opt_val = action_neutral
 
     s = lane
     @inbounds while s <= warp_aligned_length
@@ -66,10 +66,10 @@ Base.@propagate_inbounds Base.getindex(cache::GivenStrategyActiveCache, j) =
 end
 
 @inline function extract_strategy_warp!(
-    cache::TimeVaryingStrategyActiveCache,
+    cache::TimeVaryingStrategyActiveCache{1, <:AbstractVector{Tuple{Int32}}},
     values::AbstractVector{Tv},
     V,
-    j,
+    jₛ,
     action_reduce,
     lane,
 ) where {Tv}
@@ -77,14 +77,14 @@ end
     action_lt, action_neutral = action_reduce[2], action_reduce[3]
 
     warp_aligned_length = kernel_nextwarp(length(values))
-    opt_val, opt_idx = action_neutral, 1
+    opt_val, opt_idx = action_neutral, one(Int32)
 
     s = lane
     @inbounds while s <= warp_aligned_length
         new_val, new_idx = if s <= length(values)
             values[s], s
         else
-            action_neutral, 1
+            action_neutral, one(Int32)
         end
         opt_val, opt_idx = argop(action_lt, opt_val, opt_idx, new_val, new_idx)
 
@@ -94,17 +94,17 @@ end
     opt_val, opt_idx = argmin_warp(action_lt, opt_val, opt_idx)
 
     if lane == 1
-        @inbounds cache.cur_strategy[j] = opt_idx
+        @inbounds cache.cur_strategy[jₛ] = (opt_idx,)
     end
 
     return opt_val
 end
 
 @inline function extract_strategy_warp!(
-    cache::StationaryStrategyActiveCache,
+    cache::StationaryStrategyActiveCache{1, <:AbstractVector{Tuple{Int32}}},
     values::AbstractVector{Tv},
     V,
-    j,
+    jₛ,
     action_reduce,
     lane,
 ) where {Tv}
@@ -112,10 +112,10 @@ end
     action_lt, action_neutral = action_reduce[2], action_reduce[3]
 
     warp_aligned_length = kernel_nextwarp(length(values))
-    opt_val, opt_idx = if iszero(cache.strategy[j])
-        action_neutral, 1
+    opt_val, opt_idx = if iszero(cache.strategy[jₛ][1])
+        action_neutral, one(Int32)
     else
-        V[j], cache.strategy[j]
+        V[jₛ], Int32(cache.strategy[jₛ][1])
     end
 
     s = lane
@@ -123,7 +123,7 @@ end
         new_val, new_idx = if s <= length(values)
             values[s], s
         else
-            action_neutral, 1
+            action_neutral, one(Int32)
         end
         opt_val, opt_idx = argop(action_lt, opt_val, opt_idx, new_val, new_idx)
 
@@ -133,7 +133,7 @@ end
     opt_val, opt_idx = argmin_warp(action_lt, opt_val, opt_idx)
 
     if lane == 1
-        @inbounds cache.strategy[j] = opt_idx
+        @inbounds cache.strategy[jₛ] = (opt_idx,)
     end
 
     return opt_val

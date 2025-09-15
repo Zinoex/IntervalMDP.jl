@@ -72,7 +72,7 @@ V_mc, k, res = solve(problem)
 @test V ≈ V_mc
 
 # Finite time reward
-prop = FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10)
+prop = IntervalMDP.cu(FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10))
 spec = Specification(prop, Pessimistic, Maximize)
 problem = ControlSynthesisProblem(mdp, spec)
 policy, V, k, res = solve(problem)
