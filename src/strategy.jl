@@ -36,14 +36,27 @@ function checkstrategy(strategy::AbstractArray, system::FactoredRMDP)
         )
     end
 
-    for jₛ in CartesianIndices(source_shape(system))
-        if !all(1 .<= strategy[jₛ] .<= action_shape(system))
-            throw(
-                DomainError(
-                    "The strategy includes at least one invalid action (less than 1 or greater than num_actions for the state).",
-                ),
-            )
+    as = action_shape(system)
+    invalid = any(strategy) do s
+        for i in eachindex(s)
+            if s[i] < 1
+                return true
+            end
+
+            if s[i] > as[i]
+                return true
+            end
         end
+
+        return false
+    end
+
+    if invalid
+        throw(
+            DomainError(
+                "The strategy includes at least one invalid action (less than 1 or greater than num_actions for some action variable).",
+            ),
+        )
     end
 end
 
