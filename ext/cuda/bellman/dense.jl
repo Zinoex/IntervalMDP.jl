@@ -214,7 +214,7 @@ end
         end
         sync_warp()
 
-        jₐ += nwarps
+        jₐ += one(Int32)
     end
 
     # Find the best action
