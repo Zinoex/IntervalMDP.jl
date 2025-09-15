@@ -98,3 +98,12 @@ state_variables(proc::ProductProcess) = (state_variables(markov_process(proc))..
 source_shape(proc::ProductProcess) = (source_shape(markov_process(proc))..., num_states(automaton(proc)))
 action_variables(proc::ProductProcess) = action_variables(markov_process(proc))
 action_shape(proc::ProductProcess) = action_shape(markov_process(proc))
+
+function showsystem(io::IO, prefix, mdp::ProductProcess{M, D, L}) where {M, D, L}
+    println(io, prefix, styled"{code:ProductProcess}")
+    println(io, prefix, "├─ Underlying process:")
+    showsystem(io, prefix * "├─  ", prefix * "│  ", markov_process(mdp))
+    println(io, prefix, "├─ Automaton:")
+    showsystem(io, prefix * "│  ", automaton(mdp))
+    println(io, prefix, styled"└─ Labelling type: {magenta:$(L)}")
+end

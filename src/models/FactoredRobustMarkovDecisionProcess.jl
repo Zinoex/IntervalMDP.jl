@@ -177,44 +177,35 @@ modeltype(::FactoredRMDP{N}, ::NTuple{N, AbstractIsPolytopic}) where {N} = IsFRM
 
 
 ### Pretty printing
-function Base.show(io::IO, mime::MIME"text/plain", mdp::FactoredRMDP{N, M}) where {N, M}
-    println(io, styled"{code:FactoredRobustMarkovDecisionProcess}")
-    println(io, "├─ ", N, styled" state variables with cardinality: {magenta:$(state_variables(mdp))}")
-    println(io, "├─ ", M, styled" action variables with cardinality: {magenta:$(action_variables(mdp))}")
+function Base.show(io::IO, mime::MIME"text/plain", mdp::FactoredRMDP)
+    showsystem(io, "", "", mdp)
+end
+
+function showsystem(io::IO, first_prefix, prefix, mdp::FactoredRMDP{N, M}) where {N, M}
+    println(io, first_prefix, styled"{code:FactoredRobustMarkovDecisionProcess}")
+    println(io, prefix, "├─ ", N, styled" state variables with cardinality: {magenta:$(state_variables(mdp))}")
+    println(io, prefix, "├─ ", M, styled" action variables with cardinality: {magenta:$(action_variables(mdp))}")
     if initial_states(mdp) isa AllStates
-        println(io, "├─ ", styled"Initial states: {magenta:All states}")
+        println(io, prefix, "├─ ", styled"Initial states: {magenta:All states}")
     else
-        println(io, "├─ ", styled"Initial states: {magenta:$(initial_states(mdp))}")
+        println(io, prefix, "├─ ", styled"Initial states: {magenta:$(initial_states(mdp))}")
     end
 
-    println(io, "├─ ", styled"Transition marginals:")
-    prefix = "│  "
+    println(io, prefix, "├─ ", styled"Transition marginals:")
+    marginal_prefix = prefix * "│  "
     for (i, marginal) in enumerate(mdp.transition[1:end - 1])
-        println(io, prefix, "├─ Marginal $i: ")
-        showmarginal(io, prefix * "│  ", marginal)
+        println(io, marginal_prefix, "├─ Marginal $i: ")
+        showmarginal(io, marginal_prefix * "│  ", marginal)
     end
-    println(io, prefix, "└─ Marginal $(length(mdp.transition)): ")
-    showmarginal(io, prefix * "   ", mdp.transition[end])
+    println(io, marginal_prefix, "└─ Marginal $(length(mdp.transition)): ")
+    showmarginal(io, marginal_prefix * "   ", mdp.transition[end])
 
-    showinferred(io, mdp)
+    showinferred(io, prefix, mdp)
 end
 
-function showmarginal(io::IO, prefix, marginal::Marginal{<:IntervalAmbiguitySets{R, MR}}) where {R, MR <: AbstractMatrix}
-    println(io, prefix, styled"├─ Ambiguity set type: Interval (dense, {code:$MR})")
-    println(io, prefix, styled"└─ Conditional variables: {magenta:states = $(state_variables(marginal)), actions = $(action_variables(marginal))}")
-end
-
-function showmarginal(io::IO, prefix, marginal::Marginal{<:IntervalAmbiguitySets{R, MR}}) where {R, MR <: AbstractSparseMatrix}
-    println(io, prefix, styled"├─ Ambiguity set type: Interval (sparse, {code:$MR})")
-    println(io, prefix, styled"├─ Conditional variables: {magenta:states = $(state_variables(marginal)), actions = $(action_variables(marginal))}")
-    num_transitions = nnz(ambiguity_sets(marginal).gap)
-    max_support = maximum(supportsize, ambiguity_sets(marginal))
-    println(io, prefix, styled"└─ Transitions: {magenta: $num_transitions (max support: $max_support)}")
-end
-
-function showinferred(io::IO, mdp::FactoredRMDP)
-    println(io, "└─", styled"{red:Inferred properties}")
-    prefix = "   "
+function showinferred(io::IO, prefix, mdp::FactoredRMDP)
+    println(io, prefix, "└─", styled"{red:Inferred properties}")
+    prefix = prefix * "   "
     showmodeltype(io, prefix, mdp)
     println(io, prefix, "├─", styled"Number of states: {green:$(num_states(mdp))}")
     println(io, prefix, "├─", styled"Number of actions: {green:$(num_actions(mdp))}")
@@ -244,28 +235,4 @@ end
 
 function showmodeltype(io::IO, prefix, ::IsRMDP)
     println(io, prefix, "├─", styled"Model type: {green:Robust MDP}")
-end
-
-function showmcalgorithm(io::IO, prefix, ::RobustValueIteration)
-    println(io, prefix,"├─", styled"Default model checking algorithm: {green:Robust Value Iteration}")
-end
-
-function showmcalgorithm(io::IO, prefix, _)
-    println(io, prefix,"├─", styled"Default model checking algorithm: {green:None}")
-end
-
-function showbellmanalg(io::IO, prefix, ::IsIMDP,::OMaximization)
-    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:O-Maximization}")
-end
-
-function showbellmanalg(io::IO, prefix, ::IsFIMDP,::OMaximization)
-    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:Recursive O-Maximization}")
-end
-
-function showbellmanalg(io::IO, prefix, ::IsFIMDP, ::LPMcCormickRelaxation)
-    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:Binary tree LP McCormick Relaxation}")
-end
-
-function showbellmanalg(io::IO, prefix, _, _)
-    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:None}")
 end

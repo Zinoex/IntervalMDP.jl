@@ -155,3 +155,16 @@ Base.getindex(dfa::DFA, q, w::String) = dfa[q, dfa.labelmap[w]]
 
 Base.iterate(dfa::DFA, state::Int32 = one(Int32)) =
     state > num_states(dfa) ? nothing : (state, state + one(Int32))
+
+function showsystem(io::IO, first_prefix, prefix, dfa::DFA)
+    # TODO: Print diagram?
+    println(io, first_prefix, styled"{code:DFA}")
+    println(io, prefix, styled"├─ Number of states: {magenta:$(num_states(dfa))}")
+    println(io, prefix, styled"├─ Number of labels: {magenta:$(num_labels(dfa))}")
+    println(io, prefix, styled"├─ Initial state: {magenta:$(initial_state(dfa))}")
+    println(
+        io,
+        prefix,
+        styled"└─ Accepting states: {magenta:$(accepting_states(dfa))}",
+    )
+end

@@ -9,7 +9,7 @@ end
 
 IntervalMDP.construct_workspace(
     prob::IntervalAmbiguitySets{R, MR},
-    ::OMaximization;
+    ::OMaximization = default_bellman_algorithm(prob);
     num_actions = 1,
     kwargs...
 ) where {R, MR <: AbstractGPUMatrix{R}} = CuDenseOMaxWorkspace(num_actions)
@@ -29,7 +29,7 @@ end
 
 IntervalMDP.construct_workspace(
     prob::IntervalAmbiguitySets{R, MR},
-    ::OMaximization;
+    ::OMaximization = default_bellman_algorithm(prob);
     num_actions = 1,
     kwargs...
 ) where {R, MR <: AbstractCuSparseMatrix{R}} = CuSparseOMaxWorkspace(prob, num_actions)

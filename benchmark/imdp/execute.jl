@@ -1,6 +1,11 @@
 using Revise, BenchmarkTools
 using IntervalMDP, CUDA
 
-V_conv, _, u = solve(prob)
+cu_prob = IntervalMDP.cu(prob)
 
-display(@benchmark solve(prob))
+function test()
+    CUDA.@sync solve(cu_prob)
+end
+
+test()  # Warm-up
+display(@benchmark test())

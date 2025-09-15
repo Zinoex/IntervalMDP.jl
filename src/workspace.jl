@@ -16,7 +16,7 @@ struct ProductWorkspace{W, MT <: AbstractArray}
     intermediate_values::MT
 end
 
-function construct_workspace(proc::ProductProcess, alg; kwargs...)
+function construct_workspace(proc::ProductProcess, alg=default_bellman_algorithm(proc); kwargs...)
     mp = markov_process(proc)
     underlying_workspace = construct_workspace(mp, alg; kwargs...)
     intermediate_values = arrayfactory(mp, valuetype(mp), state_variables(mp))
@@ -24,7 +24,7 @@ function construct_workspace(proc::ProductProcess, alg; kwargs...)
     return ProductWorkspace(underlying_workspace, intermediate_values)
 end
 
-construct_workspace(mdp::FactoredRMDP, bellman_alg; kwargs...) = construct_workspace(mdp, modeltype(mdp), bellman_alg; kwargs...)
+construct_workspace(mdp::FactoredRMDP, alg=default_bellman_algorithm(mdp); kwargs...) = construct_workspace(mdp, modeltype(mdp), alg; kwargs...)
 
 function construct_workspace(
     sys::FactoredRMDP,
@@ -80,7 +80,7 @@ scratch(ws::ThreadedDenseIntervalOMaxWorkspace) = scratch(first(ws.thread_worksp
 
 function construct_workspace(
     prob::IntervalAmbiguitySets{R, MR},
-    ::OMaximization;
+    ::OMaximization = default_bellman_algorithm(prob);
     threshold = 10, num_actions = 1, kwargs...
 ) where {R, MR <: AbstractMatrix{R}}
     if Threads.nthreads() == 1 || num_sets(prob) <= threshold
@@ -124,7 +124,7 @@ Base.getindex(ws::ThreadedSparseIntervalOMaxWorkspace, i) = ws.thread_workspaces
 
 function construct_workspace(
     prob::IntervalAmbiguitySets{R, MR},
-    ::OMaximization;
+    ::OMaximization = default_bellman_algorithm(prob);
     threshold = 10,
     num_actions = 1,
     kwargs...

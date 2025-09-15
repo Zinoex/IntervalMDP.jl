@@ -10,6 +10,22 @@ default_bellman_algorithm(::FactoredRMDP, ::IsIMDP) = OMaximization()
 default_bellman_algorithm(::FactoredRMDP, ::IsFIMDP) = LPMcCormickRelaxation()
 default_bellman_algorithm(::IntervalAmbiguitySets) = OMaximization()
 
+function showbellmanalg(io::IO, prefix, ::IsIMDP,::OMaximization)
+    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:O-Maximization}")
+end
+
+function showbellmanalg(io::IO, prefix, ::IsFIMDP,::OMaximization)
+    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:Recursive O-Maximization}")
+end
+
+function showbellmanalg(io::IO, prefix, ::IsFIMDP, ::LPMcCormickRelaxation)
+    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:Binary tree LP McCormick Relaxation}")
+end
+
+function showbellmanalg(io::IO, prefix, _, ::BellmanAlgorithm)
+    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:None}")
+end
+
 abstract type ModelCheckingAlgorithm end
 
 ##########################
@@ -42,3 +58,12 @@ default_algorithm(system::StochasticProcess) = RobustValueIteration(default_bell
 
 solve(problem::AbstractIntervalMDPProblem; kwargs...) =
     solve(problem, default_algorithm(problem); kwargs...)
+
+
+function showmcalgorithm(io::IO, prefix, ::RobustValueIteration)
+    println(io, prefix,"├─", styled"Default model checking algorithm: {green:Robust Value Iteration}")
+end
+
+function showmcalgorithm(io::IO, prefix, ::ModelCheckingAlgorithm)
+    println(io, prefix,"├─", styled"Default model checking algorithm: {green:None}")
+end

@@ -89,3 +89,13 @@ function sub2ind(p::Marginal, action::NTuple{M, T}, source::NTuple{N, T}) where 
 
     return T(j)
 end
+
+function showmarginal(io::IO, prefix, marginal::Marginal)
+    println(io, prefix, styled"├─ Conditional variables: {magenta:states = $(state_variables(marginal)), actions = $(action_variables(marginal))}")
+    showambiguitysets(io, prefix, ambiguity_sets(marginal))
+end
+
+function Base.show(io::IO, mime::MIME"text/plain", marginal::Marginal)
+    println(io, styled"{code:Marginal}")
+    showmarginal(io, "", marginal)
+end

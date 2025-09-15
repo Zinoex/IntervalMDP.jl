@@ -47,6 +47,11 @@ function checkstrategy(strategy::AbstractArray, system::FactoredRMDP)
     end
 end
 
+function showstrategy(io::IO, first_prefix, prefix, strategy::StationaryStrategy)
+    println(io, first_prefix, styled"{code:StationaryStrategy}")
+    println(io, prefix, styled"└─ Strategy shape: {magenta:$(size(strategy.strategy))}")
+end
+
 """
     TimeVaryingStrategy
 
@@ -63,4 +68,10 @@ function checkstrategy(strategy::TimeVaryingStrategy, system)
     for strategy_step in strategy.strategy
         checkstrategy(strategy_step, system)
     end
+end
+
+function showstrategy(io::IO, first_prefix, prefix, strategy::TimeVaryingStrategy)
+    println(io, first_prefix, styled"{code:TimeVaryingStrategy}")
+    println(io, prefix, styled"├─ Time length: {magenta:$(length(strategy.strategy))}")
+    println(io, prefix, styled"└─ Strategy shape: {magenta:$(size(strategy.strategy[1]))}")
 end

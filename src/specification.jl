@@ -15,6 +15,8 @@ function checkmodelpropertycompatibility(prop, system)
     )
 end
 
+Base.show(io::IO, mime::MIME"text/plain", prop::Property) = showproperty(io, "", "", spec)
+
 """
     BasicProperty
 
@@ -174,6 +176,12 @@ property.
 """
 reach(prop::FiniteTimeDFAReachability) = prop.terminal_states
 
+function showproperty(io::IO, first_prefix, prefix, spec::FiniteTimeDFAReachability)
+    println(io, first_prefix, styled"{code:FiniteTimeDFAReachability}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(spec))}")
+    println(io, prefix, styled"└─ Reach states: {magenta:$(reach(spec))}")
+end
+
 """
     InfiniteTimeDFAReachability{R <: Real, VT <: Vector{<:Int32}} 
  
@@ -230,6 +238,12 @@ This is equivalent for [`terminal_states(prop::InfiniteTimeDFAReachability)`](@r
 property.
 """
 reach(prop::InfiniteTimeDFAReachability) = prop.terminal_states
+
+function showproperty(io::IO, first_prefix, prefix, spec::InfiniteTimeDFAReachability)
+    println(io, first_prefix, styled"{code:InfiniteTimeDFAReachability}")
+    println(io, prefix, styled"├─ Convergence threshold: {magenta:$(convergence_eps(spec))}")
+    println(io, prefix, styled"└─ Reach states: {magenta:$(reach(spec))}")
+end
 
 ## Reachability
 
@@ -311,6 +325,12 @@ terminal states differ.
 """
 reach(prop::FiniteTimeReachability) = prop.terminal_states
 
+function showproperty(io::IO, first_prefix, prefix, spec::FiniteTimeReachability)
+    println(io, first_prefix, styled"{code:FiniteTimeReachability}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(spec))}")
+    println(io, prefix, styled"└─ Reach states: {magenta:$(reach(spec))}")
+end
+
 """
     InfiniteTimeReachability{R <: Real, VT <: Vector{<:CartesianIndex}} 
  
@@ -368,6 +388,12 @@ property. See [`InfiniteTimeReachAvoid`](@ref) for a more complex property where
 terminal states differ.
 """
 reach(prop::InfiniteTimeReachability) = prop.terminal_states
+
+function showproperty(io::IO, first_prefix, prefix, spec::InfiniteTimeReachability)
+    println(io, first_prefix, styled"{code:InfiniteTimeReachability}")
+    println(io, prefix, styled"├─ Convergence threshold: {magenta:$(convergence_eps(spec))}")
+    println(io, prefix, styled"└─ Reach states: {magenta:$(reach(spec))}")
+end
 
 """
     ExactTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer}
@@ -434,6 +460,12 @@ terminal states differ.
 """
 reach(prop::ExactTimeReachability) = prop.terminal_states
 
+function showproperty(io::IO, first_prefix, prefix, spec::ExactTimeReachability)
+    println(io, first_prefix, styled"{code:ExactTimeReachability}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(spec))}")
+    println(io, prefix, styled"└─ Reach states: {magenta:$(reach(spec))}")
+end
+
 ## Reach-avoid
 
 """
@@ -446,6 +478,38 @@ abstract type AbstractReachAvoid <: AbstractReachability end
 function step_postprocess_value_function!(value_function, prop::AbstractReachAvoid)
     @inbounds value_function.current[reach(prop)] .= 1.0
     @inbounds value_function.current[avoid(prop)] .= 0.0
+end
+
+function checkstatebounds(states, system::IntervalMarkovProcess)
+    pns = state_variables(system)
+    for j in states
+        j = Tuple(j)
+
+        if length(j) != length(pns)
+            throw(StateDimensionMismatch(j, length(pns)))
+        end
+
+        if any(j .< 1) || any(j .> pns)
+            throw(InvalidStateError(j, pns))
+        end
+    end
+end
+
+checkstatebounds(states, system::ProductProcess) =
+    checkstatebounds(states, automaton(system))
+
+function checkstatebounds(states, system::DeterministicAutomaton)
+    for state in states
+        if state < 1 || state > num_states(system)
+            throw(InvalidStateError(state, num_states(system)))
+        end
+    end
+end
+
+function checkdisjoint(reach, avoid)
+    if !isdisjoint(reach, avoid)
+        throw(DomainError((reach, avoid), "reach and avoid sets are not disjoint"))
+    end
 end
 
 """
@@ -521,6 +585,13 @@ Return the set of states to avoid.
 """
 avoid(prop::FiniteTimeReachAvoid) = prop.avoid
 
+function showproperty(io::IO, first_prefix, prefix, spec::FiniteTimeReachAvoid)
+    println(io, first_prefix, styled"{code:FiniteTimeReachAvoid}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(spec))}")
+    println(io, prefix, styled"├─ Reach states: {magenta:$(reach(spec))}")
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(spec))}")
+end
+
 """
     InfiniteTimeReachAvoid{R <: Real, VT <: AbstractVector{<:CartesianIndex}}
 
@@ -588,6 +659,13 @@ reach(prop::InfiniteTimeReachAvoid) = prop.reach
 Return the set of states to avoid.
 """
 avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
+
+function showproperty(io::IO, first_prefix, prefix, spec::InfiniteTimeReachAvoid)
+    println(io, first_prefix, styled"{code:InfiniteTimeReachAvoid}")
+    println(io, prefix, styled"├─ Convergence threshold: {magenta:$(convergence_eps(spec))}")
+    println(io, prefix, styled"├─ Reach states: {magenta:$(reach(spec))}")
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(spec))}")
+end
 
 """
     ExactTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}}, T <: Integer}
@@ -666,36 +744,11 @@ Return the set of states to avoid.
 """
 avoid(prop::ExactTimeReachAvoid) = prop.avoid
 
-function checkstatebounds(states, system::IntervalMarkovProcess)
-    pns = state_variables(system)
-    for j in states
-        j = Tuple(j)
-
-        if length(j) != length(pns)
-            throw(StateDimensionMismatch(j, length(pns)))
-        end
-
-        if any(j .< 1) || any(j .> pns)
-            throw(InvalidStateError(j, pns))
-        end
-    end
-end
-
-checkstatebounds(states, system::ProductProcess) =
-    checkstatebounds(states, automaton(system))
-
-function checkstatebounds(states, system::DeterministicAutomaton)
-    for state in states
-        if state < 1 || state > num_states(system)
-            throw(InvalidStateError(state, num_states(system)))
-        end
-    end
-end
-
-function checkdisjoint(reach, avoid)
-    if !isdisjoint(reach, avoid)
-        throw(DomainError((reach, avoid), "reach and avoid sets are not disjoint"))
-    end
+function showproperty(io::IO, first_prefix, prefix, spec::ExactTimeReachAvoid)
+    println(io, first_prefix, styled"{code:ExactTimeReachAvoid}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(spec))}")
+    println(io, prefix, styled"├─ Reach states: {magenta:$(reach(spec))}")
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(spec))}")
 end
 
 ## Safety
@@ -777,6 +830,12 @@ This is equivalent for [`terminal_states(prop::FiniteTimeSafety)`](@ref).
 """
 avoid(prop::FiniteTimeSafety) = prop.avoid_states
 
+function showproperty(io::IO, first_prefix, prefix, spec::FiniteTimeSafety)
+    println(io, first_prefix, styled"{code:FiniteTimeSafety}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(spec))}")
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(spec))}")
+end
+
 """
     InfiniteTimeSafety{R <: Real, VT <: Vector{<:CartesianIndex}} 
  
@@ -831,6 +890,12 @@ Return the set of states with which to compute safety for a infinite time safety
 This is equivalent for [`terminal_states(prop::InfiniteTimeSafety)`](@ref).
 """
 avoid(prop::InfiniteTimeSafety) = prop.avoid_states
+
+function showproperty(io::IO, first_prefix, prefix, spec::InfiniteTimeSafety)
+    println(io, first_prefix, styled"{code:InfiniteTimeSafety}")
+    println(io, prefix, styled"├─ Convergence threshold: {magenta:$(convergence_eps(spec))}")
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(spec))}")
+end
 
 ## Reward
 
@@ -922,6 +987,13 @@ Return the time horizon of a finite time reward optimization.
 """
 time_horizon(prop::FiniteTimeReward) = prop.time_horizon
 
+function showproperty(io::IO, first_prefix, prefix, spec::FiniteTimeReward)
+    println(io, first_prefix, styled"{code:FiniteTimeReward}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(spec))}")
+    println(io, prefix, styled"├─ Discount factor: {magenta:$(discount(spec))}")
+    println(io, prefix, styled"└─ Reward storage: {magenta:$(eltype(reward(spec))), $(size(reward(spec)))}")
+end
+
 """
     InfiniteTimeReward{R <: Real, AR <: AbstractArray{R}}
 
@@ -983,6 +1055,13 @@ discount(prop::InfiniteTimeReward) = prop.discount
 Return the convergence threshold of an infinite time reward optimization.
 """
 convergence_eps(prop::InfiniteTimeReward) = prop.convergence_eps
+
+function showproperty(io::IO, first_prefix, prefix, spec::InfiniteTimeReward)
+    println(io, first_prefix, styled"{code:InfiniteTimeReward}")
+    println(io, prefix, styled"├─ Convergence threshold: {magenta:$(convergence_eps(spec))}")
+    println(io, prefix, styled"├─ Discount factor: {magenta:$(discount(spec))}")
+    println(io, prefix, styled"└─ Reward storage: {magenta:$(eltype(reward(spec))), $(size(reward(spec)))}")
+end
 
 ## Hitting time
 """
@@ -1066,6 +1145,12 @@ avoid(prop::ExpectedExitTime) = prop.avoid_states
 Return the convergence threshold of an expected exit time.
 """
 convergence_eps(prop::ExpectedExitTime) = prop.convergence_eps
+
+function showproperty(io::IO, first_prefix, prefix, spec::ExpectedExitTime)
+    println(io, first_prefix, styled"{code:ExpectedExitTime}")
+    println(io, prefix, styled"├─ Convergence threshold: {magenta:$(convergence_eps(spec))}")
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(spec))}")
+end
 
 ## Problem
 
@@ -1156,3 +1241,10 @@ Return the strategy mode of a specification.
 strategy_mode(spec::Specification) = spec.strategy
 ismaximize(spec::Specification) = ismaximize(strategy_mode(spec))
 isminimize(spec::Specification) = isminimize(strategy_mode(spec))
+
+function showspecification(io::IO, first_prefix, prefix, spec::Specification)
+    println(io, first_prefix, styled"{code:Specification}")
+    println(io, prefix, styled"├─ Satisfaction mode: {magenta:$(satisfaction_mode(spec))}")
+    println(io, prefix, styled"├─ Strategy mode: {magenta:$(strategy_mode(spec))}")
+    showproperty(io, prefix * "└─ Property: ", prefix * "   ", system_property(spec))
+end

@@ -60,6 +60,17 @@ Return the strategy of a problem, if provided.
 """
 strategy(prob::VerificationProblem) = prob.strategy
 
+function Base.show(io::IO, mime::MIME"text/plain", prob::VerificationProblem)
+    println(io, styled"{code:VerificationProblem}")
+    showsystem(io, "├─ ", "│  ", system(prob))
+    showspecification(io, "├─ ", "│  ", specification(prob))
+    if !(prob.strategy isa NoStrategy)
+        showstrategy(io, "└─ ", "   ", strategy(prob))
+    else
+        println(io, "└─ ", styled"No strategy provided (selecting optimal actions at every step)")
+    end
+end
+
 # Solution
 struct VerificationSolution{R, MR <: AbstractArray{R}, D}
     value_function::MR
@@ -176,3 +187,9 @@ num_iterations(s::ControlSynthesisSolution) = s.num_iterations
 
 Base.iterate(s::ControlSynthesisSolution, args...) =
     iterate((s.strategy, s.value_function, s.num_iterations, s.residual), args...)
+
+function Base.show(io::IO, mime::MIME"text/plain", prob::ControlSynthesisProblem)
+    println(io, styled"{code:ControlSynthesisProblem}")
+    showsystem(io, "├─ ", "│  ", system(prob))
+    showspecification(io, "└─ ", "   ", specification(prob))
+end

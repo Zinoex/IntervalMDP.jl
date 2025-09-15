@@ -199,6 +199,33 @@ function Base.iterate(p::IntervalAmbiguitySets, state)
 end
 Base.length(p::IntervalAmbiguitySets) = num_sets(p)
 
+function showambiguitysets(io::IO, prefix, ::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractMatrix}
+    println(io, prefix, styled"└─ Ambiguity set type: Interval (dense, {code:$MR})")
+end
+
+function showambiguitysets(io::IO, prefix, p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractSparseMatrix}
+    println(io, prefix, styled"├─ Ambiguity set type: Interval (sparse, {code:$MR})")
+    num_transitions = nnz(p.gap)
+    max_support = maximum(supportsize, p)
+    println(io, prefix, styled"└─ Transitions: {magenta: $num_transitions (max support: $max_support)}")
+end
+
+function Base.show(io::IO, mime::MIME"text/plain", p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractMatrix}
+    println(io, styled"{code:IntervalAmbiguitySets}")
+    println(io, styled"├─ Storage type: {code:$MR}")
+    println(io, "├─ Number of target states: ", num_target(p))
+    println(io, "└─ Number of ambiguity sets: ", num_sets(p))
+end
+
+function Base.show(io::IO, mime::MIME"text/plain", p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractSparseMatrix}
+    println(io, styled"{code:IntervalAmbiguitySets}")
+    println(io, styled"├─ Storage type: {code:$MR}")
+    println(io, "├─ Number of target states: ", num_target(p))
+    println(io, "├─ Number of ambiguity sets: ", num_sets(p))
+    println(io, "├─ Maximum support size: ", maximum(supportsize, p))
+    println(io, "└─ Number of non-zeros: ", nnz(p.gap))
+end
+
 struct IntervalAmbiguitySet{R, VR <: AbstractVector{R}} <: PolytopicAmbiguitySet
     lower::VR
     gap::VR

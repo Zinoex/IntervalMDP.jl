@@ -12,7 +12,7 @@ using IntervalMDP, CUDA
 
     #### Maximization
     @testset "maximization" begin
-        ws = IntervalMDP.construct_workspace(prob, OMaximization())
+        ws = IntervalMDP.construct_workspace(prob)
         strategy_cache = IntervalMDP.construct_strategy_cache(prob)
         Vres = CUDA.zeros(N, 2)
         IntervalMDP._bellman_helper!(
@@ -29,7 +29,7 @@ using IntervalMDP, CUDA
 
     #### Minimization
     @testset "minimization" begin
-        ws = IntervalMDP.construct_workspace(prob, OMaximization())
+        ws = IntervalMDP.construct_workspace(prob)
         strategy_cache = IntervalMDP.construct_strategy_cache(prob)
         Vres = CUDA.zeros(N, 2)
         IntervalMDP._bellman_helper!(
