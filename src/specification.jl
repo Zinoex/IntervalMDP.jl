@@ -15,7 +15,7 @@ function checkmodelpropertycompatibility(prop, system)
     )
 end
 
-Base.show(io::IO, mime::MIME"text/plain", prop::Property) = showproperty(io, "", "", spec)
+Base.show(io::IO, mime::MIME"text/plain", prop::Property) = showproperty(io, "", "", prop)
 
 """
     BasicProperty
