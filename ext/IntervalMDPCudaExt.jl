@@ -8,13 +8,13 @@ using GPUArrays: AbstractGPUArray, AbstractGPUVector, AbstractGPUMatrix
 
 using IntervalMDP, LinearAlgebra
 
+# Opinionated conversion to GPU with preserved value types and Int32 indices
+IntervalMDP.cu(obj) = adapt(IntervalMDP.CuModelAdaptor{IntervalMDP.valuetype(obj)}, obj)
+IntervalMDP.cpu(obj) = adapt(IntervalMDP.CpuModelAdaptor{IntervalMDP.valuetype(obj)}, obj)
+
 Adapt.@adapt_structure Marginal
 Adapt.@adapt_structure StationaryStrategy
-Adapt.@adapt_structure TimeVaryingStrategy
-
-# Opinionated conversion to GPU with preserved value types and Int32 indices
-IntervalMDP.cu(model) = adapt(IntervalMDP.CuModelAdaptor{IntervalMDP.valuetype(model)}, model)
-IntervalMDP.cpu(model) = adapt(IntervalMDP.CpuModelAdaptor{IntervalMDP.valuetype(model)}, model)
+Adapt.adapt_structure(to, strategy::TimeVaryingStrategy) = TimeVaryingStrategy([adapt(to, s) for s in strategy.strategy])
 
 function Adapt.adapt_structure(
     T::Type{<:IntervalMDP.CuModelAdaptor},

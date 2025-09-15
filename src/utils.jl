@@ -26,6 +26,10 @@ valuetype(marginal::Marginal) = valuetype(ambiguity_sets(marginal))
 valuetype(::IntervalAmbiguitySets{R}) where {R} = R
 valuetype(::AbstractArray{R}) where {R} = R
 
+valuetype(::TimeVaryingStrategy{N, <:AbstractArray{NTuple{N, T}}}) where {N, T} = T
+valuetype(::StationaryStrategy{N, <:AbstractArray{NTuple{N, T}}}) where {N, T} = T
+valuetype(::NoStrategy) = nothing
+
 valuetype(::Property) = nothing
 valuetype(::FiniteTimeReward{R}) where {R} = R
 valuetype(::InfiniteTimeReward{R}) where {R} = R

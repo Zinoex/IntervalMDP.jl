@@ -19,23 +19,26 @@ SparseArrays.nzrange(S::CuSparseMatrixCSC, col::Integer) =
     CUDA.@allowscalar(S.colPtr[col]):(CUDA.@allowscalar(S.colPtr[col + 1]) - 1)
 
 Adapt.adapt_storage(
-    ::Type{IntervalMDP.CuModelAdaptor{Tv}},
+    ::Type{<:IntervalMDP.CuModelAdaptor{Tv}},
     M::SparseArrays.FixedSparseCSC,
 ) where {Tv} = CuSparseMatrixCSC{Tv, Int32}(M)
 
-Adapt.adapt_storage(::Type{IntervalMDP.CuModelAdaptor{Tv}}, M::SparseMatrixCSC) where {Tv} =
-    CuSparseMatrixCSC{Tv, Int32}(M)
+Adapt.adapt_storage(::Type{<:IntervalMDP.CuModelAdaptor{Tv1}}, M::SparseMatrixCSC{Tv2}) where {Tv1, Tv2} =
+    CuSparseMatrixCSC{Tv1, Int32}(M)
 
-Adapt.adapt_storage(::Type{IntervalMDP.CuModelAdaptor{Tv}}, x::AbstractArray) where {Tv} =
-    adapt(CuArray{Tv}, x)
+Adapt.adapt_storage(::Type{<:IntervalMDP.CuModelAdaptor{Tv1}}, x::AbstractArray{Tv2}) where {Tv1, Tv2} =
+    adapt(CuArray{Tv1}, x)
+
+Adapt.adapt_storage(::Type{<:IntervalMDP.CuModelAdaptor{Tv1}}, x::AbstractArray{NTuple{N, T}}) where {Tv1, N, T <: Integer} =
+    adapt(CuArray{NTuple{N, T}}, x)
 
 Adapt.adapt_storage(
     ::Type{IntervalMDP.CpuModelAdaptor{Tv}},
     M::CuSparseMatrixCSC,
 ) where {Tv} = SparseMatrixCSC{Tv, Int32}(M)
 
-Adapt.adapt_storage(::Type{IntervalMDP.CpuModelAdaptor{Tv}}, x::CuArray{Tv}) where {Tv} =
-    adapt(Array{Tv}, x)
+Adapt.adapt_storage(::Type{<:IntervalMDP.CpuModelAdaptor{Tv1}}, x::CuArray{Tv2}) where {Tv1, Tv2} =
+    adapt(Array{Tv1}, x)
 
-Adapt.adapt_storage(::Type{IntervalMDP.CpuModelAdaptor{Tv}}, x::CuArray{<:Integer}) where {Tv} =
-    adapt(Array{Int32}, x)
+Adapt.adapt_storage(::Type{<:IntervalMDP.CpuModelAdaptor{Tv1}}, x::CuArray{NTuple{N, T}}) where {Tv1, N, T <: Integer} =
+    adapt(Array{NTuple{N, T}}, x)

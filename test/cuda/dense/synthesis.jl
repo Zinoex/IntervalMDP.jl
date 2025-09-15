@@ -67,7 +67,7 @@ for k in 1:time_length(policy)
 end
 
 # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
-problem = VerificationProblem(mdp, spec, policy)
+problem = VerificationProblem(mdp, spec, IntervalMDP.cu(policy))
 V_mc, k, res = solve(problem)
 @test V ≈ V_mc
 
@@ -86,7 +86,7 @@ for k in 1:time_length(policy)
 end
 
 # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
-problem = VerificationProblem(mdp, spec, policy)
+problem = VerificationProblem(mdp, spec, IntervalMDP.cu(policy))
 V_mc, k, res = solve(problem)
 @test IntervalMDP.cpu(V) ≈ IntervalMDP.cpu(V_mc) atol=1e-5
 
@@ -102,7 +102,7 @@ policy = IntervalMDP.cpu(policy)  # Convert to CPU for testing
 @test policy[1] == [(1,), (2,), (1,)]
 
 # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
-problem = VerificationProblem(mdp, spec, policy)
+problem = VerificationProblem(mdp, spec, IntervalMDP.cu(policy))
 V_mc, k, res = solve(problem)
 @test IntervalMDP.cpu(V) ≈ IntervalMDP.cpu(V_mc) atol=1e-5
 
