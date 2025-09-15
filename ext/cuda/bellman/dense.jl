@@ -32,12 +32,12 @@ function IntervalMDP._bellman_helper!(
     max_threads = prevwarp(device(), config.threads)
 
     # Execution plan:
-    # - value assignment: 1 warp per state/action pair
-    # - reduce over actions in the first warp for each state
+    # - value assignment: 1 warp per state
+    # - reduce over actions
     # - squeeze as many states as possible in a block
     # - use shared memory to store the values and permutation
     # - use bitonic sort to sort the values for all states in a block
-    threads_per_state = min(max_threads, 32 * n_actions)
+    threads_per_state = 32
     states_per_block = min(n_states, div(max_threads, threads_per_state))
     threads = threads_per_state * states_per_block
     blocks = min(2^16 - 1, cld(n_states, states_per_block))
@@ -69,14 +69,10 @@ function dense_bellman_kernel!(
     action_reduce,
 ) where {Tv}
     # Prepare action workspace shared memory
-    tps = threads_per_state(workspace, strategy_cache)
-    states_per_block = div(blockDim().x, tps)
-    sid = fld1(threadIdx().x, tps)
-
-    action_workspace = initialize_action_workspace(workspace, strategy_cache, V, states_per_block, sid)
+    action_workspace = initialize_action_workspace(workspace, strategy_cache, V)
 
     # Prepare sorting shared memory
-    value, perm = initialize_value_and_perm(workspace, strategy_cache, V, marginal, states_per_block)
+    value, perm = initialize_value_and_perm(workspace, strategy_cache, V, marginal)
 
     # Perform sorting
     dense_initialize_sorting_shared_memory!(V, value, perm)
@@ -92,8 +88,6 @@ function dense_bellman_kernel!(
         marginal,
         value,
         perm,
-        states_per_block,
-        sid,
         action_reduce,
     )
 
@@ -103,20 +97,19 @@ end
 @inline function initialize_action_workspace(
     workspace,
     ::OptimizingActiveCache,
-    marginal,
-    states_per_block,
-    sid,
+    marginal
 )
-    action_workspace = CuDynamicSharedArray(IntervalMDP.valuetype(marginal), (workspace.num_actions, states_per_block))
-    @inbounds return @view action_workspace[:, sid]
+    assume(warpsize() == 32)
+    nwarps = div(blockDim().x, warpsize())
+    wid = fld1(threadIdx().x, warpsize())
+    action_workspace = CuDynamicSharedArray(IntervalMDP.valuetype(marginal), (workspace.num_actions, nwarps))
+    @inbounds return @view action_workspace[:, wid]
 end
 
 @inline function initialize_action_workspace(
     workspace,
     ::NonOptimizingActiveCache,
-    marginal,
-    states_per_block,
-    sid,
+    marginal
 )
     return nothing
 end
@@ -125,12 +118,13 @@ end
     workspace,
     ::OptimizingActiveCache,
     V::AbstractVector{Tv},
-    marginal,
-    states_per_block,
+    marginal
 ) where {Tv}
+    assume(warpsize() == 32)
+    nwarps = div(blockDim().x, warpsize())
     Tv2 = IntervalMDP.valuetype(marginal)
-    value = CuDynamicSharedArray(Tv, length(V), workspace.num_actions * states_per_block * sizeof(Tv2))
-    perm = CuDynamicSharedArray(Int32, length(V), workspace.num_actions * states_per_block * sizeof(Tv2) + length(V) * sizeof(Tv))
+    value = CuDynamicSharedArray(Tv, length(V), workspace.num_actions * nwarps * sizeof(Tv2))
+    perm = CuDynamicSharedArray(Int32, length(V), workspace.num_actions * nwarps * sizeof(Tv2) + length(V) * sizeof(Tv))
     return value, perm
 end
 
@@ -138,28 +132,11 @@ end
     workspace,
     ::NonOptimizingActiveCache,
     V::AbstractVector{Tv},
-    marginal,
-    states_per_block,
+    marginal
 ) where {Tv}
     value = CuDynamicSharedArray(Tv, length(V))
     perm = CuDynamicSharedArray(Int32, length(V), length(V) * sizeof(Tv))
     return value, perm
-end
-
-@inline function threads_per_state(
-    workspace,
-    ::OptimizingActiveCache,
-)
-    assume(warpsize() == 32)
-    return min(blockDim().x, warpsize() * workspace.num_actions)
-end
-
-@inline function threads_per_state(
-    workspace,
-    ::NonOptimizingActiveCache,
-)
-    assume(warpsize() == 32)
-    return warpsize()
 end
 
 @inline function dense_initialize_sorting_shared_memory!(V, value, perm)
@@ -184,11 +161,12 @@ end
     marginal,
     value,
     perm,
-    states_per_block,
-    sid,
     action_reduce,
 )
-    jₛ = sid + (blockIdx().x - one(Int32)) * states_per_block
+    assume(warpsize() == 32)
+    nwarps = div(blockDim().x, warpsize())
+    wid = fld1(threadIdx().x, warpsize())
+    jₛ = wid + (blockIdx().x - one(Int32)) * nwarps
     @inbounds while jₛ <= source_shape(marginal)[1]  # Grid-stride loop
         state_dense_omaximization!(
             workspace,
@@ -202,7 +180,7 @@ end
             jₛ,
             action_reduce,
         )
-        jₛ += gridDim().x * states_per_block
+        jₛ += gridDim().x * nwarps
     end
 
     return nothing
@@ -217,18 +195,14 @@ end
     marginal,
     value,
     perm,
-    jₛ,
+    jₛ::Int32,
     action_reduce,
 ) where {Tv}
     assume(warpsize() == 32)
+    lane = mod1(threadIdx().x, warpsize())
+    nwarps = div(blockDim().x, warpsize())
 
-    tps = threads_per_state(workspace, strategy_cache)
-    nwarps_per_state = div(tps, warpsize())
-
-    warp, lane = fldmod1(threadIdx().x, warpsize())
-    state_warp = mod1(warp, nwarps_per_state)
-
-    jₐ = state_warp
+    jₐ = one(Int32)
     @inbounds while jₐ <= action_shape(marginal)[1]
         ambiguity_set = marginal[(jₐ,), (jₛ,)]
 
@@ -240,18 +214,16 @@ end
         end
         sync_warp()
 
-        jₐ += nwarps_per_state
+        jₐ += nwarps
     end
 
     # Find the best action
-    if state_warp == one(Int32)
-        v = extract_strategy_warp!(strategy_cache, action_workspace, Vres, jₛ, action_reduce, lane)
+    v = extract_strategy_warp!(strategy_cache, action_workspace, Vres, jₛ, action_reduce, lane)
 
-        if lane == one(Int32)
-            Vres[jₛ] = v
-        end
+    if lane == one(Int32)
+        Vres[jₛ] = v
     end
-    sync_threads()
+    sync_warp()
 end
 
 @inline function state_dense_omaximization!(
@@ -263,7 +235,7 @@ end
     marginal,
     value,
     perm,
-    jₛ,
+    jₛ::Int32,
     action_reduce,
 ) where {Tv}
     lane = mod1(threadIdx().x, warpsize())
@@ -308,7 +280,6 @@ end
     used = CUDA.reduce_warp(+, used)
     used = shfl_sync(0xffffffff, used, one(Int32))
     remaining = one(R) - used
-    sync_warp()
 
     # Add the gap multiplied by the value
     s = lane
