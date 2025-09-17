@@ -228,3 +228,45 @@ function construct_workspace(
         return ThreadedFactoredIntervalOMaxWorkspace(sys)
     end
 end
+
+# Factored vertex iterator workspace
+struct FactoredVertexIteratorWorkspace{N, T, AT <: AbstractArray{T}}
+    result_vectors::NTuple{N, Vector{T}}
+    actions::AT
+end
+
+function FactoredVertexIteratorWorkspace(sys::FactoredRMDP)
+    N = length(marginals(sys))
+    R = valuetype(sys)
+
+    result_vectors = ntuple(r -> Vector{R}(undef, state_variables(sys, r)), N)
+    actions = Array{valuetype(sys)}(undef, action_shape(sys))
+
+    return FactoredVertexIteratorWorkspace(result_vectors, actions)
+end
+
+struct ThreadedFactoredVertexIteratorWorkspace{N, T, AT <: AbstractArray{T}}
+    thread_workspaces::Vector{FactoredVertexIteratorWorkspace{N, T, AT}}
+end
+
+function ThreadedFactoredVertexIteratorWorkspace(sys::FactoredRMDP)
+    nthreads = Threads.nthreads()
+    thread_workspaces = [FactoredVertexIteratorWorkspace(sys) for _ in 1:nthreads]
+    return ThreadedFactoredVertexIteratorWorkspace(thread_workspaces)
+end
+
+Base.getindex(ws::ThreadedFactoredVertexIteratorWorkspace, i) = ws.thread_workspaces[i]
+
+function construct_workspace(
+    sys::FactoredRMDP,
+    ::Union{IsFIMDP, IsIMDP},
+    ::VertexEnumeration;
+    threshold = 10,
+    kwargs...
+)
+    if Threads.nthreads() == 1 || num_states(sys) <= threshold
+        return FactoredVertexIteratorWorkspace(sys)
+    else
+        return ThreadedFactoredVertexIteratorWorkspace(sys)
+    end
+end

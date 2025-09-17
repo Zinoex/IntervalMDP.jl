@@ -24,6 +24,7 @@ valuetype(mp::ProductProcess) = valuetype(markov_process(mp))
 valuetype(mp::FactoredRMDP) = promote_type(valuetype.(marginals(mp))...)
 valuetype(marginal::Marginal) = valuetype(ambiguity_sets(marginal))
 valuetype(::IntervalAmbiguitySets{R}) where {R} = R
+valuetype(::IntervalAmbiguitySet{R}) where {R} = R
 valuetype(::AbstractArray{R}) where {R} = R
 
 valuetype(::TimeVaryingStrategy{N, <:AbstractArray{NTuple{N, T}}}) where {N, T} = T

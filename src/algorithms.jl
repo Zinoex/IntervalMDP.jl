@@ -3,6 +3,7 @@ struct OMaximization <: BellmanAlgorithm end
 Base.@kwdef struct LPMcCormickRelaxation{O} <: BellmanAlgorithm
     lp_optimizer::O = HiGHS.Optimizer
 end
+struct VertexEnumeration <: BellmanAlgorithm end
 
 default_bellman_algorithm(pp::ProductProcess) = default_bellman_algorithm(markov_process(pp))
 default_bellman_algorithm(mdp::FactoredRMDP) = default_bellman_algorithm(mdp, modeltype(mdp))
@@ -20,6 +21,10 @@ end
 
 function showbellmanalg(io::IO, prefix, ::IsFIMDP, ::LPMcCormickRelaxation)
     println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:Binary tree LP McCormick Relaxation}")
+end
+
+function showbellmanalg(io::IO, prefix, ::IsFIMDP, ::VertexEnumeration)
+    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:Vertex Enumeration}")
 end
 
 function showbellmanalg(io::IO, prefix, _, ::BellmanAlgorithm)

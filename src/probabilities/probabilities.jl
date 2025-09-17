@@ -12,6 +12,8 @@ ispolytopic(::PolytopicAmbiguitySets) = IsPolytopic()
 abstract type AbstractAmbiguitySet end
 abstract type PolytopicAmbiguitySet <: AbstractAmbiguitySet end
 
+abstract type VertexIterator end
+
 """
     num_sets(ambiguity_sets::AbstractAmbiguitySets)
 

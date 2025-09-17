@@ -52,7 +52,7 @@ public cu, cpu
 
 ### Solving
 include("algorithms.jl")
-export OMaximization, LPMcCormickRelaxation
+export OMaximization, LPMcCormickRelaxation, VertexEnumeration
 export RobustValueIteration
 
 include("utils.jl")

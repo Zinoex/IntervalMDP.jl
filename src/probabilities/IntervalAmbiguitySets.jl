@@ -251,15 +251,22 @@ support(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = rowvals(p
 supportsize(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = nnz(p.gap)
 
 # Vertex iterator for IntervalAmbiguitySet
-struct IntervalAmbiguitySetVertexIterator{R, VR <: AbstractVector{R}, P <: Permutations}
+struct IntervalAmbiguitySetVertexIterator{R, VR <: AbstractVector{R}, P <: Permutations} <: VertexIterator
     set::IntervalAmbiguitySet{R, VR}
     perm::P
+    result::Vector{R}  # Preallocated result vector
+end
+
+function IntervalAmbiguitySetVertexIterator(set::IntervalAmbiguitySet, result::Vector)
+    perm = permutations(support(set))
+    return IntervalAmbiguitySetVertexIterator(set, perm, result)
 end
 
 function IntervalAmbiguitySetVertexIterator(set::IntervalAmbiguitySet)
-    perm = permutations(support(set))
-    return IntervalAmbiguitySetVertexIterator(set, perm)
+    v = Vector{valuetype(set)}(undef, num_target(set))
+    return IntervalAmbiguitySetVertexIterator(set, v)
 end
+
 Base.IteratorEltype(::Type{<:IntervalAmbiguitySetVertexIterator}) = Base.HasEltype()
 Base.eltype(::IntervalAmbiguitySetVertexIterator{R}) where {R} = Vector{R}
 Base.IteratorSize(::Type{<:IntervalAmbiguitySetVertexIterator}) = Base.HasLength()
@@ -274,9 +281,13 @@ function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}) where {R, V
 
     (permutation, state) = res
 
-    v = copy(lower(it.set))
-    budget = 1.0 - sum(v)
+    v = it.result
+    copyto!(v, lower(it.set))
+
+    # v = copy(lower(it.set))
+    budget = one(R) - sum(v)
     for i in permutation
+        i = support(it.set)[i]
         if budget <= gap(it.set, i)
             v[i] += budget
             break
@@ -297,9 +308,14 @@ function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}, state) wher
     end
 
     (permutation, state) = res
-    v = copy(lower(it.set))
-    budget = 1.0 - sum(v)
+
+    v = it.result
+    copyto!(v, lower(it.set))
+
+    # v = copy(lower(it.set))
+    budget = one(R) - sum(v)
     for i in permutation
+        i = support(it.set)[i]
         if budget <= gap(it.set, i)
             v[i] += budget
             break
@@ -313,4 +329,5 @@ function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}, state) wher
 end
 
 vertex_generator(p::IntervalAmbiguitySet) = IntervalAmbiguitySetVertexIterator(p)
-vertices(p::IntervalAmbiguitySet) = collect(vertex_generator(p))
+vertex_generator(p::IntervalAmbiguitySet, result::Vector) = IntervalAmbiguitySetVertexIterator(p, result)
+vertices(p::IntervalAmbiguitySet) = map(copy, vertex_generator(p))

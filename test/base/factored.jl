@@ -20,6 +20,42 @@ using Random: MersenneTwister
 
         V = N[1, 2, 3]
 
+        @testset "vertices" begin
+            verts = IntervalMDP.vertices(ambiguity_sets[1])
+            @test length(verts) <= 6  # = number of permutations of 3 elements, may be less due to uniqueness
+
+            expected_verts = N[
+                5//10 3//10 2//10
+                5//10 1//10 4//10
+                2//10 6//10 2//10
+                0 6//10 4//10
+                2//10 1//10 7//10
+                0 3//10 7//10
+            ]
+            @test length(verts) ≥ size(expected_verts, 1)  # at least the unique ones
+            @test all(any(v2 -> v1 ≈ v2, verts) for v1 in eachrow(expected_verts))
+
+            verts = IntervalMDP.vertices(ambiguity_sets[2])
+            @test length(verts) <= 6  # = number of permutations of 3 elements modulo 
+
+            expected_verts = N[  # duplicates due to budget < gap for all elements
+                6//10 3//10 1//10
+                5//10 4//10 1//10
+                5//10 3//10 2//10
+            ]
+            @test length(verts) ≥ size(expected_verts, 1)  # at least the unique ones
+            @test all(any(v2 -> v1 ≈ v2, verts) for v1 in eachrow(expected_verts))
+
+            verts = IntervalMDP.vertices(ambiguity_sets[3])
+            @test length(verts) <= 6  # = number of permutations of 3 elements
+
+            expected_verts = N[  # Only one vertex since sum(lower) = 1
+                2//10 3//10 5//10
+            ]
+            @test length(verts) ≥ size(expected_verts, 1)  # at least the unique ones
+            @test all(any(v2 -> v1 ≈ v2, verts) for v1 in eachrow(expected_verts))
+        end
+
         @testset "maximization" begin
             Vexpected = IntervalMDP.bellman(V, imc; upper_bound = true) # Using O-maximization, should be equivalent
 
@@ -50,6 +86,45 @@ using Random: MersenneTwister
             @test Vres ≈ Vexpected
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(imc, LPMcCormickRelaxation())
+            strategy_cache = IntervalMDP.construct_strategy_cache(imc)
+            Vres = similar(Vres)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                imc;
+                upper_bound = true,
+            )
+            @test Vres ≈ Vexpected
+
+            ws = IntervalMDP.construct_workspace(imc, VertexEnumeration())
+            strategy_cache = IntervalMDP.construct_strategy_cache(imc)
+            Vres = zeros(N, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                imc;
+                upper_bound = true,
+            )
+            @test Vres ≈ Vexpected
+
+            ws = IntervalMDP.FactoredVertexIteratorWorkspace(imc)
+            strategy_cache = IntervalMDP.construct_strategy_cache(imc)
+            Vres = similar(Vres)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                imc;
+                upper_bound = true,
+            )
+            @test Vres ≈ Vexpected
+
+            ws = IntervalMDP.ThreadedFactoredVertexIteratorWorkspace(imc)
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
             Vres = similar(Vres)
             IntervalMDP.bellman!(
@@ -104,6 +179,45 @@ using Random: MersenneTwister
                 upper_bound = false,
             )
             @test Vres ≈ Vexpected
+
+            ws = IntervalMDP.construct_workspace(imc, VertexEnumeration())
+            strategy_cache = IntervalMDP.construct_strategy_cache(imc)
+            Vres = zeros(N, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                imc;
+                upper_bound = false,
+            )
+            @test Vres ≈ Vexpected
+
+            ws = IntervalMDP.FactoredVertexIteratorWorkspace(imc)
+            strategy_cache = IntervalMDP.construct_strategy_cache(imc)
+            Vres = similar(Vres)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                imc;
+                upper_bound = false,
+            )
+            @test Vres ≈ Vexpected
+
+            ws = IntervalMDP.ThreadedFactoredVertexIteratorWorkspace(imc)
+            strategy_cache = IntervalMDP.construct_strategy_cache(imc)
+            Vres = similar(Vres)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                V,
+                imc;
+                upper_bound = false,
+            )
+            @test Vres ≈ Vexpected
         end
     end
 
@@ -112,7 +226,6 @@ using Random: MersenneTwister
         action_indices = (1,)
         state_vars = (2, 3)
         action_vars = (1,)
-        jₐ = CartesianIndex(1)
 
         marginal1 = Marginal(IntervalAmbiguitySets(;
             lower = N[
@@ -144,20 +257,26 @@ using Random: MersenneTwister
             3 13 18
             12 16  8
         ]
-        eval_vertices(p, q) = sum(V[I] * p[I[1]] * q[I[2]] for I in CartesianIndices(state_vars))
 
         #### Maximization
         @testset "maximization" begin
-            V_vertex = [
-                maximum(
-                    splat(eval_vertices), 
-                    Iterators.product(
-                        IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
-                        IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
-                    )
-                ) for jₛ in CartesianIndices(state_vars)
-            ] # The maximum will always be a vertex
+            ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            V_vertex = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                V_vertex,
+                V,
+                mdp;
+                upper_bound = true,
+            )
 
+            @test V_vertex ≈ N[
+                1076//75 4279//300 167//15
+                11107//900 4123//300 121//9
+            ]
+ 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_McCormick = zeros(N, 2, 3)
@@ -247,15 +366,22 @@ using Random: MersenneTwister
 
         #### Minimization
         @testset "minimization" begin
-            V_vertex = [
-                minimum(
-                    splat(eval_vertices), 
-                    Iterators.product(
-                        IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
-                        IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
-                    )
-                ) for jₛ in CartesianIndices(state_vars)
-            ] # The minimum will always be a vertex
+            ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            V_vertex = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                V_vertex,
+                V,
+                mdp;
+                upper_bound = false,
+            )
+
+            @test V_vertex ≈ N[
+                4399//450 41//5 488//45
+                1033//100 543//50 361//36
+            ]
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
@@ -379,21 +505,21 @@ using Random: MersenneTwister
             3 13 18
             12 16  8
         ]
-        eval_vertices(p, q) = sum(V[I] * p[I[1]] * q[I[2]] for I in CartesianIndices(state_vars))
 
         #### Maximization
         @testset "max/max" begin
-            V_vertex = [
-                maximum(
-                    maximum(
-                        splat(eval_vertices), 
-                        Iterators.product(
-                            IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
-                            IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
-                        )
-                    ) for jₐ in CartesianIndices(action_vars)
-                ) for jₛ in CartesianIndices(state_vars)
-            ] # The (inner) maximum will always be a vertex
+            ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            V_vertex = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                V_vertex,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = true,
+            )
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
@@ -489,17 +615,18 @@ using Random: MersenneTwister
         end
 
         @testset "min/max" begin
-            V_vertex = [
-                minimum(
-                    maximum(
-                        splat(eval_vertices), 
-                        Iterators.product(
-                            IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
-                            IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
-                        )
-                    ) for jₐ in CartesianIndices(action_vars)
-                ) for jₛ in CartesianIndices(state_vars)
-            ] # The (inner) maximum will always be a vertex
+            ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            V_vertex = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                V_vertex,
+                V,
+                mdp;
+                upper_bound = true,
+                maximize = false,
+            )
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
@@ -596,17 +723,18 @@ using Random: MersenneTwister
 
         #### Minimization
         @testset "min/min" begin
-            V_vertex = [
-                minimum(
-                    minimum(
-                        splat(eval_vertices), 
-                        Iterators.product(
-                            IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
-                            IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
-                        )
-                    ) for jₐ in CartesianIndices(action_vars)
-                ) for jₛ in CartesianIndices(state_vars)
-            ] # The (inner) minimum will always be a vertex
+            ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            V_vertex = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                V_vertex,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = false,
+            )
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
@@ -702,17 +830,18 @@ using Random: MersenneTwister
         end
 
         @testset "max/min" begin
-            V_vertex = [
-                maximum(
-                    minimum(
-                        splat(eval_vertices), 
-                        Iterators.product(
-                            IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
-                            IntervalMDP.vertex_generator(marginal2[jₐ, jₛ])
-                        )
-                    ) for jₐ in CartesianIndices(action_vars)
-                ) for jₛ in CartesianIndices(state_vars)
-            ] # The (inner) minimum will always be a vertex
+            ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            V_vertex = zeros(N, 2, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                V_vertex,
+                V,
+                mdp;
+                upper_bound = false,
+                maximize = true,
+            )
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
@@ -813,7 +942,6 @@ using Random: MersenneTwister
         action_indices = (1,)
         state_vars = (3, 3, 3)
         action_vars = (1,)
-        jₐ = CartesianIndex(1)
 
         marginal1 = Marginal(IntervalAmbiguitySets(;
             lower = N[
@@ -886,20 +1014,20 @@ using Random: MersenneTwister
             2,
         ]
         V = reshape(V, 3, 3, 3)
-        eval_vertices(p, q, r) = sum(V[I] * p[I[1]] * q[I[2]] * r[I[3]] for I in CartesianIndices(state_vars))
 
         #### Maximization
         @testset "maximization" begin
-            V_vertex = [
-                maximum(
-                    splat(eval_vertices), 
-                    Iterators.product(
-                        IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
-                        IntervalMDP.vertex_generator(marginal2[jₐ, jₛ]),
-                        IntervalMDP.vertex_generator(marginal3[jₐ, jₛ])
-                    )
-                ) for jₛ in CartesianIndices(state_vars)
-            ] # The maximum will always be a vertex
+            ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            V_vertex = zeros(N, 3, 3, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                V_vertex,
+                V,
+                mdp;
+                upper_bound = true,
+            )
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
@@ -990,16 +1118,17 @@ using Random: MersenneTwister
 
         #### Minimization
         @testset "minimization" begin
-            V_vertex = [
-                minimum(
-                    splat(eval_vertices), 
-                    Iterators.product(
-                        IntervalMDP.vertex_generator(marginal1[jₐ, jₛ]),
-                        IntervalMDP.vertex_generator(marginal2[jₐ, jₛ]),
-                        IntervalMDP.vertex_generator(marginal3[jₐ, jₛ])
-                    )
-                ) for jₛ in CartesianIndices(state_vars)
-            ] # The minimum will always be a vertex
+            ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
+            strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
+            V_vertex = zeros(N, 3, 3, 3)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                V_vertex,
+                V,
+                mdp;
+                upper_bound = false,
+            )
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)

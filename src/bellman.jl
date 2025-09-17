@@ -238,9 +238,9 @@ function localize_strategy_cache(strategy_cache::ActiveGivenStrategyCache, dfa_s
     )
 end
 
-######################################################
-# Bellman operator for IntervalMarkovDecisionProcess #
-######################################################
+###########################################################################
+# O-Maximization-based Bellman operator for IntervalMarkovDecisionProcess #
+###########################################################################
 
 # Non-threaded
 function _bellman_helper!(
@@ -426,9 +426,9 @@ Base.@propagate_inbounds function gap_value(
     return res
 end
 
-##################################################
-# McCormick relaxation-based Bellman over fRMDPs #
-##################################################
+##########################################################
+# McCormick relaxation-based Bellman operator for fIMDPs #
+##########################################################
 
 # Non-threaded
 function _bellman_helper!(
@@ -595,9 +595,9 @@ function mccormick_branch(model, ambiguity_sets)
 end
 
 
-##################################################
-# O-Max-based Bellman operator for Factored IMDP #
-##################################################
+####################################################
+# O-Maximization-based Bellman operator for fIMDPs #
+####################################################
 function _bellman_helper!(
     workspace::FactoredIntervalOMaxWorkspace,
     strategy_cache::AbstractStrategyCache,
@@ -752,4 +752,118 @@ Base.@propagate_inbounds function orthogonal_inner_bellman!(
     sort!(Vp_workspace; rev = upper_bound, by = first, scratch = scratch(workspace))
 
     return dot(V, lower(ambiguity_set)) + gap_value(Vp_workspace, budget)
+end
+
+
+##########################################################
+# Vertex enumeration-based Bellman operator for fIMDPs #
+##########################################################
+
+# Non-threaded
+function _bellman_helper!(
+    workspace::FactoredVertexIteratorWorkspace,
+    strategy_cache::AbstractStrategyCache,
+    Vres,
+    V,
+    model;
+    upper_bound = false,
+    maximize = true,
+)
+    for jₛ in CartesianIndices(source_shape(model))
+        state_bellman!(
+            workspace,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
+    end
+
+    return Vres
+end
+
+# Threaded
+function _bellman_helper!(
+    workspace::ThreadedFactoredVertexIteratorWorkspace,
+    strategy_cache::AbstractStrategyCache,
+    Vres,
+    V,
+    model;
+    upper_bound = false,
+    maximize = true,
+)
+    @threadstid tid for jₛ in CartesianIndices(source_shape(model))
+        @inbounds ws = workspace[tid]
+        state_bellman!(
+            ws,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
+    end
+
+    return Vres
+end
+
+function state_bellman!(
+    workspace::FactoredVertexIteratorWorkspace,
+    strategy_cache::OptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    jₛ,
+    upper_bound,
+    maximize,
+)
+    @inbounds begin
+        for jₐ in CartesianIndices(action_shape(model))
+            ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
+            workspace.actions[jₐ] = state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
+        end
+
+        Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, V, jₛ, maximize)
+    end
+end
+
+function state_bellman!(
+    workspace::FactoredVertexIteratorWorkspace,
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    jₛ,
+    upper_bound,
+    maximize,
+)
+    @inbounds begin
+        jₐ = CartesianIndex(strategy_cache[jₛ])
+        ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
+        Vres[jₛ] = state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
+    end
+end
+
+Base.@propagate_inbounds function state_action_bellman(
+    workspace::FactoredVertexIteratorWorkspace,
+    V::AbstractArray{R},
+    ambiguity_sets,
+    upper_bound,
+) where {R}
+    iterators = vertex_generator.(ambiguity_sets, workspace.result_vectors)
+
+    optval = upper_bound ? typemin(R) : typemax(R)
+    optfunc = upper_bound ? max : min
+
+    for marginal_vertices in Iterators.product(iterators...)
+        v = sum(V[I] * prod(r -> marginal_vertices[r][I[r]], eachindex(ambiguity_sets)) for I in CartesianIndices(num_target.(ambiguity_sets)))
+        optval = optfunc(optval, v)
+    end
+
+    return optval
 end
