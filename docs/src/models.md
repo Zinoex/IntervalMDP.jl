@@ -29,6 +29,49 @@ Formally, a fRMDP ``M`` is a tuple ``M = (S, S_0, A, \mathcal{G}, \Gamma)``, whe
 A path of an fRMDP is a sequence of states and actions ``\omega = (s[0], a[0]), (s[1], a[1]), \dots`` where ``(s[k], a[k]) \in S \times A`` for all ``k \in \mathbb{N}_0``. We denote by ``\omega[k] = s[k]`` the state of the path at time ``k \in \mathbb{N}_0`` and by ``\Omega`` and ``\Omega_{fin}`` the set of all infinite and finite paths, respectively.
 A _strategy_ or _policy_ for an fRMDP is a function ``\pi : \Omega_{fin} \to A`` that assigns an action, given a (finite) path called the history. _Time-dependent_ Markov strategies are functions from state and time step to an action, i.e. ``\pi : S \times \mathbb{N}_0 \to A``. This can equivalently be described as a sequence of functions indexed by time ``\mathbf{\pi} = (\pi[0], \pi[1], \ldots)``. If ``\pi`` does not depend on time and solely depends on the current state, it is called a _stationary_ strategy. Similar to a strategy, an adversary ``\eta`` is a function that assigns a feasible distribution to a given state. The focus of this package is on dynamic uncertainties where the choice of the adversary is resolved at every time step, called dynamic uncertainty, and where the adversary has access to both the current state and action, called ``(s, a)``-rectangularity. We refer to [suilen2024robust](@cite) for further details on the distinction between static and dynamic uncertainties, types of rectangularity, and their implications. Given a strategy and an adversary, an fRMDP collapses to a finite (factored) Markov chain.
 
+Below is an example of how to construct an fRMDP with 2 state variables (2 and 3 values respectively) and 2 action variables (1 and 2 values respectively), where each marginal ambiguity set is an interval ambiguity set. The first marginal depends on both state variables and the first action variable, while the second marginal only depends on the second state variable and the second action variable.
+```julia
+using IntervalMDP
+
+state_vars = (2, 3)
+action_vars = (1, 2)
+
+state_indices = (1, 2)
+action_indices = (1,)
+state_dims = (2, 3)
+action_dims = (1,)
+marginal1 = Marginal(IntervalAmbiguitySets(;
+    lower = [ # 6 ambiguity sets = 2 * 3 source states, 1 action
+        1/15  7/30  1/15  13/30  4/15  1/6
+        2/5   7/30  1/30  11/30  2/15  1/10
+    ],
+    upper = [
+        17/30  7/10   2/3   4/5  7/10  2/3
+        9/10   13/15  9/10  5/6  4/5   14/15
+    ]
+), state_indices, action_indices, state_dims, action_dims)
+
+state_indices = (2,)
+action_indices = (2,)
+state_dims = (3,)
+action_dims = (2,)
+marginal2 = Marginal(IntervalAmbiguitySets(;
+    lower = [ # 6 ambiguity sets = 3 source states, 2 actions
+        1/30  1/3   1/6   1/15  2/5   2/15
+        4/15  1/4   1/6   1/30  2/15  1/30
+        2/15  7/30  1/10  7/30  7/15  1/5
+    ],
+    upper = [
+        2/3    7/15  4/5    11/30  19/30  1/2
+        23/30  4/5   23/30  3/5    7/10   8/15
+        7/15   4/5   23/30  7/10   7/15   23/30
+    ]
+), state_indices, action_indices, state_dims, action_dims)
+
+initial_states = [(1, 1)]  # Initial states are optional
+mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, marginal2), initial_states)
+```
+
 ## IMCs
 Interval Markov Chains (IMCs) [delahaye2011decision](@cite) are a subclass of fRMDPs and a generalization of Markov Chains (MCs), where the transition probabilities are not known exactly, but they are constrained to be in some probability interval.
 Formally, an IMC ``M`` is a tuple ``M = (S, S_0, \Gamma)``, where
@@ -38,6 +81,27 @@ Formally, an IMC ``M`` is a tuple ``M = (S, S_0, \Gamma)``, where
 - ``\Gamma = \{\Gamma_{s}\}_{s\in S}`` is a set of ambiguity sets for source state ``s``, where each ``\Gamma_{s}`` is an interval ambiguity set over ``S``.
 
 An IMC is equivalent to an fRMDP where there is only one state variable, no action variables, and the ambiguity sets are interval ambiguity sets. The dependency graph is just two nodes ``S`` and ``S'`` with a single edge from the former to the latter. Paths and adversaries are defined similarly to fRMDPs.
+
+Example:
+```julia
+using IntervalMDP
+
+prob = IntervalAmbiguitySets(;
+    lower = N[
+        0     1/2   0
+        1/10  3/10  0
+        1/5   1/10  1
+    ],
+    upper = N[
+        1/2   7/10  0
+        3/5   1/2   0
+        7/10  3/10  1
+    ],
+)
+
+initial_states = [1]  # Initial states are optional
+mc = IntervalMarkovChain(prob, initial_states)
+```
 
 ## IMDPs
 Interval Markov Decision Processes (IMDPs) [givan2000bounded, lahijanian2015formal](@cite), also called bounded-parameter MDPs, are a subclass of fRMDPs and a generalization of MDPs, where the transition probabilities, given source state and action, are not known exactly, but they are constrained to be in some probability interval. IMDPs generalized IMCs by adding actions.
@@ -49,6 +113,70 @@ Formally, an IMDP ``M`` is a tuple ``M = (S, S_0, A, \Gamma)``, where
 - ```\Gamma = \{\Gamma_{s,a}\}_{s\in S,a \in A}`` is a set of ambiguity sets for source-action pair ``(s, a)``, where each ``\Gamma_{s,a}`` is an interval ambiguity set over ``S``.
 
 An IMDP is equivalent to an fRMDP where there is only one state variable, one action variable, and the ambiguity sets are interval ambiguity sets. The dependency graph is three nodes ``S``, ``A``, and ``S'`` with two edges ``S \rightarrow S'`` and ``A \rightarrow S'``. Paths and adversaries are defined similarly to fRMDPs.
+
+Example:
+```julia
+using IntervalMDP
+
+prob1 = IntervalAmbiguitySets(;
+    lower = [
+        0    1/2
+        1/10 3/10
+        1/5  1/10
+    ],
+    upper = [
+        1/2  7/10
+        3/5  1/2
+        7/10 3/10
+    ],
+)
+
+prob2 = IntervalAmbiguitySets(;
+    lower = [
+        1/10 1/5
+        1/5  3/10
+        3/10 2/5
+    ],
+    upper = [
+        3/5 3/5
+        1/2 1/2
+        2/5 2/5
+    ],
+)
+
+prob3 = IntervalAmbiguitySets(;
+    lower = [
+        0 0
+        0 0
+        1 1
+    ],
+    upper = [
+        0 0
+        0 0
+        1 1
+    ]
+)
+
+initial_states = [1]
+mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3], initial_states)
+
+# alternatively
+prob = IntervalAmbiguitySets(;
+    lower = [
+        0    1/2  1/10  1/5 0 0
+        1/10 3/10 1/5  3/10 0 0
+        1/5  1/10 3/10 2/5  1 1
+    ],
+    upper = [
+        1/2  7/10 3/5 2/5 0 0
+        3/5  1/2  1/2 2/5 0 0
+        7/10 3/10 2/5 2/5 1 1
+    ],
+)
+
+num_actions = 2
+mdp = IntervalMarkovDecisionProcess(prob, num_actions, initial_states)
+```
 
 ## odIMDPs
 Orthogonally-decoupled IMDPs (odIMDPs) [mathiesen2025scalable](@cite) are a subclass of fRMDPs designed to be more memory-efficient than IMDPs. The states are structured into an orthogonal, or grid-based, decomposition and the transition probability ambiguity sets, for each source-action pair, as a product of interval ambiguity sets along each marginal. 
