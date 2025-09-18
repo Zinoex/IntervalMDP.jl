@@ -5,7 +5,7 @@
         L <: AbstractLabelling,
     }
 
-A type representing the product between interval Markov processes (e.g. [`IntervalMarkovDecisionProcess`](@ref) or [`OrthogonalIntervalMarkovDecisionProcess`](@ref))
+A type representing the product between interval Markov processes (e.g. [`FactoredRobustMarkovDecisionProcess`](@ref))
 and an automaton (typically a deterministic finite automaton [`DFA`](@ref)). 
 
 Formally, given an interval Markov process ``M = (S, A, \\Gamma, S_{0})``, a labelling function ``L : S \\to 2^{AP}``, and a DFA ``D = (Q, 2^{AP}, \\delta, q_{0}, Q_{ac})``,
@@ -17,7 +17,7 @@ then a product process is a tuple ``M_{prod} = (Z, A, \\Gamma^{prod}, Z_{ac}, Z_
 - ``\\Gamma^{prod} = \\{\\Gamma^{prod}_{z,a}\\}_{z \\in Z, a \\in A}`` where ``\\Gamma^{prod}_{z,a} = \\{ \\gamma_{z,a} : \\gamma_{z,a}((t, z')) = \\gamma_{s,a}(t)\\delta_{q,L(s)}(z') \\}``
 is a set of ambiguity sets on the product transition probabilities, for each product source-action pair.
 
-See [`IntervalMarkovDecisionProcess`](@ref) and [`DFA`](@ref) for more information on the structure, definition, and usage of the DFA and IMDP.
+See [`FactoredRobustMarkovDecisionProcess`](@ref) and [`DFA`](@ref) for more information on the structure, definition, and usage of the DFA and IMDP.
 
 ### Fields
 - `mdp::M`: contains details for the interval Markov process.

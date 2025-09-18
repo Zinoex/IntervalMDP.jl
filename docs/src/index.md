@@ -12,7 +12,7 @@ probabilities, and the factored variant introduces state and action variables su
 is a product of the transition models of the individual variables, allowing for more compact representations
 and efficient algorithms. This package focuses on different subclasses of fRMDPs for which value iteration
 can be performed efficiently including Interval Markov Chains (IMCs), IMDPs, orthogonally-decoupled IMDPs
-(odIMDPs), and fIMDPs. See [Theory](@ref) for more information on these models.
+(odIMDPs), and fIMDPs. See [Models](@ref) for more information on these models.
 
 The aim of this package is to provide a user-friendly interface to solve verification and control synthesis
 problems for fRMDPs with great efficiency, which includes methods for accelerating the computation using
@@ -31,21 +31,21 @@ the package supports Deterministic Finite Automata (DFA), with lazy product cons
 cache-friendly algorithms. See [Specifications](@ref) for more information on the supported specifications.
 
 !!! info
-    We use the nomenclature "property" to refer to goal, which is both initializing the value function and 
-    modifying it after every Bellman iteration, and "specification" to refer to whether to minimize or 
-    maximize either the lower bound (pessimistic) or the upper bound (optimistic) of the value function.
+    We use the nomenclature "property" to refer to goal, which defines both how the value function
+    is initialized and how it is updated after every Bellman iteration, and "specification" refers to whether
+    to minimize or maximize either the lower bound (pessimistic) or the upper bound (optimistic) of the value function.
 
 #### Features
 - Value iteration over IMCs, IMDPs, odIMDPs, and fIMDPs.
+- Plenty of built-in specifications including reachability, safety, reach-avoid, discounted reward, and expected hitting times.
+- Support for complex specifications via Deterministic Finite Automata (DFA) with lazy product construction.
 - Multithreaded CPU and CUDA-accelerated value iteration.
 - Dense and sparse matrix support.
 - Parametric probability types (`Float64`, `Float32`, `Rational{BigInt}`) for customizable precision. Note that
   `Rational{BigInt}` is not supported for CUDA acceleration.
-- Data loading and writing in formats by various tools (PRISM, bmdp-tool, IntervalMDP.jl)
-
-!!! info
-    Until now, all state-of-the-art tools for IMDPs have been standalone programs. 
-    We choose to develop this as a a package to enable better integration with other tools and libraries and improving the extensibility. 
+- Data loading and writing in formats by various tools (PRISM, bmdp-tool, IntervalMDP.jl).
+- Extensible and modular design to allow for custom models, distributed storage and computation, novel specifications,
+  and additional Bellman operator and model checking algorithms, and integration with other tools and libraries[^1].
 
 ## Installation
 
@@ -61,3 +61,5 @@ If you want to use the CUDA extension, you also need to install `CUDA.jl`:
 ```julia
 julia> import Pkg; Pkg.add("CUDA")
 ```
+
+[^1]: State-of-the-art tools for IMDPs are all standalone programs. We choose to develop this as a a package to enable better integration with other tools and improving the extensibility.

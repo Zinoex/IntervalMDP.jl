@@ -1,3 +1,17 @@
+"""
+    Marginal{A <: AbstractAmbiguitySets, N, M, I <: LinearIndices}
+
+A struct to represent the dependency graph of an fRMDP, namely by subselecting (in `getindex`) the (decomposed)
+state and action. Furthermore, the struct is responsible for converting the Cartesian index to a linear index for
+the underlying ambiguity sets.
+
+!!! todo
+    Describe source_dims
+
+!!! todo
+    Add example
+
+"""
 struct Marginal{A <: AbstractAmbiguitySets, N, M, I <: LinearIndices}
     ambiguity_sets::A
 
@@ -72,14 +86,58 @@ function checkindices(ambiguity_sets, state_indices, action_indices, source_dims
     end
 end
 
+"""
+    ambiguity_sets(p::Marginal)
+
+Return the underlying ambiguity sets of the marginal.
+"""
 ambiguity_sets(p::Marginal) = p.ambiguity_sets
+
+"""
+    state_variables(p::Marginal)
+
+Return the state variable indices of the marginal.
+"""
 state_variables(p::Marginal) = p.state_indices
+
+"""
+    action_variables(p::Marginal)
+
+Return the action variable indices of the marginal.
+"""
 action_variables(p::Marginal) = p.action_indices
+
+"""
+    source_shape(p::Marginal)
+
+Return the shape of the source (state) variables of the marginal. The [`FactoredRobustMarkovDecisionProcess`](@ref) 
+checks if this is less than or equal to the corresponding state variables.
+"""
 source_shape(p::Marginal) = p.source_dims
+
+"""
+    action_shape(p::Marginal)
+
+Return the shape of the action variables of the marginal. The [`FactoredRobustMarkovDecisionProcess`](@ref)
+checks if this is equal to the corresponding action variables.
+"""
 action_shape(p::Marginal) = p.action_vars
+
+"""
+    num_target(p::Marginal)
+
+Return the number of target states of the marginal.
+"""
 num_target(p::Marginal) = num_target(ambiguity_sets(p))
 
-Base.getindex(p::Marginal, source, action) = ambiguity_sets(p)[sub2ind(p, source, action)]
+"""
+    getindex(p::Marginal, action, source)
+
+Get the ambiguity set corresponding to the given `source` (state) and `action`, where 
+the relevant indices of `source` and `action` are selected by `p.action_indices` and `p.state_indices` respectively.
+The selected index is then converted to a linear index for the underlying ambiguity sets.
+"""
+Base.getindex(p::Marginal, action, source) = ambiguity_sets(p)[sub2ind(p, action, source)]
 
 sub2ind(p::Marginal, action::CartesianIndex, source::CartesianIndex) = sub2ind(p, Tuple(action), Tuple(source))
 function sub2ind(p::Marginal, action::NTuple{M, T}, source::NTuple{N, T}) where {N, M, T <: Integer}

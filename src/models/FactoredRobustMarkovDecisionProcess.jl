@@ -1,4 +1,16 @@
+"""
+    FactoredRobustMarkovDecisionProcess
 
+!!! todo
+    Add intuitive description and formal definition
+
+!!! todo
+    Add fields reference and relation to definition
+
+!!! todo
+    Add example
+
+"""
 struct FactoredRobustMarkovDecisionProcess{
     N,
     M,
@@ -130,12 +142,30 @@ function check_initial_states(state_vars, initial_states)
     end
 end
 
+"""
+    state_variables(mdp::FactoredRMDP)
+    
+Return a tuple with the number of states for each state variable in the fRMDP.
+"""    
 state_variables(mdp::FactoredRMDP) = mdp.state_vars
 state_variables(mdp::FactoredRMDP, r) = mdp.state_vars[r]
+
+"""
+    action_variables(mdp::FactoredRMDP)
+
+Return a tuple with the number of actions for each action variable in the fRMDP.
+"""
 action_variables(mdp::FactoredRMDP) = mdp.action_vars
+
+"""
+    marginals(mdp::FactoredRMDP)
+
+Return the marginals of the fRMDP.
+"""
+marginals(mdp::FactoredRMDP) = mdp.transition
+
 num_states(mdp::FactoredRMDP) = prod(state_variables(mdp))
 num_actions(mdp::FactoredRMDP) = prod(action_variables(mdp))
-marginals(mdp::FactoredRMDP) = mdp.transition
 initial_states(mdp::FactoredRMDP) = mdp.initial_states
 
 source_shape(m::FactoredRMDP) = m.source_dims

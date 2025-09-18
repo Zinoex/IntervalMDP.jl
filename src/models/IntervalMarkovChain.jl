@@ -17,7 +17,16 @@ function IntervalMarkovChain(marginal::Marginal{<:IntervalAmbiguitySets}, initia
     )
 end
 
+"""
+    IntervalMarkovChain(ambiguity_set::IntervalAmbiguitySets, initial_states=AllStates())
 
+A convenience constructor for a [`FactoredRobustMarkovDecisionProcess`](@ref) representing an interval Markov chain
+from a single [`IntervalAmbiguitySets`](@ref) object. See [IMCs](@ref) for the formal definition.
+
+!!! todo
+    Add example
+
+"""
 function IntervalMarkovChain(ambiguity_set::IntervalAmbiguitySets, initial_states=AllStates())
     source_dims = (num_sets(ambiguity_set),)
     action_vars = (1,)

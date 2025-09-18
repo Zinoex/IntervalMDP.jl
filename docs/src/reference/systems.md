@@ -2,19 +2,28 @@
 
 ```@docs
 IntervalMarkovProcess
-num_states(s::IntervalMarkovProcess)
-initial_states(s::IntervalMarkovProcess)
+num_states
+num_actions
+initial_states(mp::IntervalMarkovProcess)
 AllStates
-transition_prob(mp::IntervalMarkovProcess)
-IntervalMarkovDecisionProcess
+```
+
+## Factored RMDPs
+```@docs
+FactoredRobustMarkovDecisionProcess
+state_variables(s::FactoredRobustMarkovDecisionProcess)
+action_variables(s::FactoredRobustMarkovDecisionProcess)
+marginals(s::FactoredRobustMarkovDecisionProcess)
+```
+
+## Convenience constructors for subclasses of fRMDPs
+```@docs
 IntervalMarkovChain
-stateptr(mdp::IntervalMarkovDecisionProcess)
-OrthogonalIntervalMarkovDecisionProcess
-OrthogonalIntervalMarkovChain
-stateptr(mdp::OrthogonalIntervalMarkovDecisionProcess)
-MixtureIntervalMarkovDecisionProcess
-MixtureIntervalMarkovChain
-stateptr(mdp::MixtureIntervalMarkovDecisionProcess)
+IntervalMarkovDecisionProcess
+```
+
+## Deterministic Finite Automaton (DFA)
+```@docs
 DFA
 num_states(dfa::DFA)
 num_labels(dfa::DFA)
@@ -29,45 +38,28 @@ labelling_function(proc::ProductProcess)
 ```
 
 ## Probability representation
+```@docs
+Marginal
+ambiguity_sets(m::Marginal)
+state_variables(m::Marginal)
+action_variables(m::Marginal)
+source_shape(m::Marginal)
+action_shape(m::Marginal)
+num_target(m::Marginal)
+getindex(p::Marginal, action, source)
+
+num_sets
+support
+```
 
 ### Interval ambiguity sets
 ```@docs
-IntervalProbabilities
-lower(p::IntervalProbabilities)
-lower(p::IntervalProbabilities, i, j)
-upper(p::IntervalProbabilities)
-upper(p::IntervalProbabilities, i, j)
-gap(p::IntervalProbabilities)
-gap(p::IntervalProbabilities, i, j)
-num_source(p::IntervalProbabilities)
-num_target(p::IntervalProbabilities)
-axes_source(p::IntervalProbabilities)
-```
-
-### Marginal interval ambiguity sets
-```@docs
-OrthogonalIntervalProbabilities
-lower(p::OrthogonalIntervalProbabilities, l)
-lower(p::OrthogonalIntervalProbabilities, l, i, j)
-upper(p::OrthogonalIntervalProbabilities, l)
-upper(p::OrthogonalIntervalProbabilities, l, i, j)
-gap(p::OrthogonalIntervalProbabilities, l)
-gap(p::OrthogonalIntervalProbabilities, l, i, j)
-sum_lower(p::OrthogonalIntervalProbabilities, l)
-sum_lower(p::OrthogonalIntervalProbabilities, l, j)
-num_source(p::OrthogonalIntervalProbabilities)
-num_target(p::OrthogonalIntervalProbabilities)
-axes_source(p::OrthogonalIntervalProbabilities)
-```
-
-### Mixtures of marginal interval ambiguity sets
-```@docs
-MixtureIntervalProbabilities
-num_source(p::MixtureIntervalProbabilities)
-num_target(p::MixtureIntervalProbabilities)
-axes_source(p::MixtureIntervalProbabilities)
-mixture_probs
-weighting_probs
+IntervalAmbiguitySets
+num_sets(p::IntervalAmbiguitySets)
+num_target(p::IntervalAmbiguitySets)
+lower
+upper
+gap
 ```
 
 ### Labelling of IMDP states to Automaton alphabet

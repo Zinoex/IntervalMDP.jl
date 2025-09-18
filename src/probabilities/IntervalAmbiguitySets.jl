@@ -1,5 +1,8 @@
 """
-    IntervalAmbiguitySets{R, MR <: AbstractMatrix{R}, N, M, I}
+    IntervalAmbiguitySets{R, MR <: AbstractMatrix{R}}
+
+!!! todo
+    Update description
 
 A matrix pair to represent the lower and upper bound transition probabilities from all source/action pairs to all target states.
 The matrices can be `Matrix{R}` or `SparseMatrixCSC{R}`, or their CUDA equivalents. For memory efficiency, it is recommended to use sparse matrices.
@@ -9,12 +12,11 @@ Mathematically, let ``P`` be the probability matrix. Then ``P_{ij}`` represents 
 Due to the column-major format of Julia, this is also a more efficient representation (in terms of cache locality).
 
 The lower bound is explicitly stored, while the upper bound is computed from the lower bound and the gap. This choice is 
-because it simplifies repeated probability assignment using O-maximization [1].
+because it simplifies repeated probability assignment using O-maximization [givan2000bounded, lahijanian2015formal](@cite).
 
 ### Fields
 - `lower::MR`: The lower bound transition probabilities from a source state or source/action pair to a target state.
 - `gap::MR`: The gap between upper and lower bound transition probabilities from a source state or source/action pair to a target state.
-- `sum_lower::VR`: The sum of lower bound transition probabilities from a source state or source/action pair to all target states.
 
 ### Examples
 ```jldoctest
@@ -34,8 +36,6 @@ sparse_prob = IntervalAmbiguitySets(;
     ),
 )
 ```
-
-[1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
 
 """
 struct IntervalAmbiguitySets{R, MR <: AbstractMatrix{R}} <: PolytopicAmbiguitySets
@@ -171,8 +171,20 @@ function checkprobabilities!(lower::AbstractSparseMatrix, gap::AbstractSparseMat
     end
 end
 
+"""
+    num_target(ambiguity_set::IntervalAmbiguitySets)
+
+Return the number of target states in the IntervalAmbiguitySets object.
+"""
 num_target(p::IntervalAmbiguitySets) = size(p.lower, 1)
+
+"""
+    num_sets(ambiguity_set::IntervalAmbiguitySets)
+
+Return the number of ambiguity sets in the IntervalAmbiguitySets object.
+"""
 num_sets(p::IntervalAmbiguitySets) = size(p.lower, 2)
+
 source_shape(p::IntervalAmbiguitySets) = (num_sets(p),)
 action_shape(::IntervalAmbiguitySets) = (1,)
 marginals(p::IntervalAmbiguitySets) = (p,)
@@ -233,12 +245,27 @@ end
 
 num_target(p::IntervalAmbiguitySet) = length(p.lower)
 
+"""
+    lower(p::IntervalAmbiguitySet)
+
+Return the lower bound transition probabilities of the ambiguity set to all target states.
+"""
 lower(p::IntervalAmbiguitySet) = p.lower
 lower(p::IntervalAmbiguitySet, destination) = p.lower[destination]
 
+"""
+    upper(p::IntervalAmbiguitySet)
+
+Return the upper bound transition probabilities of the ambiguity set to all target states.
+"""
 upper(p::IntervalAmbiguitySet) = p.lower + p.gap
 upper(p::IntervalAmbiguitySet, destination) = p.lower[destination] + p.gap[destination]
 
+"""
+    gap(p::IntervalAmbiguitySet)
+
+Return the gap between upper and lower bound transition probabilities of the ambiguity set to all target states.
+"""
 gap(p::IntervalAmbiguitySet) = p.gap
 gap(p::IntervalAmbiguitySet, destination) = p.gap[destination]
 

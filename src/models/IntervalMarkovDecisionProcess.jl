@@ -13,6 +13,16 @@ function IntervalMarkovDecisionProcess(marginal::Marginal{<:IntervalAmbiguitySet
     )
 end
 
+"""
+    IntervalMarkovDecisionProcess(ambiguity_set::IntervalAmbiguitySets, num_actions::Integer, initial_states::InitialStates = AllStates())
+
+A convenience constructor for a [`FactoredRobustMarkovDecisionProcess`](@ref) representing an interval Markov decision process
+from a single [`IntervalAmbiguitySets`](@ref) object and a specified number of actions. See [IMDPs](@ref) for the formal definition.
+
+!!! todo
+    Add example
+
+"""
 function IntervalMarkovDecisionProcess(ambiguity_set::IntervalAmbiguitySets, num_actions::Integer, initial_states::InitialStates = AllStates())
     if num_sets(ambiguity_set) % num_actions != 0
         throw(ArgumentError("The number of sets in the ambiguity set must be a multiple of the number of actions."))
@@ -25,6 +35,17 @@ function IntervalMarkovDecisionProcess(ambiguity_set::IntervalAmbiguitySets, num
     return IntervalMarkovDecisionProcess(marginal, initial_states)
 end
 
+"""
+    IntervalMarkovDecisionProcess(ps::Vector{<:IntervalAmbiguitySets}, initial_states::InitialStates = AllStates())
+
+A convenience constructor for a [`FactoredRobustMarkovDecisionProcess`](@ref) representing an interval Markov decision process
+from a vector of [`IntervalAmbiguitySets`](@ref) objects, one for each state and with the same number of actions in each. 
+See [IMDPs](@ref) for the formal definition.
+
+!!! todo
+    Add example
+
+"""
 function IntervalMarkovDecisionProcess(
     ps::Vector{<:IntervalAmbiguitySets},
     initial_states::InitialStates = AllStates(),

@@ -14,7 +14,7 @@ An example of how to construct either is the following:
 using IntervalMDP
 
 # IMC
-prob = IntervalProbabilities(;
+prob = IntervalAmbiguitySets(;
     lower = [
         0.0 0.5 0.0
         0.1 0.3 0.0
@@ -31,7 +31,7 @@ initial_states = [1]  # Initial states are optional
 mc = IntervalMarkovChain(prob, initial_states)
 
 # IMDP
-prob1 = IntervalProbabilities(;
+prob1 = IntervalAmbiguitySets(;
     lower = [
         0.0 0.5
         0.1 0.3
@@ -44,7 +44,7 @@ prob1 = IntervalProbabilities(;
     ],
 )
 
-prob2 = IntervalProbabilities(;
+prob2 = IntervalAmbiguitySets(;
     lower = [
         0.1 0.2
         0.2 0.3
@@ -58,8 +58,16 @@ prob2 = IntervalProbabilities(;
 )
 
 prob3 = IntervalProbabilities(;
-    lower = [0.0; 0.0; 1.0],
-    upper = [0.0; 0.0; 1.0]
+    lower = [
+        0.0 0.0
+        0.0 0.0
+        0.1 0.1
+    ],
+    upper = [
+        0.0 0.0
+        0.0 0.0
+        0.1 0.1
+    ],
 )
 
 transition_probs = [prob1, prob2, prob3]
@@ -141,7 +149,7 @@ store the transition matrices in the [compressed sparse column (CSC)](https://en
 This is a format that is widely used in Julia and other languages, and is supported by many linear algebra operations.
 It consists of three arrays: `colptr`, `rowval` and `nzval`. The `colptr` array stores the indices of the first non-zero value in each column.
 The `rowval` array stores the row indices of the non-zero values, and the `nzval` array stores the non-zero values.
-We choose this format, since source states are on the columns (see [`IntervalProbabilities`](@ref) for more information about the structure of the transition probability matrices).
+We choose this format, since source states are on the columns (see [`IntervalAmbiguitySets`](@ref) for more information about the structure of the transition probability matrices).
 Thus the non-zero values for each source state is stored in sequentially in memory, enabling efficient memory access.
 
 To use `SparseMatrixCSC`, we need to load `SparseArrays`. Below is an example of how to construct an `IntervalMarkovChain` with sparse transition matrices.
@@ -177,7 +185,7 @@ upper
 ```
 
 ```julia
-prob = IntervalProbabilities(; lower = lower, upper = upper)
+prob = IntervalAmbiguitySets(; lower = lower, upper = upper)
 initial_state = 1
 imc = IntervalMarkovChain(prob, initial_state)
 ```
@@ -215,7 +223,7 @@ Similar to `CUDA.jl`, we provide a `cu` function that transfers the model to the
 or transfer the transition matrices separately. 
 ```julia
 # Transfer entire model to GPU
-prob = IntervalProbabilities(;
+prob = IntervalAmbiguitySets(;
     lower = sparse_hcat(
         SparseVector(3, [2, 3], [0.1, 0.2]),
         SparseVector(3, [1, 2, 3], [0.5, 0.3, 0.1]),
@@ -231,7 +239,7 @@ prob = IntervalProbabilities(;
 mc = IntervalMDP.cu(IntervalMarkovChain(prob, 1))
 
 # Transfer transition matrices separately
-prob = IntervalProbabilities(;
+prob = IntervalAmbiguitySets(;
     lower = IntervalMDP.cu(sparse_hcat(
         SparseVector(3, [2, 3], [0.1, 0.2]),
         SparseVector(3, [1, 2, 3], [0.5, 0.3, 0.1]),

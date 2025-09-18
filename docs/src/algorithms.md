@@ -9,7 +9,7 @@ To simplify the dicussion on the algorithmic choices, we will assume that the go
 \max_{\pi} \; \min_{\eta} \; \mathbb{P}_{\pi,\eta }\left[\omega \in \Omega : \exists k \in [0,K], \, \omega(k)\in G  \right].
 ```
 
-See [Theory](@ref) for more details on the theory behind IMDPs including strategies and adversaries; in this case the maximization and minimization operators respectively. The algorithms are easily adapted to other specifications, such as minimizing optimistic probability, which is useful for safety, or maximizing pessimitic discounted reward. Assume furthermore that the transition probabilities are represented as a sparse matrix.
+See [Models](@ref) for more details on the formal definition of fRMDPs, strategies, and adversaries; in this case the maximization and minimization operators respectively. The algorithms are easily adapted to other specifications, such as minimizing optimistic probability, which is useful for safety, or maximizing pessimitic discounted reward. Assume furthermore that the transition probabilities are represented as a sparse matrix.
 This is the most common representation for large models, and the algorithms are easily adapted to dense matrices with the sorting (see [Sorting](@ref)) being shared across states such that parallelizing this has a smaller impact on performance.
 
 ## Solving reachability as value iteration
