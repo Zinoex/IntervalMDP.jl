@@ -36,7 +36,7 @@ using Random: MersenneTwister
             @test all(any(v2 -> v1 ≈ v2, verts) for v1 in eachrow(expected_verts))
 
             verts = IntervalMDP.vertices(ambiguity_sets[2])
-            @test length(verts) <= 6  # = number of permutations of 3 elements modulo 
+            @test length(verts) <= 6  # = number of permutations of 3 elements 
 
             expected_verts = N[  # duplicates due to budget < gap for all elements
                 6//10 3//10 1//10
