@@ -69,7 +69,7 @@ Formally, an fIMDP ``M`` with ``n`` marginals is a tuple ``M = (S, S_0, A, \math
 - ``S = S_1 \times \cdots \times S_n`` is a finite set of joint states with ``S_i`` being a finite set of states for the ``i``-th marginal,
 - ``S_0 \subseteq S`` is a set of initial states,
 - ``A`` is a finite set of actions,
-- ``\mathcal{G} = (\mathcal{V}, \mathcal{E})`` is a directed bipartite graph with nodes ``\mathcal{V} = \{S_1, \ldots, S_n, A_1, \ldots, A_m\} \cup \{S'_1, \ldots, S'_n\}`` representing the state and action variables and their next-state counterparts, and edges ``\mathcal{E} \subseteq \mathcal{V} \times \mathcal{V}`` representing dependencies of ``S'_i`` on ``S_j`` and ``A_k``,
+- ``\mathcal{G} = (\mathcal{V}, \mathcal{E})`` is a directed bipartite graph with nodes ``\mathcal{V} = \mathcal{V}_{ind} \cup \mathcal{V}_{cond} = \{S_1, \ldots, S_n, A_1, \ldots, A_m\} \cup \{S'_1, \ldots, S'_n\}`` representing the state and action variables and their next-state counterparts, and edges ``\mathcal{E} \subseteq \mathcal{V}_{ind} \times \mathcal{V}_{cond}`` representing dependencies of ``S'_i`` on ``S_j`` and ``A_k``,
 - ``\Gamma = \{\Gamma_{s,a}\}_{s\in S,a \in A}`` is a set of ambiguity sets for source-action pair ``(s, a)``, where each ``\Gamma_{s,a} = \bigotimes_{i=1}^n \Gamma^i_{\text{Pa}_\mathcal{G}(S'_i) \cap (s, a)}`` with ``\Gamma^i_{\text{Pa}_\mathcal{G}(S'_i) \cap (s, a)}`` is an interval ambiguity set over the ``i``-th marginal, i.e. over ``S_i``, conditional on the values in ``(s, a)`` of the parent variables ``\text{Pa}_\mathcal{G}(S'_i)`` of ``S'_i`` in ``\mathcal{G}``.
 
 ## References
