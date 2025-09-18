@@ -163,7 +163,7 @@ mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3], initial_states)
 # alternatively
 prob = IntervalAmbiguitySets(;
     lower = [
-        0    1/2  1/10  1/5 0 0
+        0    1/2  1/10 1/5  0 0
         1/10 3/10 1/5  3/10 0 0
         1/5  1/10 3/10 2/5  1 1
     ],
@@ -171,6 +171,29 @@ prob = IntervalAmbiguitySets(;
         1/2  7/10 3/5 2/5 0 0
         3/5  1/2  1/2 2/5 0 0
         7/10 3/10 2/5 2/5 1 1
+    ],
+)
+
+num_actions = 2
+mdp = IntervalMarkovDecisionProcess(prob, num_actions, initial_states)
+```
+
+It is possible to skip defining actions when the transition is a guaranteed self-loop and is the last states in the ambiguity set. 
+This is useful for defining target states in reachability problems. The example below has 3 states (as shown by the 3 rows) and 2 actions
+(explictly defined by `num_actions = 2`). The last state is a target state with a guaranteed self-loop, i.e., the transition probabilities are ``P(3|3,a) = 1`` for both actions ``a \in \{1, 2\}``.
+```julia
+using IntervalMDP
+
+prob = IntervalAmbiguitySets(;
+    lower = [
+        0    1/2  1/10 1/5
+        1/10 3/10 1/5  3/10
+        1/5  1/10 3/10 2/5 
+    ],
+    upper = [
+        1/2  7/10 3/5 2/5
+        3/5  1/2  1/2 2/5
+        7/10 3/10 2/5 2/5
     ],
 )
 
