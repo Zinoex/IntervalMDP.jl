@@ -1218,7 +1218,7 @@ using Random: MersenneTwister
         end
     end
 
-    @testset for alg in [RobustValueIteration(LPMcCormickRelaxation()), RobustValueIteration(OMaximization())]
+    @testset for alg in [RobustValueIteration(LPMcCormickRelaxation()), RobustValueIteration(OMaximization()), RobustValueIteration(VertexEnumeration())]
         @testset "implicit sink state" begin
             @testset "first dimension" begin
                 state_indices = (1, 2, 3)
@@ -1566,39 +1566,41 @@ using Random: MersenneTwister
             @test all(V_ortho .<= one(N))
 
             # Test against the naive construction
-            prob_lower_simple = zeros(N, 81, 81)
-            prob_upper_simple = zeros(N, 81, 81)
+            if !isa(bellman_algorithm(alg), VertexEnumeration)
+                prob_lower_simple = zeros(N, 81, 81)
+                prob_upper_simple = zeros(N, 81, 81)
 
-            lin = LinearIndices((3, 3, 3, 3))
-            act_idx = CartesianIndex(1)
-            for I in CartesianIndices((3, 3, 3, 3))
-                for J in CartesianIndices((3, 3, 3, 3))
-                    marginal_ambiguity_sets = map(marginal -> marginal[act_idx, I], marginals)
+                lin = LinearIndices((3, 3, 3, 3))
+                act_idx = CartesianIndex(1)
+                for I in CartesianIndices((3, 3, 3, 3))
+                    for J in CartesianIndices((3, 3, 3, 3))
+                        marginal_ambiguity_sets = map(marginal -> marginal[act_idx, I], marginals)
 
-                    prob_lower_simple[lin[J], lin[I]] = prod(
-                        lower(marginal_ambiguity_sets[i], J[i]) for i in 1:4
-                    )
+                        prob_lower_simple[lin[J], lin[I]] = prod(
+                            lower(marginal_ambiguity_sets[i], J[i]) for i in 1:4
+                        )
 
-                    prob_upper_simple[lin[J], lin[I]] = prod(
-                        upper(marginal_ambiguity_sets[i], J[i]) for i in 1:4
-                    )
+                        prob_upper_simple[lin[J], lin[I]] = prod(
+                            upper(marginal_ambiguity_sets[i], J[i]) for i in 1:4
+                        )
+                    end
                 end
+
+                ambiguity_set = IntervalAmbiguitySets(;
+                    lower = prob_lower_simple,
+                    upper = prob_upper_simple,
+                )
+
+                imc = IntervalMarkovChain(ambiguity_set)
+
+                prop = FiniteTimeReachability([81], 10)
+                spec = Specification(prop, Pessimistic, Maximize)
+                prob = VerificationProblem(imc, spec)
+
+                V_direct, it_direct, res_direct = solve(prob, alg)
+                @test V_direct[81] ≈ one(N)
+                @test all(V_ortho .≥ reshape(V_direct, 3, 3, 3, 3))
             end
-
-            ambiguity_set = IntervalAmbiguitySets(;
-                lower = prob_lower_simple,
-                upper = prob_upper_simple,
-            )
-
-            imc = IntervalMarkovChain(ambiguity_set)
-
-            prop = FiniteTimeReachability([81], 10)
-            spec = Specification(prop, Pessimistic, Maximize)
-            prob = VerificationProblem(imc, spec)
-
-            V_direct, it_direct, res_direct = solve(prob, alg)
-            @test V_direct[81] ≈ one(N)
-            @test all(V_ortho .≥ reshape(V_direct, 3, 3, 3, 3))
         end
 
         @testset "synthesis" begin

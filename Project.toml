@@ -4,7 +4,6 @@ authors = ["Frederik Baymler Mathiesen <frederik@baymler.com> and contributors"]
 version = "0.6.0"
 
 [deps]
-Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
 CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
 HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
@@ -26,7 +25,6 @@ IntervalMDPCudaExt = ["Adapt", "CUDA", "GPUArrays", "LLVM"]
 [compat]
 Adapt = "4"
 CUDA = "5.1"
-Combinatorics = "1.0.3"
 CommonSolve = "0.2.4"
 GPUArrays = "10, 11"
 HiGHS = "1.19.0"

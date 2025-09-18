@@ -251,15 +251,9 @@ support(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = rowvals(p
 supportsize(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = nnz(p.gap)
 
 # Vertex iterator for IntervalAmbiguitySet
-struct IntervalAmbiguitySetVertexIterator{R, VR <: AbstractVector{R}, P <: Permutations} <: VertexIterator
+struct IntervalAmbiguitySetVertexIterator{R, VR <: AbstractVector{R}} <: VertexIterator
     set::IntervalAmbiguitySet{R, VR}
-    perm::P
     result::Vector{R}  # Preallocated result vector
-end
-
-function IntervalAmbiguitySetVertexIterator(set::IntervalAmbiguitySet, result::Vector)
-    perm = permutations(support(set))
-    return IntervalAmbiguitySetVertexIterator(set, perm, result)
 end
 
 function IntervalAmbiguitySetVertexIterator(set::IntervalAmbiguitySet)
@@ -269,27 +263,21 @@ end
 
 Base.IteratorEltype(::Type{<:IntervalAmbiguitySetVertexIterator}) = Base.HasEltype()
 Base.eltype(::IntervalAmbiguitySetVertexIterator{R}) where {R} = Vector{R}
-Base.IteratorSize(::Type{<:IntervalAmbiguitySetVertexIterator}) = Base.HasLength()
-Base.length(it::IntervalAmbiguitySetVertexIterator) = length(it.perm)
+Base.IteratorSize(::Type{<:IntervalAmbiguitySetVertexIterator}) = Base.SizeUnknown()
 
 function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}) where {R, VR <: AbstractVector{R}}
-    res = iterate(it.perm)
-
-    if isnothing(res)
-        throw(ArgumentError("The iterator is empty."))
-    end
-
-    (permutation, state) = res
+    permutation = collect(1:length(support(it.set)))
 
     v = it.result
     copyto!(v, lower(it.set))
-
-    # v = copy(lower(it.set))
     budget = one(R) - sum(v)
-    for i in permutation
+
+    break_idx = 0
+    for (j, i) in enumerate(permutation)
         i = support(it.set)[i]
         if budget <= gap(it.set, i)
             v[i] += budget
+            break_idx = j
             break
         else
             v[i] += gap(it.set, i)
@@ -297,27 +285,57 @@ function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}) where {R, V
         end
     end
 
-    return v, state
+    return v, (permutation, break_idx)
 end
 
 function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}, state) where {R, VR <: AbstractVector{R}}
-    res = iterate(it.perm, state)
+    (permutation, last_break_idx) = state
 
-    if isnothing(res)
+    # Skip permutations that would lead to the same vertex
+    # based on the prefix 1:last_break_idx
+    break_j = nothing
+    for j in last_break_idx:-1:1
+        # Find smallest permutation[k] in permutation[j+1:end] where permutation[j] < permutation[k]
+        next_in_suffix = nothing
+        for k in j+1:length(permutation)
+            if permutation[k] > permutation[j]
+                if isnothing(next_in_suffix) || permutation[k] < permutation[next_in_suffix]
+                    next_in_suffix = k
+                end
+            end
+        end
+
+        if isnothing(next_in_suffix) # No such k exists, continue to next j
+            continue
+        end
+
+        # Swap
+        permutation[j], permutation[next_in_suffix] = permutation[next_in_suffix], permutation[j]
+        break_j = j
+        break
+    end
+
+    if isnothing(break_j)
         return nothing
     end
 
-    (permutation, state) = res
+    sort!(@view(permutation[break_j+1:end]))
 
+    # Now compute the vertex for this new permutation
     v = it.result
     copyto!(v, lower(it.set))
-
-    # v = copy(lower(it.set))
     budget = one(R) - sum(v)
-    for i in permutation
+
+    if iszero(budget)
+        return nothing
+    end
+
+    break_idx = 0
+    for (j, i) in enumerate(permutation)
         i = support(it.set)[i]
         if budget <= gap(it.set, i)
             v[i] += budget
+            break_idx = j
             break
         else
             v[i] += gap(it.set, i)
@@ -325,7 +343,7 @@ function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}, state) wher
         end
     end
 
-    return v, state
+    return v, (permutation, break_idx)
 end
 
 vertex_generator(p::IntervalAmbiguitySet) = IntervalAmbiguitySetVertexIterator(p)

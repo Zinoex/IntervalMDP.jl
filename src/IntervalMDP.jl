@@ -8,7 +8,6 @@ export solve
 # Import necessary libraries
 using LinearAlgebra, SparseArrays
 using JuMP, HiGHS
-using Combinatorics: permutations, Permutations
 using StyledStrings
 
 ### Utilities
@@ -54,6 +53,7 @@ public cu, cpu
 include("algorithms.jl")
 export OMaximization, LPMcCormickRelaxation, VertexEnumeration
 export RobustValueIteration
+export default_algorithm, default_bellman_algorithm, bellman_algorithm
 
 include("utils.jl")
 include("threading.jl")
