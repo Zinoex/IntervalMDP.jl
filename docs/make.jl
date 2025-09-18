@@ -18,7 +18,8 @@ makedocs(;
         "Home" => "index.md",
         "Usage" => "usage.md",
         "Data formats" => "data.md",
-        "Theory" => "theory.md",
+        "Models" => "models.md",
+        "Specifications" => "specifications.md",
         "Algorithms" => "algorithms.md",
         "Reference" => Any[
             "Systems" => "reference/systems.md",

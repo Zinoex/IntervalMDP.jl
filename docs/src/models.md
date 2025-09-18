@@ -1,4 +1,4 @@
-# Theory 
+# Models 
 Notation: A probability distribution ``\gamma`` over a finite set ``S`` is a function ``\gamma : S \to [0, 1]`` satisfying ``\sum_{s \in S} \gamma(s) = 1``. We denote by ``\mathcal{D}(S)`` the set of all probability distributions over ``S``. 
 For ``\underline{p}, \overline{p} : S \to [0, 1]`` such that ``\underline{p}(s) \leq \overline{p}(s)`` for each ``s \in S`` and ``\sum_{s \in S} \underline{p}(s) \leq 1 \leq \sum_{s \in S} \overline{p}(s)``, an interval ambiguity set ``\Gamma \subset \mathcal{D}(S)`` is the set of distributions such that 
 ```math
@@ -46,27 +46,3 @@ Formally, a mixture of OD-IMDPs ``M`` with ``K`` OD-IMDPs and ``n`` marginals is
 - ``\Gamma^\alpha = \{\Gamma^\alpha_{s,a}\}_{s \in S, a \in A}`` is a set of interval ambiguity sets for the weights of the mixture, i.e. over ``\{1, \ldots, K\}``.
 
 A feasible distribution for a mixture of OD-IMDPs is ``\sum_{r \in K} \alpha_{s,a}(r) \prod_{i = 1}^n \gamma_{r,s,a}`` where ``\alpha_{s,a} \in \Gamma^\alpha_{s,a}`` and ``\gamma_{r,s,a} \in \Gamma_{r,s,a}`` for each source-action pair ``(s, a)``. See [3] for more details on mixtures of OD-IMDPs.
-
-### Reachability
-In this formal framework, we can describe computing reachability given a target set ``G`` and a horizon ``K \in \mathbb{N} \cup \{\infty\}`` as the following objective 
-
-```math
-{\mathop{opt}\limits_{\pi}}^{\pi} \; {\mathop{opt}\limits_{\eta}}^{\eta} \; \mathbb{P}_{\pi,\eta }\left[\omega \in \Omega : \exists k \in [0,K], \, \omega(k)\in G  \right],
-```
-
-where ``\mathop{opt}^{\pi},\mathop{opt}^{\eta} \in \{\min, \max\}`` and ``\mathbb{P}_{\pi,\eta }`` is the probability of the Markov chain induced by strategy ``\pi`` and adversary ``\eta``.
-When ``\mathop{opt}^{\eta} = \min``, the solution is called optimal _pessimistic_ probability (or reward), and conversely is called optimal _optimistic_ probability (or reward) when ``\mathop{opt}^{\eta} = \max``.
-The choice of the min/max for the action and pessimistic/optimistic probability depends on the application. 
-
-### Discounted reward
-Discounted reward is similar to reachability but instead of a target set, we have a reward function ``r: S \to \mathbb{R}`` and a discount factor ``\gamma \in (0, 1)``. The objective is then
-
-```math
-{\mathop{opt}\limits_{\pi}}^{\pi} \; {\mathop{opt}\limits_{\eta}}^{\eta} \; \mathbb{E}_{\pi,\eta }\left[\sum_{k=0}^{K} \gamma^k r(\omega(k)) \right].
-```
-
-[1] Givan, Robert, Sonia Leach, and Thomas Dean. "Bounded-parameter Markov decision processes." Artificial Intelligence 122.1-2 (2000): 71-109.
-
-[2] Suilen, M., Badings, T., Bovy, E. M., Parker, D., & Jansen, N. (2024). Robust Markov Decision Processes: A Place Where AI and Formal Methods Meet. In Principles of Verification: Cycling the Probabilistic Landscape: Essays Dedicated to Joost-Pieter Katoen on the Occasion of His 60th Birthday, Part III (pp. 126-154). Cham: Springer Nature Switzerland.
-
-[3] Mathiesen, F. B., Haesaert, S., & Laurenti, L. (2024). Scalable control synthesis for stochastic systems via structural IMDP abstractions. arXiv preprint arXiv:2411.11803.

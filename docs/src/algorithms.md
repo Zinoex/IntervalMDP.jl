@@ -1,5 +1,8 @@
 # Algorithms
 
+!!! todo
+    Write about floating point precision and rational types.
+
 To simplify the dicussion on the algorithmic choices, we will assume that the goal is to compute the maximizing pessimistic probability of reaching a set of states ``G``, that is, 
 
 ```math
