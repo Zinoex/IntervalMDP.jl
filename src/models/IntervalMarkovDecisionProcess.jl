@@ -47,9 +47,9 @@ See [IMDPs](@ref) for the formal definition.
 
 """
 function IntervalMarkovDecisionProcess(
-    ps::Vector{<:IntervalAmbiguitySets},
+    ps::Vector{<:IntervalAmbiguitySets{R, MR}},
     initial_states::InitialStates = AllStates(),
-)
+) where {R, MR <: AbstractMatrix{R}}
     marginal = interval_prob_hcat(ps)
     return IntervalMarkovDecisionProcess(marginal, initial_states)
 end
