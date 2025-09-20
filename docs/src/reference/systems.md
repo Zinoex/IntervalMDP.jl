@@ -8,7 +8,7 @@ initial_states(mp::IntervalMarkovProcess)
 AllStates
 ```
 
-## Factored RMDPs
+## [Factored RMDPs](@id api-frmdp)
 ```@docs
 FactoredRobustMarkovDecisionProcess
 state_variables(s::FactoredRobustMarkovDecisionProcess)

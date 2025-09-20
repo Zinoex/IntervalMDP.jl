@@ -31,8 +31,8 @@ For a given source-action pair ``(s, a) \in S \times A``, any distribution ``\ga
 A _strategy_ or _policy_ for an fRMDP is a function ``\pi : \Omega_{fin} \to A`` that assigns an action, given a (finite) path called the history. _Time-dependent_ Markov strategies are functions from state and time step to an action, i.e. ``\pi : S \times \mathbb{N}_0 \to A``. This can equivalently be described as a sequence of functions indexed by time ``\mathbf{\pi} = (\pi[0], \pi[1], \ldots)``. If ``\pi`` does not depend on time and solely depends on the current state, it is called a _stationary_ strategy. Similar to a strategy, an adversary ``\eta`` is a function that assigns a feasible distribution to a given state. The focus of this package is on dynamic uncertainties where the choice of the adversary is resolved at every time step, called dynamic uncertainty, and where the adversary has access to both the current state and action, called ``(s, a)``-rectangularity. We refer to [suilen2024robust](@cite) for further details on the distinction between static and dynamic uncertainties, types of rectangularity, and their implications. Given a strategy and an adversary, an fRMDP collapses to a finite (factored) Markov chain.
 
 Below is an example of how to construct an fRMDP with 2 state variables (2 and 3 values respectively) and 2 action variables (1 and 2 values respectively), where each marginal ambiguity set is an interval ambiguity set. The first marginal depends on both state variables and the first action variable, while the second marginal only depends on the second state variable and the second action variable.
-```julia
-using IntervalMDP
+```@example
+using IntervalMDP # hide
 
 state_vars = (2, 3)
 action_vars = (1, 2)
@@ -84,16 +84,16 @@ Formally, an IMC ``M`` is a tuple ``M = (S, S_0, \Gamma)``, where
 An IMC is equivalent to an fRMDP where there is only one state variable, no action variables, and the ambiguity sets are interval ambiguity sets. The dependency graph is just two nodes ``S`` and ``S'`` with a single edge from the former to the latter. Paths and adversaries are defined similarly to fRMDPs.
 
 Example:
-```julia
-using IntervalMDP
+```@example
+using IntervalMDP # hide
 
 prob = IntervalAmbiguitySets(;
-    lower = N[
+    lower = [
         0     1/2   0
         1/10  3/10  0
         1/5   1/10  1
     ],
-    upper = N[
+    upper = [
         1/2   7/10  0
         3/5   1/2   0
         7/10  3/10  1
@@ -116,8 +116,8 @@ Formally, an IMDP ``M`` is a tuple ``M = (S, S_0, A, \Gamma)``, where
 An IMDP is equivalent to an fRMDP where there is only one state variable, one action variable, and the ambiguity sets are interval ambiguity sets. The dependency graph is three nodes ``S``, ``A``, and ``S'`` with two edges ``S \rightarrow S'`` and ``A \rightarrow S'``. Paths and adversaries are defined similarly to fRMDPs.
 
 Example:
-```julia
-using IntervalMDP
+```@example
+using IntervalMDP # hide
 
 prob1 = IntervalAmbiguitySets(;
     lower = [
@@ -146,12 +146,12 @@ prob2 = IntervalAmbiguitySets(;
 )
 
 prob3 = IntervalAmbiguitySets(;
-    lower = [
+    lower = Float64[
         0 0
         0 0
         1 1
     ],
-    upper = [
+    upper = Float64[
         0 0
         0 0
         1 1
@@ -182,8 +182,8 @@ mdp = IntervalMarkovDecisionProcess(prob, num_actions, initial_states)
 It is possible to skip defining actions when the transition is a guaranteed self-loop and is the last states in the ambiguity set. 
 This is useful for defining target states in reachability problems. The example below has 3 states (as shown by the 3 rows) and 2 actions
 (explictly defined by `num_actions = 2`). The last state is a target state with a guaranteed self-loop, i.e., the transition probabilities are ``P(3|3,a) = 1`` for both actions ``a \in \{1, 2\}``.
-```julia
-using IntervalMDP
+```@example
+using IntervalMDP # hide
 
 prob = IntervalAmbiguitySets(;
     lower = [
@@ -199,7 +199,7 @@ prob = IntervalAmbiguitySets(;
 )
 
 num_actions = 2
-mdp = IntervalMarkovDecisionProcess(prob, num_actions, initial_states)
+mdp = IntervalMarkovDecisionProcess(prob, num_actions)
 ```
 
 ## odIMDPs
@@ -223,6 +223,8 @@ Formally, an fIMDP ``M`` with ``n`` marginals is a tuple ``M = (S, S_0, A, \math
 - ``A`` is a finite set of actions,
 - ``\mathcal{G} = (\mathcal{V}, \mathcal{E})`` is a directed bipartite graph with nodes ``\mathcal{V} = \mathcal{V}_{ind} \cup \mathcal{V}_{cond} = \{S_1, \ldots, S_n, A_1, \ldots, A_m\} \cup \{S'_1, \ldots, S'_n\}`` representing the state and action variables and their next-state counterparts, and edges ``\mathcal{E} \subseteq \mathcal{V}_{ind} \times \mathcal{V}_{cond}`` representing dependencies of ``S'_i`` on ``S_j`` and ``A_k``,
 - ``\Gamma = \{\Gamma_{s,a}\}_{s\in S,a \in A}`` is a set of ambiguity sets for source-action pair ``(s, a)``, where each ``\Gamma_{s,a} = \bigotimes_{i=1}^n \Gamma^i_{\text{Pa}_\mathcal{G}(S'_i) \cap (s, a)}`` with ``\Gamma^i_{\text{Pa}_\mathcal{G}(S'_i) \cap (s, a)}`` is an interval ambiguity set over the ``i``-th marginal, i.e. over ``S_i``, conditional on the values in ``(s, a)`` of the parent variables ``\text{Pa}_\mathcal{G}(S'_i)`` of ``S'_i`` in ``\mathcal{G}``.
+
+The example in [Factored RMDPs](@ref) is also an example of an fIMDP.
 
 ## References
 ```@bibliography
