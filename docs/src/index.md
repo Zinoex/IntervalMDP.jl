@@ -30,12 +30,6 @@ reward, and expected hitting times, and over finite and infinite horizons. For m
 the package supports Deterministic Finite Automata (DFA), with lazy product construction and efficient,
 cache-friendly algorithms. See [Specifications](@ref) for more information on the supported specifications.
 
-!!! info
-    We use the nomenclature "property" to refer to goal, which defines both how the value function
-    is initialized and how it is updated after every Bellman iteration, and "specification" refers to a property
-    and whether to minimize or maximize either the lower bound (pessimistic) or the upper bound (optimistic) of
-    the value function.
-
 #### Features
 - Value iteration over IMCs, IMDPs, odIMDPs, and fIMDPs.
 - Plenty of built-in specifications including reachability, safety, reach-avoid, discounted reward, and expected hitting times.
