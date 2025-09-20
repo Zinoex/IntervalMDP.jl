@@ -168,7 +168,7 @@ Given an avoid set ``O`` and a horizon ``K \in \mathbb{N} \cup \{\infty\}`` safe
 ```math
 \mathbb{P}^{\pi, \eta}_{\mathrm{safe}}(O, K) = \mathbb{P}^{\pi, \eta} \left[\omega \in \Omega : \forall k \in \{0, \ldots, K\}, \, \omega[k] \notin O \right].
 ```
-This property can by duality with reachability equivalently be states as ``\mathbb{P}^{\pi, \eta}_{\mathrm{safe}}(O, K) = 1 - \mathbb{P}^{\pi, \eta}_{\mathrm{reach}}(G, K)``. Note that if the strategy and adversary are not given, their optimization direction must be flipped in the dual objective. Alternatively, the property can be stated via the following value function
+This property can by duality with reachability equivalently be states as ``\mathbb{P}^{\pi, \eta}_{\mathrm{safe}}(O, K) = 1 - \mathbb{P}^{\pi, \eta}_{\mathrm{reach}}(O, K)``. Note that if the strategy and adversary are not given, their optimization direction must be flipped in the dual objective. Alternatively, the property can be stated via the following value function
 ```math
     \begin{aligned}
         V^{\pi, \eta}_0(s) &= -\mathbf{1}_{O}(s)\\
