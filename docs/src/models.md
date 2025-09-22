@@ -226,7 +226,7 @@ Formally, an fIMDP ``M`` with ``n`` marginals is a tuple ``M = (S, S_0, A, \math
 
 The example in [Factored RMDPs](@ref) is also an example of an fIMDP.
 
-## References
+### References
 ```@bibliography
 Pages = ["models.md"]
 Canonical = false
