@@ -30,7 +30,6 @@ num_labels(dfa::DFA)
 transition(dfa::DFA)
 labelmap(dfa::DFA)
 initial_state(dfa::DFA)
-accepting_states(dfa::DFA)
 ProductProcess
 markov_process(proc::ProductProcess)
 automaton(proc::ProductProcess)

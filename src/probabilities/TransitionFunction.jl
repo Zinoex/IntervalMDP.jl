@@ -1,6 +1,6 @@
 """
     struct TransitionFunction{
-        T <: Unsigned, 
+        T <: Integer, 
         MT <: AbstractMatrix{T}
     }
 

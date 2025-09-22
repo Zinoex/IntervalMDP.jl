@@ -1242,6 +1242,8 @@ strategy_mode(spec::Specification) = spec.strategy
 ismaximize(spec::Specification) = ismaximize(strategy_mode(spec))
 isminimize(spec::Specification) = isminimize(strategy_mode(spec))
 
+Base.show(io::IO, spec::Specification) = showspecification(io, "", "", spec)
+
 function showspecification(io::IO, first_prefix, prefix, spec::Specification)
     println(io, first_prefix, styled"{code:Specification}")
     println(io, prefix, styled"├─ Satisfaction mode: {magenta:$(satisfaction_mode(spec))}")

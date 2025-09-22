@@ -99,11 +99,13 @@ source_shape(proc::ProductProcess) = (source_shape(markov_process(proc))..., num
 action_variables(proc::ProductProcess) = action_variables(markov_process(proc))
 action_shape(proc::ProductProcess) = action_shape(markov_process(proc))
 
-function showsystem(io::IO, prefix, mdp::ProductProcess{M, D, L}) where {M, D, L}
-    println(io, prefix, styled"{code:ProductProcess}")
+Base.show(io::IO, proc::ProductProcess) = showsystem(io, "", "", proc)
+
+function showsystem(io::IO, first_prefix, prefix, mdp::ProductProcess{M, D, L}) where {M, D, L}
+    println(io, first_prefix, styled"{code:ProductProcess}")
     println(io, prefix, "├─ Underlying process:")
-    showsystem(io, prefix * "├─  ", prefix * "│  ", markov_process(mdp))
+    showsystem(io, prefix * "│  ", prefix * "│  ", markov_process(mdp))
     println(io, prefix, "├─ Automaton:")
-    showsystem(io, prefix * "│  ", automaton(mdp))
-    println(io, prefix, styled"└─ Labelling type: {magenta:$(L)}")
+    showsystem(io, prefix * "│  ", prefix * "│  ", automaton(mdp))
+    println(io, prefix, styled"└─ Labelling type: {magenta:$(L)}") # TODO: Improve printing of labelling function
 end

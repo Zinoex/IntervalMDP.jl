@@ -33,6 +33,16 @@ struct DFA{T <: TransitionFunction, DA <: AbstractDict{String, Int32}} <:
     transition::T # delta : |Q| x |2^{AP}| => |Q|   
     initial_state::Int32 # q_0
     labelmap::DA
+    
+    function DFA(
+        transition::T,
+        initial_state::Int32,
+        labelmap::DA,
+    ) where {T <: TransitionFunction, DA <: AbstractDict{String, Int32}}
+        checkdfa(transition, initial_state, labelmap)
+
+        return new{T, DA}(transition, initial_state, labelmap)
+    end
 end
 
 function DFA(
@@ -41,9 +51,16 @@ function DFA(
     atomic_propositions::AbstractVector{String},
 )
     labelmap = atomicpropositions2labels(atomic_propositions)
-    checkdfa(transition, initial_state, labelmap)
 
     return DFA(transition, initial_state, labelmap)
+end
+
+function DFA(
+    transition::TransitionFunction,
+    initial_state::Integer,
+    atomic_propositions::AbstractVector{String},
+)
+    return DFA(transition, Int32.(initial_state), atomic_propositions)
 end
 
 """
@@ -133,13 +150,6 @@ Return the initial state of the Deterministic Finite Automaton.
 initial_state(dfa::DFA) = dfa.initial_state
 
 """
-    accepting_states(dfa::DFA)
-
-Return the accepting states of the Deterministic Finite Automaton. 
-"""
-accepting_states(dfa::DFA) = dfa.accepting_states
-
-"""
     getindex(dfa::DFA, q, w)
 
 Return the the next state for source state ``q`` and input ``w`` of the Deterministic Finite Automaton. 
@@ -156,15 +166,12 @@ Base.getindex(dfa::DFA, q, w::String) = dfa[q, dfa.labelmap[w]]
 Base.iterate(dfa::DFA, state::Int32 = one(Int32)) =
     state > num_states(dfa) ? nothing : (state, state + one(Int32))
 
+Base.show(io::IO, dfa::DFA) = showsystem(io, "", "", dfa)
+
 function showsystem(io::IO, first_prefix, prefix, dfa::DFA)
     # TODO: Print diagram?
-    println(io, first_prefix, styled"{code:DFA}")
+    println(io, first_prefix, styled"{code:DFA} (Deterministic Finite Automaton)")
     println(io, prefix, styled"├─ Number of states: {magenta:$(num_states(dfa))}")
     println(io, prefix, styled"├─ Number of labels: {magenta:$(num_labels(dfa))}")
-    println(io, prefix, styled"├─ Initial state: {magenta:$(initial_state(dfa))}")
-    println(
-        io,
-        prefix,
-        styled"└─ Accepting states: {magenta:$(accepting_states(dfa))}",
-    )
+    println(io, prefix, styled"└─ Initial state: {magenta:$(initial_state(dfa))}")
 end
