@@ -301,7 +301,7 @@ convergence_threshold = 1e-8
 prop = InfiniteTimeDFAReachability(accepting_states, convergence_threshold)
 ```
 
-Given an fRMDP ``M = (S, S_0, A, \mathcal{G}, \Gamma)`` and a labeling function ``L : S \to \Sigma`` that maps states of the fRMDP to symbols in the alphabet of the DFA, a path ``\omega = s_0 s_1 \ldots`` in the fRMDP produces a word ``L(s_0) L(s_1) \ldots`` that is accepted by the DFA. The probability of producing a path in the fRMDP that is accepted by the DFA can be expressed via the product construction ``M \otimes \mathcal{A} = (Z, Z_0, A, \Gamma')``, where
+Given an fRMDP ``M = (S, S_0, A, \mathcal{G}, \Gamma)`` and a labeling function ``L : S \to \Sigma`` that maps states of the fRMDP to symbols in the alphabet of the DFA, a path ``\omega = s_0 s_1 \ldots`` in the fRMDP produces a word ``L(s_0) L(s_1) \ldots`` that is (possibly) accepted by the DFA. The probability of producing a path in the fRMDP that is accepted by the DFA can be expressed via the product construction ``M \otimes \mathcal{A} = (Z, Z_0, A, \Gamma')``, where
 - ``Z = S \times Q`` is the set of product states, 
 - ``Z_0 = S_0 \times \{q_0\}`` is the set of initial product states,
 - ``A`` is the set of actions, and
