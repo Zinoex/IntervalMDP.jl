@@ -1,7 +1,7 @@
 abstract type StochasticProcess end
 
 include("IntervalMarkovProcess.jl")
-export IntervalMarkovProcess, AllStates
+export AllStates
 export num_states, num_actions, initial_states
 
 include("FactoredRobustMarkovDecisionProcess.jl")

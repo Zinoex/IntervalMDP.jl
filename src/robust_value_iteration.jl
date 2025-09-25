@@ -66,9 +66,9 @@ transition_probs = [prob1, prob2, prob3]
 initial_state = 1
 mdp = IntervalMarkovDecisionProcess(transition_probs, initial_state)
 
-terminal_states = [3]
+reach_states = [3]
 time_horizon = 10
-prop = FiniteTimeReachability(terminal_states, time_horizon)
+prop = FiniteTimeReachability(reach_states, time_horizon)
 spec = Specification(prop, Pessimistic, Maximize)
 
 ### Verification

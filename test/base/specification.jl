@@ -4,95 +4,85 @@ using IntervalMDP
 @testset "getters" begin
     @testset "DFA reachability" begin
         prop = FiniteTimeDFAReachability([3], 10)
-        @test isfinitetime(prop)
+        @test IntervalMDP.isfinitetime(prop)
         @test time_horizon(prop) == 10
 
         @test reach(prop) == [3]
-        @test terminal_states(prop) == [3]
 
         prop = InfiniteTimeDFAReachability([3], 1e-6)
-        @test !isfinitetime(prop)
+        @test !IntervalMDP.isfinitetime(prop)
         @test convergence_eps(prop) == 1e-6
 
         @test reach(prop) == [3]
-        @test terminal_states(prop) == [3]
     end
 
     @testset "reachability" begin
         prop = FiniteTimeReachability([3], 10)
-        @test isfinitetime(prop)
+        @test IntervalMDP.isfinitetime(prop)
         @test time_horizon(prop) == 10
 
         @test reach(prop) == [CartesianIndex(3)]
-        @test terminal_states(prop) == [CartesianIndex(3)]
 
         prop = InfiniteTimeReachability([3], 1e-6)
-        @test !isfinitetime(prop)
+        @test !IntervalMDP.isfinitetime(prop)
         @test convergence_eps(prop) == 1e-6
 
         @test reach(prop) == [CartesianIndex(3)]
-        @test terminal_states(prop) == [CartesianIndex(3)]
 
         prop = ExactTimeReachability([3], 10)
-        @test isfinitetime(prop)
+        @test IntervalMDP.isfinitetime(prop)
         @test time_horizon(prop) == 10
 
         @test reach(prop) == [CartesianIndex(3)]
-        @test terminal_states(prop) == [CartesianIndex(3)]
     end
 
     @testset "reach-avoid" begin
         prop = FiniteTimeReachAvoid([3], [4], 10)
-        @test isfinitetime(prop)
+        @test IntervalMDP.isfinitetime(prop)
         @test time_horizon(prop) == 10
 
         @test reach(prop) == [CartesianIndex(3)]
         @test avoid(prop) == [CartesianIndex(4)]
-        @test issetequal(terminal_states(prop), [CartesianIndex(3), CartesianIndex(4)])
 
         prop = InfiniteTimeReachAvoid([3], [4], 1e-6)
-        @test !isfinitetime(prop)
+        @test !IntervalMDP.isfinitetime(prop)
         @test convergence_eps(prop) == 1e-6
 
         @test reach(prop) == [CartesianIndex(3)]
         @test avoid(prop) == [CartesianIndex(4)]
-        @test issetequal(terminal_states(prop), [CartesianIndex(3), CartesianIndex(4)])
 
         prop = ExactTimeReachAvoid([3], [4], 10)
-        @test isfinitetime(prop)
+        @test IntervalMDP.isfinitetime(prop)
         @test time_horizon(prop) == 10
 
         @test reach(prop) == [CartesianIndex(3)]
         @test avoid(prop) == [CartesianIndex(4)]
-        @test issetequal(terminal_states(prop), [CartesianIndex(3), CartesianIndex(4)])
     end
 
     @testset "safety" begin
         prop = FiniteTimeSafety([3], 10)
-        @test isfinitetime(prop)
+        @test IntervalMDP.isfinitetime(prop)
         @test time_horizon(prop) == 10
 
         @test avoid(prop) == [CartesianIndex(3)]
-        @test terminal_states(prop) == [CartesianIndex(3)]
 
         prop = InfiniteTimeSafety([3], 1e-6)
-        @test !isfinitetime(prop)
+        @test !IntervalMDP.isfinitetime(prop)
         @test convergence_eps(prop) == 1e-6
 
         @test avoid(prop) == [CartesianIndex(3)]
-        @test terminal_states(prop) == [CartesianIndex(3)]
     end
 
     @testset "reward" begin
         prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 10)
-        @test isfinitetime(prop)
+        @test IntervalMDP.isfinitetime(prop)
         @test time_horizon(prop) == 10
 
         @test reward(prop) == [1.0, 2.0, 3.0]
         @test discount(prop) == 0.9
 
         prop = InfiniteTimeReward([1.0, 2.0, 3.0], 0.9, 1e-6)
-        @test !isfinitetime(prop)
+        @test !IntervalMDP.isfinitetime(prop)
         @test convergence_eps(prop) == 1e-6
 
         @test reward(prop) == [1.0, 2.0, 3.0]
@@ -101,11 +91,10 @@ using IntervalMDP
 
     @testset "expected exit time" begin
         prop = ExpectedExitTime([3], 1e-6)
-        @test !isfinitetime(prop)
+        @test !IntervalMDP.isfinitetime(prop)
         @test convergence_eps(prop) == 1e-6
 
         @test avoid(prop) == [CartesianIndex(3)]
-        @test terminal_states(prop) == [CartesianIndex(3)]
     end
 end
 

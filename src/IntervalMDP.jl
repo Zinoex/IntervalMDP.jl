@@ -34,8 +34,7 @@ export FiniteTimeSafety, InfiniteTimeSafety
 export FiniteTimeReward, InfiniteTimeReward
 export ExpectedExitTime
 
-export isfinitetime
-export reach, avoid, safe, terminal_states, time_horizon, convergence_eps, reward, discount
+export reach, avoid, safe, time_horizon, convergence_eps, reward, discount
 
 export SatisfactionMode, Pessimistic, Optimistic, ispessimistic, isoptimistic
 export StrategyMode, Maximize, Minimize, ismaximize, isminimize

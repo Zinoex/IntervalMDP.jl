@@ -1,10 +1,9 @@
 # System representation
 
 ```@docs
-IntervalMarkovProcess
 num_states
 num_actions
-initial_states(mp::IntervalMarkovProcess)
+initial_states
 AllStates
 ```
 
@@ -16,24 +15,10 @@ action_variables(s::FactoredRobustMarkovDecisionProcess)
 marginals(s::FactoredRobustMarkovDecisionProcess)
 ```
 
-## Convenience constructors for subclasses of fRMDPs
+### Convenience constructors for subclasses of fRMDPs
 ```@docs
 IntervalMarkovChain
 IntervalMarkovDecisionProcess
-```
-
-## Deterministic Finite Automaton (DFA)
-```@docs
-DFA
-num_states(dfa::DFA)
-num_labels(dfa::DFA)
-transition(dfa::DFA)
-labelmap(dfa::DFA)
-initial_state(dfa::DFA)
-ProductProcess
-markov_process(proc::ProductProcess)
-automaton(proc::ProductProcess)
-labelling_function(proc::ProductProcess)
 ```
 
 ## Probability representation
@@ -61,11 +46,18 @@ upper
 gap
 ```
 
-### Labelling of IMDP states to Automaton alphabet
+## Deterministic Finite Automaton (DFA)
 ```@docs
-LabellingFunction
-mapping(labelling_func::LabellingFunction)
-num_labels(labelling_func::LabellingFunction)
+DFA
+num_states(dfa::DFA)
+num_labels(dfa::DFA)
+transition(dfa::DFA)
+labelmap(dfa::DFA)
+initial_state(dfa::DFA)
+ProductProcess
+markov_process(proc::ProductProcess)
+automaton(proc::ProductProcess)
+labelling_function(proc::ProductProcess)
 ```
 
 ### Transition function for DFA
@@ -74,4 +66,11 @@ TransitionFunction
 transition(transition_func::TransitionFunction)
 num_states(tf::TransitionFunction)
 num_labels(tf::TransitionFunction)
+```
+
+### Labelling of IMDP states to Automaton alphabet
+```@docs
+LabellingFunction
+mapping(labelling_func::LabellingFunction)
+num_labels(labelling_func::LabellingFunction)
 ```

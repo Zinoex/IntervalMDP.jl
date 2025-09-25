@@ -15,7 +15,7 @@ Formally, let ``(Q, 2^{AP}, \\delta, q_0, Q_{ac})`` be an DFA, where
 - ``\\delta : |Q| \\times |2^{AP}| => |Q|`` is the deterministic transition function, for each state-input pair.
 
 Then the `DFA` type is defined as follows: indices `1:num_states` are the states in ``Q``, 
-`transition` represents ``\\delta``, the set ``2^{AP}`` is , and `initial_states` is the set of initial states ``q_0``. 
+`transition` represents ``\\delta``, the set ``2^{AP}`` is , and `initial_state` is the initial state ``q_0``. 
 See [`TransitionFunction`](@ref) for more information on the structure of the transition function.
 
 ### Fields

@@ -147,7 +147,7 @@ write_bmdp_tool_file(path, problem::IntervalMDP.AbstractIntervalMDPProblem) =
 """
     write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, spec::Specification)
 """
-write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, spec::Specification) =
+write_bmdp_tool_file(path, mdp::IntervalMDP.IntervalMarkovProcess, spec::Specification) =
     write_bmdp_tool_file(path, mdp, system_property(spec))
 
 """
@@ -155,7 +155,7 @@ write_bmdp_tool_file(path, mdp::IntervalMarkovProcess, spec::Specification) =
 """
 write_bmdp_tool_file(
     path,
-    mdp::IntervalMarkovProcess,
+    mdp::IntervalMDP.IntervalMarkovProcess,
     prop::IntervalMDP.AbstractReachability,
 ) = write_bmdp_tool_file(path, mdp, reach(prop))
 
@@ -164,7 +164,7 @@ write_bmdp_tool_file(
 """
 write_bmdp_tool_file(
     path,
-    mdp::IntervalMarkovProcess,
+    mdp::IntervalMDP.IntervalMarkovProcess,
     terminal_states::Vector{T},
 ) where {T} = write_bmdp_tool_file(path, mdp, CartesianIndex.(terminal_states))
 
