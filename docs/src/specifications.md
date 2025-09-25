@@ -20,7 +20,7 @@ spec = Specification(prop, Optimistic)
 # Explicit strategy mode (minimize/maxize)
 spec = Specification(prop, Pessimistic, Maximize)
 spec = Specification(prop, Pessimistic, Minimize)  # Unusual, but available
-spec = Specification(prop, Optimistic, Maximize)  # Unusual, but avialable
+spec = Specification(prop, Optimistic, Maximize)  # Unusual, but available
 spec = Specification(prop, Optimistic, Minimize)
 ```
 
