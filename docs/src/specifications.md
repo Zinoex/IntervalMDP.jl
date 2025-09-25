@@ -305,7 +305,7 @@ Given an fRMDP ``M = (S, S_0, A, \mathcal{G}, \Gamma)`` and a labeling function 
 - ``Z = S \times Q`` is the set of product states, 
 - ``Z_0 = S_0 \times \{q_0\}`` is the set of initial product states,
 - ``A`` is the set of actions, and
-- ``\Gamma' = \{\Gamma_{z, a}}_{z \in Z, a \in A}`` is the joint ambiguity set defined as
+- ``\Gamma' = \{\Gamma_{z, a}\}_{z \in Z, a \in A}`` is the joint ambiguity set defined as
 ```math
 \Gamma'_{z, a} = \{\gamma'_{z, a} \in \mathcal{D}(Z) : \exists \gamma_{s, a} \in \Gamma_{s, a} \text{ s.t. } \gamma'_{z, a}(z') = \mathbf{1}_{q'}(\delta(q, L(t))) \gamma_{s, a}(t)\}
 ```
