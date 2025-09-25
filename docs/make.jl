@@ -33,6 +33,7 @@ makedocs(;
             "Index" => "api.md",
         ],
         "Data formats" => "data.md",
+        "Developer docs" => "developer.md",
         "References" => "references.md",
     ],
     doctest = false,

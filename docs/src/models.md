@@ -10,7 +10,7 @@ For ``n`` finite sets ``S_1, \ldots, S_n`` we denote by ``S_1 \times \cdots \tim
 ```math
     \Gamma = \left\{ \gamma \in \mathcal{D}(S) \,:\, \gamma(s) = \prod_{i=1}^n \gamma^i(s^i), \, \gamma^i \in \Gamma_i \right\}
 ```
-where ``s = (s_1, \ldots, s_n) \in S``. We will denote the product ambiguity set as ``\Gamma = \bigotimes_{i=1}^n \Gamma_i``. Each ``\Gamma_i`` is called a marginal or component ambiguity set.
+where ``s = (s_1, \ldots, s_n) \in S``. We will denote the product ambiguity set as ``\Gamma = \bigotimes_{i=1}^n \Gamma_i``. Each ``\Gamma_i`` is called a marginal or component ambiguity set. A transition is a triplet ``(s, a, t) \in S \times A \times S`` where ``s`` is the source state, ``a`` is the action, and ``t`` is the target state.
 
 ## Factored RMDPs
 Factored Robust Markov Decision Processes (fRMDPs) [schnitzer2025efficient, delgado2011efficient](@cite) are an extension of Robust Markov Decision Processes (RMDPs) [nilim2005robust, wiesemann2013robust, suilen2024robust](@cite) that incorporate a factored representation of the state and action spaces, i.e. with state and action variables. This allows for a more compact representation of the transition model and flexibility in modeling complex systems. First, we define here fRMDPs, and then in the subsequent sections, we define various special subclasses of fRMDPs, including how they relate to each other and to fRMDPs.
@@ -23,10 +23,10 @@ Formally, a fRMDP ``M`` is a tuple ``M = (S, S_0, A, \mathcal{G}, \Gamma)``, whe
 - ``\mathcal{G} = (\mathcal{V}, \mathcal{E})`` is a directed bipartite graph with nodes ``\mathcal{V} = \mathcal{V}_{ind} \cup \mathcal{V}_{cond} = \{S_1, \ldots, S_n, A_1, \ldots, A_m\} \cup \{S'_1, \ldots, S'_n\}`` representing the state and action variables and their next-state counterparts, and edges ``\mathcal{E} \subseteq \mathcal{V}_{ind} \times \mathcal{V}_{cond}`` representing dependencies of ``S'_i`` on ``S_j`` and ``A_k``,
 - ``\Gamma = \{\Gamma_{s,a}\}_{s\in S,a \in A}`` is a set of ambiguity sets for source-action pair ``(s, a)``, where each ``\Gamma_{s,a} = \bigotimes_{i=1}^n \Gamma^i_{\text{Pa}_\mathcal{G}(S'_i) \cap (s, a)}`` is a product of ambiguity sets ``\Gamma^i_{\text{Pa}_\mathcal{G}(S'_i) \cap (s, a)}`` along each marginal ``i`` conditional on the values in ``(s, a)`` of the parent variables ``\text{Pa}_\mathcal{G}(S'_i)`` of ``S'_i`` in ``\mathcal{G}``, i.e.
 ```math
-    \Gamma_{s,a} = \left\{ \gamma \in \mathcal{D}(S) \,:\, \gamma(s') = \prod_{i=1}^n \gamma^i(s'_i | s_{\text{Pa}_{\mathcal{G}_S}(S'_i)}, a_{\text{Pa}_{\mathcal{G}_A}(S'_i)}), \, \gamma^i(\cdot | s_{\text{Pa}_{\mathcal{G}_S}(S'_i)}, a_{\text{Pa}_{\mathcal{G}_A}(S'_i)}) \in \Gamma^i_{\text{Pa}_\mathcal{G}(S'_i)} \right\}.
+    \Gamma_{s,a} = \left\{ \gamma \in \mathcal{D}(S) \,:\, \gamma(t) = \prod_{i=1}^n \gamma^i(t_i | s_{\text{Pa}_{\mathcal{G}_S}(S'_i)}, a_{\text{Pa}_{\mathcal{G}_A}(S'_i)}), \, \gamma^i(\cdot | s_{\text{Pa}_{\mathcal{G}_S}(S'_i)}, a_{\text{Pa}_{\mathcal{G}_A}(S'_i)}) \in \Gamma^i_{\text{Pa}_\mathcal{G}(S'_i)} \right\}.
 ```
 
-For a given source-action pair ``(s, a) \in S \times A``, any distribution ``\gamma_{s, a} \in \Gamma_{s,a}`` is called a feasible distribution, and feasible transitions are triplets ``(s, a, s') \in S \times A \time S`` where ``s' \in \mathop{supp}(\gamma_{s, a})`` for any feasible distribution ``\gamma_{s, a} \in \Gamma_{s, a}``. A path of an fRMDP is a sequence of states and actions ``\omega = s[0], a[0], s[1], a[1], \dots`` where ``s[k] \in S`` and ``a[k] \in A`` for all ``k \in \mathbb{N}_0``, and ``(s[k], a[k], s[k + 1])`` is a feasible transition  for all ``k \in \mathbb{N}_0``. We denote by ``\omega[k] = s[k]`` the state of the path at time ``k \in \mathbb{N}_0`` and by ``\Omega`` and ``\Omega_{fin}`` the set of all infinite and finite paths, respectively.
+For a given source-action pair ``(s, a) \in S \times A``, any distribution ``\gamma_{s, a} \in \Gamma_{s,a}`` is called a feasible distribution, and feasible transitions are triplets ``(s, a, t) \in S \times A \times S`` where ``t \in \mathop{supp}(\gamma_{s, a})`` for any feasible distribution ``\gamma_{s, a} \in \Gamma_{s, a}``. A path of an fRMDP is a sequence of states and actions ``\omega = s[0], a[0], s[1], a[1], \dots`` where ``s[k] \in S`` and ``a[k] \in A`` for all ``k \in \mathbb{N}_0``, and ``(s[k], a[k], s[k + 1])`` is a feasible transition  for all ``k \in \mathbb{N}_0``. We denote by ``\omega[k] = s[k]`` the state of the path at time ``k \in \mathbb{N}_0`` and by ``\Omega`` and ``\Omega_{fin}`` the set of all infinite and finite paths, respectively.
 
 A _strategy_ or _policy_ for an fRMDP is a function ``\pi : \Omega_{fin} \to A`` that assigns an action, given a (finite) path called the history. _Time-dependent_ Markov strategies are functions from state and time step to an action, i.e. ``\pi : S \times \mathbb{N}_0 \to A``. This can equivalently be described as a sequence of functions indexed by time ``\mathbf{\pi} = (\pi[0], \pi[1], \ldots)``. If ``\pi`` does not depend on time and solely depends on the current state, it is called a _stationary_ strategy. Similar to a strategy, an adversary ``\eta`` is a function that assigns a feasible distribution to a given state. The focus of this package is on dynamic uncertainties where the choice of the adversary is resolved at every time step, called dynamic uncertainty, and where the adversary has access to both the current state and action, called ``(s, a)``-rectangularity. We refer to [suilen2024robust](@cite) for further details on the distinction between static and dynamic uncertainties, types of rectangularity, and their implications. Given a strategy and an adversary, an fRMDP collapses to a finite (factored) Markov chain.
 
@@ -42,7 +42,10 @@ action_indices = (1,)
 state_dims = (2, 3)
 action_dims = (1,)
 marginal1 = Marginal(IntervalAmbiguitySets(;
-    lower = [ # 6 ambiguity sets = 2 * 3 source states, 1 action
+    # 6 ambiguity sets = 2 * 3 source states, 1 action
+    # Column layout: (a¹₁, s¹₁, s²₁), (a¹₁, s¹₂, s²₁), (a¹₁, s¹₁, s²₂), (a¹₁, s¹₂, s²₂), (a¹₁, s¹₁, s²₃), (a¹₁, s¹₂, s²₃)
+    # Equivalent to CartesianIndices(actions_dims..., state_dims...), i.e. actions first, then states in lexicographic order
+    lower = [
         1/15  7/30  1/15  13/30  4/15  1/6
         2/5   7/30  1/30  11/30  2/15  1/10
     ],
@@ -57,7 +60,10 @@ action_indices = (2,)
 state_dims = (3,)
 action_dims = (2,)
 marginal2 = Marginal(IntervalAmbiguitySets(;
-    lower = [ # 6 ambiguity sets = 3 source states, 2 actions
+    # 6 ambiguity sets = 3 source states, 2 actions
+    # Column layout: (a²₁, s²₁), (a²₂, s²₁), (a²₁, s²₂), (a²₂, s²₂), (a²₁, s²₃), (a²₂, s²₃)
+    # Equivalent to CartesianIndices(actions_dims..., state_dims...), i.e. actions first, then states in lexicographic order
+    lower = [
         1/30  1/3   1/6   1/15  2/5   2/15
         4/15  1/4   1/6   1/30  2/15  1/30
         2/15  7/30  1/10  7/30  7/15  1/5
@@ -72,6 +78,9 @@ marginal2 = Marginal(IntervalAmbiguitySets(;
 initial_states = [(1, 1)]  # Initial states are optional
 mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, marginal2), initial_states)
 ```
+
+!!! warn
+    Notice that source-action pairs are on the columns of the matrices to defined the interval bounds. This is counter to most literature on transition matrices where transitions are from row to column. The choice of layout is to ensure that the memory access pattern is cache-friendly, as each column is stored contiguously in memory (column-major) and the Bellman updates iterate outer-most over source-action pairs. However, it also has a fundamental mathematical justification: the transition matrix can be viewed as a linear operator and the matrix form of a linear operator is defined such that the columns correspond to the input dimensions, i.e. from column to row. Furthermore, actions for the same source state are stored contiguously, which is also important for cache efficiency.
 
 ## IMCs
 Interval Markov Chains (IMCs) [delahaye2011decision](@cite) are a subclass of fRMDPs and a generalization of Markov Chains (MCs), where the transition probabilities are not known exactly, but they are constrained to be in some probability interval.

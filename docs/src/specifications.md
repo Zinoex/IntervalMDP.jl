@@ -38,7 +38,7 @@ The property is equivalent to the following value function
 ```math
     \begin{aligned}
         V^{\pi, \eta}_0(s) &= \mathbf{1}_{G}(s)\\
-        V^{\pi, \eta}_k(s) &= \mathbf{1}_{G}(s) + \mathbf{1}_{S \setminus G}(s) \mathbb{E}_{s' \sim \eta(s, a, K - k)}[V^{\pi, \eta}_{k - 1}(s')]
+        V^{\pi, \eta}_k(s) &= \mathbf{1}_{G}(s) + \mathbf{1}_{S \setminus G}(s) \mathbb{E}_{t \sim \eta(s, a, K - k)}[V^{\pi, \eta}_{k - 1}(t)]
     \end{aligned}
 ```
 such that ``\mathbb{P}^{\pi, \eta}_{\mathrm{reach}}(G, K) = V_K(s)``, where for ``K = \infty`` the adversary does not depend on time.
@@ -69,7 +69,7 @@ which is equivalent with the following value function
 ```math
     \begin{aligned}
         V^{\pi, \eta}_0(s) &= \mathbf{1}_{G}(s)\\
-        V^{\pi, \eta}_k(s) &= \mathbb{E}_{s' \sim \eta(s, a, K - k)}[V^{\pi, \eta}_{k - 1}(s')]
+        V^{\pi, \eta}_k(s) &= \mathbb{E}_{t \sim \eta(s, a, K - k)}[V^{\pi, \eta}_{k - 1}(t)]
     \end{aligned}
 ```
 such that ``\mathbb{P}^{\pi, \eta}_{\mathrm{exact-reach}}(G, K) = V_K(s)`` for a horizon ``K \in \mathbb{N}``.
@@ -97,7 +97,7 @@ The property is equivalent to the following value function
 ```math
     \begin{aligned}
         V^{\pi, \eta}_0(s) &= \mathbf{1}_{G}(s)\\
-        V^{\pi, \eta}_k(s) &= \mathbf{1}_{G}(s) + \mathbf{1}_{S \setminus (G \cup O)}(s) \mathbb{E}_{s' \sim \eta(s, a, K - k)}[V^{\pi, \eta}_{k - 1}(s')]
+        V^{\pi, \eta}_k(s) &= \mathbf{1}_{G}(s) + \mathbf{1}_{S \setminus (G \cup O)}(s) \mathbb{E}_{t \sim \eta(s, a, K - k)}[V^{\pi, \eta}_{k - 1}(t)]
     \end{aligned}
 ```
 such that ``\mathbb{P}^{\pi, \eta}_{\mathrm{reach-avoid}}(G, O, K) = V_K(s)``, where for ``K = \infty`` the adversary does not depend on time.
@@ -135,7 +135,7 @@ which is equivalent with the following value function
 ```math
     \begin{aligned}
         V^{\pi, \eta}_0(s) &= \mathbf{1}_{G}(s)\\
-        V^{\pi, \eta}_k(s) &= \mathbf{1}_{S \setminus O}(s)\mathbb{E}_{s' \sim \eta(s, a, K - k)}[V^{\pi, \eta}_{k - 1}(s')]
+        V^{\pi, \eta}_k(s) &= \mathbf{1}_{S \setminus O}(s)\mathbb{E}_{t \sim \eta(s, a, K - k)}[V^{\pi, \eta}_{k - 1}(t)]
     \end{aligned}
 ```
 such that ``\mathbb{P}^{\pi, \eta}_{\mathrm{exact-reach}}(G, K) = V_K(s)`` for a horizon ``K \in \mathbb{N}``.
@@ -169,7 +169,7 @@ This property can by duality with reachability equivalently be states as ``\math
 ```math
     \begin{aligned}
         V^{\pi, \eta}_0(s) &= -\mathbf{1}_{O}(s)\\
-        V^{\pi, \eta}_k(s) &= -\mathbf{1}_{O}(s) + \mathbf{1}_{S \setminus O}(s) \mathbb{E}_{s' \sim \eta(s, a, K - k)}[V^{\pi, \eta}_{k - 1}(s')]
+        V^{\pi, \eta}_k(s) &= -\mathbf{1}_{O}(s) + \mathbf{1}_{S \setminus O}(s) \mathbb{E}_{t \sim \eta(s, a, K - k)}[V^{\pi, \eta}_{k - 1}(t)]
     \end{aligned}
 ```
 such that ``\mathbb{P}^{\pi, \eta}_{\mathrm{safe}}(G, K) = 1 + V_K(s)``, where for ``K = \infty`` the adversary does not depend on time.
@@ -204,7 +204,7 @@ The property is equivalent to the following value function
 ```math
     \begin{aligned}
         V^{\pi, \eta}_0(s) &= r(s)\\
-        V^{\pi, \eta}_k(s) &= r(s) + \nu \mathbb{E}_{s' \sim \eta(s, a, K - k)}[V^{\pi, \eta}_{k - 1}(s')]
+        V^{\pi, \eta}_k(s) &= r(s) + \nu \mathbb{E}_{t \sim \eta(s, a, K - k)}[V^{\pi, \eta}_{k - 1}(t)]
     \end{aligned}
 ```
 such that ``\mathbb{E}^{\pi,\eta}_{\mathrm{reward}}(r, \nu, K) = V_K(s)``, where for ``K = \infty`` the adversary does not depend on time.
@@ -242,7 +242,7 @@ The property is equivalent to the following value function
 ```math
     \begin{aligned}
         V^{\pi, \eta}_0(s) &= \mathbf{1}_{S \setminus 0}(s)\\
-        V^{\pi, \eta}_k(s) &= \mathbf{1}_{S \setminus O}(s) \left(1 + \mathbb{E}_{s' \sim \eta(s, a)}[V^{\pi, \eta}_{k - 1}(s')]\right)
+        V^{\pi, \eta}_k(s) &= \mathbf{1}_{S \setminus O}(s) \left(1 + \mathbb{E}_{t \sim \eta(s, a)}[V^{\pi, \eta}_{k - 1}(t)]\right)
     \end{aligned}
 ```
 such that ``\mathbb{E}^{\pi,\eta}_{\mathrm{exit}}(O) = V_\infty(s)``. The adversary does not depend on time.
@@ -307,9 +307,9 @@ Given an fRMDP ``M = (S, S_0, A, \mathcal{G}, \Gamma)`` and a labeling function 
 - ``A`` is the set of actions, and
 - ``\Gamma' = \{\Gamma_{z, a}}_{z \in Z, a \in A}`` is the joint ambiguity set defined as
 ```math
-\Gamma'_{z, a} = \{\gamma'_{z, a} \in \mathcal{D}(Z) : \exists \gamma_{s, a} \in \Gamma_{s, a} \text{ s.t. } \gamma'_{z, a}(z') = \mathbf{1}_{q'}(\delta(q, L(s'))) \gamma_{s, a}(s')\}
+\Gamma'_{z, a} = \{\gamma'_{z, a} \in \mathcal{D}(Z) : \exists \gamma_{s, a} \in \Gamma_{s, a} \text{ s.t. } \gamma'_{z, a}(z') = \mathbf{1}_{q'}(\delta(q, L(t))) \gamma_{s, a}(t)\}
 ```
-where ``z = (s, q)`` and ``z' = (s', q')``. Then, the probability of generating a path, of length ``K \in \mathbb{N}``, in the fRMDP that is accepted by the DFA is formally defined as
+where ``z = (s, q)`` and ``z' = (t, q')``. Then, the probability of generating a path, of length ``K \in \mathbb{N}``, in the fRMDP that is accepted by the DFA is formally defined as
 ```math
 \mathbb{P}^{\pi, \eta}_{\mathrm{dfa-reach}}(F, K) = \mathbb{P}^{\pi, \eta}_{M \otimes \mathcal{A}} \left[\omega \in \Omega : \omega[K] \in S \times F \right].
 ```
@@ -326,11 +326,11 @@ Note that the product is never explicitly constructed, for three reasons: (i) th
 ```math
     \begin{aligned}
         V^{\pi, \eta}_0(s, q) &= \mathbf{1}_{F}(q)\\
-        W^{\pi, \eta}_k(s', q) &= \mathbf{1}_{F}(q) + \mathbf{1}_{Q \setminus F}(q) V^{\pi, \eta}_{k - 1}(s', \delta(q, L(s')))\\
-        V^{\pi, \eta}_k(s, q) &= \mathbb{E}_{s' \sim \eta(s, a, K - k)}[W^{\pi, \eta}_k(s', q)]
+        W^{\pi, \eta}_k(t, q) &= \mathbf{1}_{F}(q) + \mathbf{1}_{Q \setminus F}(q) V^{\pi, \eta}_{k - 1}(t, \delta(q, L(t)))\\
+        V^{\pi, \eta}_k(s, q) &= \mathbb{E}_{t \sim \eta(s, a, K - k)}[W^{\pi, \eta}_k(t, q)]
     \end{aligned}
 ```
-Notice that ``W^{\pi, \eta}_k(s', q)`` is shared for all ``s \in S`` when updating ``V^{\pi, \eta}_k(s, q)``. This allows for efficient, cache-friendly implementations of the Bellman operator. The kernel for product processes merely forwards, for each DFA state ``q \in Q \setminus F``, the Bellman update to the underlying Bellman operator algorithm, which is chosen based on the fRMDP model type, e.g. IMDP or odIMDP, storage type, e.g. dense or sparse, and hardware, e.g. CPU or CUDA, for efficicency.
+Notice that ``W^{\pi, \eta}_k(t, q)`` is shared for all ``s \in S`` when updating ``V^{\pi, \eta}_k(s, q)``. This allows for efficient, cache-friendly implementations of the Bellman operator. The kernel for product processes merely forwards, for each DFA state ``q \in Q \setminus F``, the Bellman update to the underlying Bellman operator algorithm, which is chosen based on the fRMDP model type, e.g. IMDP or odIMDP, storage type, e.g. dense or sparse, and hardware, e.g. CPU or CUDA, for efficicency.
 
 Example of constructing a product process:
 ```@setup product_process_example

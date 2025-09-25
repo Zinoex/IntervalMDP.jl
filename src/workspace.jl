@@ -143,7 +143,7 @@ struct FactoredIntervalMcCormickWorkspace{M <: JuMP.Model, T <: Real, AT <: Abst
 end
 
 function FactoredIntervalMcCormickWorkspace(sys, alg)
-    model = JuMP.Model(alg.lp_optimizer)
+    model = JuMP.Model(alg.lp_solver)
     JuMP.set_silent(model)
     set_string_names_on_creation(model, false)
 

@@ -1,7 +1,7 @@
 abstract type BellmanAlgorithm end
 struct OMaximization <: BellmanAlgorithm end
 Base.@kwdef struct LPMcCormickRelaxation{O} <: BellmanAlgorithm
-    lp_optimizer::O = HiGHS.Optimizer
+    lp_solver::O = HiGHS.Optimizer
 end
 struct VertexEnumeration <: BellmanAlgorithm end
 
