@@ -52,7 +52,7 @@ and feasible transitions are triplets ``(s, a, t) \\in S \\times A \\times S`` w
 
 ### Example
 ```jldoctest
-using IntervalMDP # hide
+using IntervalMDP
 
 state_vars = (2, 3)
 action_vars = (1, 2)
@@ -97,10 +97,27 @@ marginal2 = Marginal(IntervalAmbiguitySets(;
 
 initial_states = [(1, 1)]  # Initial states are optional
 mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, marginal2), initial_states)
-```
-    !!! todo
-    Add example
 
+# output
+
+FactoredRobustMarkovDecisionProcess
+├─ 2 state variables with cardinality: (2, 3)
+├─ 2 action variables with cardinality: (1, 2)
+├─ Initial states: [(1, 1)]
+├─ Transition marginals:
+│  ├─ Marginal 1:
+│  │  ├─ Conditional variables: states = (1, 2), actions = (1,)
+│  │  └─ Ambiguity set type: Interval (dense, Matrix{Float64})
+│  └─ Marginal 2:
+│     ├─ Conditional variables: states = (2,), actions = (2,)
+│     └─ Ambiguity set type: Interval (dense, Matrix{Float64})
+└─Inferred properties
+   ├─Model type: Factored Interval MDP
+   ├─Number of states: 6
+   ├─Number of actions: 2
+   ├─Default model checking algorithm: Robust Value Iteration
+   └─Default Bellman operator algorithm: Binary tree LP McCormick Relaxation
+```
 """
 struct FactoredRobustMarkovDecisionProcess{
     N,
