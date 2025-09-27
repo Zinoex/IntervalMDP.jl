@@ -1,11 +1,8 @@
 """
     IntervalAmbiguitySets{R, MR <: AbstractMatrix{R}}
 
-!!! todo
-    Update description
-
-A matrix pair to represent the lower and upper bound of `num_sets(ambiguity_set)` interval ambiguity sets (on the columns)
-to `num_target(ambiguity_set)` destinations (on the rows). [Marginal](@ref) adds interpretation to the column indices.
+A matrix pair to represent the lower and upper bound of `num_sets(ambiguity_sets)` interval ambiguity sets (on the columns)
+to `num_target(ambiguity_sets)` destinations (on the rows). [Marginal](@ref) adds interpretation to the column indices.
 The matrices can be `Matrix{R}` or `SparseMatrixCSC{R}`, or their CUDA equivalents. 
 Due to the space complexity, if modelling [IntervalMarkovChains](@ref IntervalMarkovChain) or [IntervalMarkovDecisionProcesses](@ref IntervalMarkovDecisionProcess),
 it is recommended to use sparse matrices.
@@ -17,8 +14,8 @@ The lower bound is explicitly stored, while the upper bound is computed from the
 because it simplifies repeated probability assignment using O-maximization [givan2000bounded, lahijanian2015formal](@cite).
 
 ### Fields
-- `lower::MR`: The lower bound probabilities for `num_sets(ambiguity_set)` ambiguity sets to `num_target(ambiguity_set)` target states.
-- `gap::MR`: The gap between upper and lower bound transition probabilities for `num_sets(ambiguity_set)` ambiguity sets to `num_target(ambiguity_set)` target states.
+- `lower::MR`: The lower bound probabilities for `num_sets(ambiguity_sets)` ambiguity sets to `num_target(ambiguity_sets)` target states.
+- `gap::MR`: The gap between upper and lower bound transition probabilities for `num_sets(ambiguity_sets)` ambiguity sets to `num_target(ambiguity_sets)` target states.
 
 ### Examples
 ```jldoctest

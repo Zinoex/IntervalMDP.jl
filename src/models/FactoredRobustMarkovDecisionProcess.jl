@@ -17,15 +17,15 @@ Formally, a fRMDP ``M`` is a tuple ``M = (S, S_0, A, \\mathcal{G}, \\Gamma)``, w
     representing the state and action variables and their next-state counterparts, and edges 
     ``\\mathcal{E} \\subseteq \\mathcal{V}_{ind} \\times \\mathcal{V}_{cond}``
     representing dependencies of ``S'_i`` on ``S_j`` and ``A_k``,
-- ``\\Gamma = \\{\\Gamma_{s,a}\\}_{s\\in S,a \\in A}`` is a set of ambiguity sets for source-action pair ``(s, a)``, 
-    where each ``\\Gamma_{s,a} = \\bigotimes_{i=1}^n \\Gamma^i_{\\text{Pa}_\\mathcal{G}(S'_i) \\cap (s, a)}`` is
+- ``\\Gamma = \\{\\Gamma_{s, a}\\}_{s \\in S, a \\in A}`` is a set of ambiguity sets for source-action pair ``(s, a)``, 
+    where each ``\\Gamma_{s, a} = \\bigotimes_{i=1}^n \\Gamma^i_{\\text{Pa}_\\mathcal{G}(S'_i) \\cap (s, a)}`` is
     a product of ambiguity sets ``\\Gamma^i_{\\text{Pa}_\\mathcal{G}(S'_i) \\cap (s, a)}`` along each marginal ``i`` conditional
     on the values in ``(s, a)`` of the parent variables ``\\text{Pa}_\\mathcal{G}(S'_i)`` of ``S'_i`` in ``\\mathcal{G}``, i.e.
 ```math
-    \\Gamma_{s,a} = \\left\\{ \\gamma \\in \\mathcal{D}(S) \\,:\\, \\gamma(t) = \\prod_{i=1}^n \\gamma^i(t_i | s_{\\text{Pa}_{\\mathcal{G}_S}(S'_i)}, a_{\\text{Pa}_{\\mathcal{G}_A}(S'_i)}), \\, \\gamma^i(\\cdot | s_{\\text{Pa}_{\\mathcal{G}_S}(S'_i)}, a_{\\text{Pa}_{\\mathcal{G}_A}(S'_i)}) \\in \\Gamma^i_{\\text{Pa}_\\mathcal{G}(S'_i)} \\right\\}.
+    \\Gamma_{s, a} = \\left\\{ \\gamma \\in \\mathcal{D}(S) \\,:\\, \\gamma(t) = \\prod_{i=1}^n \\gamma^i(t_i | s_{\\text{Pa}_{\\mathcal{G}_S}(S'_i)}, a_{\\text{Pa}_{\\mathcal{G}_A}(S'_i)}), \\, \\gamma^i(\\cdot | s_{\\text{Pa}_{\\mathcal{G}_S}(S'_i)}, a_{\\text{Pa}_{\\mathcal{G}_A}(S'_i)}) \\in \\Gamma^i_{\\text{Pa}_\\mathcal{G}(S'_i)} \\right\\}.
 ```
 
-For a given source-action pair ``(s, a) \\in S \\times A``, any distribution ``\\gamma_{s, a} \\in \\Gamma_{s,a}`` is called a feasible distribution,
+For a given source-action pair ``(s, a) \\in S \\times A``, any distribution ``\\gamma_{s, a} \\in \\Gamma_{s, a}`` is called a feasible distribution,
 and feasible transitions are triplets ``(s, a, t) \\in S \\times A \\times S`` where ``t \\in \\mathop{supp}(\\gamma_{s, a})`` for any feasible distribution ``\\gamma_{s, a} \\in \\Gamma_{s, a}``.
 
 ### Type parameters
