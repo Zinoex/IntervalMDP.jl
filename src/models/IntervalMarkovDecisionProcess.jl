@@ -1,15 +1,3 @@
-"""
-Convenience constructors for a [`FactoredRobustMarkovDecisionProcess`](@ref) representing an interval Markov decision process,
-as IMDPs are a subclass of fRMDPs.
-Formally, an IMDP ``M`` is a tuple ``M = (S, S_0, A, \\Gamma)``, where
-
-- ``S`` is a finite set of states,
-- ``S_0 \\subseteq S`` is a set of initial states,
-- ``A`` is a finite set of actions,
-- ```\\Gamma = \\{\\Gamma_{s,a}\\}_{s \\in S,a \\in A}`` is a set of ambiguity sets for source-action pair ``(s, a)``, where each ``\\Gamma_{s,a}`` is an interval ambiguity set over ``S``.
-"""
-function IntervalMarkovDecisionProcess end
-
 function IntervalMarkovDecisionProcess(marginal::Marginal{<:IntervalAmbiguitySets}, initial_states::InitialStates = AllStates())
     state_vars = (Int32(num_target(marginal)),)
     action_vars = action_shape(marginal)
@@ -28,8 +16,15 @@ end
 """
     IntervalMarkovDecisionProcess(ambiguity_set::IntervalAmbiguitySets, num_actions::Integer, initial_states::InitialStates = AllStates())
 
-A convenience constructor for a [`FactoredRobustMarkovDecisionProcess`](@ref) representing an interval Markov decision process
-from a single [`IntervalAmbiguitySets`](@ref) object and a specified number of actions.
+A convenience constructor for a [`FactoredRobustMarkovDecisionProcess`](@ref) representing an interval Markov decision process,
+as IMDPs are a subclass of fRMDPs, from a single [`IntervalAmbiguitySets`](@ref) object and a specified number of actions.
+
+Formally, an IMDP ``M`` is a tuple ``M = (S, S_0, A, \\Gamma)``, where
+
+- ``S`` is a finite set of states,
+- ``S_0 \\subseteq S`` is a set of initial states,
+- ``A`` is a finite set of actions,
+- ```\\Gamma = \\{\\Gamma_{s,a}\\}_{s \\in S,a \\in A}`` is a set of ambiguity sets for source-action pair ``(s, a)``, where each ``\\Gamma_{s,a}`` is an _interval_ ambiguity set over ``S``.
 
 ### Example
 ```jldoctest

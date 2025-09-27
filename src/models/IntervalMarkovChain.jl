@@ -20,8 +20,8 @@ end
 """
     IntervalMarkovChain(ambiguity_set::IntervalAmbiguitySets, initial_states=AllStates())
 
-A convenience constructor for a [`FactoredRobustMarkovDecisionProcess`](@ref) representing an interval Markov chain
-from a single [`IntervalAmbiguitySets`](@ref) object, as IMCs are a subclass of fRMDPs. 
+A convenience constructor for a [`FactoredRobustMarkovDecisionProcess`](@ref) representing an interval Markov chain,
+as IMCs are a subclass of fRMDPs, from a single [`IntervalAmbiguitySets`](@ref) object.
 
 Formally, an IMC ``M`` is a tuple ``M = (S, S_0, \\Gamma)``, where
 
