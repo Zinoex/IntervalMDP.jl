@@ -24,15 +24,15 @@ See [`TransitionFunction`](@ref) for more information on the structure of the tr
 - `accepting_states::VT`: vector of accepting states
 - `labelmap::DA`: mapping from label to index.
 
-TODO: Add explicit sink states for non-accepting self-looping states since we do not need to iterate for these.
-TODO: Detection of non-accepting end components. They can be replaced by a single state.
-
 """
 struct DFA{T <: TransitionFunction, DA <: AbstractDict{String, Int32}} <:
        DeterministicAutomaton
     transition::T # delta : |Q| x |2^{AP}| => |Q|   
     initial_state::Int32 # q_0
     labelmap::DA
+
+    # TODO: Add explicit sink states for non-accepting self-looping states since we do not need to iterate for these.
+    # TODO: Detection of non-accepting end components. They can be replaced by a single state.
     
     function DFA(
         transition::T,
