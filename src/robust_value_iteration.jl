@@ -31,7 +31,8 @@ iteration count. The callback function should have the signature `callback(V::Ab
 ### Examples
 
 ```jldoctest robust_vi
-using IntervalMDP # hide
+using IntervalMDP
+
 prob1 = IntervalAmbiguitySets(;
     lower = [
         0.0 0.5

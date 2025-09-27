@@ -14,18 +14,6 @@ strategy_mode
 StrategyMode
 ```
 
-## DFA Reachability
-
-```@docs
-FiniteTimeDFAReachability
-reach(prop::FiniteTimeDFAReachability)
-time_horizon(prop::FiniteTimeDFAReachability)
-
-InfiniteTimeDFAReachability
-reach(prop::InfiniteTimeDFAReachability)
-convergence_eps(prop::InfiniteTimeDFAReachability)
-```
-
 ## Reachability
 
 ```@docs
@@ -93,4 +81,16 @@ convergence_eps(prop::InfiniteTimeReward)
 ExpectedExitTime
 avoid(prop::ExpectedExitTime)
 convergence_eps(prop::ExpectedExitTime)
+```
+
+## DFA Reachability
+
+```@docs
+FiniteTimeDFAReachability
+reach(prop::FiniteTimeDFAReachability)
+time_horizon(prop::FiniteTimeDFAReachability)
+
+InfiniteTimeDFAReachability
+reach(prop::InfiniteTimeDFAReachability)
+convergence_eps(prop::InfiniteTimeDFAReachability)
 ```

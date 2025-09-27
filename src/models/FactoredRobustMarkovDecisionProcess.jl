@@ -1,13 +1,104 @@
 """
-    FactoredRobustMarkovDecisionProcess
+    FactoredRobustMarkovDecisionProcess{N, M, P <: NTuple{N, Marginal}, VI <: InitialStates} <: IntervalMarkovProcess
 
-!!! todo
-    Add intuitive description and formal definition
+Factored Robust Markov Decision Processes (fRMDPs) [schnitzer2025efficient, delgado2011efficient](@cite) are
+an extension of Robust Markov Decision Processes (RMDPs) [nilim2005robust, wiesemann2013robust, suilen2024robust](@cite)
+that incorporate a factored representation of the state and action spaces, i.e. with state and action variables.
 
-!!! todo
-    Add fields reference and relation to definition
+Formally, a fRMDP ``M`` is a tuple ``M = (S, S_0, A, \\mathcal{G}, \\Gamma)``, where
 
-!!! todo
+- ``S = S_1 \\times \\cdots \\times S_n`` is a finite set of joint states with ``S_i`` 
+    being a finite set of states for the ``i``-th state variable,
+- ``S_0 \\subseteq S`` is a set of initial states,
+- ``A = A_1 \\times \\cdots \\times A_m`` is a finite set of joint actions with ``A_j`` 
+    being a finite set of actions for the ``j``-th action variable,
+- ``\\mathcal{G} = (\\mathcal{V}, \\mathcal{E})`` is a directed bipartite graph with nodes 
+    ``\\mathcal{V} = \\mathcal{V}_{ind} \\cup \\mathcal{V}_{cond} = \\{S_1, \\ldots, S_n, A_1, \\ldots, A_m\\} \\cup \\{S'_1, \\ldots, S'_n\\}``
+    representing the state and action variables and their next-state counterparts, and edges 
+    ``\\mathcal{E} \\subseteq \\mathcal{V}_{ind} \\times \\mathcal{V}_{cond}``
+    representing dependencies of ``S'_i`` on ``S_j`` and ``A_k``,
+- ``\\Gamma = \\{\\Gamma_{s,a}\\}_{s\\in S,a \\in A}`` is a set of ambiguity sets for source-action pair ``(s, a)``, 
+    where each ``\\Gamma_{s,a} = \\bigotimes_{i=1}^n \\Gamma^i_{\\text{Pa}_\\mathcal{G}(S'_i) \\cap (s, a)}`` is
+    a product of ambiguity sets ``\\Gamma^i_{\\text{Pa}_\\mathcal{G}(S'_i) \\cap (s, a)}`` along each marginal ``i`` conditional
+    on the values in ``(s, a)`` of the parent variables ``\\text{Pa}_\\mathcal{G}(S'_i)`` of ``S'_i`` in ``\\mathcal{G}``, i.e.
+```math
+    \\Gamma_{s,a} = \\left\\{ \\gamma \\in \\mathcal{D}(S) \\,:\\, \\gamma(t) = \\prod_{i=1}^n \\gamma^i(t_i | s_{\\text{Pa}_{\\mathcal{G}_S}(S'_i)}, a_{\\text{Pa}_{\\mathcal{G}_A}(S'_i)}), \\, \\gamma^i(\\cdot | s_{\\text{Pa}_{\\mathcal{G}_S}(S'_i)}, a_{\\text{Pa}_{\\mathcal{G}_A}(S'_i)}) \\in \\Gamma^i_{\\text{Pa}_\\mathcal{G}(S'_i)} \\right\\}.
+```
+
+For a given source-action pair ``(s, a) \\in S \\times A``, any distribution ``\\gamma_{s, a} \\in \\Gamma_{s,a}`` is called a feasible distribution,
+and feasible transitions are triplets ``(s, a, t) \\in S \\times A \\times S`` where ``t \\in \\mathop{supp}(\\gamma_{s, a})`` for any feasible distribution ``\\gamma_{s, a} \\in \\Gamma_{s, a}``.
+
+### Type parameters
+- `N` is the number of state variables.
+- `M` is the number of action variables.
+- `P <: NTuple{N, Marginal}` is a tuple type with a (potentially different) type for each marginal.
+- `VI <: InitialStates` is the type of initial states.
+
+### Fields
+- `state_vars::NTuple{N, Int32}`: the number of values ``|S_i|`` for each state variable ``S_i`` as a tuple.
+- `action_vars::NTuple{M, Int32}`: the number of values ``|A_k|`` for each action variable ``A_k`` as a tuple.
+- `source_dims::NTuple{N, Int32}`: for systems with terminal states along certain slices, it is possible to avoid
+    specifying them by using `source_dims` less than `state_vars`; this is useful e.g. in building abstractions.
+    The terminal states must be the last value for the slice dimension. If not supplied, it is assumed `source_dims == state_vars`.
+- `transition::P` is the marginal ambiguity sets. For a given source-action pair ``(s, a) \\in S \\times A``,
+    any [`Marginal`](@ref) element of `transition` subselects `s` and `a` corresponding to its [`state_variables`](@ref)
+    and [`action_variables`](@ref), i.e. it encodes the operation `\\text{Pa}_\\mathcal{G}(S'_i) \\cap (s, a)`.
+    The underlying `ambiguity_sets` object on `Marginal` encodes ``\\Gamma^i_{\\text{Pa}_\\mathcal{G}(S'_i) \\cap (s, a)}``
+    for all values of ``\\text{Pa}_\\mathcal{G}(S'_i)``. See [`Marginal`](@ref) for details about the layout of the underlying
+    `AbstractAmbiguitySets` object.
+- `initial_states::VI`: stores a representation of `S_0`. If no set of initial_states are given, then it is simply assigned
+    the zero-byte object `AllStates()`, which represents that all states are potential initial states. It is not used within
+    the value iteration.
+
+### Example
+```jldoctest
+using IntervalMDP # hide
+
+state_vars = (2, 3)
+action_vars = (1, 2)
+
+state_indices = (1, 2)
+action_indices = (1,)
+state_dims = (2, 3)
+action_dims = (1,)
+marginal1 = Marginal(IntervalAmbiguitySets(;
+    # 6 ambiguity sets = 2 * 3 source states, 1 action
+    # Column layout: (a¹₁, s¹₁, s²₁), (a¹₁, s¹₂, s²₁), (a¹₁, s¹₁, s²₂), (a¹₁, s¹₂, s²₂), (a¹₁, s¹₁, s²₃), (a¹₁, s¹₂, s²₃)
+    # Equivalent to CartesianIndices(actions_dims..., state_dims...), i.e. actions first, then states in lexicographic order
+    lower = [
+        1/15  7/30  1/15  13/30  4/15  1/6
+        2/5   7/30  1/30  11/30  2/15  1/10
+    ],
+    upper = [
+        17/30  7/10   2/3   4/5  7/10  2/3
+        9/10   13/15  9/10  5/6  4/5   14/15
+    ]
+), state_indices, action_indices, state_dims, action_dims)
+
+state_indices = (2,)
+action_indices = (2,)
+state_dims = (3,)
+action_dims = (2,)
+marginal2 = Marginal(IntervalAmbiguitySets(;
+    # 6 ambiguity sets = 3 source states, 2 actions
+    # Column layout: (a²₁, s²₁), (a²₂, s²₁), (a²₁, s²₂), (a²₂, s²₂), (a²₁, s²₃), (a²₂, s²₃)
+    # Equivalent to CartesianIndices(actions_dims..., state_dims...), i.e. actions first, then states in lexicographic order
+    lower = [
+        1/30  1/3   1/6   1/15  2/5   2/15
+        4/15  1/4   1/6   1/30  2/15  1/30
+        2/15  7/30  1/10  7/30  7/15  1/5
+    ],
+    upper = [
+        2/3    7/15  4/5    11/30  19/30  1/2
+        23/30  4/5   23/30  3/5    7/10   8/15
+        7/15   4/5   23/30  7/10   7/15   23/30
+    ]
+), state_indices, action_indices, state_dims, action_dims)
+
+initial_states = [(1, 1)]  # Initial states are optional
+mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, marginal2), initial_states)
+```
+    !!! todo
     Add example
 
 """

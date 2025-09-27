@@ -22,7 +22,8 @@ because it simplifies repeated probability assignment using O-maximization [giva
 
 ### Examples
 ```jldoctest
-using IntervalMDP, StyledStrings # hide
+using IntervalMDP
+
 dense_prob = IntervalAmbiguitySets(;
     lower = [0.0 0.5; 0.1 0.3; 0.2 0.1],
     upper = [0.5 0.7; 0.6 0.5; 0.7 0.3],
@@ -37,7 +38,7 @@ IntervalAmbiguitySets
 ```
 
 ```jldoctest
-using IntervalMDP, StyledStrings, SparseArrays # hide
+using IntervalMDP, SparseArrays
 sparse_prob = IntervalAmbiguitySets(;
     lower = sparse_hcat(
         SparseVector(15, [4, 10], [0.1, 0.2]),
