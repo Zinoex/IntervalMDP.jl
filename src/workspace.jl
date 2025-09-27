@@ -19,7 +19,7 @@ end
 function construct_workspace(proc::ProductProcess, alg=default_bellman_algorithm(proc); kwargs...)
     mp = markov_process(proc)
     underlying_workspace = construct_workspace(mp, alg; kwargs...)
-    intermediate_values = arrayfactory(mp, valuetype(mp), state_variables(mp))
+    intermediate_values = arrayfactory(mp, valuetype(mp), state_values(mp))
 
     return ProductWorkspace(underlying_workspace, intermediate_values)
 end
@@ -239,7 +239,7 @@ function FactoredVertexIteratorWorkspace(sys::FactoredRMDP)
     N = length(marginals(sys))
     R = valuetype(sys)
 
-    result_vectors = ntuple(r -> Vector{R}(undef, state_variables(sys, r)), N)
+    result_vectors = ntuple(r -> Vector{R}(undef, state_values(sys, r)), N)
     actions = Array{valuetype(sys)}(undef, action_shape(sys))
 
     return FactoredVertexIteratorWorkspace(result_vectors, actions)

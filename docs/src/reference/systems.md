@@ -10,8 +10,8 @@ AllStates
 ## [Factored RMDPs](@id api-frmdp)
 ```@docs
 FactoredRobustMarkovDecisionProcess
-state_variables(s::FactoredRobustMarkovDecisionProcess)
-action_variables(s::FactoredRobustMarkovDecisionProcess)
+state_values(s::FactoredRobustMarkovDecisionProcess)
+action_values(s::FactoredRobustMarkovDecisionProcess)
 marginals(s::FactoredRobustMarkovDecisionProcess)
 ```
 
@@ -29,18 +29,16 @@ state_variables(m::Marginal)
 action_variables(m::Marginal)
 source_shape(m::Marginal)
 action_shape(m::Marginal)
-num_target(m::Marginal)
 getindex(p::Marginal, action, source)
 
 num_sets
+num_target
 support
 ```
 
 ### Interval ambiguity sets
 ```@docs
 IntervalAmbiguitySets
-num_sets(p::IntervalAmbiguitySets)
-num_target(p::IntervalAmbiguitySets)
 lower
 upper
 gap

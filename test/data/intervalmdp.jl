@@ -27,8 +27,8 @@ write_intervalmdp_jl_model("data/multiObj_robotIMDP.nc", mdp)
     @test source_shape(marginal) == source_shape(new_marginal)
     @test action_shape(marginal) == action_shape(new_marginal)
     @test num_target(marginal) == num_target(new_marginal)
-    @test state_variables(mdp) == state_variables(new_mdp)
-    @test action_variables(mdp) == action_variables(new_mdp)
+    @test state_values(mdp) == state_values(new_mdp)
+    @test action_values(mdp) == action_values(new_mdp)
 
     @test as.lower ≈ new_as.lower
     @test as.gap ≈ new_as.gap

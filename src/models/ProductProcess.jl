@@ -55,10 +55,10 @@ function checkproduct(
 )
 
     # check labelling states (input) match MDP states
-    if size(labelling_func) != state_variables(mdp)
+    if size(labelling_func) != state_values(mdp)
         throw(
             DimensionMismatch(
-                "The mapped states $(size(labelling_func)) in the labelling function is not equal the fRMDP state variables $(state_variables(mdp)).",
+                "The mapped states $(size(labelling_func)) in the labelling function is not equal the fRMDP state variables $(state_values(mdp)).",
             ),
         )
     end
@@ -94,9 +94,9 @@ Return the labelling function of the product
 """
 labelling_function(proc::ProductProcess) = proc.labelling_func
 
-state_variables(proc::ProductProcess) = (state_variables(markov_process(proc))..., num_states(automaton(proc)))
+state_values(proc::ProductProcess) = (state_values(markov_process(proc))..., num_states(automaton(proc)))
 source_shape(proc::ProductProcess) = (source_shape(markov_process(proc))..., num_states(automaton(proc)))
-action_variables(proc::ProductProcess) = action_variables(markov_process(proc))
+action_values(proc::ProductProcess) = action_values(markov_process(proc))
 action_shape(proc::ProductProcess) = action_shape(markov_process(proc))
 
 Base.show(io::IO, proc::ProductProcess) = showsystem(io, "", "", proc)

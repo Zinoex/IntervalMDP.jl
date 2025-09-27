@@ -111,7 +111,7 @@ action_variables(p::Marginal) = p.action_indices
     source_shape(p::Marginal)
 
 Return the shape of the source (state) variables of the marginal. The [`FactoredRobustMarkovDecisionProcess`](@ref) 
-checks if this is less than or equal to the corresponding state variables.
+checks if this is less than or equal to the corresponding state values.
 """
 source_shape(p::Marginal) = p.source_dims
 
@@ -119,7 +119,7 @@ source_shape(p::Marginal) = p.source_dims
     action_shape(p::Marginal)
 
 Return the shape of the action variables of the marginal. The [`FactoredRobustMarkovDecisionProcess`](@ref)
-checks if this is equal to the corresponding action variables.
+checks if this is equal to the corresponding action values.
 """
 action_shape(p::Marginal) = p.action_vars
 

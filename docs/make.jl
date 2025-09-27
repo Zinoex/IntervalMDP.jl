@@ -36,7 +36,7 @@ makedocs(;
         "Developer docs" => "developer.md",
         "References" => "references.md",
     ],
-    doctest = false,
+    doctest = true,
     checkdocs = :exports,
     plugins = [bib],
 )

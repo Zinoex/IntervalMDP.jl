@@ -392,7 +392,7 @@ function step_postprocess_value_function!(value_function, prop::AbstractReachAvo
 end
 
 function checkstatebounds(states, system::IntervalMarkovProcess)
-    pns = state_variables(system)
+    pns = state_values(system)
     for j in states
         j = Tuple(j)
 
@@ -768,7 +768,7 @@ postprocess_value_function!(value_function, ::AbstractReward) = value_function
 function checkreward(prop::AbstractReward, system)
     checkdevice(reward(prop), system)
 
-    pns = state_variables(system)
+    pns = state_values(system)
     if size(reward(prop)) != pns
         throw(
             DimensionMismatch(

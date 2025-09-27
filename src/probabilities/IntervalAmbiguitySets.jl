@@ -4,27 +4,40 @@
 !!! todo
     Update description
 
-A matrix pair to represent the lower and upper bound transition probabilities from all source/action pairs to all target states.
-The matrices can be `Matrix{R}` or `SparseMatrixCSC{R}`, or their CUDA equivalents. For memory efficiency, it is recommended to use sparse matrices.
+A matrix pair to represent the lower and upper bound of `num_sets(ambiguity_set)` interval ambiguity sets (on the columns)
+to `num_target(ambiguity_set)` destinations (on the rows). [Marginal](@ref) adds interpretation to the column indices.
+The matrices can be `Matrix{R}` or `SparseMatrixCSC{R}`, or their CUDA equivalents. 
+Due to the space complexity, if modelling [IntervalMarkovChains](@ref IntervalMarkovChain) or [IntervalMarkovDecisionProcesses](@ref IntervalMarkovDecisionProcess),
+it is recommended to use sparse matrices.
 
-The columns represent the source and the rows represent the target, as if the probability matrix was a linear transformation.
-Mathematically, let ``P`` be the probability matrix. Then ``P_{ij}`` represents the probability of transitioning from state ``j`` (or with state/action pair ``j``) to state ``i``.
-Due to the column-major format of Julia, this is also a more efficient representation (in terms of cache locality).
+The columns represent the different ambiguity sets and the rows represent the targets. Due to the column-major format of Julia, 
+this is a more efficient representation in terms of cache locality.
 
 The lower bound is explicitly stored, while the upper bound is computed from the lower bound and the gap. This choice is 
 because it simplifies repeated probability assignment using O-maximization [givan2000bounded, lahijanian2015formal](@cite).
 
 ### Fields
-- `lower::MR`: The lower bound transition probabilities from a source state or source/action pair to a target state.
-- `gap::MR`: The gap between upper and lower bound transition probabilities from a source state or source/action pair to a target state.
+- `lower::MR`: The lower bound probabilities for `num_sets(ambiguity_set)` ambiguity sets to `num_target(ambiguity_set)` target states.
+- `gap::MR`: The gap between upper and lower bound transition probabilities for `num_sets(ambiguity_set)` ambiguity sets to `num_target(ambiguity_set)` target states.
 
 ### Examples
 ```jldoctest
+using IntervalMDP, StyledStrings # hide
 dense_prob = IntervalAmbiguitySets(;
     lower = [0.0 0.5; 0.1 0.3; 0.2 0.1],
     upper = [0.5 0.7; 0.6 0.5; 0.7 0.3],
 )
 
+# output
+
+IntervalAmbiguitySets
+├─ Storage type: Matrix{Float64}
+├─ Number of target states: 3
+└─ Number of ambiguity sets: 2
+```
+
+```jldoctest
+using IntervalMDP, StyledStrings, SparseArrays # hide
 sparse_prob = IntervalAmbiguitySets(;
     lower = sparse_hcat(
         SparseVector(15, [4, 10], [0.1, 0.2]),
@@ -35,6 +48,15 @@ sparse_prob = IntervalAmbiguitySets(;
         SparseVector(15, [5, 6, 7], [0.7, 0.5, 0.3]),
     ),
 )
+
+# output
+
+IntervalAmbiguitySets
+├─ Storage type: SparseArrays.FixedSparseCSC{Float64, Int64}
+├─ Number of target states: 15
+├─ Number of ambiguity sets: 2
+├─ Maximum support size: 3
+└─ Number of non-zeros: 6
 ```
 
 """
@@ -171,18 +193,7 @@ function checkprobabilities!(lower::AbstractSparseMatrix, gap::AbstractSparseMat
     end
 end
 
-"""
-    num_target(ambiguity_set::IntervalAmbiguitySets)
-
-Return the number of target states in the IntervalAmbiguitySets object.
-"""
 num_target(p::IntervalAmbiguitySets) = size(p.lower, 1)
-
-"""
-    num_sets(ambiguity_set::IntervalAmbiguitySets)
-
-Return the number of ambiguity sets in the IntervalAmbiguitySets object.
-"""
 num_sets(p::IntervalAmbiguitySets) = size(p.lower, 2)
 
 source_shape(p::IntervalAmbiguitySets) = (num_sets(p),)

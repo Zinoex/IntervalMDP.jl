@@ -64,7 +64,7 @@ end
 
 function construct_strategy_cache(problem::ControlSynthesisProblem, time_varying::Val{true})
     mp = system(problem)
-    N = length(action_variables(mp))
+    N = length(action_values(mp))
     cur_strategy = arrayfactory(mp, NTuple{N, Int32}, source_shape(mp))
     cur_strategy .= (ntuple(_ -> 0, N),)
     return TimeVaryingStrategyCache(cur_strategy)
@@ -99,7 +99,7 @@ function construct_strategy_cache(
     time_varying::Val{false},
 )
     mp = system(problem)
-    N = length(action_variables(mp))
+    N = length(action_values(mp))
     strategy = arrayfactory(mp, NTuple{N, Int32}, source_shape(mp))
     strategy .= (ntuple(_ -> 0, N),)
     return StationaryStrategyCache(strategy)

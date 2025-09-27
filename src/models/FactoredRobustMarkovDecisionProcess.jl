@@ -85,13 +85,13 @@ function FactoredRMDP(
 end
 
 function check_rmdp(state_vars, action_vars, source_dims, transition, initial_states)
-    check_state_variables(state_vars, source_dims)
-    check_action_variables(action_vars)
+    check_state_values(state_vars, source_dims)
+    check_action_values(action_vars)
     check_transition(state_vars, action_vars, source_dims, transition)
     check_initial_states(state_vars, initial_states)
 end
 
-function check_state_variables(state_vars, source_dims)
+function check_state_values(state_vars, source_dims)
     if any(n -> n <= 0, state_vars)
         throw(ArgumentError("All state variables must be positive integers."))
     end
@@ -101,7 +101,7 @@ function check_state_variables(state_vars, source_dims)
     end
 end
 
-function check_action_variables(action_vars)
+function check_action_values(action_vars)
     if any(x -> x <= 0, action_vars)
         throw(ArgumentError("All action variables must be positive integers."))
     end
@@ -143,19 +143,19 @@ function check_initial_states(state_vars, initial_states)
 end
 
 """
-    state_variables(mdp::FactoredRMDP)
+    state_values(mdp::FactoredRMDP)
     
 Return a tuple with the number of states for each state variable in the fRMDP.
 """    
-state_variables(mdp::FactoredRMDP) = mdp.state_vars
-state_variables(mdp::FactoredRMDP, r) = mdp.state_vars[r]
+state_values(mdp::FactoredRMDP) = mdp.state_vars
+state_values(mdp::FactoredRMDP, r) = mdp.state_vars[r]
 
 """
-    action_variables(mdp::FactoredRMDP)
+    action_values(mdp::FactoredRMDP)
 
 Return a tuple with the number of actions for each action variable in the fRMDP.
 """
-action_variables(mdp::FactoredRMDP) = mdp.action_vars
+action_values(mdp::FactoredRMDP) = mdp.action_vars
 
 """
     marginals(mdp::FactoredRMDP)
@@ -164,8 +164,8 @@ Return the marginals of the fRMDP.
 """
 marginals(mdp::FactoredRMDP) = mdp.transition
 
-num_states(mdp::FactoredRMDP) = prod(state_variables(mdp))
-num_actions(mdp::FactoredRMDP) = prod(action_variables(mdp))
+num_states(mdp::FactoredRMDP) = prod(state_values(mdp))
+num_actions(mdp::FactoredRMDP) = prod(action_values(mdp))
 initial_states(mdp::FactoredRMDP) = mdp.initial_states
 
 source_shape(m::FactoredRMDP) = m.source_dims
@@ -213,8 +213,8 @@ end
 
 function showsystem(io::IO, first_prefix, prefix, mdp::FactoredRMDP{N, M}) where {N, M}
     println(io, first_prefix, styled"{code:FactoredRobustMarkovDecisionProcess}")
-    println(io, prefix, "├─ ", N, styled" state variables with cardinality: {magenta:$(state_variables(mdp))}")
-    println(io, prefix, "├─ ", M, styled" action variables with cardinality: {magenta:$(action_variables(mdp))}")
+    println(io, prefix, "├─ ", N, styled" state variables with cardinality: {magenta:$(state_values(mdp))}")
+    println(io, prefix, "├─ ", M, styled" action variables with cardinality: {magenta:$(action_values(mdp))}")
     if initial_states(mdp) isa AllStates
         println(io, prefix, "├─ ", styled"Initial states: {magenta:All states}")
     else

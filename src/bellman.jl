@@ -1,141 +1,8 @@
-"""
-    bellman(V, model; upper_bound = false, maximize = true)
-
-Compute robust Bellman update with the value function `V` and the model `model`, e.g. [`IntervalMarkovDecisionProcess`](@ref),
-that upper or lower bounds the expectation of the value function `V` via O-maximization [1].
-Whether the expectation is maximized or minimized is determined by the `upper_bound` keyword argument.
-That is, if `upper_bound == true` then an upper bound is computed and if `upper_bound == false` then a lower
-bound is computed.
-
-### Examples
-```jldoctest
-prob1 = IntervalProbabilities(;
-    lower = [
-        0.0 0.5
-        0.1 0.3
-        0.2 0.1
-    ],
-    upper = [
-        0.5 0.7
-        0.6 0.5
-        0.7 0.3
-    ],
-)
-
-prob2 = IntervalProbabilities(;
-    lower = [
-        0.1 0.2
-        0.2 0.3
-        0.3 0.4
-    ],
-    upper = [
-        0.6 0.6
-        0.5 0.5
-        0.4 0.4
-    ],
-)
-
-prob3 = IntervalProbabilities(; lower = [
-    0.0
-    0.0
-    1.0
-][:, :], upper = [
-    0.0
-    0.0
-    1.0
-][:, :])
-
-transition_probs = [prob1, prob2, prob3]
-istates = [Int32(1)]
-
-model = IntervalMarkovDecisionProcess(transition_probs, istates)
-
-Vprev = [1, 2, 3]
-Vcur = IntervalMDP.bellman(Vprev, model; upper_bound = false)
-```
-
-!!! note
-    This function will construct a workspace object and an output vector.
-    For a hot-loop, it is more efficient to use `bellman!` and pass in pre-allocated objects.
-
-[1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
-
-"""
 function bellman(V, model, alg=default_bellman_algorithm(model); upper_bound = false, maximize = true)
     Vres = similar(V, source_shape(model))
 
     return bellman!(Vres, V, model, alg; upper_bound = upper_bound, maximize = maximize)
 end
-
-"""
-    bellman!(workspace, strategy_cache, Vres, V, model; upper_bound = false, maximize = true)
-
-Compute in-place robust Bellman update with the value function `V` and the model `model`, 
-e.g. [`IntervalMarkovDecisionProcess`](@ref), that upper or lower bounds the expectation of the value function `V` via O-maximization [1].
-Whether the expectation is maximized or minimized is determined by the `upper_bound` keyword argument.
-That is, if `upper_bound == true` then an upper bound is computed and if `upper_bound == false` then a lower
-bound is computed. 
-
-The output is constructed in the input `Vres` and returned. The workspace object is also modified,
-and depending on the type, the strategy cache may be modified as well. See [`construct_workspace`](@ref)
-and [`construct_strategy_cache`](@ref) for more details on how to pre-allocate the workspace and strategy cache.
-
-### Examples
-
-```jldoctest
-prob1 = IntervalProbabilities(;
-    lower = [
-        0.0 0.5
-        0.1 0.3
-        0.2 0.1
-    ],
-    upper = [
-        0.5 0.7
-        0.6 0.5
-        0.7 0.3
-    ],
-)
-
-prob2 = IntervalProbabilities(;
-    lower = [
-        0.1 0.2
-        0.2 0.3
-        0.3 0.4
-    ],
-    upper = [
-        0.6 0.6
-        0.5 0.5
-        0.4 0.4
-    ],
-)
-
-prob3 = IntervalProbabilities(; lower = [
-    0.0
-    0.0
-    1.0
-][:, :], upper = [
-    0.0
-    0.0
-    1.0
-][:, :])
-
-transition_probs = [prob1, prob2, prob3]
-istates = [Int32(1)]
-
-model = IntervalMarkovDecisionProcess(transition_probs, istates)
-
-V = [1, 2, 3]
-workspace = construct_workspace(model)
-strategy_cache = construct_strategy_cache(model)
-Vres = similar(V)
-
-Vres = IntervalMDP.bellman!(workspace, strategy_cache, Vres, V, model; upper_bound = false, maximize = true)
-```
-
-[1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
-
-"""
-function bellman! end
 
 function bellman!(Vres, V, model, alg=default_bellman_algorithm(model); upper_bound = false, maximize = true)
     workspace = construct_workspace(model, alg)
@@ -192,7 +59,7 @@ function bellman!(
 
         # Select the value function for the current DFA state
         # according to the appropriate DFA transition function
-        map!(W, CartesianIndices(state_variables(mp))) do idx
+        map!(W, CartesianIndices(state_values(mp))) do idx
             return V[idx, dfa[state, lf[idx]]]
         end
 
@@ -702,7 +569,7 @@ Base.@propagate_inbounds function state_action_bellman(
     Vₑ = workspace.expectation_cache
 
     # For each higher-level state in the product space
-    for I in CartesianIndices(state_variables(model)[2:end])
+    for I in CartesianIndices(state_values(model)[2:end])
         # For the first dimension, we need to copy the values from V
         v = orthogonal_inner_bellman!(
             workspace,
@@ -715,7 +582,7 @@ Base.@propagate_inbounds function state_action_bellman(
 
         # For the remaining dimensions, if "full", compute expectation and store in the next level
         for d in 2:(length(ambiguity_sets) - 1)
-            if I[d - 1] == state_variables(model, d)
+            if I[d - 1] == state_values(model, d)
                 v = orthogonal_inner_bellman!(
                     workspace,
                     Vₑ[d - 1],

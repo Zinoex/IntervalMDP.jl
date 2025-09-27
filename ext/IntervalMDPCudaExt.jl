@@ -21,8 +21,8 @@ function Adapt.adapt_structure(
     mdp::IntervalMDP.FactoredRMDP,
 )
     return IntervalMDP.FactoredRMDP(
-        state_variables(mdp),
-        action_variables(mdp),
+        state_values(mdp),
+        action_values(mdp),
         IntervalMDP.source_shape(mdp),
         adapt(T, marginals(mdp)),
         adapt(CuArray{Int32}, initial_states(mdp)),
@@ -35,8 +35,8 @@ function Adapt.adapt_structure(
     mdp::IntervalMDP.FactoredRMDP,
 )
     return IntervalMDP.FactoredRMDP(
-        state_variables(mdp),
-        action_variables(mdp),
+        state_values(mdp),
+        action_values(mdp),
         IntervalMDP.source_shape(mdp),
         adapt(T, marginals(mdp)),
         adapt(Array{Int32}, initial_states(mdp)),

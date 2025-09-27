@@ -1,5 +1,10 @@
 # Developer documentation
 
+## Dense matrix vs sparse matrix vs BDD/ADD
+
+!!! todo
+    Describe the details and choice
+
 ## Bellman algorithms
 ### [O-maximization](@id dev-docs-omax)
 To optimize the procedure, we abstract the O-maximization algorithm into the sorting phase and the O-maximization phase: 
