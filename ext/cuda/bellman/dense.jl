@@ -69,10 +69,10 @@ function dense_bellman_kernel!(
     action_reduce,
 ) where {Tv}
     # Prepare action workspace shared memory
-    action_workspace = initialize_action_workspace(workspace, strategy_cache, V)
+    action_workspace = initialize_dense_action_workspace(workspace, strategy_cache, V)
 
     # Prepare sorting shared memory
-    value, perm = initialize_value_and_perm(workspace, strategy_cache, V, marginal)
+    value, perm = initialize_dense_value_and_perm(workspace, strategy_cache, V, marginal)
 
     # Perform sorting
     dense_initialize_sorting_shared_memory!(V, value, perm)
@@ -94,7 +94,7 @@ function dense_bellman_kernel!(
     return nothing
 end
 
-@inline function initialize_action_workspace(
+@inline function initialize_dense_action_workspace(
     workspace,
     ::OptimizingActiveCache,
     marginal
@@ -103,10 +103,12 @@ end
     nwarps = div(blockDim().x, warpsize())
     wid = fld1(threadIdx().x, warpsize())
     action_workspace = CuDynamicSharedArray(IntervalMDP.valuetype(marginal), (workspace.num_actions, nwarps))
-    @inbounds return @view action_workspace[:, wid]
+    @inbounds action_workspace = @view action_workspace[:, wid]
+
+    return action_workspace
 end
 
-@inline function initialize_action_workspace(
+@inline function initialize_dense_action_workspace(
     workspace,
     ::NonOptimizingActiveCache,
     marginal
@@ -114,7 +116,7 @@ end
     return nothing
 end
 
-@inline function initialize_value_and_perm(
+@inline function initialize_dense_value_and_perm(
     workspace,
     ::OptimizingActiveCache,
     V::AbstractVector{Tv},
@@ -128,7 +130,7 @@ end
     return value, perm
 end
 
-@inline function initialize_value_and_perm(
+@inline function initialize_dense_value_and_perm(
     workspace,
     ::NonOptimizingActiveCache,
     V::AbstractVector{Tv},
@@ -200,7 +202,6 @@ end
 ) where {Tv}
     assume(warpsize() == 32)
     lane = mod1(threadIdx().x, warpsize())
-    nwarps = div(blockDim().x, warpsize())
 
     jₐ = one(Int32)
     @inbounds while jₐ <= action_shape(marginal)[1]
@@ -255,25 +256,26 @@ end
 end
 
 @inline function state_action_dense_omaximization!(
-    V,
+    V::AbstractVector{R},
     value,
     perm,
-    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{R, MR},
+    ambiguity_set,
     lane,
-) where {R, MR <: AbstractArray}
+) where {R}
     assume(warpsize() == 32)
 
-    warp_aligned_length = kernel_nextwarp(IntervalMDP.supportsize(ambiguity_set))
+    warp_aligned_length = kernel_nextwarp(num_target(ambiguity_set))
     used = zero(R)
-    gap_value = zero(R)
+    res_value = zero(R)
 
     # Add the lower bound multiplied by the value
     s = lane
     @inbounds while s <= warp_aligned_length
         # Find index of the permutation, and lookup the corresponding lower bound and multipy by the value
-        if s <= IntervalMDP.supportsize(ambiguity_set)
-            gap_value += lower(ambiguity_set, s) * V[s]
-            used += lower(ambiguity_set, s)
+        if s <= num_target(ambiguity_set)
+            l = lower(ambiguity_set, s)
+            res_value += l * V[s]
+            used += l
         end
         s += warpsize()
     end
@@ -285,7 +287,7 @@ end
     s = lane
     @inbounds while s <= warp_aligned_length
         # Find index of the permutation, and lookup the corresponding gap
-        g = if s <= IntervalMDP.supportsize(ambiguity_set)
+        g = if s <= num_target(ambiguity_set)
             gap(ambiguity_set, perm[s])
         else
             # 0 gap is a neural element
@@ -300,9 +302,9 @@ end
         remaining += g
 
         # Update the probability
-        if s <= IntervalMDP.supportsize(ambiguity_set)
+        if s <= num_target(ambiguity_set)
             g = clamp(remaining, zero(R), g)
-            gap_value += g * value[s]
+            res_value += g * value[s]
             remaining -= g
         end
 
@@ -318,6 +320,6 @@ end
     end
     sync_warp()
 
-    gap_value = CUDA.reduce_warp(+, gap_value)
-    return gap_value
+    res_value = CUDA.reduce_warp(+, res_value)
+    return res_value
 end

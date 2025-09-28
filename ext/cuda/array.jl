@@ -42,3 +42,7 @@ Adapt.adapt_storage(::Type{<:IntervalMDP.CpuModelAdaptor{Tv1}}, x::CuArray{Tv2})
 
 Adapt.adapt_storage(::Type{<:IntervalMDP.CpuModelAdaptor{Tv1}}, x::CuArray{NTuple{N, T}}) where {Tv1, N, T <: Integer} =
     adapt(Array{NTuple{N, T}}, x)
+
+const CuSparseDeviceColumnView{Tv, Ti} = SubArray{Tv, 1, <:CuSparseDeviceMatrixCSC{Tv, Ti}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}
+IntervalMDP.support(p::IntervalMDP.IntervalAmbiguitySet{R, <:CuSparseDeviceColumnView{R}}) where {R} = rowvals(p.gap)
+IntervalMDP.supportsize(p::IntervalMDP.IntervalAmbiguitySet{R, <:CuSparseDeviceColumnView{R}}) where {R} = nnz(p.gap)

@@ -91,7 +91,7 @@ include("cuda/sorting.jl")
 include("cuda/workspace.jl")
 include("cuda/strategy.jl")
 include("cuda/bellman/dense.jl")
-# include("cuda/bellman/sparse.jl")
+include("cuda/bellman/sparse.jl")
 include("cuda/probabilities.jl")
 include("cuda/specification.jl")
 
