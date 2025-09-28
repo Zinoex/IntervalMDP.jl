@@ -1,3 +1,42 @@
+function maxdiff(colptr::CuVector{Int32})
+    return reducediff(max, colptr, typemin(Int32))
+end
+
+function reducediff(op, colptr::CuVector{Int32}, neutral)
+    ret_arr = CuArray{Int32}(undef, 1)
+    kernel = @cuda launch = false reducediff_kernel!(op, colptr, neutral, ret_arr)
+
+    config = launch_configuration(kernel.fun)
+    max_threads = prevwarp(device(), config.threads)
+    wanted_threads = min(1024, nextwarp(device(), length(colptr) - 1))
+
+    threads = min(max_threads, wanted_threads)
+    blocks = 1
+
+    kernel(op, colptr, neutral, ret_arr; blocks = blocks, threads = threads)
+
+    return CUDA.@allowscalar ret_arr[1]
+end
+
+function reducediff_kernel!(op, colptr, neutral, retarr)
+    diff = neutral
+
+    i = threadIdx().x
+    @inbounds while i <= length(colptr) - 1
+        diff = op(diff, colptr[i + 1] - colptr[i])
+        i += blockDim().x
+    end
+
+    shuffle = Val(true)
+    diff = CUDA.reduce_block(op, diff, neutral, shuffle)
+
+    if threadIdx().x == 1
+        @inbounds retarr[1] = diff
+    end
+
+    return
+end
+
 # This is type piracy - please port upstream to CUDA when FixedSparseCSC are stable.
 CUDA.CUSPARSE.CuSparseMatrixCSC{Tv, Ti}(M::SparseArrays.FixedSparseCSC) where {Tv, Ti} =
     CuSparseMatrixCSC{Tv, Ti}(
@@ -46,3 +85,5 @@ Adapt.adapt_storage(::Type{<:IntervalMDP.CpuModelAdaptor{Tv1}}, x::CuArray{NTupl
 const CuSparseDeviceColumnView{Tv, Ti} = SubArray{Tv, 1, <:CuSparseDeviceMatrixCSC{Tv, Ti}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}
 IntervalMDP.support(p::IntervalMDP.IntervalAmbiguitySet{R, <:CuSparseDeviceColumnView{R}}) where {R} = rowvals(p.gap)
 IntervalMDP.supportsize(p::IntervalMDP.IntervalAmbiguitySet{R, <:CuSparseDeviceColumnView{R}}) where {R} = nnz(p.gap)
+
+IntervalMDP.maxsupportsize(p::IntervalMDP.IntervalAmbiguitySets{R, <:CuSparseMatrixCSC{R}}) where {R} = maxdiff(SparseArrays.getcolptr(p.gap))

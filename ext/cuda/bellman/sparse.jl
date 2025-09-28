@@ -23,50 +23,50 @@ function IntervalMDP._bellman_helper!(
         return Vres
     end
 
-    # # Try if we can fit all values and gaps into shared memory
-    # if try_large_sparse_bellman!(
-    #     Tv,
-    #     Tv,
-    #     workspace,
-    #     strategy_cache,
-    #     Vres,
-    #     V,
-    #     model;
-    #     upper_bound = upper_bound,
-    #     maximize = maximize,
-    # )
-    #     return Vres
-    # end
+    # Try if we can fit all values and gaps into shared memory
+    if try_large_sparse_bellman!(
+        Tv,
+        Tv,
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        model;
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
+        return Vres
+    end
 
-    # # Try if we can fit all values and permutation indices into shared memory (25% less memory relative to (Tv, Tv)) 
-    # if try_large_sparse_bellman!(
-    #     Tv,
-    #     Int32,
-    #     workspace,
-    #     strategy_cache,
-    #     Vres,
-    #     V,
-    #     model;
-    #     upper_bound = upper_bound,
-    #     maximize = maximize,
-    # )
-    #     return Vres
-    # end
+    # Try if we can fit all values and permutation indices into shared memory (25% less memory relative to (Tv, Tv)) 
+    if try_large_sparse_bellman!(
+        Tv,
+        Int32,
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        model;
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
+        return Vres
+    end
 
-    # # Try if we can fit permutation indices into shared memory (50% less memory relative to (Tv, Tv)) 
-    # if try_large_sparse_bellman!(
-    #     Int32,
-    #     Int32,
-    #     workspace,
-    #     strategy_cache,
-    #     Vres,
-    #     V,
-    #     model;
-    #     upper_bound = upper_bound,
-    #     maximize = maximize,
-    # )
-    #     return Vres
-    # end
+    # Try if we can fit permutation indices into shared memory (50% less memory relative to (Tv, Tv)) 
+    if try_large_sparse_bellman!(
+        Int32,
+        Int32,
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        model;
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
+        return Vres
+    end
 
     throw(IntervalMDP.OutOfSharedMemory(workspace.max_support * 2 * sizeof(Int32)))
 end
@@ -94,8 +94,6 @@ function try_small_sparse_bellman!(
         throw(ArgumentError("Value type of the model ($(IntervalMDP.valuetype(marginal))) does not match the value type of the input vector ($Tv)."))
     end
 
-    desired_warps = 32
-
     kernel = @cuda launch = false small_sparse_bellman_kernel!(
         workspace,
         active_cache(strategy_cache),
@@ -107,8 +105,8 @@ function try_small_sparse_bellman!(
     )
 
     function variable_shmem(threads)
-        warp_aligned_length = prevwarp(device(), threads)
-        return (workspace.max_support + n_actions) * 2 * sizeof(Tv) * warp_aligned_length
+        warps = div(threads, 32)
+        return (workspace.max_support + n_actions) * 2 * sizeof(Tv) * warps
     end
 
     config = launch_configuration(kernel.fun; shmem = variable_shmem)
@@ -282,54 +280,33 @@ end
     sync_warp()
 end
 
-# @inline function state_small_sparse_omaximization!(
-#     action_workspace,
-#     value_ws,
-#     gap_ws,
-#     strategy_cache::NonOptimizingActiveCache,
-#     Vres,
-#     V,
-#     prob,
-#     stateptr,
-#     value_lt,
-#     action_reduce,
-#     jₛ,
-# )
-#     lane = mod1(threadIdx().x, warpsize())
+@inline function state_small_sparse_omaximization!(
+    action_workspace,
+    value_ws,
+    gap_ws,
+    strategy_cache::NonOptimizingActiveCache,
+    Vres,
+    V,
+    marginal,
+    value_lt,
+    action_reduce,
+    jₛ,
+)
+    lane = mod1(threadIdx().x, warpsize())
 
-#     @inbounds begin
-#         s₁ = stateptr[jₛ]
-#         jₐ = s₁ + strategy_cache[jₛ] - one(Int32)
-#         sum_lowerⱼ = sum_lower(prob)[jₐ]
+    @inbounds begin
+        jₐ = Int32.(strategy_cache[jₛ])
+        ambiguity_set = marginal[jₐ, (jₛ,)]
 
-#         r = lower(prob).colPtr[jₐ]:(lower(prob).colPtr[jₐ + one(Int32)] - one(Int32))
-#         lindsⱼ = @view lower(prob).rowVal[r]
-#         lvalsⱼ = @view lower(prob).nzVal[r]
+        # Use O-maxmization to find the value for the action
+        v = state_action_small_sparse_omaximization!(value_ws, gap_ws, V, ambiguity_set, value_lt, lane)
 
-#         r = gap(prob).colPtr[jₐ]:(gap(prob).colPtr[jₐ + one(Int32)] - one(Int32))
-#         gindsⱼ = @view gap(prob).rowVal[r]
-#         gvalsⱼ = @view gap(prob).nzVal[r]
-
-#         # Use O-maxmization to find the value for the action
-#         v = state_action_small_sparse_omaximization!(
-#             value_ws,
-#             gap_ws,
-#             V,
-#             lindsⱼ,
-#             lvalsⱼ,
-#             gindsⱼ,
-#             gvalsⱼ,
-#             sum_lowerⱼ,
-#             value_lt,
-#             lane,
-#         )
-
-#         if lane == one(Int32)
-#             Vres[jₛ] = v
-#         end
-#         sync_warp()
-#     end
-# end
+        if lane == one(Int32)
+            Vres[jₛ] = v
+        end
+        sync_warp()
+    end
+end
 
 @inline function state_action_small_sparse_omaximization!(
     value_ws,
@@ -470,11 +447,13 @@ function try_large_sparse_bellman!(
     # Execution plan:
     # - one state per block
     # - use shared memory to store the values/value_perm and gap probability/gap_perm
-    # - use bitonic sort in a block to sort the values 
+    # - use bitonic sort in a block to sort the values
 
-    shmem =
-        workspace.max_support * (sizeof(T1) + sizeof(T2)) +
-        workspace.max_actions * sizeof(Tv)
+    n_actions = isa(strategy_cache, IntervalMDP.OptimizingStrategyCache) ? workspace.num_actions : 1
+    marginal = marginals(model)[1]
+    n_states = source_shape(marginal)[1]
+
+    shmem = workspace.max_support * (sizeof(T1) + sizeof(T2)) + n_actions * sizeof(Tv)
 
     kernel = @cuda launch = false large_sparse_bellman_kernel!(
         T1,
@@ -483,24 +462,21 @@ function try_large_sparse_bellman!(
         active_cache(strategy_cache),
         Vres,
         V,
-        prob,
-        stateptr,
+        marginal,
         upper_bound ? (>=) : (<=),
         maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv)),
     )
 
     config = launch_configuration(kernel.fun; shmem = shmem)
-    max_threads = prevwarp(device(), config.threads)
+    max_threads = prevwarp(device(), config.threads)  # 1600008 bytes
 
     if max_threads < 32
         return false
     end
 
-    wanted_threads = min(1024, nextwarp(device(), cld(workspace.max_support, 2)))
-
-    num_states = length(stateptr) - one(Int32)
-    threads = min(max_threads, wanted_threads)
-    blocks = min(2^16 - 1, num_states)
+    wanted_threads = nextwarp(device(), workspace.max_support)
+    threads = min(1024, max_threads, wanted_threads)  
+    blocks = min(2^16 - 1, n_states)
 
     kernel(
         T1,
@@ -509,8 +485,7 @@ function try_large_sparse_bellman!(
         active_cache(strategy_cache),
         Vres,
         V,
-        prob,
-        stateptr,
+        marginal,
         upper_bound ? (>=) : (<=),
         maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv));
         blocks = blocks,
@@ -532,19 +507,11 @@ function large_sparse_bellman_kernel!(
     value_lt,
     action_reduce,
 ) where {Tv, T1, T2}
-    action_workspace = CuDynamicSharedArray(Tv, workspace.max_actions)
-    value_ws =
-        CuDynamicSharedArray(T1, workspace.max_support, workspace.max_actions * sizeof(Tv))
-    gap_ws = CuDynamicSharedArray(
-        T2,
-        workspace.max_support,
-        workspace.max_support * sizeof(T1) + workspace.max_actions * sizeof(Tv),
-    )
+    action_workspace = initialize_large_sparse_action_workspace(workspace, strategy_cache, marginal)
+    value_ws, gap_ws = initialize_large_sparse_value_and_gap(T1, T2, workspace, strategy_cache, V, marginal)
 
-    # Grid-stride loop
-    num_states = length(stateptr) - one(Int32)
-    j = blockIdx().x
-    @inbounds while j <= num_states
+    jₛ = blockIdx().x
+    @inbounds while jₛ <= source_shape(marginal)[1]  # Grid-stride loop
         state_sparse_omaximization!(
             action_workspace,
             value_ws,
@@ -552,16 +519,62 @@ function large_sparse_bellman_kernel!(
             strategy_cache,
             Vres,
             V,
-            prob,
-            stateptr,
+            marginal,
             value_lt,
             action_reduce,
-            j,
+            jₛ,
         )
-        j += gridDim().x
+        jₛ += gridDim().x
     end
 
     return nothing
+end
+
+@inline function initialize_large_sparse_action_workspace(
+    workspace,
+    ::OptimizingActiveCache,
+    marginal
+)
+    action_workspace = CuDynamicSharedArray(IntervalMDP.valuetype(marginal), workspace.num_actions)
+    return action_workspace
+end
+
+@inline function initialize_large_sparse_action_workspace(
+    workspace,
+    ::NonOptimizingActiveCache,
+    marginal
+)
+    return nothing
+end
+
+@inline function initialize_large_sparse_value_and_gap(
+    ::Type{T1},
+    ::Type{T2},
+    workspace,
+    ::OptimizingActiveCache,
+    V,
+    marginal
+) where {T1, T2}
+    Tv = IntervalMDP.valuetype(marginal)
+
+    value_ws = CuDynamicSharedArray(T1, workspace.max_support, workspace.num_actions * sizeof(Tv))
+    gap_ws = CuDynamicSharedArray(T2, workspace.max_support, workspace.num_actions * sizeof(Tv) + workspace.max_support * sizeof(T1))
+
+    return value_ws, gap_ws
+end
+
+@inline function initialize_large_sparse_value_and_gap(
+    ::Type{T1},
+    ::Type{T2},
+    workspace,
+    ::NonOptimizingActiveCache,
+    V,
+    marginal
+) where {T1, T2}
+    value_ws = CuDynamicSharedArray(T1, workspace.max_support)
+    gap_ws = CuDynamicSharedArray(T2, workspace.max_support, workspace.max_support * sizeof(T1))
+
+    return value_ws, gap_ws
 end
 
 @inline function state_sparse_omaximization!(
@@ -571,59 +584,40 @@ end
     strategy_cache,
     Vres,
     V,
-    prob,
-    stateptr,
+    marginal,
     value_lt,
     action_reduce,
     jₛ,
 )
-    wid, lane = fldmod1(threadIdx().x, warpsize())
+    assume(warpsize() == 32)
 
-    s₁, s₂ = stateptr[jₛ], stateptr[jₛ + one(Int32)]
-    nactions = s₂ - s₁
-    @inbounds action_values = @view action_workspace[1:nactions]
-
-    k = one(Int32)
-    @inbounds while k <= nactions
-        jₐ = s₁ + k - one(Int32)
-        sum_lowerⱼ = sum_lower(prob)[jₐ]
-
-        r = lower(prob).colPtr[jₐ]:(lower(prob).colPtr[jₐ + one(Int32)] - one(Int32))
-        lindsⱼ = @view lower(prob).rowVal[r]
-        lvalsⱼ = @view lower(prob).nzVal[r]
-
-        r = gap(prob).colPtr[jₐ]:(gap(prob).colPtr[jₐ + one(Int32)] - one(Int32))
-        gindsⱼ = @view gap(prob).rowVal[r]
-        gvalsⱼ = @view gap(prob).nzVal[r]
+    jₐ = one(Int32)
+    @inbounds while jₐ <= action_shape(marginal)[1]
+        ambiguity_set = marginal[(jₐ,), (jₛ,)]
 
         # Use O-maxmization to find the value for the action
         v = state_action_sparse_omaximization!(
             value_ws,
             gap_ws,
             V,
-            lindsⱼ,
-            lvalsⱼ,
-            gindsⱼ,
-            gvalsⱼ,
-            sum_lowerⱼ,
-            value_lt,
-            wid,
-            lane,
+            ambiguity_set,
+            value_lt
         )
 
         if threadIdx().x == one(Int32)
-            action_values[k] = v
+            action_workspace[jₐ] = v
         end
         sync_threads()
 
-        k += one(Int32)
+        jₐ += one(Int32)
     end
 
     # Find the best action
+    wid, lane = fldmod1(threadIdx().x, warpsize())
     if wid == one(Int32)
         v = extract_strategy_warp!(
             strategy_cache,
-            action_values,
+            action_workspace,
             Vres,
             jₛ,
             action_reduce,
@@ -644,40 +638,22 @@ end
     strategy_cache::NonOptimizingActiveCache,
     Vres,
     V,
-    prob,
-    stateptr,
+    marginal,
     value_lt,
     action_reduce,
     jₛ,
 )
-    wid, lane = fldmod1(threadIdx().x, warpsize())
-
     @inbounds begin
-        s₁ = stateptr[jₛ]
-        jₐ = s₁ + strategy_cache[jₛ] - one(Int32)
-        sum_lowerⱼ = sum_lower(prob)[jₐ]
-
-        r = lower(prob).colPtr[jₐ]:(lower(prob).colPtr[jₐ + one(Int32)] - one(Int32))
-        lindsⱼ = @view lower(prob).rowVal[r]
-        lvalsⱼ = @view lower(prob).nzVal[r]
-
-        r = gap(prob).colPtr[jₐ]:(gap(prob).colPtr[jₐ + one(Int32)] - one(Int32))
-        gindsⱼ = @view gap(prob).rowVal[r]
-        gvalsⱼ = @view gap(prob).nzVal[r]
+        jₐ = Int32.(strategy_cache[jₛ])
+        ambiguity_set = marginal[jₐ, (jₛ,)]
 
         # Use O-maxmization to find the value for the action
         v = state_action_sparse_omaximization!(
             value_ws,
             gap_ws,
             V,
-            lindsⱼ,
-            lvalsⱼ,
-            gindsⱼ,
-            gvalsⱼ,
-            sum_lowerⱼ,
+            ambiguity_set,
             value_lt,
-            wid,
-            lane,
         )
 
         if threadIdx().x == one(Int32)
@@ -691,92 +667,74 @@ end
     value_ws::AbstractVector{Tv},
     gap_ws::AbstractVector{Tv},
     V,
-    lower_inds,
-    lower_vals,
-    gap_inds,
-    gap_vals,
-    sum_lower::Tv,
+    ambiguity_set,
     value_lt,
-    wid,
-    lane,
 ) where {Tv}
-    reduction_ws = CuStaticSharedArray(Tv, 32)
+    ff_sparse_initialize_sorting_shared_memory!(V, ambiguity_set, value_ws, gap_ws)
 
-    value = add_lower_mul_V_block(reduction_ws, V, lower_inds, lower_vals, wid, lane)
-
-    ff_sparse_initialize_sorting_shared_memory!(V, gap_inds, gap_vals, value_ws, gap_ws)
-
-    valueⱼ = @view value_ws[1:length(gap_inds)]
-    probⱼ = @view gap_ws[1:length(gap_inds)]
+    valueⱼ = @view value_ws[1:IntervalMDP.supportsize(ambiguity_set)]
+    probⱼ = @view gap_ws[1:IntervalMDP.supportsize(ambiguity_set)]
     block_bitonic_sort!(valueⱼ, probⱼ, value_lt)
-    value += ff_add_gap_mul_V_sparse(reduction_ws, valueⱼ, probⱼ, sum_lower)
+
+    value, remaining = add_lower_mul_V_block(V, ambiguity_set)
+    value += ff_add_gap_mul_V_sparse(valueⱼ, probⱼ, remaining)
 
     return value
 end
 
 @inline function add_lower_mul_V_block(
-    reduction_ws,
-    V::AbstractVector{Tv},
-    lower_inds,
-    lower_vals,
-    wid,
-    lane,
-) where {Tv}
-    assume(warpsize() == 32)
+    V::AbstractVector{R},
+    ambiguity_set,
+) where {R}
+    share_ws = CuStaticSharedArray(R, 1)
 
-    warp_aligned_length = kernel_nextwarp(length(lower_vals))
-    lower_value = zero(Tv)
+    supportsize = IntervalMDP.supportsize(ambiguity_set)
 
+    used = zero(R)
+    lower_value = zero(R)
+    support = IntervalMDP.support(ambiguity_set)
+
+    # Add the lower bound multiplied by the value
     s = threadIdx().x
-    @inbounds while s <= warp_aligned_length
+    @inbounds while s <= supportsize
         # Find index of the permutation, and lookup the corresponding lower bound and multipy by the value
-        val = if s <= length(lower_vals)
-            lower_vals[s] * V[lower_inds[s]]
-        else
-            zero(Tv)
-        end
-        lower_value += val
-
+        idx = support[s]
+        l = lower(ambiguity_set, idx)
+        lower_value += l * V[idx]
+        used += l
         s += blockDim().x
     end
 
-    # Warp-reduction
-    lower_value = CUDA.reduce_warp(+, lower_value)
-    sync_threads()
+    used = CUDA.reduce_block(+, used, zero(R), Val(true))
+    lower_value = CUDA.reduce_block(+, lower_value, zero(R), Val(true))
 
-    # Block-reduction
-    if wid == one(Int32)
-        reduction_ws[lane] = zero(Tv)
+    if threadIdx().x == one(Int32)
+        share_ws[1] = used  # No need to share lower_value since it is only used by the first thread
     end
     sync_threads()
 
-    if lane == one(Int32)
-        reduction_ws[wid] = lower_value
-    end
-    sync_threads()
+    used = share_ws[1]
+    remaining = one(R) - used
 
-    if wid == one(Int32)
-        lower_value = reduction_ws[lane]
-        lower_value = CUDA.reduce_warp(+, lower_value)
-    end
-    sync_threads()
-
-    return lower_value
+    return lower_value, remaining
 end
 
 @inline function ff_sparse_initialize_sorting_shared_memory!(
     V,
-    gapinds,
-    gapvals,
+    ambiguity_set,
     value,
     prob,
 )
+    support = IntervalMDP.support(ambiguity_set)
+    supportsize = IntervalMDP.supportsize(ambiguity_set)
+
     # Copy into shared memory
-    i = threadIdx().x
-    @inbounds while i <= length(gapinds)
-        value[i] = V[gapinds[i]]
-        prob[i] = gapvals[i]
-        i += blockDim().x
+    s = threadIdx().x
+    @inbounds while s <= supportsize
+        idx = support[s]
+        value[s] = V[idx]
+        prob[s] = gap(ambiguity_set, idx)
+        s += blockDim().x
     end
 
     # Need to synchronize to make sure all agree on the shared memory
@@ -784,18 +742,16 @@ end
 end
 
 @inline function ff_add_gap_mul_V_sparse(
-    reduction_ws,
     value,
     prob,
-    sum_lower::Tv,
+    remaining::Tv,
 ) where {Tv}
     assume(warpsize() == 32)
+    wid, lane = fldmod1(threadIdx().x, warpsize())
+    reduction_ws = CuStaticSharedArray(Tv, 32)
 
     warp_aligned_length = kernel_nextwarp(length(prob))
-    @inbounds remaining = one(Tv) - sum_lower
     gap_value = zero(Tv)
-
-    wid, lane = fldmod1(threadIdx().x, warpsize())
 
     # Block-strided loop and save into register `gap_value`
     s = threadIdx().x
@@ -839,26 +795,7 @@ end
         s += blockDim().x
     end
 
-    # Warp-reduction
-    gap_value = CUDA.reduce_warp(+, gap_value)
-    sync_threads()
-
-    # Block-reduction
-    if wid == one(Int32)
-        reduction_ws[lane] = zero(Tv)
-    end
-    sync_threads()
-
-    if lane == one(Int32)
-        reduction_ws[wid] = gap_value
-    end
-    sync_threads()
-
-    if wid == one(Int32)
-        gap_value = reduction_ws[lane]
-        gap_value = CUDA.reduce_warp(+, gap_value)
-    end
-    sync_threads()
+    gap_value = CUDA.reduce_block(+, gap_value, zero(Tv), Val(true))
 
     return gap_value
 end
@@ -867,36 +804,32 @@ end
     value::AbstractVector{Tv},
     perm::AbstractVector{Int32},
     V,
-    lower_inds,
-    lower_vals,
-    gap_inds,
-    gap_vals,
-    sum_lower::Tv,
-    value_lt,
-    wid,
-    lane,
+    ambiguity_set,
+    value_lt
 ) where {Tv}
-    reduction_ws = CuStaticSharedArray(Tv, 32)
+    fi_sparse_initialize_sorting_shared_memory!(V, ambiguity_set, value, perm)
 
-    res = add_lower_mul_V_block(reduction_ws, V, lower_inds, lower_vals, wid, lane)
-
-    fi_sparse_initialize_sorting_shared_memory!(V, gap_inds, value, perm)
-
-    valueⱼ = @view value[1:length(gap_inds)]
-    permⱼ = @view perm[1:length(gap_inds)]
+    valueⱼ = @view value[1:IntervalMDP.supportsize(ambiguity_set)]
+    permⱼ = @view perm[1:IntervalMDP.supportsize(ambiguity_set)]
     block_bitonic_sort!(valueⱼ, permⱼ, value_lt)
-    res += fi_add_gap_mul_V_sparse(reduction_ws, valueⱼ, permⱼ, gap_vals, sum_lower)
 
-    return res
+    value, remaining = add_lower_mul_V_block(V, ambiguity_set)
+    value += fi_add_gap_mul_V_sparse(valueⱼ, permⱼ, ambiguity_set, remaining)
+
+    return remaining
 end
 
-@inline function fi_sparse_initialize_sorting_shared_memory!(V, gapinds, value, perm)
+@inline function fi_sparse_initialize_sorting_shared_memory!(V, ambiguity_set, value, perm)
+    support = IntervalMDP.support(ambiguity_set)
+    supportsize = IntervalMDP.supportsize(ambiguity_set)
+
     # Copy into shared memory
-    i = threadIdx().x
-    @inbounds while i <= length(gapinds)
-        value[i] = V[gapinds[i]]
-        perm[i] = i
-        i += blockDim().x
+    s = threadIdx().x
+    @inbounds while s <= supportsize
+        idx = support[s]
+        value[s] = V[idx]
+        perm[s] = s
+        s += blockDim().x
     end
 
     # Need to synchronize to make sure all agree on the shared memory
@@ -904,27 +837,24 @@ end
 end
 
 @inline function fi_add_gap_mul_V_sparse(
-    reduction_ws,
     value,
     perm,
-    gapvals,
-    sum_lower::Tv,
+    ambiguity_set,
+    remaining::Tv,
 ) where {Tv}
     assume(warpsize() == 32)
-
-    warp_aligned_length = kernel_nextwarp(length(gapvals))
-    @inbounds remaining = one(Tv) - sum_lower
-    gap_value = zero(Tv)
-
     wid, lane = fldmod1(threadIdx().x, warpsize())
+    reduction_ws = CuStaticSharedArray(Tv, 32)
+
+    warp_aligned_length = kernel_nextwarp(length(value))
+    gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
     s = threadIdx().x
     @inbounds while s <= warp_aligned_length
         # Find index of the permutation, and lookup the corresponding gap
-        g = if s <= length(gapvals)
-            t = perm[s]
-            gapvals[t]
+        g = if s <= length(value)
+            gap(ambiguity_set, perm[s])
         else
             # 0 gap is a neural element
             zero(Tv)
@@ -938,7 +868,7 @@ end
         remaining += g
 
         # Update the probability
-        if s <= length(gapvals)
+        if s <= length(value)
             sub = clamp(remaining, zero(Tv), g)
             gap_value += sub * value[s]
             remaining -= sub
@@ -961,26 +891,7 @@ end
         s += blockDim().x
     end
 
-    # Warp-reduction
-    gap_value = CUDA.reduce_warp(+, gap_value)
-    sync_threads()
-
-    # Block-reduction
-    if wid == 1
-        reduction_ws[lane] = zero(Tv)
-    end
-    sync_threads()
-
-    if lane == 1
-        reduction_ws[wid] = gap_value
-    end
-    sync_threads()
-
-    if wid == 1
-        gap_value = reduction_ws[lane]
-        gap_value = CUDA.reduce_warp(+, gap_value)
-    end
-    sync_threads()
+    gap_value = CUDA.reduce_block(+, gap_value, zero(Tv), Val(true))
 
     return gap_value
 end
@@ -989,35 +900,29 @@ end
     Vperm::AbstractVector{Int32},
     Pperm::AbstractVector{Int32},
     V,
-    lower_inds,
-    lower_vals,
-    gap_inds,
-    gap_vals,
-    sum_lower::Tv,
-    value_lt,
-    wid,
-    lane,
-) where {Tv}
-    reduction_ws = CuStaticSharedArray(Tv, 32)
+    ambiguity_set,
+    value_lt
+)
+    ii_sparse_initialize_sorting_shared_memory!(ambiguity_set, Vperm, Pperm)
 
-    res = add_lower_mul_V_block(reduction_ws, V, lower_inds, lower_vals, wid, lane)
-
-    ii_sparse_initialize_sorting_shared_memory!(gap_inds, Vperm, Pperm)
-
-    Vpermⱼ = @view Vperm[1:length(gap_inds)]
-    Ppermⱼ = @view Pperm[1:length(gap_inds)]
+    Vpermⱼ = @view Vperm[1:IntervalMDP.supportsize(ambiguity_set)]
+    Ppermⱼ = @view Pperm[1:IntervalMDP.supportsize(ambiguity_set)]
     block_bitonic_sortperm!(V, Vpermⱼ, Ppermⱼ, value_lt)
 
-    res += ii_add_gap_mul_V_sparse(reduction_ws, V, Vpermⱼ, Ppermⱼ, gap_vals, sum_lower)
+    value, remaining = add_lower_mul_V_block(V, ambiguity_set)
+    value += ii_add_gap_mul_V_sparse(V, Vpermⱼ, Ppermⱼ, ambiguity_set, remaining)
 
-    return res
+    return value
 end
 
-@inline function ii_sparse_initialize_sorting_shared_memory!(gapinds, Vperm, Pperm)
+@inline function ii_sparse_initialize_sorting_shared_memory!(ambiguity_set, Vperm, Pperm)
+    support = IntervalMDP.support(ambiguity_set)
+    supportsize = IntervalMDP.supportsize(ambiguity_set)
+
     # Copy into shared memory
     i = threadIdx().x
-    @inbounds while i <= length(gapinds)
-        Vperm[i] = gapinds[i]
+    @inbounds while i <= supportsize
+        Vperm[i] = support[i]
         Pperm[i] = i
         i += blockDim().x
     end
@@ -1027,28 +932,25 @@ end
 end
 
 @inline function ii_add_gap_mul_V_sparse(
-    reduction_ws,
     value,
     Vperm,
     Pperm,
-    gapvals,
-    sum_lower::Tv,
+    ambiguity_set,
+    remaining::Tv,
 ) where {Tv}
     assume(warpsize() == 32)
-
-    warp_aligned_length = kernel_nextwarp(length(gapvals))
-    @inbounds remaining = one(Tv) - sum_lower
-    gap_value = zero(Tv)
-
     wid, lane = fldmod1(threadIdx().x, warpsize())
+    reduction_ws = CuStaticSharedArray(Tv, 32)
+
+    warp_aligned_length = kernel_nextwarp(length(value))
+    gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
     s = threadIdx().x
     @inbounds while s <= warp_aligned_length
         # Find index of the permutation, and lookup the corresponding gap
-        g = if s <= length(gapvals)
-            t = Pperm[s]
-            gapvals[t]
+        g = if s <= length(value)
+            gap(ambiguity_set, Pperm[s])
         else
             # 0 gap is a neural element
             zero(Tv)
@@ -1062,7 +964,7 @@ end
         remaining += g
 
         # Update the probability
-        if s <= length(gapvals)
+        if s <= length(value)
             sub = clamp(remaining, zero(Tv), g)
             gap_value += sub * value[Vperm[s]]
             remaining -= sub
@@ -1085,26 +987,7 @@ end
         s += blockDim().x
     end
 
-    # Warp-reduction
-    gap_value = CUDA.reduce_warp(+, gap_value)
-    sync_threads()
-
-    # Block-reduction
-    if wid == 1
-        reduction_ws[lane] = zero(Tv)
-    end
-    sync_threads()
-
-    if lane == 1
-        reduction_ws[wid] = gap_value
-    end
-    sync_threads()
-
-    if wid == 1
-        gap_value = reduction_ws[lane]
-        gap_value = CUDA.reduce_warp(+, gap_value)
-    end
-    sync_threads()
+    gap_value = CUDA.reduce_block(+, gap_value, zero(Tv), Val(true))
 
     return gap_value
 end

@@ -99,7 +99,7 @@ struct SparseIntervalOMaxWorkspace{T <: Real}
 end
 
 function SparseIntervalOMaxWorkspace(ambiguity_sets::IntervalAmbiguitySets{R}, nactions) where {R <: Real}
-    max_support = maximum(supportsize, ambiguity_sets)
+    max_support = maxsupportsize(ambiguity_sets)
 
     budget = 1 .- vec(sum(ambiguity_sets.lower; dims = 1))
     scratch = Vector{Tuple{R, R}}(undef, max_support)
@@ -190,7 +190,7 @@ function FactoredIntervalOMaxWorkspace(sys::FactoredRMDP)
     N = length(marginals(sys))
     R = valuetype(sys)
 
-    max_support_per_marginal = Tuple(maximum(map(length ∘ support, ambiguity_sets(marginal))) for marginal in marginals(sys))
+    max_support_per_marginal = Tuple(maxsupportsize(ambiguity_sets(marginal)) for marginal in marginals(sys))
     max_support = maximum(max_support_per_marginal)
 
     expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in max_support_per_marginal[2:end])

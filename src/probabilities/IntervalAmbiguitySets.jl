@@ -198,6 +198,8 @@ source_shape(p::IntervalAmbiguitySets) = (num_sets(p),)
 action_shape(::IntervalAmbiguitySets) = (1,)
 marginals(p::IntervalAmbiguitySets) = (p,)
 
+maxsupportsize(p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractMatrix{R}} = maximum(supportsize, p)
+
 function Base.getindex(p::IntervalAmbiguitySets, j::Integer)
     # Select by columns only! 
     l = @view p.lower[:, j]
@@ -227,7 +229,7 @@ end
 function showambiguitysets(io::IO, prefix, p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractSparseMatrix}
     println(io, prefix, styled"├─ Ambiguity set type: Interval (sparse, {code:$MR})")
     num_transitions = nnz(p.gap)
-    max_support = maximum(supportsize, p)
+    max_support = maxsupportsize(p)
     println(io, prefix, styled"└─ Transitions: {magenta: $num_transitions (max support: $max_support)}")
 end
 
@@ -243,7 +245,7 @@ function Base.show(io::IO, mime::MIME"text/plain", p::IntervalAmbiguitySets{R, M
     println(io, styled"├─ Storage type: {code:$MR}")
     println(io, "├─ Number of target states: ", num_target(p))
     println(io, "├─ Number of ambiguity sets: ", num_sets(p))
-    println(io, "├─ Maximum support size: ", maximum(supportsize, p))
+    println(io, "├─ Maximum support size: ", maxsupportsize(p))
     println(io, "└─ Number of non-zeros: ", nnz(p.gap))
 end
 

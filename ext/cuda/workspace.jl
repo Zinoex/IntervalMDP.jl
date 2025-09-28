@@ -23,7 +23,7 @@ struct CuSparseOMaxWorkspace <: AbstractCuWorkspace
 end
 
 function CuSparseOMaxWorkspace(p::IntervalAmbiguitySets, num_actions)
-    max_support = maximum(length ∘ IntervalMDP.support, p)
+    max_support = IntervalMDP.maxsupportsize(p)
     return CuSparseOMaxWorkspace(max_support, num_actions)
 end
 
