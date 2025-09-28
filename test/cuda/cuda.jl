@@ -18,11 +18,11 @@ test_files = [
     "dense/bellman.jl",
     "dense/vi.jl",
     "dense/imdp.jl",
-    # "dense/synthesis.jl",
-    # "sparse/bellman.jl",
-    # "sparse/vi.jl",
-    # "sparse/imdp.jl",
-    # "sparse/synthesis.jl",
+    "dense/synthesis.jl",
+    "sparse/bellman.jl",
+    "sparse/vi.jl",
+    "sparse/imdp.jl",
+    "sparse/synthesis.jl",
 ]
 
 if CUDA.functional()

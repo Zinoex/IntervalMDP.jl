@@ -121,7 +121,7 @@ end
             cuda_prob;
             upper_bound = false,
         )
-        V_gpu = Vector(V_gpu)  # Convert to CPU for testing
+        V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
 
         @test V_cpu ≈ V_gpu
     end
@@ -159,7 +159,7 @@ end
             cuda_prob;
             upper_bound = false,
         )
-        V_gpu = Vector(V_gpu)  # Convert to CPU for testing
+        V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
 
         @test V_cpu ≈ V_gpu
     end
@@ -197,7 +197,7 @@ end
             cuda_prob;
             upper_bound = false,
         )
-        V_gpu = Vector(V_gpu)  # Convert to CPU for testing
+        V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
 
         @test V_cpu ≈ V_gpu
     end
@@ -235,7 +235,7 @@ end
             cuda_prob;
             upper_bound = false,
         )
-        V_gpu = Vector(V_gpu)  # Convert to CPU for testing
+        V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
 
         @test V_cpu ≈ V_gpu
     end
@@ -246,7 +246,7 @@ end
 
         n = 100000
         m = 10
-        nnz_per_column = 8000   # It has to be greater than 7800 to exceed shared memory for ii implementation
+        nnz_per_column = 16000   # It has to be greater than 15600 to exceed shared memory for i implementation
         prob, V, cuda_prob, cuda_V =
             sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
 

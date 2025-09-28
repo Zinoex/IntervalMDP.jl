@@ -56,7 +56,7 @@ function IntervalMDP._bellman_helper!(
     # Try if we can fit permutation indices into shared memory (50% less memory relative to (Tv, Tv)) 
     if try_large_sparse_bellman!(
         Int32,
-        Int32,
+        Nothing,
         workspace,
         strategy_cache,
         Vres,
@@ -68,7 +68,7 @@ function IntervalMDP._bellman_helper!(
         return Vres
     end
 
-    throw(IntervalMDP.OutOfSharedMemory(workspace.max_support * 2 * sizeof(Int32)))
+    throw(IntervalMDP.OutOfSharedMemory(workspace.max_support * sizeof(Int32)))
 end
 
 function try_small_sparse_bellman!(
@@ -565,6 +565,21 @@ end
 
 @inline function initialize_large_sparse_value_and_gap(
     ::Type{T1},
+    ::Type{Nothing},
+    workspace,
+    ::OptimizingActiveCache,
+    V,
+    marginal
+) where {T1}
+    Tv = IntervalMDP.valuetype(marginal)
+
+    value_ws = CuDynamicSharedArray(T1, workspace.max_support, workspace.num_actions * sizeof(Tv))
+
+    return value_ws, nothing
+end
+
+@inline function initialize_large_sparse_value_and_gap(
+    ::Type{T1},
     ::Type{T2},
     workspace,
     ::NonOptimizingActiveCache,
@@ -575,6 +590,19 @@ end
     gap_ws = CuDynamicSharedArray(T2, workspace.max_support, workspace.max_support * sizeof(T1))
 
     return value_ws, gap_ws
+end
+
+@inline function initialize_large_sparse_value_and_gap(
+    ::Type{T1},
+    ::Type{Nothing},
+    workspace,
+    ::NonOptimizingActiveCache,
+    V,
+    marginal
+) where {T1}
+    value_ws = CuDynamicSharedArray(T1, workspace.max_support)
+
+    return value_ws, nothing
 end
 
 @inline function state_sparse_omaximization!(
@@ -816,7 +844,7 @@ end
     value, remaining = add_lower_mul_V_block(V, ambiguity_set)
     value += fi_add_gap_mul_V_sparse(valueⱼ, permⱼ, ambiguity_set, remaining)
 
-    return remaining
+    return value
 end
 
 @inline function fi_sparse_initialize_sorting_shared_memory!(V, ambiguity_set, value, perm)
@@ -828,7 +856,7 @@ end
     @inbounds while s <= supportsize
         idx = support[s]
         value[s] = V[idx]
-        perm[s] = s
+        perm[s] = idx
         s += blockDim().x
     end
 
@@ -897,33 +925,31 @@ end
 end
 
 @inline function state_action_sparse_omaximization!(
-    Vperm::AbstractVector{Int32},
-    Pperm::AbstractVector{Int32},
+    perm::AbstractVector{Int32},
+    ::Nothing,
     V,
     ambiguity_set,
     value_lt
 )
-    ii_sparse_initialize_sorting_shared_memory!(ambiguity_set, Vperm, Pperm)
+    i_sparse_initialize_sorting_shared_memory!(ambiguity_set, perm)
 
-    Vpermⱼ = @view Vperm[1:IntervalMDP.supportsize(ambiguity_set)]
-    Ppermⱼ = @view Pperm[1:IntervalMDP.supportsize(ambiguity_set)]
-    block_bitonic_sortperm!(V, Vpermⱼ, Ppermⱼ, value_lt)
+    perm = @view perm[1:IntervalMDP.supportsize(ambiguity_set)]
+    block_bitonic_sortperm!(V, perm, nothing, value_lt)
 
     value, remaining = add_lower_mul_V_block(V, ambiguity_set)
-    value += ii_add_gap_mul_V_sparse(V, Vpermⱼ, Ppermⱼ, ambiguity_set, remaining)
+    value += i_add_gap_mul_V_sparse(V, perm, ambiguity_set, remaining)
 
     return value
 end
 
-@inline function ii_sparse_initialize_sorting_shared_memory!(ambiguity_set, Vperm, Pperm)
+@inline function i_sparse_initialize_sorting_shared_memory!(ambiguity_set, perm)
     support = IntervalMDP.support(ambiguity_set)
     supportsize = IntervalMDP.supportsize(ambiguity_set)
 
     # Copy into shared memory
     i = threadIdx().x
     @inbounds while i <= supportsize
-        Vperm[i] = support[i]
-        Pperm[i] = i
+        perm[i] = support[i]
         i += blockDim().x
     end
 
@@ -931,10 +957,9 @@ end
     sync_threads()
 end
 
-@inline function ii_add_gap_mul_V_sparse(
+@inline function i_add_gap_mul_V_sparse(
     value,
-    Vperm,
-    Pperm,
+    perm,
     ambiguity_set,
     remaining::Tv,
 ) where {Tv}
@@ -942,15 +967,15 @@ end
     wid, lane = fldmod1(threadIdx().x, warpsize())
     reduction_ws = CuStaticSharedArray(Tv, 32)
 
-    warp_aligned_length = kernel_nextwarp(length(value))
+    warp_aligned_length = kernel_nextwarp(length(perm))
     gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
     s = threadIdx().x
     @inbounds while s <= warp_aligned_length
         # Find index of the permutation, and lookup the corresponding gap
-        g = if s <= length(value)
-            gap(ambiguity_set, Pperm[s])
+        g = if s <= length(perm)
+            gap(ambiguity_set, perm[s])
         else
             # 0 gap is a neural element
             zero(Tv)
@@ -964,9 +989,9 @@ end
         remaining += g
 
         # Update the probability
-        if s <= length(value)
+        if s <= length(perm)
             sub = clamp(remaining, zero(Tv), g)
-            gap_value += sub * value[Vperm[s]]
+            gap_value += sub * value[perm[s]]
             remaining -= sub
         end
 

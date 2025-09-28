@@ -66,6 +66,14 @@ end
     end
 end
 
+@inline function swapelem(A::AbstractArray, i, j)
+    @inbounds A[i], A[j] = A[j], A[i]
+end
+
+@inline function swapelem(A::Nothing, i, j)
+    # Do nothing
+end
+
 @inline function selectotherdims(A::AbstractArray, dim, idxs)
     head, tail = idxs[1:(dim - 1)], idxs[dim:end]
 

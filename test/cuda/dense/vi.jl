@@ -1,7 +1,6 @@
 using Revise, Test
 using IntervalMDP, CUDA
 
-
 @testset for N in [Float32, Float64]
     prob = IntervalAmbiguitySets(;
         lower = N[

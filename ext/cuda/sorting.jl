@@ -30,8 +30,8 @@ end
 
     @inbounds while i <= length(value)
         if l <= length(value) && !lt(value[i], value[l])
-            value[i], value[l] = value[l], value[i]
-            aux[i], aux[l] = aux[l], aux[i]
+            swapelem(value, i, l)
+            swapelem(aux, i, l)
         end
 
         thread += blockDim().x
@@ -81,8 +81,8 @@ end
 
     @inbounds while i <= length(perm)
         if l <= length(perm) && !lt(value[perm[i]], value[perm[l]])
-            perm[i], perm[l] = perm[l], perm[i]
-            aux[i], aux[l] = aux[l], aux[i]
+            swapelem(perm, i, l)
+            swapelem(aux, i, l)
         end
 
         thread += blockDim().x

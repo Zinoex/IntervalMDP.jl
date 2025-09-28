@@ -3,8 +3,16 @@ using IntervalMDP, CUDA
 
 @testset for N in [Float32, Float64]
     prob = IntervalAmbiguitySets(;
-        lower = N[0 1//2; 1//10 3//10; 2//10 1//10],
-        upper = N[5//10 7//10; 6//10 5//10; 7//10 3//10],
+        lower = N[
+            0 1//2
+            1//10 3//10
+            2//10 1//10
+        ],
+        upper = N[
+            5//10 7//10
+            6//10 5//10
+            7//10 3//10
+        ],
     )
     prob = IntervalMDP.cu(prob)
 
