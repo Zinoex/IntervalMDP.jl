@@ -224,10 +224,10 @@ postprocess_value_function!(value_function, ::AbstractReachability) = nothing
     FiniteTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer}
 
 Finite time reachability specified by a set of target/terminal states and a time horizon. 
-That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states and ``H`` is the time horizon,
+That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``G`` is the set of target states and ``K`` is the time horizon,
 the property is 
 ```math
-    \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T).
+    \\mathbb{P}^{\\pi, \\eta}_{\\mathrm{reach}}(G, K) = \\mathbb{P}^{\\pi, \\eta} \\left[\\omega \\in \\Omega : \\exists k \\in \\{0, \\ldots, K\\}, \\, \\omega[k] \\in G \\right].
 ```
 """
 struct FiniteTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer} <:
@@ -275,7 +275,7 @@ end
 """
     InfiniteTimeReachability{R <: Real, VT <: Vector{<:CartesianIndex}} 
  
-`InfiniteTimeReachability` is similar to [`FiniteTimeReachability`](@ref) except that the time horizon is infinite, i.e., ``H = \\infty``.
+`InfiniteTimeReachability` is similar to [`FiniteTimeReachability`](@ref) except that the time horizon is infinite, i.e., ``K = \\infty``.
 In practice it means, performing the value iteration until the value function has converged, defined by some threshold `convergence_eps`.
 The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
 """
@@ -325,10 +325,10 @@ end
     ExactTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer}
 
 Exact time reachability specified by a set of target/terminal states and a time horizon. 
-That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states and ``H`` is the time horizon,
+That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``G`` is the set of target states and ``K`` is the time horizon,
 the property is 
 ```math
-    \\mathbb{P}(s_H \\in T).
+    \\mathbb{P}^{\\pi, \\eta}_{\\mathrm{exact-reach}}(G, K) = \\mathbb{P}^{\\pi, \\eta} \\left[\\omega \\in \\Omega : \\omega[K] \\in G \\right].
 ```
 """
 struct ExactTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer} <:
@@ -427,10 +427,10 @@ end
     FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}}, T <: Integer}
 
 Finite time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
-That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states, ``A`` is the set of states to avoid,
-and ``H`` is the time horizon, the property is 
+That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``G`` is the set of target states, ``O`` is the set of states to avoid,
+and ``K`` is the time horizon, the property is 
 ```math
-    \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T, \\text{ and } \\forall k' = \\{0, \\ldots, k\\}, s_k' \\notin A).
+    \\mathbb{P}^{\\pi, \\eta}_{\\mathrm{reach-avoid}}(G, O, K) = \\mathbb{P}^{\\pi, \\eta} \\left[\\omega \\in \\Omega : \\exists k \\in \\{0, \\ldots, K\\}, \\, \\omega[k] \\in G, \\; \\forall k' \\in \\{0, \\ldots, k' \\}, \\, \\omega[k] \\notin O \\right].
 ```
 """
 struct FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}, T <: Integer} <:
@@ -494,7 +494,7 @@ end
 """
     InfiniteTimeReachAvoid{R <: Real, VT <: AbstractVector{<:CartesianIndex}}
 
-`InfiniteTimeReachAvoid` is similar to [`FiniteTimeReachAvoid`](@ref) except that the time horizon is infinite, i.e., ``H = \\infty``.
+`InfiniteTimeReachAvoid` is similar to [`FiniteTimeReachAvoid`](@ref) except that the time horizon is infinite, i.e., ``K = \\infty``.
 """
 struct InfiniteTimeReachAvoid{R <: Real, VT <: AbstractVector{<:CartesianIndex}} <:
        AbstractReachAvoid
@@ -558,10 +558,10 @@ end
     ExactTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}}, T <: Integer}
 
 Exact time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
-That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states, ``A`` is the set of states to avoid,
-and ``H`` is the time horizon, the property is 
+That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``G`` is the set of target states, ``O`` is the set of states to avoid,
+and ``K`` is the time horizon, the property is 
 ```math
-    \\mathbb{P}(s_H \\in T, \\text{ and } \\forall k = \\{0, \\ldots, H\\}, s_k \\notin A).
+    \\mathbb{P}^{\\pi, \\eta}_{\\mathrm{exact-reach-avoid}}(G, O, K) = \\mathbb{P}^{\\pi, \\eta} \\left[\\omega \\in \\Omega : \\omega[K] \\in G, \\; \\forall k \\in \\{0, \\ldots, K\\}, \\, \\omega[k] \\notin O \\right].
 ```
 """
 struct ExactTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}, T <: Integer} <:
@@ -651,10 +651,10 @@ end
     FiniteTimeSafety{VT <: Vector{<:CartesianIndex}, T <: Integer}
 
 Finite time safety specified by a set of avoid states and a time horizon. 
-That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``A`` is the set of avoid states and ``H`` is the time horizon,
+That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``O`` is the set of avoid states and ``K`` is the time horizon,
 the property is 
 ```math
-    \\mathbb{P}(\\forall k = \\{0, \\ldots, H\\}, s_k \\notin A).
+    \\mathbb{P}^{\\pi, \\eta}_{\\mathrm{safe}}(O, K) = \\mathbb{P}^{\\pi, \\eta} \\left[\\omega \\in \\Omega : \\forall k \\in \\{0, \\ldots, K\\}, \\, \\omega[k] \\notin O \\right].
 ```
 """
 struct FiniteTimeSafety{VT <: Vector{<:CartesianIndex}, T <: Integer} <: AbstractSafety
@@ -701,7 +701,7 @@ end
 """
     InfiniteTimeSafety{R <: Real, VT <: Vector{<:CartesianIndex}} 
  
-`InfiniteTimeSafety` is similar to [`FiniteTimeSafety`](@ref) except that the time horizon is infinite, i.e., ``H = \\infty``.
+`InfiniteTimeSafety` is similar to [`FiniteTimeSafety`](@ref) except that the time horizon is infinite, i.e., ``K = \\infty``.
 In practice it means, performing the value iteration until the value function has converged, defined by some threshold `convergence_eps`.
 The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
 """
@@ -785,11 +785,10 @@ end
 """
     FiniteTimeReward{R <: Real, AR <: AbstractArray{R}, T <: Integer}
 
-`FiniteTimeReward` is a property of rewards ``R : S \\to \\mathbb{R}`` assigned to each state at each iteration
-and a discount factor ``\\gamma``. The time horizon ``H`` is finite, so the discount factor is optional and 
-the optimal policy will be time-varying. Given a strategy ``\\pi : S \\to A``, the property is
+`FiniteTimeReward` is a property of rewards ``r : S \\to \\mathbb{R}`` assigned to each state at each iteration
+and a discount factor ``\\nu``. The time horizon ``K`` is finite, so the discount factor can be greater than or equal to one. The property is
 ```math
-    V(s_0) = \\mathbb{E}\\left[\\sum_{k=0}^{H} \\gamma^k R(s_k) \\mid s_0, \\pi\\right].
+    \\mathbb{E}^{\\pi,\\eta}_{\\mathrm{reward}}(r, \\nu, K) = \\mathbb{E}^{\\pi,\\eta}\\left[\\sum_{k=0}^{K} \\nu^k r(\\omega[k]) \\right].
 ```
 """
 struct FiniteTimeReward{R <: Real, AR <: AbstractArray{R}, T <: Integer} <:
@@ -842,8 +841,7 @@ end
     InfiniteTimeReward{R <: Real, AR <: AbstractArray{R}}
 
 `InfiniteTimeReward` is a property of rewards assigned to each state at each iteration
-and a discount factor for guaranteed convergence. The time horizon is infinite, i.e. ``H = \\infty``, so the optimal
-policy will be stationary.
+and a discount factor for guaranteed convergence. The time horizon is infinite, i.e. ``K = \\infty``.
 """
 struct InfiniteTimeReward{R <: Real, AR <: AbstractArray{R}} <: AbstractReward{R}
     reward::AR
@@ -917,15 +915,13 @@ postprocess_value_function!(value_function, ::AbstractHittingTime) = value_funct
 
 `ExpectedExitTime` is a property of hitting time with respect to an unsafe set. An equivalent
 characterization is that of the expected number of steps in the safe set until reaching the unsafe set.
-The time horizon is infinite, i.e., ``H = \\infty``, thus the package performs value iteration until the value function
+The time horizon is infinite, i.e., ``K = \\infty``, thus the package performs value iteration until the value function
 has converged. The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
-As this is an infinite horizon property, the resulting optimal policy will be stationary.
-In formal language, given a strategy ``\\pi : S \\to A`` and an unsafe set ``O``, the property is defined as
+Given an unsafe set ``O``, the property is defined as
 ```math
-    V(s_0) = \\mathbb{E}\\left[\\lvert \\omega_{0:k-1} \\rvert \\mid s_0, \\pi, \\omega_{0:k-1} \\notin O, \\omega_k \\in O \\right]
+    \\mathbb{E}^{\\pi,\\eta}_{\\mathrm{exit}}(O) = \\mathbb{E}^{\\pi,\\eta}\\left[k : \\omega[k] \\in O, \\, \\forall k' \\in \\{0, \\ldots, k\\}, \\, \\omega[k'] \\notin O \\right].
 ```
-where ``\\omega = s_0 s_1 \\ldots s_k`` is the trajectory of the system, ``\\omega_{0:k-1} = s_0 s_1 \\ldots s_{k-1}`` denotes the subtrajectory
-excluding the final state, and ``\\omega_k = s_k``.
+where ``\\omega = s_0 s_1 \\ldots s_k`` is a trace of the system.
 """
 struct ExpectedExitTime{R <: Real, VT <: Vector{<:CartesianIndex}} <: AbstractHittingTime
     avoid_states::VT
