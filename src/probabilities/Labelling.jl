@@ -67,6 +67,12 @@ Return the number of labels (DFA inputs) in the labelling function.
 num_labels(labelling_func::LabellingFunction) = labelling_func.num_outputs
 
 """
+    num_states(labelling_func::LabellingFunction)
+Return the number of states (input range) of the labeling function ``L : S \\to 2^{AP}``, which can be multiple dimensions in case of factored IMDPs. 
+"""
+num_states(labelling_func::LabellingFunction) = size(labelling_func.map)
+
+"""
     getindex(lf::LabellingFunction, s...)
 
 Return the label for state s.
@@ -151,7 +157,7 @@ num_labels(pl::ProbabilisticLabelling) = size(pl.map, 1)
 
 """
     num_states(pl::ProbabilisticLabelling)
-Return the number of states (IMDP) in the probabilistic labelling function.
+Return the number of states (input range) of the probabilistic labelling function, , which can be multiple dimensions in case of factored IMDPs.
 """
-num_states(pl::ProbabilisticLabelling) = size(pl.map, 2)
+num_states(pl::ProbabilisticLabelling) = Base.tail(size(pl.map))
 
