@@ -1,8 +1,160 @@
+"""
+    bellman(V, model; upper_bound = false, maximize = true)
+
+Compute robust Bellman update with the value function `V` and the model `model`, e.g. [`IntervalMarkovDecisionProcess`](@ref),
+that upper or lower bounds the expectation of the value function `V`.
+Whether the expectation is maximized or minimized is determined by the `upper_bound` keyword argument.
+That is, if `upper_bound == true` then an upper bound is computed and if `upper_bound == false` then a lower
+bound is computed.
+
+### Examples
+```jldoctest
+using IntervalMDP
+
+prob1 = IntervalAmbiguitySets(;
+    lower = [
+        0.0 0.5
+        0.1 0.3
+        0.2 0.1
+    ],
+    upper = [
+        0.5 0.7
+        0.6 0.5
+        0.7 0.3
+    ],
+)
+
+prob2 = IntervalAmbiguitySets(;
+    lower = [
+        0.1 0.2
+        0.2 0.3
+        0.3 0.4
+    ],
+    upper = [
+        0.6 0.6
+        0.5 0.5
+        0.4 0.4
+    ],
+)
+
+prob3 = IntervalAmbiguitySets(;
+    lower = [
+        0.0 0.0
+        0.0 0.0
+        1.0 1.0
+    ],
+    upper = [
+        0.0 0.0
+        0.0 0.0
+        1.0 1.0
+    ]
+)
+
+transition_probs = [prob1, prob2, prob3]
+istates = [Int32(1)]
+
+model = IntervalMarkovDecisionProcess(transition_probs, istates)
+
+Vprev = [1.0, 2.0, 3.0]
+Vcur = IntervalMDP.bellman(Vprev, model; upper_bound = false)
+
+# output
+
+3-element Vector{Float64}:
+ 1.7
+ 2.1
+ 3.0
+```
+
+!!! note
+    This function will construct a workspace object, a strategy cache, and an output vector.
+    For a hot-loop, it is more efficient to use `bellman!` and pass in pre-allocated objects.
+
+"""
 function bellman(V, model, alg=default_bellman_algorithm(model); upper_bound = false, maximize = true)
     Vres = similar(V, source_shape(model))
 
     return bellman!(Vres, V, model, alg; upper_bound = upper_bound, maximize = maximize)
 end
+
+"""
+    bellman!(workspace, strategy_cache, Vres, V, model; upper_bound = false, maximize = true)
+
+Compute in-place robust Bellman update with the value function `V` and the model `model`, 
+e.g. [`IntervalMarkovDecisionProcess`](@ref), that upper or lower bounds the expectation of the value function `V`.
+Whether the expectation is maximized or minimized is determined by the `upper_bound` keyword argument.
+That is, if `upper_bound == true` then an upper bound is computed and if `upper_bound == false` then a lower
+bound is computed. 
+
+The output is constructed in the input `Vres` and returned. The workspace object is also modified,
+and depending on the type, the strategy cache may be modified as well. See `construct_workspace`
+and `construct_strategy_cache` for more details on how to pre-allocate the workspace and strategy cache.
+
+### Examples
+
+```jldoctest
+using IntervalMDP
+
+prob1 = IntervalAmbiguitySets(;
+    lower = [
+        0.0 0.5
+        0.1 0.3
+        0.2 0.1
+    ],
+    upper = [
+        0.5 0.7
+        0.6 0.5
+        0.7 0.3
+    ],
+)
+
+prob2 = IntervalAmbiguitySets(;
+    lower = [
+        0.1 0.2
+        0.2 0.3
+        0.3 0.4
+    ],
+    upper = [
+        0.6 0.6
+        0.5 0.5
+        0.4 0.4
+    ],
+)
+
+prob3 = IntervalAmbiguitySets(;
+    lower = [
+        0.0 0.0
+        0.0 0.0
+        1.0 1.0
+    ],
+    upper = [
+        0.0 0.0
+        0.0 0.0
+        1.0 1.0
+    ]
+)
+
+transition_probs = [prob1, prob2, prob3]
+istates = [Int32(1)]
+
+model = IntervalMarkovDecisionProcess(transition_probs, istates)
+
+Vprev = [1.0, 2.0, 3.0]
+workspace = IntervalMDP.construct_workspace(model)
+strategy_cache = IntervalMDP.construct_strategy_cache(model)
+Vcur = similar(Vprev)
+
+IntervalMDP.bellman!(workspace, strategy_cache, Vcur, Vprev, model; upper_bound = false, maximize = true)
+
+# output
+
+3-element Vector{Float64}:
+ 1.7
+ 2.1
+ 3.0
+```
+"""
+function bellman! end
 
 function bellman!(Vres, V, model, alg=default_bellman_algorithm(model); upper_bound = false, maximize = true)
     workspace = construct_workspace(model, alg)
