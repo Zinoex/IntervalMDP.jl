@@ -11,19 +11,22 @@ function cu end
 function cpu end
 
 struct OutOfSharedMemory <: Exception
-    min_shared_memory::Int
+    required::Int
+    available::Int
 end
 
 function Base.showerror(io::IO, e::OutOfSharedMemory)
     println(
         io,
         "Out of shared memory: minimum required shared memory for the problem is ",
-        e.min_shared_memory,
-        " bytes.",
+        e.required,
+        " bytes (",
+        e.available,
+        " bytes available on the device).",
     )
     println(
         io,
-        "Please try either the CPU implementation, the (dense) decomposed representation (preferred), or use a larger GPU.",
+        "Please try either the CPU implementation, the decomposed representation, or use a larger GPU.",
     )
 end
 

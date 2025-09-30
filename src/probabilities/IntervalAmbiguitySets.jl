@@ -198,7 +198,8 @@ source_shape(p::IntervalAmbiguitySets) = (num_sets(p),)
 action_shape(::IntervalAmbiguitySets) = (1,)
 marginals(p::IntervalAmbiguitySets) = (p,)
 
-maxsupportsize(p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractMatrix{R}} = maximum(supportsize, p)
+maxsupportsize(p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractMatrix{R}} = size(p.gap, 1)
+maxsupportsize(p::IntervalAmbiguitySets{R, MR}) where {R, MR <: SparseArrays.AbstractSparseMatrixCSC{R}} = maxdiff(SparseArrays.getcolptr(p.gap))
 
 function Base.getindex(p::IntervalAmbiguitySets, j::Integer)
     # Select by columns only! 

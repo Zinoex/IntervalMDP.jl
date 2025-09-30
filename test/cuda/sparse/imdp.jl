@@ -1,5 +1,5 @@
 using Revise, Test
-using IntervalMDP, CUDA
+using IntervalMDP, CUDA, SparseArrays
 
 @testset for N in [Float32, Float64]
     prob1 = IntervalAmbiguitySets(;
