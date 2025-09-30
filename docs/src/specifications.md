@@ -235,7 +235,7 @@ prop = InfiniteTimeReward(rewards, discount_factor, convergence_threshold)
 ### Expected exit time
 Given a avoid set ``O \subset S``, the expected exit time of the set `S \setminus O` is the following objective 
 ```math
-\mathbb{E}^{\pi,\eta}_{\mathrm{exit}}(O) = \mathbb{E}^{\pi,\eta}\left[k : \omega[k] \in O, \, \forall k' \in \{0, \ldots, k\}, \, \omega[k'] \notin O \right].
+\mathbb{E}^{\pi,\eta}_{\mathrm{exit}}(O) = \mathbb{E}^{\pi,\eta}\left[k : \omega[k] \in O, \, \forall k' \in \{0, \ldots, k - 1\}, \, \omega[k'] \notin O \right].
 ```
 
 The property is equivalent to the following value function

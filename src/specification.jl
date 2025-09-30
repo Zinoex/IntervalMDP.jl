@@ -100,7 +100,7 @@ end
 postprocess_value_function!(value_function, ::AbstractDFAReachability) = nothing
 
 """
-    FiniteTimeDFAReachability{VT <: Vector{<:Int32}, T <: Integer}
+    FiniteTimeDFAReachability{VT <: Vector{<:Integer}, T <: Integer}
 
 Finite time reachability specified by a set of target/terminal states and a time horizon. 
 That is, denote a trace by ``z_1 z_2 z_3 \\cdots`` with ``z_k = (s_k, q_k)`` then if ``T`` is the set of target states and ``H`` is the time horizon,
@@ -153,13 +153,13 @@ function showproperty(io::IO, first_prefix, prefix, prop::FiniteTimeDFAReachabil
 end
 
 """
-    InfiniteTimeDFAReachability{R <: Real, VT <: Vector{<:Int32}} 
+    InfiniteTimeDFAReachability{VT <: Vector{<:Integer}, R <: Real} 
  
 `InfiniteTimeDFAReachability` is similar to [`FiniteTimeDFAReachability`](@ref) except that the time horizon is infinite, i.e., ``H = \\infty``.
 In practice it means, performing the value iteration until the value function has converged, defined by some threshold `convergence_eps`.
 The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
 """
-struct InfiniteTimeDFAReachability{R <: Real, VT <: Vector{<:Int32}} <:
+struct InfiniteTimeDFAReachability{VT <: Vector{<:Int32}, R <: Real} <:
        AbstractDFAReachability
     reach::VT
     convergence_eps::R
@@ -221,7 +221,7 @@ end
 postprocess_value_function!(value_function, ::AbstractReachability) = nothing
 
 """
-    FiniteTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer}
+    FiniteTimeReachability{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}, T <: Integer}
 
 Finite time reachability specified by a set of target/terminal states and a time horizon. 
 That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``G`` is the set of target states and ``K`` is the time horizon,
@@ -273,13 +273,13 @@ function showproperty(io::IO, first_prefix, prefix, prop::FiniteTimeReachability
 end
 
 """
-    InfiniteTimeReachability{R <: Real, VT <: Vector{<:CartesianIndex}} 
- 
+    InfiniteTimeReachability{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}, R <: Real}
+
 `InfiniteTimeReachability` is similar to [`FiniteTimeReachability`](@ref) except that the time horizon is infinite, i.e., ``K = \\infty``.
 In practice it means, performing the value iteration until the value function has converged, defined by some threshold `convergence_eps`.
 The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
 """
-struct InfiniteTimeReachability{R <: Real, VT <: Vector{<:CartesianIndex}} <:
+struct InfiniteTimeReachability{VT <: Vector{<:CartesianIndex}, R <: Real} <:
        AbstractReachability
     reach::VT
     convergence_eps::R
@@ -322,7 +322,7 @@ function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachabili
 end
 
 """
-    ExactTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer}
+    ExactTimeReachability{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}, T <: Integer}
 
 Exact time reachability specified by a set of target/terminal states and a time horizon. 
 That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``G`` is the set of target states and ``K`` is the time horizon,
@@ -424,7 +424,7 @@ function checkdisjoint(reach, avoid)
 end
 
 """
-    FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}}, T <: Integer}
+    FiniteTimeReachAvoid{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}}, T <: Integer}
 
 Finite time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
 That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``G`` is the set of target states, ``O`` is the set of states to avoid,
@@ -433,7 +433,7 @@ and ``K`` is the time horizon, the property is
     \\mathbb{P}^{\\pi, \\eta}_{\\mathrm{reach-avoid}}(G, O, K) = \\mathbb{P}^{\\pi, \\eta} \\left[\\omega \\in \\Omega : \\exists k \\in \\{0, \\ldots, K\\}, \\, \\omega[k] \\in G, \\; \\forall k' \\in \\{0, \\ldots, k' \\}, \\, \\omega[k] \\notin O \\right].
 ```
 """
-struct FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}, T <: Integer} <:
+struct FiniteTimeReachAvoid{VT <: Vector{<:CartesianIndex}, T <: Integer} <:
        AbstractReachAvoid
     reach::VT
     avoid::VT
@@ -492,11 +492,11 @@ function showproperty(io::IO, first_prefix, prefix, prop::FiniteTimeReachAvoid)
 end
 
 """
-    InfiniteTimeReachAvoid{R <: Real, VT <: AbstractVector{<:CartesianIndex}}
+    InfiniteTimeReachAvoid{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}, R <: Real}
 
 `InfiniteTimeReachAvoid` is similar to [`FiniteTimeReachAvoid`](@ref) except that the time horizon is infinite, i.e., ``K = \\infty``.
 """
-struct InfiniteTimeReachAvoid{R <: Real, VT <: AbstractVector{<:CartesianIndex}} <:
+struct InfiniteTimeReachAvoid{VT <: Vector{<:CartesianIndex}, R <: Real} <:
        AbstractReachAvoid
     reach::VT
     avoid::VT
@@ -555,7 +555,7 @@ function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachAvoid
 end
 
 """
-    ExactTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}}, T <: Integer}
+    ExactTimeReachAvoid{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}}, T <: Integer}
 
 Exact time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
 That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``G`` is the set of target states, ``O`` is the set of states to avoid,
@@ -564,7 +564,7 @@ and ``K`` is the time horizon, the property is
     \\mathbb{P}^{\\pi, \\eta}_{\\mathrm{exact-reach-avoid}}(G, O, K) = \\mathbb{P}^{\\pi, \\eta} \\left[\\omega \\in \\Omega : \\omega[K] \\in G, \\; \\forall k \\in \\{0, \\ldots, K\\}, \\, \\omega[k] \\notin O \\right].
 ```
 """
-struct ExactTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}, T <: Integer} <:
+struct ExactTimeReachAvoid{VT <: Vector{<:CartesianIndex}, T <: Integer} <:
        AbstractReachAvoid
     reach::VT
     avoid::VT
@@ -648,7 +648,7 @@ function postprocess_value_function!(value_function, ::AbstractSafety)
 end
 
 """
-    FiniteTimeSafety{VT <: Vector{<:CartesianIndex}, T <: Integer}
+    FiniteTimeSafety{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}, T <: Integer}
 
 Finite time safety specified by a set of avoid states and a time horizon. 
 That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``O`` is the set of avoid states and ``K`` is the time horizon,
@@ -699,13 +699,13 @@ function showproperty(io::IO, first_prefix, prefix, prop::FiniteTimeSafety)
 end
 
 """
-    InfiniteTimeSafety{R <: Real, VT <: Vector{<:CartesianIndex}} 
+    InfiniteTimeSafety{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}, R <: Real} 
  
 `InfiniteTimeSafety` is similar to [`FiniteTimeSafety`](@ref) except that the time horizon is infinite, i.e., ``K = \\infty``.
 In practice it means, performing the value iteration until the value function has converged, defined by some threshold `convergence_eps`.
 The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
 """
-struct InfiniteTimeSafety{R <: Real, VT <: Vector{<:CartesianIndex}} <: AbstractSafety
+struct InfiniteTimeSafety{VT <: Vector{<:CartesianIndex}, R <: Real} <: AbstractSafety
     avoid::VT
     convergence_eps::R
 end
@@ -911,7 +911,7 @@ abstract type AbstractHittingTime <: BasicProperty end
 postprocess_value_function!(value_function, ::AbstractHittingTime) = value_function
 
 """
-    ExpectedExitTime{R <: Real, VT <: Vector{<:CartesianIndex}}
+    ExpectedExitTime{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}, R <: Real}
 
 `ExpectedExitTime` is a property of hitting time with respect to an unsafe set. An equivalent
 characterization is that of the expected number of steps in the safe set until reaching the unsafe set.
@@ -919,11 +919,11 @@ The time horizon is infinite, i.e., ``K = \\infty``, thus the package performs v
 has converged. The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
 Given an unsafe set ``O``, the property is defined as
 ```math
-    \\mathbb{E}^{\\pi,\\eta}_{\\mathrm{exit}}(O) = \\mathbb{E}^{\\pi,\\eta}\\left[k : \\omega[k] \\in O, \\, \\forall k' \\in \\{0, \\ldots, k\\}, \\, \\omega[k'] \\notin O \\right].
+    \\mathbb{E}^{\\pi,\\eta}_{\\mathrm{exit}}(O) = \\mathbb{E}^{\\pi,\\eta}\\left[k : \\omega[k] \\in O, \\, \\forall k' \\in \\{0, \\ldots, k - 1\\}, \\, \\omega[k'] \\notin O \\right].
 ```
 where ``\\omega = s_0 s_1 \\ldots s_k`` is a trace of the system.
 """
-struct ExpectedExitTime{R <: Real, VT <: Vector{<:CartesianIndex}} <: AbstractHittingTime
+struct ExpectedExitTime{VT <: Vector{<:CartesianIndex}, R <: Real} <: AbstractHittingTime
     avoid_states::VT
     convergence_eps::R
 end
