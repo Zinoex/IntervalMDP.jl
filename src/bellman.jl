@@ -204,6 +204,30 @@ function bellman!(
     lf = labelling_function(model)
     dfa = automaton(model)
 
+    return _bellman_helper!(
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        dfa,
+        mp,
+        lf,
+        upper_bound,
+        maximize
+    )
+end
+
+function _bellman_helper!(
+    workspace::ProductWorkspace,
+    strategy_cache::AbstractStrategyCache,
+    Vres,
+    V,
+    dfa::DFA,
+    mp::IntervalMarkovProcess,
+    lf::LabellingFunction,
+    upper_bound = false,
+    maximize = true,
+)
     W = workspace.intermediate_values
 
     @inbounds for state in dfa
@@ -228,8 +252,52 @@ function bellman!(
         )
     end
 
-    return Vres
+    return Vres   
 end
+
+function _bellman_helper!(
+    workspace::ProductWorkspace,
+    strategy_cache::AbstractStrategyCache,
+    Vres,
+    V,
+    dfa::DFA,
+    mp::IntervalMarkovProcess,
+    lf::ProbabilisticLabelling,
+    upper_bound = false,
+    maximize = true,
+)
+    W = workspace.intermediate_values
+
+    @inbounds for state in dfa
+        local_strategy_cache = localize_strategy_cache(strategy_cache, state)
+
+        # Select the value function for the current DFA state
+        # according to the appropriate DFA transition function
+        map!(W, CartesianIndices(state_values(mp))) do idx
+
+            A = lf[idx]     #(Lx1) for IMDP state s', get all the p(f | s') for each label 
+            B = V[idx, :]   #(Mx1) fir IMDP state s', get all V(s', z') for each DFA state
+            C = onehot(transition(dfa))[state, :, :] #(LxM)
+
+            return B' * C' * A
+        end
+
+        # For each state in the product process, compute the Bellman operator
+        # for the corresponding Markov process
+        bellman!(
+            workspace.underlying_workspace,
+            local_strategy_cache,
+            selectdim(Vres, ndims(Vres), state),
+            W,
+            mp;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
+    end
+
+    return Vres   
+end
+
 
 function localize_strategy_cache(strategy_cache::NoStrategyCache, dfa_state)
     return strategy_cache
