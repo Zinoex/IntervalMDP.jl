@@ -1,5 +1,6 @@
 
 test_files = [
+    "probabilities.jl",
     "bellman.jl",
     "vi.jl",
     "imdp.jl",

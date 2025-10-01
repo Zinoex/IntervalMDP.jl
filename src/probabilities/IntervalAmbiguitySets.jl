@@ -99,6 +99,10 @@ function compute_gap(
     lower::MR,
     upper::MR,
 ) where {R, MR <: SparseArrays.AbstractSparseMatrixCSC{R}}
+    if size(lower) != size(upper)
+        throw(DimensionMismatch("The lower and upper matrices must have the same size."))
+    end
+
     I, J, _ = findnz(upper)
 
     gap_nonzeros = Vector{R}(undef, length(I))
@@ -126,7 +130,7 @@ end
 
 function checkprobabilities(lower::AbstractMatrix, gap::AbstractMatrix)
     if size(lower) != size(gap)
-        throw(ArgumentError("The lower and gap matrices must have the same size."))
+        throw(DimensionMismatch("The lower and gap matrices must have the same size."))
     end
 
     if any(lower .< 0)
@@ -145,14 +149,6 @@ function checkprobabilities(lower::AbstractMatrix, gap::AbstractMatrix)
 
     if any(gap .< 0)
         throw(ArgumentError("The gap transition probabilities must be non-negative."))
-    end
-
-    if any(gap .> 1)
-        throw(
-            ArgumentError(
-                "The gap transition probabilities must be less than or equal to 1.",
-            ),
-        )
     end
 
     if any(lower .+ gap .> 1)
@@ -186,7 +182,7 @@ end
 
 function checkprobabilities!(lower::AbstractSparseMatrix, gap::AbstractSparseMatrix)
     if size(lower) != size(gap)
-        throw(ArgumentError("The lower and gap matrices must have the same size."))
+        throw(DimensionMismatch("The lower and gap matrices must have the same size."))
     end
 
     if any(nonzeros(lower) .< 0)
