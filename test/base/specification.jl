@@ -9,11 +9,25 @@ using IntervalMDP
 
         @test reach(prop) == [3]
 
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("FiniteTimeDFAReachability", str)
+        @test occursin("Time horizon: 10", str)
+        @test occursin("Reach states: Int32[3]", str)
+
         prop = InfiniteTimeDFAReachability([3], 1e-6)
         @test !IntervalMDP.isfinitetime(prop)
         @test convergence_eps(prop) == 1e-6
 
         @test reach(prop) == [3]
+
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("InfiniteTimeDFAReachability", str)
+        @test occursin("Convergence threshold: 1.0e-6", str)
+        @test occursin("Reach states: Int32[3]", str)
     end
 
     @testset "reachability" begin
@@ -23,17 +37,38 @@ using IntervalMDP
 
         @test reach(prop) == [CartesianIndex(3)]
 
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("FiniteTimeReachability", str)
+        @test occursin("Time horizon: 10", str)
+        @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+
         prop = InfiniteTimeReachability([3], 1e-6)
         @test !IntervalMDP.isfinitetime(prop)
         @test convergence_eps(prop) == 1e-6
 
         @test reach(prop) == [CartesianIndex(3)]
 
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("InfiniteTimeReachability", str)
+        @test occursin("Convergence threshold: 1.0e-6", str)
+        @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+
         prop = ExactTimeReachability([3], 10)
         @test IntervalMDP.isfinitetime(prop)
         @test time_horizon(prop) == 10
 
         @test reach(prop) == [CartesianIndex(3)]
+        
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("ExactTimeReachability", str)
+        @test occursin("Time horizon: 10", str)
+        @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
     end
 
     @testset "reach-avoid" begin
@@ -44,6 +79,14 @@ using IntervalMDP
         @test reach(prop) == [CartesianIndex(3)]
         @test avoid(prop) == [CartesianIndex(4)]
 
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("FiniteTimeReachAvoid", str)
+        @test occursin("Time horizon: 10", str)
+        @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+        @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(4,)]", str)
+
         prop = InfiniteTimeReachAvoid([3], [4], 1e-6)
         @test !IntervalMDP.isfinitetime(prop)
         @test convergence_eps(prop) == 1e-6
@@ -51,12 +94,28 @@ using IntervalMDP
         @test reach(prop) == [CartesianIndex(3)]
         @test avoid(prop) == [CartesianIndex(4)]
 
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("InfiniteTimeReachAvoid", str)
+        @test occursin("Convergence threshold: 1.0e-6", str)
+        @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+        @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(4,)]", str)
+
         prop = ExactTimeReachAvoid([3], [4], 10)
         @test IntervalMDP.isfinitetime(prop)
         @test time_horizon(prop) == 10
 
         @test reach(prop) == [CartesianIndex(3)]
         @test avoid(prop) == [CartesianIndex(4)]
+
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("ExactTimeReachAvoid", str)
+        @test occursin("Time horizon: 10", str)
+        @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+        @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(4,)]", str)
     end
 
     @testset "safety" begin
@@ -81,12 +140,28 @@ using IntervalMDP
         @test reward(prop) == [1.0, 2.0, 3.0]
         @test discount(prop) == 0.9
 
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("FiniteTimeReward", str)
+        @test occursin("Time horizon: 10", str)
+        @test occursin("Reward storage: Float64, (3,)", str)
+        @test occursin("Discount factor: 0.9", str)
+
         prop = InfiniteTimeReward([1.0, 2.0, 3.0], 0.9, 1e-6)
         @test !IntervalMDP.isfinitetime(prop)
         @test convergence_eps(prop) == 1e-6
 
         @test reward(prop) == [1.0, 2.0, 3.0]
         @test discount(prop) == 0.9
+
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("InfiniteTimeReward", str)
+        @test occursin("Convergence threshold: 1.0e-6", str)
+        @test occursin("Reward storage: Float64, (3,)", str)
+        @test occursin("Discount factor: 0.9", str)
     end
 
     @testset "expected exit time" begin
@@ -95,10 +170,18 @@ using IntervalMDP
         @test convergence_eps(prop) == 1e-6
 
         @test avoid(prop) == [CartesianIndex(3)]
+
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("ExpectedExitTime", str)
+        @test occursin("Convergence threshold: 1.0e-6", str)
     end
 end
 
 @testset "specification" begin
+    prop = FiniteTimeDFAReachability([3], 10)
+
     # Default
     spec = Specification(prop)
     @test satisfaction_mode(spec) == Pessimistic
@@ -317,7 +400,7 @@ end
         @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
     end
 
-    # Convergence epsilon must be a positive number
+    # Convergence threshold must be a positive number
     @testset "convergence epsilon" begin
         prop = InfiniteTimeDFAReachability([2], 0.0)
         spec = Specification(prop)
@@ -615,5 +698,15 @@ end
         prop = InfiniteTimeReward([1.0, 2.0], 0.9, 1e-6)
         spec = Specification(prop)
         @test_throws DimensionMismatch VerificationProblem(mc, spec)
+    end
+
+    @testset "incompatible model and specification" begin
+        prop = FiniteTimeDFAReachability([2], 10)
+        spec = Specification(prop)
+        @test_throws ArgumentError VerificationProblem(mc, spec)
+
+        prop = FiniteTimeReachability([2], 10)
+        spec = Specification(prop)
+        @test_throws ArgumentError VerificationProblem(prod_proc, spec)
     end
 end
