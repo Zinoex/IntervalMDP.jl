@@ -33,7 +33,14 @@ function Marginal(
     checkindices(ambiguity_sets, state_indices, action_indices, source_dims, action_vars)
 
     linear_index = LinearIndices((action_vars..., source_dims...))
-    return Marginal(ambiguity_sets, state_indices, action_indices, source_dims, action_vars, linear_index)
+    return Marginal(
+        ambiguity_sets,
+        state_indices,
+        action_indices,
+        source_dims,
+        action_vars,
+        linear_index,
+    )
 end
 
 function Marginal(
@@ -49,20 +56,44 @@ function Marginal(
     source_dims_32 = Int32.(source_dims)
     action_vars_32 = Int32.(action_vars)
 
-    return Marginal(ambiguity_sets, state_indices_32, action_indices_32, source_dims_32, action_vars_32)
+    return Marginal(
+        ambiguity_sets,
+        state_indices_32,
+        action_indices_32,
+        source_dims_32,
+        action_vars_32,
+    )
 end
 
-function Marginal(ambiguity_sets::A, source_dims, action_vars) where {A <: AbstractAmbiguitySets}
+function Marginal(
+    ambiguity_sets::A,
+    source_dims,
+    action_vars,
+) where {A <: AbstractAmbiguitySets}
     return Marginal(ambiguity_sets, (1,), (1,), source_dims, action_vars)
 end
 
-function checkindices(ambiguity_sets, state_indices, action_indices, source_dims, action_vars)
+function checkindices(
+    ambiguity_sets,
+    state_indices,
+    action_indices,
+    source_dims,
+    action_vars,
+)
     if length(state_indices) != length(source_dims)
-        throw(ArgumentError("Length of state indices must match length of source dimensions."))
+        throw(
+            ArgumentError(
+                "Length of state indices must match length of source dimensions.",
+            ),
+        )
     end
 
     if length(action_indices) != length(action_vars)
-        throw(ArgumentError("Length of action indices must match length of action dimensions."))
+        throw(
+            ArgumentError(
+                "Length of action indices must match length of action dimensions.",
+            ),
+        )
     end
 
     if any(state_indices .<= 0)
@@ -72,7 +103,7 @@ function checkindices(ambiguity_sets, state_indices, action_indices, source_dims
     if any(action_indices .<= 0)
         throw(ArgumentError("Action indices must be positive."))
     end
-    
+
     if any(source_dims .<= 0)
         throw(ArgumentError("Source dimensions must be positive."))
     end
@@ -82,7 +113,11 @@ function checkindices(ambiguity_sets, state_indices, action_indices, source_dims
     end
 
     if prod(source_dims) * prod(action_vars) != num_sets(ambiguity_sets)
-        throw(ArgumentError("The number of ambiguity sets must match the product of source dimensions and action dimensions."))
+        throw(
+            ArgumentError(
+                "The number of ambiguity sets must match the product of source dimensions and action dimensions.",
+            ),
+        )
     end
 end
 
@@ -139,8 +174,13 @@ The selected index is then converted to a linear index for the underlying ambigu
 """
 Base.getindex(p::Marginal, action, source) = ambiguity_sets(p)[sub2ind(p, action, source)]
 
-sub2ind(p::Marginal, action::CartesianIndex, source::CartesianIndex) = sub2ind(p, Tuple(action), Tuple(source))
-function sub2ind(p::Marginal, action::NTuple{M, T}, source::NTuple{N, T}) where {N, M, T <: Integer}
+sub2ind(p::Marginal, action::CartesianIndex, source::CartesianIndex) =
+    sub2ind(p, Tuple(action), Tuple(source))
+function sub2ind(
+    p::Marginal,
+    action::NTuple{M, T},
+    source::NTuple{N, T},
+) where {N, M, T <: Integer}
     action = getindex.((action,), p.action_indices)
     source = getindex.((source,), p.state_indices)
     j = p.linear_index[action..., source...]
@@ -149,7 +189,11 @@ function sub2ind(p::Marginal, action::NTuple{M, T}, source::NTuple{N, T}) where 
 end
 
 function showmarginal(io::IO, prefix, marginal::Marginal)
-    println(io, prefix, styled"├─ Conditional variables: {magenta:states = $(state_variables(marginal)), actions = $(action_variables(marginal))}")
+    println(
+        io,
+        prefix,
+        styled"├─ Conditional variables: {magenta:states = $(state_variables(marginal)), actions = $(action_variables(marginal))}",
+    )
     showambiguitysets(io, prefix, ambiguity_sets(marginal))
 end
 

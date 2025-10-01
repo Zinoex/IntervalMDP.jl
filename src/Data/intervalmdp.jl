@@ -60,7 +60,7 @@ function read_intervalmdp_jl_model(model_path)
             upper_nzval,
         )
 
-        prob = IntervalAmbiguitySets(; lower=P̲, upper=P̅)
+        prob = IntervalAmbiguitySets(; lower = P̲, upper = P̅)
         stateptr = convert.(Int32, dataset["stateptr"][:])
         num_actions = diff(stateptr)
         if any(num_actions .!= num_actions[1])
@@ -174,9 +174,19 @@ Write an `IntervalMarkovDecisionProcess` to an IntervalMDP.jl system file (netCD
 See [Data storage formats](@ref) for more information on the file format.
 """
 write_intervalmdp_jl_model(model_path, mdp::IntervalMDP.FactoredRMDP; deflate_level = 5) =
-    _write_intervalmdp_jl_model(model_path, mdp, IntervalMDP.modeltype(mdp); deflate_level = deflate_level)
+    _write_intervalmdp_jl_model(
+        model_path,
+        mdp,
+        IntervalMDP.modeltype(mdp);
+        deflate_level = deflate_level,
+    )
 
-function _write_intervalmdp_jl_model(model_path, mdp::IntervalMDP.FactoredRMDP, ::IntervalMDP.IsIMDP; deflate_level)
+function _write_intervalmdp_jl_model(
+    model_path,
+    mdp::IntervalMDP.FactoredRMDP,
+    ::IntervalMDP.IsIMDP;
+    deflate_level,
+)
     Dataset(model_path, "c") do dataset
         dataset.attrib["model"] = "imdp"
         dataset.attrib["format"] = "sparse_csc"
@@ -189,7 +199,13 @@ function _write_intervalmdp_jl_model(model_path, mdp::IntervalMDP.FactoredRMDP, 
             istates = Int32[]
         end
         defDim(dataset, "initial_states", length(istates))
-        v = defVar(dataset, "initial_states", Int32, ("initial_states",); deflatelevel = deflate_level)
+        v = defVar(
+            dataset,
+            "initial_states",
+            Int32,
+            ("initial_states",);
+            deflatelevel = deflate_level,
+        )
         v[:] = istates
 
         marginal = marginals(mdp)[1]
@@ -198,11 +214,23 @@ function _write_intervalmdp_jl_model(model_path, mdp::IntervalMDP.FactoredRMDP, 
         g = as.gap
 
         defDim(dataset, "lower_colptr", length(l.colptr))
-        v = defVar(dataset, "lower_colptr", Int32, ("lower_colptr",); deflatelevel = deflate_level)
+        v = defVar(
+            dataset,
+            "lower_colptr",
+            Int32,
+            ("lower_colptr",);
+            deflatelevel = deflate_level,
+        )
         v[:] = l.colptr
 
         defDim(dataset, "lower_rowval", length(l.rowval))
-        v = defVar(dataset, "lower_rowval", Int32, ("lower_rowval",); deflatelevel = deflate_level)
+        v = defVar(
+            dataset,
+            "lower_rowval",
+            Int32,
+            ("lower_rowval",);
+            deflatelevel = deflate_level,
+        )
         v[:] = l.rowval
 
         defDim(dataset, "lower_nzval", length(l.nzval))
@@ -216,11 +244,23 @@ function _write_intervalmdp_jl_model(model_path, mdp::IntervalMDP.FactoredRMDP, 
         v[:] = l.nzval
 
         defDim(dataset, "upper_colptr", length(g.colptr))
-        v = defVar(dataset, "upper_colptr", Int32, ("upper_colptr",); deflatelevel = deflate_level)
+        v = defVar(
+            dataset,
+            "upper_colptr",
+            Int32,
+            ("upper_colptr",);
+            deflatelevel = deflate_level,
+        )
         v[:] = g.colptr
 
         defDim(dataset, "upper_rowval", length(g.rowval))
-        v = defVar(dataset, "upper_rowval", Int32, ("upper_rowval",); deflatelevel = deflate_level)
+        v = defVar(
+            dataset,
+            "upper_rowval",
+            Int32,
+            ("upper_rowval",);
+            deflatelevel = deflate_level,
+        )
         v[:] = g.rowval
 
         defDim(dataset, "upper_nzval", length(g.nzval))
@@ -232,7 +272,7 @@ function _write_intervalmdp_jl_model(model_path, mdp::IntervalMDP.FactoredRMDP, 
             deflatelevel = deflate_level,
         )
         v[:] = l.nzval + g.nzval
-        
+
         defDim(dataset, "stateptr", source_shape(marginal)[1] + 1)
         v = defVar(dataset, "stateptr", Int32, ("stateptr",))
         v[:] = [[Int32(1)]; (1:num_states(mdp)) .* Int32(num_actions(mdp)) .+ 1]

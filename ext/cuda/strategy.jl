@@ -7,7 +7,8 @@ Adapt.@adapt_structure NoStrategyActiveCache
     return NoStrategyActiveCache()
 end
 
-struct TimeVaryingStrategyActiveCache{N, V <: AbstractVector{NTuple{N, Int32}}} <: OptimizingActiveCache
+struct TimeVaryingStrategyActiveCache{N, V <: AbstractVector{NTuple{N, Int32}}} <:
+       OptimizingActiveCache
     cur_strategy::V
 end
 Adapt.@adapt_structure TimeVaryingStrategyActiveCache
@@ -15,7 +16,8 @@ Adapt.@adapt_structure TimeVaryingStrategyActiveCache
     return TimeVaryingStrategyActiveCache(strategy_cache.cur_strategy)
 end
 
-struct StationaryStrategyActiveCache{N, V <: AbstractVector{NTuple{N, Int32}}} <: OptimizingActiveCache
+struct StationaryStrategyActiveCache{N, V <: AbstractVector{NTuple{N, Int32}}} <:
+       OptimizingActiveCache
     strategy::V
 end
 Adapt.@adapt_structure StationaryStrategyActiveCache
@@ -25,7 +27,8 @@ end
 
 abstract type NonOptimizingActiveCache <: ActiveCache end
 
-struct GivenStrategyActiveCache{N, V <: AbstractVector{NTuple{N, Int32}}} <: NonOptimizingActiveCache
+struct GivenStrategyActiveCache{N, V <: AbstractVector{NTuple{N, Int32}}} <:
+       NonOptimizingActiveCache
     strategy::V
 end
 Adapt.@adapt_structure GivenStrategyActiveCache

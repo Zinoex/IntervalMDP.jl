@@ -94,14 +94,21 @@ Return the labelling function of the product
 """
 labelling_function(proc::ProductProcess) = proc.labelling_func
 
-state_values(proc::ProductProcess) = (state_values(markov_process(proc))..., num_states(automaton(proc)))
-source_shape(proc::ProductProcess) = (source_shape(markov_process(proc))..., num_states(automaton(proc)))
+state_values(proc::ProductProcess) =
+    (state_values(markov_process(proc))..., num_states(automaton(proc)))
+source_shape(proc::ProductProcess) =
+    (source_shape(markov_process(proc))..., num_states(automaton(proc)))
 action_values(proc::ProductProcess) = action_values(markov_process(proc))
 action_shape(proc::ProductProcess) = action_shape(markov_process(proc))
 
 Base.show(io::IO, proc::ProductProcess) = showsystem(io, "", "", proc)
 
-function showsystem(io::IO, first_prefix, prefix, mdp::ProductProcess{M, D, L}) where {M, D, L}
+function showsystem(
+    io::IO,
+    first_prefix,
+    prefix,
+    mdp::ProductProcess{M, D, L},
+) where {M, D, L}
     println(io, first_prefix, styled"{code:ProductProcess}")
     println(io, prefix, "├─ Underlying process:")
     showsystem(io, prefix * "│  ", prefix * "│  ", markov_process(mdp))

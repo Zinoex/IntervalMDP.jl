@@ -68,11 +68,19 @@ function read_bmdp_tool_file(path)
                 state_action_probs_upper = spzeros(Float64, Int32, num_states)
 
                 if src != jₛ - 1
-                    throw(ArgumentError("Transitions file is not sorted by source index or the number of actions was less than expected. Expected source index $(jₛ - 1), got $src."))
+                    throw(
+                        ArgumentError(
+                            "Transitions file is not sorted by source index or the number of actions was less than expected. Expected source index $(jₛ - 1), got $src.",
+                        ),
+                    )
                 end
 
                 if act != jₐ - 1
-                    throw(ArgumentError("Transitions file is not sorted by action index or the number of actions was less than expected. Expected action index $(jₐ - 1), got $act."))
+                    throw(
+                        ArgumentError(
+                            "Transitions file is not sorted by action index or the number of actions was less than expected. Expected action index $(jₐ - 1), got $act.",
+                        ),
+                    )
                 end
 
                 while src == jₛ - 1 && act == jₐ - 1

@@ -14,7 +14,8 @@ IntervalMDP.cpu(obj) = adapt(IntervalMDP.CpuModelAdaptor{IntervalMDP.valuetype(o
 
 Adapt.@adapt_structure Marginal
 Adapt.@adapt_structure StationaryStrategy
-Adapt.adapt_structure(to, strategy::TimeVaryingStrategy) = TimeVaryingStrategy([adapt(to, s) for s in strategy.strategy])
+Adapt.adapt_structure(to, strategy::TimeVaryingStrategy) =
+    TimeVaryingStrategy([adapt(to, s) for s in strategy.strategy])
 
 function Adapt.adapt_structure(
     T::Type{<:IntervalMDP.CuModelAdaptor},
@@ -26,7 +27,7 @@ function Adapt.adapt_structure(
         IntervalMDP.source_shape(mdp),
         adapt(T, marginals(mdp)),
         adapt(CuArray{Int32}, initial_states(mdp)),
-        Val(false) # check = false
+        Val(false), # check = false
     )
 end
 
@@ -40,7 +41,7 @@ function Adapt.adapt_structure(
         IntervalMDP.source_shape(mdp),
         adapt(T, marginals(mdp)),
         adapt(Array{Int32}, initial_states(mdp)),
-        Val(false) # check = false
+        Val(false), # check = false
     )
 end
 
@@ -48,7 +49,7 @@ function Adapt.adapt_structure(to, as::IntervalAmbiguitySets)
     return IntervalAmbiguitySets(
         adapt(to, as.lower),
         adapt(to, as.gap),
-        Val(false) # check = false
+        Val(false), # check = false
     )
 end
 

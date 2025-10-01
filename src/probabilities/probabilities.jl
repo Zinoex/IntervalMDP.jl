@@ -42,7 +42,13 @@ isinterval(::IntervalAmbiguitySets) = IsInterval()
 
 # Marginals
 include("Marginal.jl")
-export Marginal, ambiguity_sets, state_variables, action_variables, source_shape, action_shape, num_target
+export Marginal,
+    ambiguity_sets,
+    state_variables,
+    action_variables,
+    source_shape,
+    action_shape,
+    num_target
 
 ispolytopic(marginal::Marginal) = ispolytopic(ambiguity_sets(marginal))
 isinterval(marginal::Marginal) = isinterval(ambiguity_sets(marginal))

@@ -4,14 +4,14 @@ using IntervalMDP, SparseArrays
 @testset for N in [Float32, Float64, Rational{BigInt}]
     prob = IntervalAmbiguitySets(;
         lower = sparse_hcat(
-            SparseVector(3, [2, 3], N[1//10, 1//5]),
-            SparseVector(3, [1, 2, 3], N[1//2, 3//10, 1//10]),
-            SparseVector(3, [3], N[1//1]),
+            SparseVector(3, [2, 3], N[1 // 10, 1 // 5]),
+            SparseVector(3, [1, 2, 3], N[1 // 2, 3 // 10, 1 // 10]),
+            SparseVector(3, [3], N[1 // 1]),
         ),
         upper = sparse_hcat(
-            SparseVector(3, [1, 2, 3], N[1//2, 3//5, 7//10]),
-            SparseVector(3, [1, 2, 3], N[7//10, 1//2, 3//10]),
-            SparseVector(3, [3], N[1//1]),
+            SparseVector(3, [1, 2, 3], N[1 // 2, 3 // 5, 7 // 10]),
+            SparseVector(3, [1, 2, 3], N[7 // 10, 1 // 2, 3 // 10]),
+            SparseVector(3, [3], N[1 // 1]),
         ),
     )
 

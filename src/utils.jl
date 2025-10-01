@@ -1,14 +1,11 @@
 @inline @inbounds maxdiff(x::V) where {V <: AbstractVector} =
     maximum(x[i + 1] - x[i] for i in 1:(length(x) - 1))
 
-arrayfactory(mp::ProductProcess, T, sizes) =
-    arrayfactory(markov_process(mp), T, sizes)
-arrayfactory(mp::FactoredRMDP, T, sizes) =
-    arrayfactory(marginals(mp)[1], T, sizes)
+arrayfactory(mp::ProductProcess, T, sizes) = arrayfactory(markov_process(mp), T, sizes)
+arrayfactory(mp::FactoredRMDP, T, sizes) = arrayfactory(marginals(mp)[1], T, sizes)
 arrayfactory(marginal::Marginal, T, sizes) =
     arrayfactory(ambiguity_sets(marginal), T, sizes)
-arrayfactory(prob::IntervalAmbiguitySets, T, sizes) =
-    arrayfactory(prob.gap, T, sizes)
+arrayfactory(prob::IntervalAmbiguitySets, T, sizes) = arrayfactory(prob.gap, T, sizes)
 arrayfactory(::MR, T, sizes) where {MR <: AbstractArray} = Array{T}(undef, sizes)
 
 function valuetype(prob::AbstractIntervalMDPProblem)

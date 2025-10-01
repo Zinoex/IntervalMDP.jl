@@ -67,7 +67,11 @@ function Base.show(io::IO, mime::MIME"text/plain", prob::VerificationProblem)
     if !(prob.strategy isa NoStrategy)
         showstrategy(io, "└─ ", "   ", strategy(prob))
     else
-        println(io, "└─ ", styled"No strategy provided (selecting optimal actions at every step)")
+        println(
+            io,
+            "└─ ",
+            styled"No strategy provided (selecting optimal actions at every step)",
+        )
     end
 end
 

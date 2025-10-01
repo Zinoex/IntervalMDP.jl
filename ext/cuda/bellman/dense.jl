@@ -7,16 +7,23 @@ function IntervalMDP._bellman_helper!(
     upper_bound = false,
     maximize = true,
 ) where {Tv}
-    n_actions = isa(strategy_cache, IntervalMDP.OptimizingStrategyCache) ? workspace.num_actions : 1
+    n_actions =
+        isa(strategy_cache, IntervalMDP.OptimizingStrategyCache) ? workspace.num_actions : 1
     marginal = marginals(model)[1]
     n_states = source_shape(marginal)[1]
 
     if IntervalMDP.valuetype(marginal) != Tv
-        throw(ArgumentError("Value type of the model ($(IntervalMDP.valuetype(marginal))) does not match the value type of the input vector ($Tv)."))
+        throw(
+            ArgumentError(
+                "Value type of the model ($(IntervalMDP.valuetype(marginal))) does not match the value type of the input vector ($Tv).",
+            ),
+        )
     end
 
     max_states_per_block = 32 # == num_warps
-    shmem = length(V) * (sizeof(Int32) + sizeof(Tv)) + max_states_per_block * n_actions * sizeof(Tv)
+    shmem =
+        length(V) * (sizeof(Int32) + sizeof(Tv)) +
+        max_states_per_block * n_actions * sizeof(Tv)
 
     kernel = @cuda launch = false dense_bellman_kernel!(
         workspace,
@@ -41,7 +48,8 @@ function IntervalMDP._bellman_helper!(
     states_per_block = min(n_states, div(max_threads, threads_per_state))
     threads = threads_per_state * states_per_block
     blocks = min(2^16 - 1, cld(n_states, states_per_block))
-    shmem = length(V) * (sizeof(Int32) + sizeof(Tv)) + states_per_block * n_actions * sizeof(Tv)
+    shmem =
+        length(V) * (sizeof(Int32) + sizeof(Tv)) + states_per_block * n_actions * sizeof(Tv)
 
     kernel(
         workspace,
@@ -97,12 +105,15 @@ end
 @inline function initialize_dense_action_workspace(
     workspace,
     ::OptimizingActiveCache,
-    marginal
+    marginal,
 )
     assume(warpsize() == 32)
     nwarps = div(blockDim().x, warpsize())
     wid = fld1(threadIdx().x, warpsize())
-    action_workspace = CuDynamicSharedArray(IntervalMDP.valuetype(marginal), (workspace.num_actions, nwarps))
+    action_workspace = CuDynamicSharedArray(
+        IntervalMDP.valuetype(marginal),
+        (workspace.num_actions, nwarps),
+    )
     @inbounds action_workspace = @view action_workspace[:, wid]
 
     return action_workspace
@@ -111,7 +122,7 @@ end
 @inline function initialize_dense_action_workspace(
     workspace,
     ::NonOptimizingActiveCache,
-    marginal
+    marginal,
 )
     return nothing
 end
@@ -120,13 +131,18 @@ end
     workspace,
     ::OptimizingActiveCache,
     V::AbstractVector{Tv},
-    marginal
+    marginal,
 ) where {Tv}
     assume(warpsize() == 32)
     nwarps = div(blockDim().x, warpsize())
     Tv2 = IntervalMDP.valuetype(marginal)
-    value = CuDynamicSharedArray(Tv, length(V), workspace.num_actions * nwarps * sizeof(Tv2))
-    perm = CuDynamicSharedArray(Int32, length(V), workspace.num_actions * nwarps * sizeof(Tv2) + length(V) * sizeof(Tv))
+    value =
+        CuDynamicSharedArray(Tv, length(V), workspace.num_actions * nwarps * sizeof(Tv2))
+    perm = CuDynamicSharedArray(
+        Int32,
+        length(V),
+        workspace.num_actions * nwarps * sizeof(Tv2) + length(V) * sizeof(Tv),
+    )
     return value, perm
 end
 
@@ -134,7 +150,7 @@ end
     workspace,
     ::NonOptimizingActiveCache,
     V::AbstractVector{Tv},
-    marginal
+    marginal,
 ) where {Tv}
     value = CuDynamicSharedArray(Tv, length(V))
     perm = CuDynamicSharedArray(Int32, length(V), length(V) * sizeof(Tv))
@@ -219,7 +235,14 @@ end
     end
 
     # Find the best action
-    v = extract_strategy_warp!(strategy_cache, action_workspace, Vres, jₛ, action_reduce, lane)
+    v = extract_strategy_warp!(
+        strategy_cache,
+        action_workspace,
+        Vres,
+        jₛ,
+        action_reduce,
+        lane,
+    )
 
     if lane == one(Int32)
         Vres[jₛ] = v

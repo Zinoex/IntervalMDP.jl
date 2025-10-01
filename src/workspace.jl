@@ -16,7 +16,11 @@ struct ProductWorkspace{W, MT <: AbstractArray}
     intermediate_values::MT
 end
 
-function construct_workspace(proc::ProductProcess, alg=default_bellman_algorithm(proc); kwargs...)
+function construct_workspace(
+    proc::ProductProcess,
+    alg = default_bellman_algorithm(proc);
+    kwargs...,
+)
     mp = markov_process(proc)
     underlying_workspace = construct_workspace(mp, alg; kwargs...)
     intermediate_values = arrayfactory(mp, valuetype(mp), state_values(mp))
@@ -24,17 +28,24 @@ function construct_workspace(proc::ProductProcess, alg=default_bellman_algorithm
     return ProductWorkspace(underlying_workspace, intermediate_values)
 end
 
-construct_workspace(mdp::FactoredRMDP, alg=default_bellman_algorithm(mdp); kwargs...) = construct_workspace(mdp, modeltype(mdp), alg; kwargs...)
+construct_workspace(mdp::FactoredRMDP, alg = default_bellman_algorithm(mdp); kwargs...) =
+    construct_workspace(mdp, modeltype(mdp), alg; kwargs...)
 
 function construct_workspace(
     sys::FactoredRMDP,
     ::IsIMDP,
     ::OMaximization;
     threshold = 10,
-    kwargs...
+    kwargs...,
 )
     prob = ambiguity_sets(marginals(sys)[1])
-    return construct_workspace(prob, OMaximization(); threshold = threshold, num_actions = num_actions(sys), kwargs...)
+    return construct_workspace(
+        prob,
+        OMaximization();
+        threshold = threshold,
+        num_actions = num_actions(sys),
+        kwargs...,
+    )
 end
 
 # Dense
@@ -45,7 +56,10 @@ struct DenseIntervalOMaxWorkspace{T <: Real}
     actions::Vector{T}
 end
 
-function DenseIntervalOMaxWorkspace(ambiguity_set::IntervalAmbiguitySets{R}, nactions) where {R <: Real}
+function DenseIntervalOMaxWorkspace(
+    ambiguity_set::IntervalAmbiguitySets{R},
+    nactions,
+) where {R <: Real}
     budget = 1 .- vec(sum(ambiguity_set.lower; dims = 1))
     scratch = Vector{Int32}(undef, num_target(ambiguity_set))
     perm = Vector{Int32}(undef, num_target(ambiguity_set))
@@ -60,14 +74,17 @@ struct ThreadedDenseIntervalOMaxWorkspace{T <: Real}
     thread_workspaces::Vector{DenseIntervalOMaxWorkspace{T}}
 end
 
-function ThreadedDenseIntervalOMaxWorkspace(ambiguity_set::IntervalAmbiguitySets{R}, nactions) where {R <: Real}
+function ThreadedDenseIntervalOMaxWorkspace(
+    ambiguity_set::IntervalAmbiguitySets{R},
+    nactions,
+) where {R <: Real}
     budget = 1 .- vec(sum(ambiguity_set.lower; dims = 1))
     scratch = Vector{Int32}(undef, num_target(ambiguity_set))
     perm = Vector{Int32}(undef, num_target(ambiguity_set))
 
     workspaces = [
-        DenseIntervalOMaxWorkspace(budget, scratch, perm, Vector{R}(undef, nactions)) for
-        _ in 1:Threads.nthreads()
+        DenseIntervalOMaxWorkspace(budget, scratch, perm, Vector{R}(undef, nactions))
+        for _ in 1:Threads.nthreads()
     ]
     return ThreadedDenseIntervalOMaxWorkspace(workspaces)
 end
@@ -75,13 +92,16 @@ end
 Base.getindex(ws::ThreadedDenseIntervalOMaxWorkspace, i) = ws.thread_workspaces[i]
 
 ## permutation and scratch space is shared across threads
-permutation(ws::ThreadedDenseIntervalOMaxWorkspace) = permutation(first(ws.thread_workspaces))
+permutation(ws::ThreadedDenseIntervalOMaxWorkspace) =
+    permutation(first(ws.thread_workspaces))
 scratch(ws::ThreadedDenseIntervalOMaxWorkspace) = scratch(first(ws.thread_workspaces))
 
 function construct_workspace(
     prob::IntervalAmbiguitySets{R, MR},
     ::OMaximization = default_bellman_algorithm(prob);
-    threshold = 10, num_actions = 1, kwargs...
+    threshold = 10,
+    num_actions = 1,
+    kwargs...,
 ) where {R, MR <: AbstractMatrix{R}}
     if Threads.nthreads() == 1 || num_sets(prob) <= threshold
         return DenseIntervalOMaxWorkspace(prob, num_actions)
@@ -98,7 +118,10 @@ struct SparseIntervalOMaxWorkspace{T <: Real}
     actions::Vector{T}
 end
 
-function SparseIntervalOMaxWorkspace(ambiguity_sets::IntervalAmbiguitySets{R}, nactions) where {R <: Real}
+function SparseIntervalOMaxWorkspace(
+    ambiguity_sets::IntervalAmbiguitySets{R},
+    nactions,
+) where {R <: Real}
     max_support = maxsupportsize(ambiguity_sets)
 
     budget = 1 .- vec(sum(ambiguity_sets.lower; dims = 1))
@@ -114,9 +137,13 @@ struct ThreadedSparseIntervalOMaxWorkspace{T <: Real}
     thread_workspaces::Vector{SparseIntervalOMaxWorkspace{T}}
 end
 
-function ThreadedSparseIntervalOMaxWorkspace(ambiguity_sets::IntervalAmbiguitySets, nactions)
+function ThreadedSparseIntervalOMaxWorkspace(
+    ambiguity_sets::IntervalAmbiguitySets,
+    nactions,
+)
     nthreads = Threads.nthreads()
-    thread_workspaces = [SparseIntervalOMaxWorkspace(ambiguity_sets, nactions) for _ in 1:nthreads]
+    thread_workspaces =
+        [SparseIntervalOMaxWorkspace(ambiguity_sets, nactions) for _ in 1:nthreads]
     return ThreadedSparseIntervalOMaxWorkspace(thread_workspaces)
 end
 
@@ -127,7 +154,7 @@ function construct_workspace(
     ::OMaximization = default_bellman_algorithm(prob);
     threshold = 10,
     num_actions = 1,
-    kwargs...
+    kwargs...,
 ) where {R, MR <: AbstractSparseMatrix{R}}
     if Threads.nthreads() == 1 || num_sets(prob) <= threshold
         return SparseIntervalOMaxWorkspace(prob, num_actions)
@@ -137,7 +164,11 @@ function construct_workspace(
 end
 
 # Factored interval McCormick workspace
-struct FactoredIntervalMcCormickWorkspace{M <: JuMP.Model, T <: Real, AT <: AbstractArray{T}}
+struct FactoredIntervalMcCormickWorkspace{
+    M <: JuMP.Model,
+    T <: Real,
+    AT <: AbstractArray{T},
+}
     model::M
     actions::AT
 end
@@ -152,7 +183,11 @@ function FactoredIntervalMcCormickWorkspace(sys, alg)
     return FactoredIntervalMcCormickWorkspace(model, actions)
 end
 
-struct ThreadedFactoredIntervalMcCormickWorkspace{M <: JuMP.Model, T <: Real, AT <: AbstractArray{T}}
+struct ThreadedFactoredIntervalMcCormickWorkspace{
+    M <: JuMP.Model,
+    T <: Real,
+    AT <: AbstractArray{T},
+}
     thread_workspaces::Vector{FactoredIntervalMcCormickWorkspace{M, T, AT}}
 end
 
@@ -168,7 +203,7 @@ function construct_workspace(
     ::Union{IsFIMDP, IsIMDP},
     alg::LPMcCormickRelaxation;
     threshold = 10,
-    kwargs...
+    kwargs...,
 )
     if Threads.nthreads() == 1 || num_states(sys) <= threshold
         return FactoredIntervalMcCormickWorkspace(sys, alg)
@@ -190,17 +225,26 @@ function FactoredIntervalOMaxWorkspace(sys::FactoredRMDP)
     N = length(marginals(sys))
     R = valuetype(sys)
 
-    max_support_per_marginal = Tuple(maxsupportsize(ambiguity_sets(marginal)) for marginal in marginals(sys))
+    max_support_per_marginal =
+        Tuple(maxsupportsize(ambiguity_sets(marginal)) for marginal in marginals(sys))
     max_support = maximum(max_support_per_marginal)
 
-    expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in max_support_per_marginal[2:end])
+    expectation_cache = NTuple{N - 1, Vector{R}}(
+        Vector{R}(undef, n) for n in max_support_per_marginal[2:end]
+    )
     values_gaps = Vector{Tuple{R, R}}(undef, max_support)
     scratch = Vector{Tuple{R, R}}(undef, max_support)
 
     budgets = ntuple(r -> one(R) .- vec(sum(ambiguity_sets(sys[r]).lower; dims = 1)), N)
     actions = Array{R}(undef, action_shape(sys))
 
-    return FactoredIntervalOMaxWorkspace(expectation_cache, values_gaps, scratch, budgets, actions)
+    return FactoredIntervalOMaxWorkspace(
+        expectation_cache,
+        values_gaps,
+        scratch,
+        budgets,
+        actions,
+    )
 end
 scratch(ws::FactoredIntervalOMaxWorkspace) = ws.scratch
 
@@ -220,7 +264,7 @@ function construct_workspace(
     ::IsFIMDP,
     ::OMaximization;
     threshold = 10,
-    kwargs...
+    kwargs...,
 )
     if Threads.nthreads() == 1 || num_states(sys) <= threshold
         return FactoredIntervalOMaxWorkspace(sys)
@@ -262,7 +306,7 @@ function construct_workspace(
     ::Union{IsFIMDP, IsIMDP},
     ::VertexEnumeration;
     threshold = 10,
-    kwargs...
+    kwargs...,
 )
     if Threads.nthreads() == 1 || num_states(sys) <= threshold
         return FactoredVertexIteratorWorkspace(sys)
