@@ -146,7 +146,7 @@ Base.getindex(pl::ProbabilisticLabelling, s, l) = pl.map[l, s]
 
 Return the probabilities over labels from state s.
 """
-Base.getindex(pl::ProbabilisticLabelling, s) = pl.map[:, s]
+Base.getindex(pl::ProbabilisticLabelling, s) = @view(pl.map[:, s])
 
 
 """

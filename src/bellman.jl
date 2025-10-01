@@ -259,13 +259,13 @@ function _bellman_helper!(
     workspace::ProductWorkspace,
     strategy_cache::AbstractStrategyCache,
     Vres,
-    V,
+    V::AbstractArray{R},
     dfa::DFA,
     mp::IntervalMarkovProcess,
     lf::ProbabilisticLabelling,
     upper_bound = false,
     maximize = true,
-)
+) where {R}
     W = workspace.intermediate_values
 
     @inbounds for state in dfa
@@ -274,12 +274,20 @@ function _bellman_helper!(
         # Select the value function for the current DFA state
         # according to the appropriate DFA transition function
         map!(W, CartesianIndices(state_values(mp))) do idx
+            v = zero(R)
 
-            A = lf[idx]     #(Lx1) for IMDP state s', get all the p(f | s') for each label 
-            B = V[idx, :]   #(Mx1) fir IMDP state s', get all V(s', z') for each DFA state
-            C = onehot(transition(dfa))[state, :, :] #(LxM)
+            for (label, prob) in enumerate(lf[idx])
+                new_dfa_state = dfa[state, label]
+                v += prob * V[idx, new_dfa_state]
+            end
 
-            return B' * C' * A
+            return v
+
+            # A = lf[idx]     #(Lx1) for IMDP state s', get all the p(f | s') for each label 
+            # B = V[idx, :]   #(Mx1) fir IMDP state s', get all V(s', z') for each DFA state
+            # C = onehot(transition(dfa))[state, :, :] #(LxM)
+
+            # return B' * C' * A
         end
 
         # For each state in the product process, compute the Bellman operator
