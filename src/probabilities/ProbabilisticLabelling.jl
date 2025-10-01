@@ -23,16 +23,16 @@ struct ProbabilisticLabelling{R <: Real, MR <: AbstractMatrix{R}} <: AbstractLab
     map::MR
 
     function ProbabilisticLabelling(map::MR) where {R <: Real, MR <: AbstractMatrix{R}}
-        checklabelling(map)
+        checklabellingprobs(map)
 
         return new{R, MR}(map)
     end
 end
 
-function checklabelling(map::AbstractMatrix{<:Real})
+function checklabellingprobs(map::AbstractMatrix{<:Real})
 
     # check for each state, all the labels probabilities sum to 1
-    if any(sum(map; dim = 1) .!= 1)
+    if any(sum(map; dims=1) .!= 1)
         throw(
             ArgumentError(
                 "For each IMDP state, probabilities over label states must sum to 1",

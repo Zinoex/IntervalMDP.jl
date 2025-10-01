@@ -3,7 +3,7 @@ using IntervalMDP
 
 @testset "1d" begin
     a = UInt16[1, 3, 2, 2]
-    lf = LabellingFunction(a)
+    lf = DeterministicLabelling(a)
 
     @test mapping(lf) == a
     @test size(lf) == (4,)
@@ -21,7 +21,7 @@ end
         1 3 2 5
         1 3 4 2
     ]
-    lf = LabellingFunction(a)
+    lf = DeterministicLabelling(a)
 
     @test mapping(lf) == a
     @test size(lf) == (3, 4)
@@ -44,7 +44,7 @@ end
 end
 
 @testset "invalid labelling" begin
-    @test_throws ArgumentError LabellingFunction(UInt16[0, 1, 2])
-    @test_throws ArgumentError LabellingFunction(UInt16[1, 2, 4])
-    @test_throws ArgumentError LabellingFunction(UInt16[1, 2, 3, 5])
+    @test_throws ArgumentError DeterministicLabelling(UInt16[0, 1, 2])
+    @test_throws ArgumentError DeterministicLabelling(UInt16[1, 2, 4])
+    @test_throws ArgumentError DeterministicLabelling(UInt16[1, 2, 3, 5])
 end
