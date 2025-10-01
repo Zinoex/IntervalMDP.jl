@@ -180,9 +180,17 @@ function checkprobabilities(lower::AbstractMatrix, gap::AbstractMatrix)
     end
 end
 
-function checkprobabilities!(lower::AbstractSparseMatrix, gap::AbstractSparseMatrix)
+function checkprobabilities(lower::MR, gap::MR) where {R, MR <: AbstractSparseMatrix{R}}
     if size(lower) != size(gap)
         throw(DimensionMismatch("The lower and gap matrices must have the same size."))
+    end
+
+    if SparseArrays.getcolptr(lower) != SparseArrays.getcolptr(gap)
+        throw(DimensionMismatch("The lower and gap matrices must have the same column structure."))
+    end
+
+    if SparseArrays.rowvals(lower) != SparseArrays.rowvals(gap)
+        throw(DimensionMismatch("The lower and gap matrices must have the same row structure."))
     end
 
     if any(nonzeros(lower) .< 0)

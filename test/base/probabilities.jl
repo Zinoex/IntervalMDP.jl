@@ -112,7 +112,7 @@ using IntervalMDP
 
     @testset "sum lower greater than one" begin
         lower = N[0 1//2; 1//10 3//10; 6//10 1//2] # Column sums to more than 1
-        upper = N[5//10 7//10; 6//10 5//10; 7//10 3//10]
+        upper = N[5//10 7//10; 6//10 5//10; 7//10 1//2]
 
         @test_throws ArgumentError IntervalAmbiguitySets(;lower = lower, upper = upper)
     end

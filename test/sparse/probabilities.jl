@@ -85,6 +85,18 @@ using IntervalMDP, SparseArrays
         @test_throws DimensionMismatch IntervalAmbiguitySets(lower, gap)
     end
 
+    @testset "structure mismatch" begin
+        lower = sparse(N[0 1//2; 1//10 3//10; 2//10 1//10])
+        gap = sparse(N[5//10 7//10; 6//10 5//10; 0 0]) # Different colptr
+
+        @test_throws DimensionMismatch IntervalAmbiguitySets(lower, gap)
+
+        lower = sparse(N[0 1//2; 1//10 3//10; 2//10 1//10])
+        gap = sparse(N[5//10 7//10; 6//10 5//10; 0 1//10]) # Same colptr but different rowvals
+
+        @test_throws DimensionMismatch IntervalAmbiguitySets(lower, gap)
+    end
+
     @testset "negative lower bound" begin
         lower = sparse(N[0 1//2; -1//10 3//10; 2//10 1//10]) # Negative entry
         upper = sparse(N[5//10 7//10; 6//10 5//10; 7//10 3//10])
@@ -115,7 +127,7 @@ using IntervalMDP, SparseArrays
 
     @testset "sum lower greater than one" begin
         lower = sparse(N[0 1//2; 1//10 3//10; 6//10 1//2]) # Column sums to more than 1
-        upper = sparse(N[5//10 7//10; 6//10 5//10; 7//10 3//10])
+        upper = sparse(N[5//10 7//10; 6//10 5//10; 7//10 1//2])
 
         @test_throws ArgumentError IntervalAmbiguitySets(;lower = lower, upper = upper)
     end
