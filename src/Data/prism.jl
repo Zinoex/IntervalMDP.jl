@@ -53,8 +53,13 @@ function write_prism_file(
     write_prism_spec(lab_path, srew_path, pctl_path, mdp, spec)
 end
 
-write_prism_states_file(sta_path, mdp::IntervalMDP.FactoredRMDP) = _write_prism_states_file(sta_path, mdp, IntervalMDP.modeltype(mdp))
-function _write_prism_states_file(sta_path, mdp::IntervalMDP.FactoredRMDP, ::IntervalMDP.NonFactored)
+write_prism_states_file(sta_path, mdp::IntervalMDP.FactoredRMDP) =
+    _write_prism_states_file(sta_path, mdp, IntervalMDP.modeltype(mdp))
+function _write_prism_states_file(
+    sta_path,
+    mdp::IntervalMDP.FactoredRMDP,
+    ::IntervalMDP.NonFactored,
+)
     number_states = num_states(mdp)
 
     open(sta_path, "w") do io
@@ -67,10 +72,23 @@ function _write_prism_states_file(sta_path, mdp::IntervalMDP.FactoredRMDP, ::Int
     end
 end
 
-write_prism_transitions_file(tra_path, mdp::IntervalMDP.FactoredRMDP; lb_threshold = 1e-12) = 
-    _write_prism_transitions_file(tra_path, mdp, IntervalMDP.modeltype(mdp); lb_threshold = lb_threshold)
+write_prism_transitions_file(
+    tra_path,
+    mdp::IntervalMDP.FactoredRMDP;
+    lb_threshold = 1e-12,
+) = _write_prism_transitions_file(
+    tra_path,
+    mdp,
+    IntervalMDP.modeltype(mdp);
+    lb_threshold = lb_threshold,
+)
 
-function _write_prism_transitions_file(tra_path, mdp::IntervalMDP.FactoredRMDP, ::IntervalMDP.IsIMDP; lb_threshold)
+function _write_prism_transitions_file(
+    tra_path,
+    mdp::IntervalMDP.FactoredRMDP,
+    ::IntervalMDP.IsIMDP;
+    lb_threshold,
+)
     marginal = marginals(mdp)[1]
 
     num_transitions = nnz(ambiguity_sets(marginal).lower)  # Number of non-zero entries in the lower bound matrix
@@ -104,11 +122,7 @@ function write_prism_spec(lab_path, srew_path, pctl_path, mdp, spec)
     write_prism_props_file(pctl_path, spec)
 end
 
-function write_prism_labels_file(
-    lab_path,
-    mdp,
-    prop::IntervalMDP.AbstractReachability,
-)
+function write_prism_labels_file(lab_path, mdp, prop::IntervalMDP.AbstractReachability)
     istates = initial_states(mdp)
     target_states = reach(prop)
 
@@ -165,11 +179,7 @@ function write_prism_labels_file(lab_path, mdp, prop::IntervalMDP.AbstractReward
     end
 end
 
-function write_prism_rewards_file(
-    lab_path,
-    mdp,
-    prop::IntervalMDP.AbstractReachability,
-)
+function write_prism_rewards_file(lab_path, mdp, prop::IntervalMDP.AbstractReachability)
     # Do nothing - no rewards for reachability
     return nothing
 end
@@ -286,7 +296,11 @@ function read_prism_transitions_file(tra_path, num_states)
             read_prism_transitions_file_header(readline(io))
 
         if num_states != num_states_t
-            throw(DimensionMismatch("Number of states in .sta file ($num_states) does not match number of states in .tra file ($num_states_t)."))
+            throw(
+                DimensionMismatch(
+                    "Number of states in .sta file ($num_states) does not match number of states in .tra file ($num_states_t).",
+                ),
+            )
         end
 
         if num_choices <= 0
@@ -294,11 +308,19 @@ function read_prism_transitions_file(tra_path, num_states)
         end
 
         if num_transitions <= 0
-            throw(ArgumentError("Number of transitions must be positive, was $num_transitions."))
+            throw(
+                ArgumentError(
+                    "Number of transitions must be positive, was $num_transitions.",
+                ),
+            )
         end
 
         if num_choices % num_states_t != 0
-            throw(ArgumentError("Number of choices ($num_choices) must be a multiple of the number of states ($num_states_t)."))
+            throw(
+                ArgumentError(
+                    "Number of choices ($num_choices) must be a multiple of the number of states ($num_states_t).",
+                ),
+            )
         end
         num_actions = num_choices ÷ num_states_t
         num_src_states = num_choices ÷ num_actions
@@ -320,13 +342,21 @@ function read_prism_transitions_file(tra_path, num_states)
             for jₐ in 1:num_actions
                 state_action_probs_lower = spzeros(Float64, Int32, num_states)
                 state_action_probs_upper = spzeros(Float64, Int32, num_states)
-                
+
                 if src != jₛ - 1
-                    throw(ArgumentError("Transitions file is not sorted by source index or the number of actions was less than expected. Expected source index $(jₛ - 1), got $src."))
+                    throw(
+                        ArgumentError(
+                            "Transitions file is not sorted by source index or the number of actions was less than expected. Expected source index $(jₛ - 1), got $src.",
+                        ),
+                    )
                 end
 
                 if act != jₐ - 1
-                    throw(ArgumentError("Transitions file is not sorted by action index or the number of actions was less than expected. Expected action index $(jₐ - 1), got $act."))
+                    throw(
+                        ArgumentError(
+                            "Transitions file is not sorted by action index or the number of actions was less than expected. Expected action index $(jₐ - 1), got $act.",
+                        ),
+                    )
                 end
 
                 while src == jₛ - 1 && act == jₐ - 1

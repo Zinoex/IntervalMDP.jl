@@ -5,26 +5,48 @@ Base.@kwdef struct LPMcCormickRelaxation{O} <: BellmanAlgorithm
 end
 struct VertexEnumeration <: BellmanAlgorithm end
 
-default_bellman_algorithm(pp::ProductProcess) = default_bellman_algorithm(markov_process(pp))
-default_bellman_algorithm(mdp::FactoredRMDP) = default_bellman_algorithm(mdp, modeltype(mdp))
+default_bellman_algorithm(pp::ProductProcess) =
+    default_bellman_algorithm(markov_process(pp))
+default_bellman_algorithm(mdp::FactoredRMDP) =
+    default_bellman_algorithm(mdp, modeltype(mdp))
 default_bellman_algorithm(::FactoredRMDP, ::IsIMDP) = OMaximization()
 default_bellman_algorithm(::FactoredRMDP, ::IsFIMDP) = LPMcCormickRelaxation()
 default_bellman_algorithm(::IntervalAmbiguitySets) = OMaximization()
 
-function showbellmanalg(io::IO, prefix, ::IsIMDP,::OMaximization)
-    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:O-Maximization}")
+function showbellmanalg(io::IO, prefix, ::IsIMDP, ::OMaximization)
+    println(
+        io,
+        prefix,
+        "└─",
+        styled"Default Bellman operator algorithm: {green:O-Maximization}",
+    )
 end
 
-function showbellmanalg(io::IO, prefix, ::IsFIMDP,::OMaximization)
-    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:Recursive O-Maximization}")
+function showbellmanalg(io::IO, prefix, ::IsFIMDP, ::OMaximization)
+    println(
+        io,
+        prefix,
+        "└─",
+        styled"Default Bellman operator algorithm: {green:Recursive O-Maximization}",
+    )
 end
 
 function showbellmanalg(io::IO, prefix, ::IsFIMDP, ::LPMcCormickRelaxation)
-    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:Binary tree LP McCormick Relaxation}")
+    println(
+        io,
+        prefix,
+        "└─",
+        styled"Default Bellman operator algorithm: {green:Binary tree LP McCormick Relaxation}",
+    )
 end
 
 function showbellmanalg(io::IO, prefix, ::IsFIMDP, ::VertexEnumeration)
-    println(io, prefix, "└─", styled"Default Bellman operator algorithm: {green:Vertex Enumeration}")
+    println(
+        io,
+        prefix,
+        "└─",
+        styled"Default Bellman operator algorithm: {green:Vertex Enumeration}",
+    )
 end
 
 function showbellmanalg(io::IO, prefix, _, ::BellmanAlgorithm)
@@ -59,16 +81,21 @@ struct IntervalValueIteration <: ModelCheckingAlgorithm end
 
 ##### Default algorithm for solving Interval MDP problems
 default_algorithm(problem::AbstractIntervalMDPProblem) = default_algorithm(system(problem))
-default_algorithm(system::StochasticProcess) = RobustValueIteration(default_bellman_algorithm(system))
+default_algorithm(system::StochasticProcess) =
+    RobustValueIteration(default_bellman_algorithm(system))
 
 solve(problem::AbstractIntervalMDPProblem; kwargs...) =
     solve(problem, default_algorithm(problem); kwargs...)
 
-
 function showmcalgorithm(io::IO, prefix, ::RobustValueIteration)
-    println(io, prefix,"├─", styled"Default model checking algorithm: {green:Robust Value Iteration}")
+    println(
+        io,
+        prefix,
+        "├─",
+        styled"Default model checking algorithm: {green:Robust Value Iteration}",
+    )
 end
 
 function showmcalgorithm(io::IO, prefix, ::ModelCheckingAlgorithm)
-    println(io, prefix,"├─", styled"Default model checking algorithm: {green:None}")
+    println(io, prefix, "├─", styled"Default model checking algorithm: {green:None}")
 end

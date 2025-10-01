@@ -52,7 +52,7 @@ using IntervalMDP
 
         # labelling
         map = UInt16[1, 2, 3]
-        lf = LabellingFunction(map)
+        lf = DeterministicLabelling(map)
 
         prodIMDP = ProductProcess(mdp, dfa, lf)
 
@@ -65,7 +65,7 @@ using IntervalMDP
 
         # labelling
         map = UInt16[1, 2]
-        lf = LabellingFunction(map)
+        lf = DeterministicLabelling(map)
 
         @test_throws DimensionMismatch ProductProcess(mdp, dfa, lf)
     end
@@ -84,7 +84,7 @@ using IntervalMDP
 
         # labelling
         map = UInt16[1, 2, 3]
-        lf = LabellingFunction(map)
+        lf = DeterministicLabelling(map)
 
         @test_throws DimensionMismatch ProductProcess(mdp, dfa, lf)
     end
@@ -116,7 +116,7 @@ end
             atomic_props = ["reach"]
             dfa = DFA(delta, istate, atomic_props)
 
-            labelling = LabellingFunction(Int32[1, 1, 2])
+            labelling = DeterministicLabelling(Int32[1, 1, 2])
 
             prod_proc = ProductProcess(mc, dfa, labelling)
 
@@ -178,7 +178,7 @@ end
             atomic_props = ["reach"]
             dfa = DFA(delta, istate, atomic_props)
 
-            labelling = LabellingFunction(Int32[1, 1, 2])
+            labelling = DeterministicLabelling(Int32[1, 1, 2])
 
             prod_proc = ProductProcess(mdp, dfa, labelling)
 

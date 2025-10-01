@@ -62,18 +62,27 @@ struct IntervalAmbiguitySets{R, MR <: AbstractMatrix{R}} <: PolytopicAmbiguitySe
     lower::MR
     gap::MR
 
-    function IntervalAmbiguitySets(lower::MR, gap::MR, check::Val{true}) where {R, MR <: AbstractMatrix{R}}
+    function IntervalAmbiguitySets(
+        lower::MR,
+        gap::MR,
+        check::Val{true},
+    ) where {R, MR <: AbstractMatrix{R}}
         checkprobabilities(lower, gap)
 
         return new{R, MR}(lower, gap)
     end
 
-    function IntervalAmbiguitySets(lower::MR, gap::MR, check::Val{false}) where {R, MR <: AbstractMatrix{R}}
+    function IntervalAmbiguitySets(
+        lower::MR,
+        gap::MR,
+        check::Val{false},
+    ) where {R, MR <: AbstractMatrix{R}}
         return new{R, MR}(lower, gap)
     end
 end
 
-IntervalAmbiguitySets(lower::MR, gap::MR) where {R, MR <: AbstractMatrix{R}} = IntervalAmbiguitySets(lower, gap, Val(true))
+IntervalAmbiguitySets(lower::MR, gap::MR) where {R, MR <: AbstractMatrix{R}} =
+    IntervalAmbiguitySets(lower, gap, Val(true))
 
 # Keyword constructor from lower and upper
 function IntervalAmbiguitySets(; lower::MR, upper::MR) where {MR <: AbstractMatrix}
@@ -121,11 +130,17 @@ function checkprobabilities(lower::AbstractMatrix, gap::AbstractMatrix)
     end
 
     if any(lower .< 0)
-        throw(ArgumentError("The lower bound transition probabilities must be non-negative."))
+        throw(
+            ArgumentError("The lower bound transition probabilities must be non-negative."),
+        )
     end
 
     if any(lower .> 1)
-        throw(ArgumentError("The lower bound transition probabilities must be less than or equal to 1."))
+        throw(
+            ArgumentError(
+                "The lower bound transition probabilities must be less than or equal to 1.",
+            ),
+        )
     end
 
     if any(gap .< 0)
@@ -133,23 +148,39 @@ function checkprobabilities(lower::AbstractMatrix, gap::AbstractMatrix)
     end
 
     if any(gap .> 1)
-        throw(ArgumentError("The gap transition probabilities must be less than or equal to 1."))
+        throw(
+            ArgumentError(
+                "The gap transition probabilities must be less than or equal to 1.",
+            ),
+        )
     end
 
     if any(lower .+ gap .> 1)
-        throw(ArgumentError("The sum of lower and gap transition probabilities must be less than or equal to 1."))
+        throw(
+            ArgumentError(
+                "The sum of lower and gap transition probabilities must be less than or equal to 1.",
+            ),
+        )
     end
 
     sum_lower = vec(sum(lower; dims = 1))
     max_lower_bound = maximum(sum_lower)
     if max_lower_bound > 1
-        throw(ArgumentError("The joint lower bound transition probability per column (max is $max_lower_bound) should be less than or equal to 1."))
+        throw(
+            ArgumentError(
+                "The joint lower bound transition probability per column (max is $max_lower_bound) should be less than or equal to 1.",
+            ),
+        )
     end
 
     sum_upper = sum_lower .+ vec(sum(gap; dims = 1))
     max_upper_bound = minimum(sum_upper)
     if max_upper_bound < 1
-        throw(ArgumentError("The joint upper bound transition probability per column (min is $max_upper_bound) should be greater than or equal to 1."))
+        throw(
+            ArgumentError(
+                "The joint upper bound transition probability per column (min is $max_upper_bound) should be greater than or equal to 1.",
+            ),
+        )
     end
 end
 
@@ -159,11 +190,17 @@ function checkprobabilities!(lower::AbstractSparseMatrix, gap::AbstractSparseMat
     end
 
     if any(nonzeros(lower) .< 0)
-        throw(ArgumentError("The lower bound transition probabilities must be non-negative."))
+        throw(
+            ArgumentError("The lower bound transition probabilities must be non-negative."),
+        )
     end
 
     if any(nonzeros(lower) .> 1)
-        throw(ArgumentError("The lower bound transition probabilities must be less than or equal to 1."))
+        throw(
+            ArgumentError(
+                "The lower bound transition probabilities must be less than or equal to 1.",
+            ),
+        )
     end
 
     if any(nonzeros(gap) .< 0)
@@ -171,23 +208,39 @@ function checkprobabilities!(lower::AbstractSparseMatrix, gap::AbstractSparseMat
     end
 
     if any(nonzeros(gap) .> 1)
-        throw(ArgumentError("The gap transition probabilities must be less than or equal to 1."))
+        throw(
+            ArgumentError(
+                "The gap transition probabilities must be less than or equal to 1.",
+            ),
+        )
     end
 
     if any(nonzeros(lower) .+ nonzeros(gap) .> 1)
-        throw(ArgumentError("The sum of lower and gap transition probabilities must be less than or equal to 1."))
+        throw(
+            ArgumentError(
+                "The sum of lower and gap transition probabilities must be less than or equal to 1.",
+            ),
+        )
     end
 
     sum_lower = vec(sum(lower; dims = 1))
     max_lower_bound = maximum(sum_lower)
     if max_lower_bound > 1
-        throw(ArgumentError("The joint lower bound transition probability per column (max is $max_lower_bound) should be less than or equal to 1."))
+        throw(
+            ArgumentError(
+                "The joint lower bound transition probability per column (max is $max_lower_bound) should be less than or equal to 1.",
+            ),
+        )
     end
 
     sum_upper = sum_lower .+ vec(sum(gap; dims = 1))
     max_upper_bound = minimum(sum_upper)
     if max_upper_bound < 1
-        throw(ArgumentError("The joint upper bound transition probability per column (min is $max_upper_bound) should be greater than or equal to 1."))
+        throw(
+            ArgumentError(
+                "The joint upper bound transition probability per column (min is $max_upper_bound) should be greater than or equal to 1.",
+            ),
+        )
     end
 end
 
@@ -198,7 +251,8 @@ source_shape(p::IntervalAmbiguitySets) = (num_sets(p),)
 action_shape(::IntervalAmbiguitySets) = (1,)
 marginals(p::IntervalAmbiguitySets) = (p,)
 
-maxsupportsize(p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractMatrix{R}} = maximum(supportsize, p)
+maxsupportsize(p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractMatrix{R}} =
+    maximum(supportsize, p)
 
 function Base.getindex(p::IntervalAmbiguitySets, j::Integer)
     # Select by columns only! 
@@ -208,8 +262,13 @@ function Base.getindex(p::IntervalAmbiguitySets, j::Integer)
     return IntervalAmbiguitySet(l, g)
 end
 
-sub2ind(::IntervalAmbiguitySets, jₐ::NTuple{M, T}, jₛ::NTuple{N, T}) where {N, M, T <: Integer} = T(jₛ[1])
-sub2ind(p::IntervalAmbiguitySets, jₐ::CartesianIndex, jₛ::CartesianIndex) = sub2ind(p, Tuple(jₐ), Tuple(jₛ))
+sub2ind(
+    ::IntervalAmbiguitySets,
+    jₐ::NTuple{M, T},
+    jₛ::NTuple{N, T},
+) where {N, M, T <: Integer} = T(jₛ[1])
+sub2ind(p::IntervalAmbiguitySets, jₐ::CartesianIndex, jₛ::CartesianIndex) =
+    sub2ind(p, Tuple(jₐ), Tuple(jₛ))
 Base.getindex(p::IntervalAmbiguitySets, jₐ, jₛ) = p[sub2ind(p, jₐ, jₛ)]
 
 Base.iterate(p::IntervalAmbiguitySets) = (p[1], 2)
@@ -222,25 +281,45 @@ function Base.iterate(p::IntervalAmbiguitySets, state)
 end
 Base.length(p::IntervalAmbiguitySets) = num_sets(p)
 
-function showambiguitysets(io::IO, prefix, ::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractMatrix}
+function showambiguitysets(
+    io::IO,
+    prefix,
+    ::IntervalAmbiguitySets{R, MR},
+) where {R, MR <: AbstractMatrix}
     println(io, prefix, styled"└─ Ambiguity set type: Interval (dense, {code:$MR})")
 end
 
-function showambiguitysets(io::IO, prefix, p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractSparseMatrix}
+function showambiguitysets(
+    io::IO,
+    prefix,
+    p::IntervalAmbiguitySets{R, MR},
+) where {R, MR <: AbstractSparseMatrix}
     println(io, prefix, styled"├─ Ambiguity set type: Interval (sparse, {code:$MR})")
     num_transitions = nnz(p.gap)
     max_support = maxsupportsize(p)
-    println(io, prefix, styled"└─ Transitions: {magenta: $num_transitions (max support: $max_support)}")
+    println(
+        io,
+        prefix,
+        styled"└─ Transitions: {magenta: $num_transitions (max support: $max_support)}",
+    )
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractMatrix}
+function Base.show(
+    io::IO,
+    mime::MIME"text/plain",
+    p::IntervalAmbiguitySets{R, MR},
+) where {R, MR <: AbstractMatrix}
     println(io, styled"{code:IntervalAmbiguitySets}")
     println(io, styled"├─ Storage type: {code:$MR}")
     println(io, "├─ Number of target states: ", num_target(p))
     println(io, "└─ Number of ambiguity sets: ", num_sets(p))
 end
 
-function Base.show(io::IO, mime::MIME"text/plain", p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractSparseMatrix}
+function Base.show(
+    io::IO,
+    mime::MIME"text/plain",
+    p::IntervalAmbiguitySets{R, MR},
+) where {R, MR <: AbstractSparseMatrix}
     println(io, styled"{code:IntervalAmbiguitySets}")
     println(io, styled"├─ Storage type: {code:$MR}")
     println(io, "├─ Number of target states: ", num_target(p))
@@ -280,11 +359,17 @@ Return the gap between upper and lower bound transition probabilities of the amb
 gap(p::IntervalAmbiguitySet) = p.gap
 gap(p::IntervalAmbiguitySet, destination) = p.gap[destination]
 
-const ColumnView{Tv} = SubArray{Tv, 1, <:AbstractMatrix{Tv}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}
+const ColumnView{Tv} =
+    SubArray{Tv, 1, <:AbstractMatrix{Tv}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}
 support(p::IntervalAmbiguitySet{R, <:ColumnView{R}}) where {R} = eachindex(p.gap)
 supportsize(p::IntervalAmbiguitySet{R, <:ColumnView{R}}) where {R} = length(p.gap)
 
-const SparseColumnView{Tv, Ti} = SubArray{Tv, 1, <:SparseArrays.AbstractSparseMatrixCSC{Tv, Ti}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}
+const SparseColumnView{Tv, Ti} = SubArray{
+    Tv,
+    1,
+    <:SparseArrays.AbstractSparseMatrixCSC{Tv, Ti},
+    Tuple{Base.Slice{Base.OneTo{Int}}, Int},
+}
 support(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = rowvals(p.gap)
 supportsize(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = nnz(p.gap)
 
@@ -303,7 +388,9 @@ Base.IteratorEltype(::Type{<:IntervalAmbiguitySetVertexIterator}) = Base.HasElty
 Base.eltype(::IntervalAmbiguitySetVertexIterator{R}) where {R} = Vector{R}
 Base.IteratorSize(::Type{<:IntervalAmbiguitySetVertexIterator}) = Base.SizeUnknown()
 
-function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}) where {R, VR <: AbstractVector{R}}
+function Base.iterate(
+    it::IntervalAmbiguitySetVertexIterator{R, VR},
+) where {R, VR <: AbstractVector{R}}
     permutation = collect(1:length(support(it.set)))
 
     v = it.result
@@ -326,7 +413,10 @@ function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}) where {R, V
     return v, (permutation, break_idx)
 end
 
-function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}, state) where {R, VR <: AbstractVector{R}}
+function Base.iterate(
+    it::IntervalAmbiguitySetVertexIterator{R, VR},
+    state,
+) where {R, VR <: AbstractVector{R}}
     (permutation, last_break_idx) = state
 
     # Skip permutations that would lead to the same vertex
@@ -335,7 +425,7 @@ function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}, state) wher
     for j in last_break_idx:-1:1
         # Find smallest permutation[k] in permutation[j+1:end] where permutation[j] < permutation[k]
         next_in_suffix = nothing
-        for k in j+1:length(permutation)
+        for k in (j + 1):length(permutation)
             if permutation[k] > permutation[j]
                 if isnothing(next_in_suffix) || permutation[k] < permutation[next_in_suffix]
                     next_in_suffix = k
@@ -348,7 +438,8 @@ function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}, state) wher
         end
 
         # Swap
-        permutation[j], permutation[next_in_suffix] = permutation[next_in_suffix], permutation[j]
+        permutation[j], permutation[next_in_suffix] =
+            permutation[next_in_suffix], permutation[j]
         break_j = j
         break
     end
@@ -357,7 +448,7 @@ function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}, state) wher
         return nothing
     end
 
-    sort!(@view(permutation[break_j+1:end]))
+    sort!(@view(permutation[(break_j + 1):end]))
 
     # Now compute the vertex for this new permutation
     v = it.result
@@ -385,5 +476,6 @@ function Base.iterate(it::IntervalAmbiguitySetVertexIterator{R, VR}, state) wher
 end
 
 vertex_generator(p::IntervalAmbiguitySet) = IntervalAmbiguitySetVertexIterator(p)
-vertex_generator(p::IntervalAmbiguitySet, result::Vector) = IntervalAmbiguitySetVertexIterator(p, result)
+vertex_generator(p::IntervalAmbiguitySet, result::Vector) =
+    IntervalAmbiguitySetVertexIterator(p, result)
 vertices(p::IntervalAmbiguitySet) = map(copy, vertex_generator(p))

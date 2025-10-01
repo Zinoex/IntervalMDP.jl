@@ -129,7 +129,6 @@ function checkproperty(prop::FiniteTimeDFAReachability, system)
     checkstatebounds(reach(prop), system)
 end
 
-
 isfinitetime(prop::FiniteTimeDFAReachability) = true
 
 """
@@ -197,7 +196,11 @@ reach(prop::InfiniteTimeDFAReachability) = prop.reach
 
 function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeDFAReachability)
     println(io, first_prefix, styled"{code:InfiniteTimeDFAReachability}")
-    println(io, prefix, styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
     println(io, prefix, styled"└─ Reach states: {magenta:$(reach(prop))}")
 end
 
@@ -317,7 +320,11 @@ reach(prop::InfiniteTimeReachability) = prop.reach
 
 function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachability)
     println(io, first_prefix, styled"{code:InfiniteTimeReachability}")
-    println(io, prefix, styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
     println(io, prefix, styled"└─ Reach states: {magenta:$(reach(prop))}")
 end
 
@@ -549,7 +556,11 @@ avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
 
 function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachAvoid)
     println(io, first_prefix, styled"{code:InfiniteTimeReachAvoid}")
-    println(io, prefix, styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
     println(io, prefix, styled"├─ Reach states: {magenta:$(reach(prop))}")
     println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
 end
@@ -742,7 +753,11 @@ avoid(prop::InfiniteTimeSafety) = prop.avoid
 
 function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeSafety)
     println(io, first_prefix, styled"{code:InfiniteTimeSafety}")
-    println(io, prefix, styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
     println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
 end
 
@@ -835,7 +850,11 @@ function showproperty(io::IO, first_prefix, prefix, prop::FiniteTimeReward)
     println(io, first_prefix, styled"{code:FiniteTimeReward}")
     println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(prop))}")
     println(io, prefix, styled"├─ Discount factor: {magenta:$(discount(prop))}")
-    println(io, prefix, styled"└─ Reward storage: {magenta:$(eltype(reward(prop))), $(size(reward(prop)))}")
+    println(
+        io,
+        prefix,
+        styled"└─ Reward storage: {magenta:$(eltype(reward(prop))), $(size(reward(prop)))}",
+    )
 end
 
 """
@@ -897,9 +916,17 @@ convergence_eps(prop::InfiniteTimeReward) = prop.convergence_eps
 
 function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReward)
     println(io, first_prefix, styled"{code:InfiniteTimeReward}")
-    println(io, prefix, styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
     println(io, prefix, styled"├─ Discount factor: {magenta:$(discount(prop))}")
-    println(io, prefix, styled"└─ Reward storage: {magenta:$(eltype(reward(prop))), $(size(reward(prop)))}")
+    println(
+        io,
+        prefix,
+        styled"└─ Reward storage: {magenta:$(eltype(reward(prop))), $(size(reward(prop)))}",
+    )
 end
 
 ## Hitting time
@@ -974,7 +1001,11 @@ convergence_eps(prop::ExpectedExitTime) = prop.convergence_eps
 
 function showproperty(io::IO, first_prefix, prefix, prop::ExpectedExitTime)
     println(io, first_prefix, styled"{code:ExpectedExitTime}")
-    println(io, prefix, styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
     println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
 end
 

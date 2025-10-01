@@ -13,12 +13,7 @@ function construct_strategy_cache end
 # Strategy cache for not storing policies - useful for dispatching
 struct NoStrategyCache <: OptimizingStrategyCache end
 
-function construct_strategy_cache(
-    ::Union{
-        <:AbstractAmbiguitySets,
-        <:StochasticProcess,
-    },
-)
+function construct_strategy_cache(::Union{<:AbstractAmbiguitySets, <:StochasticProcess})
     return NoStrategyCache()
 end
 
@@ -39,7 +34,8 @@ construct_strategy_cache(problem::VerificationProblem{S, F, C}) where {S, F, C} 
     GivenStrategyCache(strategy(problem))
 time_length(cache::GivenStrategyCache) = time_length(cache.strategy)
 
-struct ActiveGivenStrategyCache{N, A <: AbstractArray{NTuple{N, Int32}}} <: NonOptimizingStrategyCache
+struct ActiveGivenStrategyCache{N, A <: AbstractArray{NTuple{N, Int32}}} <:
+       NonOptimizingStrategyCache
     strategy::A
 end
 Base.getindex(cache::GivenStrategyCache, k) = ActiveGivenStrategyCache(cache.strategy[k])
@@ -53,12 +49,15 @@ construct_strategy_cache(problem::ControlSynthesisProblem) = construct_strategy_
 )
 
 # Strategy cache for storing time-varying policies
-struct TimeVaryingStrategyCache{N, A <: AbstractArray{NTuple{N, Int32}}} <: OptimizingStrategyCache
+struct TimeVaryingStrategyCache{N, A <: AbstractArray{NTuple{N, Int32}}} <:
+       OptimizingStrategyCache
     cur_strategy::A
     strategy::Vector{A}
 end
 
-function TimeVaryingStrategyCache(cur_strategy::A) where {N, A <: AbstractArray{NTuple{N, Int32}}}
+function TimeVaryingStrategyCache(
+    cur_strategy::A,
+) where {N, A <: AbstractArray{NTuple{N, Int32}}}
     return TimeVaryingStrategyCache(cur_strategy, Vector{A}())
 end
 
@@ -70,7 +69,8 @@ function construct_strategy_cache(problem::ControlSynthesisProblem, time_varying
     return TimeVaryingStrategyCache(cur_strategy)
 end
 
-cachetostrategy(strategy_cache::TimeVaryingStrategyCache) = TimeVaryingStrategy(collect(reverse(strategy_cache.strategy)))
+cachetostrategy(strategy_cache::TimeVaryingStrategyCache) =
+    TimeVaryingStrategy(collect(reverse(strategy_cache.strategy)))
 
 function extract_strategy!(
     strategy_cache::TimeVaryingStrategyCache,
@@ -90,7 +90,8 @@ function step_postprocess_strategy_cache!(strategy_cache::TimeVaryingStrategyCac
 end
 
 # Strategy cache for storing stationary policies
-struct StationaryStrategyCache{N, A <: AbstractArray{NTuple{N, Int32}}} <: OptimizingStrategyCache
+struct StationaryStrategyCache{N, A <: AbstractArray{NTuple{N, Int32}}} <:
+       OptimizingStrategyCache
     strategy::A
 end
 
@@ -105,7 +106,8 @@ function construct_strategy_cache(
     return StationaryStrategyCache(strategy)
 end
 
-cachetostrategy(strategy_cache::StationaryStrategyCache) = StationaryStrategy(strategy_cache.strategy)
+cachetostrategy(strategy_cache::StationaryStrategyCache) =
+    StationaryStrategy(strategy_cache.strategy)
 
 function extract_strategy!(
     strategy_cache::StationaryStrategyCache,
