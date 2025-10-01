@@ -71,7 +71,13 @@ Vcur = IntervalMDP.bellman(Vprev, model; upper_bound = false)
     For a hot-loop, it is more efficient to use `bellman!` and pass in pre-allocated objects.
 
 """
-function bellman(V, model, alg=default_bellman_algorithm(model); upper_bound = false, maximize = true)
+function bellman(
+    V,
+    model,
+    alg = default_bellman_algorithm(model);
+    upper_bound = false,
+    maximize = true,
+)
     Vres = similar(V, source_shape(model))
 
     return bellman!(Vres, V, model, alg; upper_bound = upper_bound, maximize = maximize)
@@ -156,7 +162,14 @@ IntervalMDP.bellman!(workspace, strategy_cache, Vcur, Vprev, model; upper_bound 
 """
 function bellman! end
 
-function bellman!(Vres, V, model, alg=default_bellman_algorithm(model); upper_bound = false, maximize = true)
+function bellman!(
+    Vres,
+    V,
+    model,
+    alg = default_bellman_algorithm(model);
+    upper_bound = false,
+    maximize = true,
+)
     workspace = construct_workspace(model, alg)
     strategy_cache = construct_strategy_cache(model)
 
@@ -213,7 +226,7 @@ function bellman!(
         mp,
         lf,
         upper_bound,
-        maximize
+        maximize,
     )
 end
 
@@ -224,7 +237,7 @@ function _bellman_helper!(
     V,
     dfa::DFA,
     mp::IntervalMarkovProcess,
-    lf::LabellingFunction,
+    lf::DeterministicLabelling,
     upper_bound = false,
     maximize = true,
 )
@@ -252,7 +265,7 @@ function _bellman_helper!(
         )
     end
 
-    return Vres   
+    return Vres
 end
 
 function _bellman_helper!(
@@ -303,9 +316,8 @@ function _bellman_helper!(
         )
     end
 
-    return Vres   
+    return Vres
 end
-
 
 function localize_strategy_cache(strategy_cache::NoStrategyCache, dfa_state)
     return strategy_cache
@@ -369,7 +381,10 @@ end
 
 # Threaded
 function _bellman_helper!(
-    workspace::Union{ThreadedDenseIntervalOMaxWorkspace, ThreadedSparseIntervalOMaxWorkspace},
+    workspace::Union{
+        ThreadedDenseIntervalOMaxWorkspace,
+        ThreadedSparseIntervalOMaxWorkspace,
+    },
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
@@ -383,16 +398,7 @@ function _bellman_helper!(
 
     @threadstid tid for jₛ in CartesianIndices(source_shape(marginal))
         @inbounds ws = workspace[tid]
-        state_bellman!(
-            ws,
-            strategy_cache,
-            Vres,
-            V,
-            marginal,
-            jₛ,
-            upper_bound,
-            maximize,
-        )
+        state_bellman!(ws, strategy_cache, Vres, V, marginal, jₛ, upper_bound, maximize)
     end
 
     return Vres
@@ -427,7 +433,8 @@ function state_bellman!(
         for jₐ in CartesianIndices(action_shape(marginal))
             ambiguity_set = marginal[jₐ, jₛ]
             budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
-            workspace.actions[jₐ] = state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)
+            workspace.actions[jₐ] =
+                state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)
         end
 
         Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, V, jₛ, maximize)
@@ -459,7 +466,8 @@ Base.@propagate_inbounds function state_action_bellman(
     budget,
     upper_bound,
 )
-    return dot(V, lower(ambiguity_set)) + gap_value(V, gap(ambiguity_set), budget, permutation(workspace))
+    return dot(V, lower(ambiguity_set)) +
+           gap_value(V, gap(ambiguity_set), budget, permutation(workspace))
 end
 
 Base.@propagate_inbounds function gap_value(
@@ -536,16 +544,7 @@ function _bellman_helper!(
     maximize = true,
 )
     for jₛ in CartesianIndices(source_shape(model))
-        state_bellman!(
-            workspace,
-            strategy_cache,
-            Vres,
-            V,
-            model,
-            jₛ,
-            upper_bound,
-            maximize,
-        )
+        state_bellman!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
 
     return Vres
@@ -563,21 +562,11 @@ function _bellman_helper!(
 )
     @threadstid tid for jₛ in CartesianIndices(source_shape(model))
         @inbounds ws = workspace[tid]
-        state_bellman!(
-            ws,
-            strategy_cache,
-            Vres,
-            V,
-            model,
-            jₛ,
-            upper_bound,
-            maximize,
-        )
+        state_bellman!(ws, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
 
     return Vres
 end
-
 
 function state_bellman!(
     workspace::FactoredIntervalMcCormickWorkspace,
@@ -592,7 +581,8 @@ function state_bellman!(
     @inbounds begin
         for jₐ in CartesianIndices(action_shape(model))
             ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
-            workspace.actions[jₐ] = state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
+            workspace.actions[jₐ] =
+                state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
         end
 
         Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, V, jₛ, maximize)
@@ -626,7 +616,7 @@ Base.@propagate_inbounds function state_action_bellman(
 
     model = workspace.model
     JuMP.empty!(model)
-    
+
     # Recursively add McCormick variables and constraints for each ambiguity set
     p, _, _ = mccormick_branch(model, ambiguity_sets)
 
@@ -663,7 +653,7 @@ function mccormick_branch(model, ambiguity_sets)
         else
             mid = fld(length(ambiguity_sets), 2) + 1
             p, p_lower, p_upper = mccormick_branch(model, ambiguity_sets[1:mid])
-            q, q_lower, q_upper = mccormick_branch(model, ambiguity_sets[mid+1:end])
+            q, q_lower, q_upper = mccormick_branch(model, ambiguity_sets[(mid + 1):end])
         end
 
         # McCormick envelopes
@@ -676,11 +666,31 @@ function mccormick_branch(model, ambiguity_sets)
                 w_lower[I, J] = p_lower[I] * q_lower[J]
                 w_upper[I, J] = p_upper[I] * q_upper[J]
 
-                w[I, J] = @variable(model, lower_bound = w_lower[I, J], upper_bound = w_upper[I, J])
-                @constraint(model, w[I, J] >= p[I] * q_lower[J] + q[J] * p_lower[I] − p_lower[I] * q_lower[J])
-                @constraint(model, w[I, J] >= p[I] * q_upper[J] + q[J] * p_upper[I] − p_upper[I] * q_upper[J])
-                @constraint(model, w[I, J] <= p[I] * q_upper[J] + q[J] * p_lower[I] − p_lower[I] * q_upper[J])
-                @constraint(model, w[I, J] <= p[I] * q_lower[J] + q[J] * p_upper[I] − p_upper[I] * q_lower[J])
+                w[I, J] = @variable(
+                    model,
+                    lower_bound = w_lower[I, J],
+                    upper_bound = w_upper[I, J]
+                )
+                @constraint(
+                    model,
+                    w[I, J] >=
+                    p[I] * q_lower[J] + q[J] * p_lower[I] − p_lower[I] * q_lower[J]
+                )
+                @constraint(
+                    model,
+                    w[I, J] >=
+                    p[I] * q_upper[J] + q[J] * p_upper[I] − p_upper[I] * q_upper[J]
+                )
+                @constraint(
+                    model,
+                    w[I, J] <=
+                    p[I] * q_upper[J] + q[J] * p_lower[I] − p_lower[I] * q_upper[J]
+                )
+                @constraint(
+                    model,
+                    w[I, J] <=
+                    p[I] * q_lower[J] + q[J] * p_upper[I] − p_upper[I] * q_lower[J]
+                )
             end
         end
         @constraint(model, sum(w) == one(eltype(p_lower)))
@@ -688,7 +698,6 @@ function mccormick_branch(model, ambiguity_sets)
         return w, w_lower, w_upper
     end
 end
-
 
 ####################################################
 # O-Maximization-based Bellman operator for fIMDPs #
@@ -760,8 +769,16 @@ function state_bellman!(
     @inbounds begin
         for jₐ in CartesianIndices(action_shape(model))
             ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
-            budgets = ntuple(r -> workspace.budgets[r][sub2ind(marginals(model)[r], jₐ, jₛ)], N)
-            workspace.actions[jₐ] = state_action_bellman(workspace, V, model, ambiguity_sets, budgets, upper_bound)
+            budgets =
+                ntuple(r -> workspace.budgets[r][sub2ind(marginals(model)[r], jₐ, jₛ)], N)
+            workspace.actions[jₐ] = state_action_bellman(
+                workspace,
+                V,
+                model,
+                ambiguity_sets,
+                budgets,
+                upper_bound,
+            )
         end
 
         Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, V, jₛ, maximize)
@@ -782,7 +799,8 @@ function state_bellman!(
         jₐ = CartesianIndex(strategy_cache[jₛ])
         ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
         budgets = ntuple(r -> workspace.budgets[r][sub2ind(marginals(model)[r], jₐ, jₛ)], N)
-        Vres[jₛ] = state_action_bellman(workspace, V, model, ambiguity_sets, budgets, upper_bound)
+        Vres[jₛ] =
+            state_action_bellman(workspace, V, model, ambiguity_sets, budgets, upper_bound)
     end
 end
 
@@ -804,7 +822,7 @@ Base.@propagate_inbounds function state_action_bellman(
             @view(V[:, I]),
             ambiguity_sets[1],
             budgets[1],
-            upper_bound
+            upper_bound,
         )
         Vₑ[1][I[1]] = v
 
@@ -826,7 +844,13 @@ Base.@propagate_inbounds function state_action_bellman(
     end
 
     # Last dimension
-    v = orthogonal_inner_bellman!(workspace, Vₑ[end], ambiguity_sets[end], budgets[end], upper_bound)
+    v = orthogonal_inner_bellman!(
+        workspace,
+        Vₑ[end],
+        ambiguity_sets[end],
+        budgets[end],
+        upper_bound,
+    )
 
     return v
 end
@@ -849,7 +873,6 @@ Base.@propagate_inbounds function orthogonal_inner_bellman!(
     return dot(V, lower(ambiguity_set)) + gap_value(Vp_workspace, budget)
 end
 
-
 ##########################################################
 # Vertex enumeration-based Bellman operator for fIMDPs #
 ##########################################################
@@ -865,16 +888,7 @@ function _bellman_helper!(
     maximize = true,
 )
     for jₛ in CartesianIndices(source_shape(model))
-        state_bellman!(
-            workspace,
-            strategy_cache,
-            Vres,
-            V,
-            model,
-            jₛ,
-            upper_bound,
-            maximize,
-        )
+        state_bellman!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
 
     return Vres
@@ -892,16 +906,7 @@ function _bellman_helper!(
 )
     @threadstid tid for jₛ in CartesianIndices(source_shape(model))
         @inbounds ws = workspace[tid]
-        state_bellman!(
-            ws,
-            strategy_cache,
-            Vres,
-            V,
-            model,
-            jₛ,
-            upper_bound,
-            maximize,
-        )
+        state_bellman!(ws, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
 
     return Vres
@@ -920,7 +925,8 @@ function state_bellman!(
     @inbounds begin
         for jₐ in CartesianIndices(action_shape(model))
             ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
-            workspace.actions[jₐ] = state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
+            workspace.actions[jₐ] =
+                state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
         end
 
         Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, V, jₛ, maximize)
@@ -956,7 +962,10 @@ Base.@propagate_inbounds function state_action_bellman(
     optfunc = upper_bound ? max : min
 
     for marginal_vertices in Iterators.product(iterators...)
-        v = sum(V[I] * prod(r -> marginal_vertices[r][I[r]], eachindex(ambiguity_sets)) for I in CartesianIndices(num_target.(ambiguity_sets)))
+        v = sum(
+            V[I] * prod(r -> marginal_vertices[r][I[r]], eachindex(ambiguity_sets)) for
+            I in CartesianIndices(num_target.(ambiguity_sets))
+        )
         optval = optfunc(optval, v)
     end
 

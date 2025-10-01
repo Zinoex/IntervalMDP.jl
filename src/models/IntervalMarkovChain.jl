@@ -1,9 +1,16 @@
-function IntervalMarkovChain(marginal::Marginal{<:IntervalAmbiguitySets}, initial_states=AllStates())
+function IntervalMarkovChain(
+    marginal::Marginal{<:IntervalAmbiguitySets},
+    initial_states = AllStates(),
+)
     state_vars = (Int32(num_target(marginal)),)
     source_dims = source_shape(marginal)
 
     if action_shape(marginal) != (1,)
-        throw(DimensionMismatch("The action shape of the marginal must be (1,) for an IntervalMarkovChain. Got $(action_shape(marginal))."))
+        throw(
+            DimensionMismatch(
+                "The action shape of the marginal must be (1,) for an IntervalMarkovChain. Got $(action_shape(marginal)).",
+            ),
+        )
     end
 
     action_vars = (Int32(1),)
@@ -70,7 +77,10 @@ FactoredRobustMarkovDecisionProcess
    └─Default Bellman operator algorithm: O-Maximization
 ```
 """
-function IntervalMarkovChain(ambiguity_set::IntervalAmbiguitySets, initial_states=AllStates())
+function IntervalMarkovChain(
+    ambiguity_set::IntervalAmbiguitySets,
+    initial_states = AllStates(),
+)
     source_dims = (num_sets(ambiguity_set),)
     action_vars = (1,)
     marginal = Marginal(ambiguity_set, source_dims, action_vars)

@@ -37,7 +37,7 @@ prob3 = IntervalAmbiguitySets(;
         0.0 0.0
         0.0 0.0
         1.0 1.0
-    ])
+    ]),
 )
 
 transition_probs = [prob1, prob2, prob3]

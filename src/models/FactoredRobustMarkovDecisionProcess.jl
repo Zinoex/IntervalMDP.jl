@@ -128,8 +128,8 @@ struct FactoredRobustMarkovDecisionProcess{
     state_vars::NTuple{N, Int32}   # N is the number of state variables and state_vars[n] is the number of states for state variable n
     action_vars::NTuple{M, Int32}  # M is the number of action variables and action_vars[m] is the number of actions for action variable m
 
-    source_dims::NTuple{N, Int32} 
-    
+    source_dims::NTuple{N, Int32}
+
     transition::P
     initial_states::VI
 
@@ -143,7 +143,13 @@ struct FactoredRobustMarkovDecisionProcess{
     ) where {N, M, P <: NTuple{N, Marginal}, VI <: InitialStates}
         check_rmdp(state_vars, action_vars, source_dims, transition, initial_states)
 
-        return new{N, M, P, VI}(state_vars, action_vars, source_dims, transition, initial_states)
+        return new{N, M, P, VI}(
+            state_vars,
+            action_vars,
+            source_dims,
+            transition,
+            initial_states,
+        )
     end
 
     function FactoredRobustMarkovDecisionProcess(
@@ -154,7 +160,13 @@ struct FactoredRobustMarkovDecisionProcess{
         initial_states::VI,
         check::Val{false},
     ) where {N, M, P <: NTuple{N, Marginal}, VI <: InitialStates}
-        return new{N, M, P, VI}(state_vars, action_vars, source_dims, transition, initial_states)
+        return new{N, M, P, VI}(
+            state_vars,
+            action_vars,
+            source_dims,
+            transition,
+            initial_states,
+        )
     end
 end
 const FactoredRMDP = FactoredRobustMarkovDecisionProcess
@@ -166,7 +178,14 @@ function FactoredRMDP(
     transition::P,
     initial_states::VI = AllStates(),
 ) where {N, M, P <: NTuple{N, Marginal}, VI <: InitialStates}
-    return FactoredRobustMarkovDecisionProcess(state_vars, action_vars, source_dims, transition, initial_states, Val(true))
+    return FactoredRobustMarkovDecisionProcess(
+        state_vars,
+        action_vars,
+        source_dims,
+        transition,
+        initial_states,
+        Val(true),
+    )
 end
 
 function FactoredRMDP(
@@ -180,7 +199,13 @@ function FactoredRMDP(
     action_vars_32 = Int32.(action_vars)
     source_dims_32 = Int32.(source_dims)
 
-    return FactoredRobustMarkovDecisionProcess(state_vars_32, action_vars_32, source_dims_32, transition, initial_states)
+    return FactoredRobustMarkovDecisionProcess(
+        state_vars_32,
+        action_vars_32,
+        source_dims_32,
+        transition,
+        initial_states,
+    )
 end
 
 function FactoredRMDP(
@@ -189,7 +214,13 @@ function FactoredRMDP(
     transition::NTuple{N, Marginal},
     initial_states::VI = AllStates(),
 ) where {N, M, VI <: InitialStates}
-    return FactoredRobustMarkovDecisionProcess(state_vars, action_vars, state_vars, transition, initial_states)
+    return FactoredRobustMarkovDecisionProcess(
+        state_vars,
+        action_vars,
+        state_vars,
+        transition,
+        initial_states,
+    )
 end
 
 function check_rmdp(state_vars, action_vars, source_dims, transition, initial_states)
@@ -204,8 +235,15 @@ function check_state_values(state_vars, source_dims)
         throw(ArgumentError("All state variables must be positive integers."))
     end
 
-    if any(i -> source_dims[i] <= 0 || source_dims[i] > state_vars[i], eachindex(state_vars))
-        throw(ArgumentError("All source dimensions must be positive integers and less than or equal to the corresponding state variable."))
+    if any(
+        i -> source_dims[i] <= 0 || source_dims[i] > state_vars[i],
+        eachindex(state_vars),
+    )
+        throw(
+            ArgumentError(
+                "All source dimensions must be positive integers and less than or equal to the corresponding state variable.",
+            ),
+        )
     end
 end
 
@@ -218,17 +256,29 @@ end
 function check_transition(state_dims, action_dims, source_dims, transition)
     for (i, marginal) in enumerate(transition)
         if num_target(marginal) != state_dims[i]
-            throw(DimensionMismatch("Marginal $i has incorrect number of target states. Expected $(state_dims[i]), got $(num_target(marginal))."))
+            throw(
+                DimensionMismatch(
+                    "Marginal $i has incorrect number of target states. Expected $(state_dims[i]), got $(num_target(marginal)).",
+                ),
+            )
         end
 
         expected_source_shape = getindex.((source_dims,), state_variables(marginal))
         if source_shape(marginal) != expected_source_shape
-            throw(DimensionMismatch("Marginal $i has incorrect source shape. Expected $expected_source_shape, got $(source_shape(marginal))."))
+            throw(
+                DimensionMismatch(
+                    "Marginal $i has incorrect source shape. Expected $expected_source_shape, got $(source_shape(marginal)).",
+                ),
+            )
         end
 
         expected_action_shape = getindex.((action_dims,), action_variables(marginal))
         if action_shape(marginal) != expected_action_shape
-            throw(DimensionMismatch("Marginal $i has incorrect action shape. Expected $expected_action_shape, got $(action_shape(marginal))."))
+            throw(
+                DimensionMismatch(
+                    "Marginal $i has incorrect action shape. Expected $expected_action_shape, got $(action_shape(marginal)).",
+                ),
+            )
         end
     end
 end
@@ -245,7 +295,11 @@ function check_initial_states(state_vars, initial_states)
         end
 
         if !all(1 .<= initial_state .<= state_vars)
-            throw(DimensionMismatch("Each initial state must be within the valid range of states (should be 1 .<= initial_state <= $state_vars, was initial_state=$initial_state)."))
+            throw(
+                DimensionMismatch(
+                    "Each initial state must be within the valid range of states (should be 1 .<= initial_state <= $state_vars, was initial_state=$initial_state).",
+                ),
+            )
         end
     end
 end
@@ -254,7 +308,7 @@ end
     state_values(mdp::FactoredRMDP)
     
 Return a tuple with the number of states for each state variable in the fRMDP.
-"""    
+"""
 state_values(mdp::FactoredRMDP) = mdp.state_vars
 state_values(mdp::FactoredRMDP, r) = mdp.state_vars[r]
 
@@ -307,12 +361,12 @@ modeltype(mdp::FactoredRMDP{N}) where {N} = modeltype(mdp, isinterval.(mdp.trans
 modeltype(::FactoredRMDP{N}, ::NTuple{N, IsInterval}) where {N} = IsFIMDP()
 
 # If not, check if all marginals are polytopic ambiguity sets
-modeltype(::FactoredRMDP{N}, ::NTuple{N, AbstractIsInterval}) where {N} = modeltype(mdp, ispolytopic.(mdp.transition))
+modeltype(::FactoredRMDP{N}, ::NTuple{N, AbstractIsInterval}) where {N} =
+    modeltype(mdp, ispolytopic.(mdp.transition))
 modeltype(::FactoredRMDP{N}, ::NTuple{N, IsPolytopic}) where {N} = IsFPMDP()
 
 # Otherwise, it is a general factored robust MDP
 modeltype(::FactoredRMDP{N}, ::NTuple{N, AbstractIsPolytopic}) where {N} = IsFRMDP()
-
 
 ### Pretty printing
 function Base.show(io::IO, mime::MIME"text/plain", mdp::FactoredRMDP)
@@ -321,8 +375,20 @@ end
 
 function showsystem(io::IO, first_prefix, prefix, mdp::FactoredRMDP{N, M}) where {N, M}
     println(io, first_prefix, styled"{code:FactoredRobustMarkovDecisionProcess}")
-    println(io, prefix, "├─ ", N, styled" state variables with cardinality: {magenta:$(state_values(mdp))}")
-    println(io, prefix, "├─ ", M, styled" action variables with cardinality: {magenta:$(action_values(mdp))}")
+    println(
+        io,
+        prefix,
+        "├─ ",
+        N,
+        styled" state variables with cardinality: {magenta:$(state_values(mdp))}",
+    )
+    println(
+        io,
+        prefix,
+        "├─ ",
+        M,
+        styled" action variables with cardinality: {magenta:$(action_values(mdp))}",
+    )
     if initial_states(mdp) isa AllStates
         println(io, prefix, "├─ ", styled"Initial states: {magenta:All states}")
     else
@@ -331,7 +397,7 @@ function showsystem(io::IO, first_prefix, prefix, mdp::FactoredRMDP{N, M}) where
 
     println(io, prefix, "├─ ", styled"Transition marginals:")
     marginal_prefix = prefix * "│  "
-    for (i, marginal) in enumerate(mdp.transition[1:end - 1])
+    for (i, marginal) in enumerate(mdp.transition[1:(end - 1)])
         println(io, marginal_prefix, "├─ Marginal $i: ")
         showmarginal(io, marginal_prefix * "│  ", marginal)
     end

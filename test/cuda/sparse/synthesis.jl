@@ -1,7 +1,6 @@
 using Revise, Test
 using IntervalMDP, CUDA, SparseArrays
 
-
 prob1 = IntervalAmbiguitySets(;
     lower = sparse([
         0.0 0.5
@@ -38,7 +37,7 @@ prob3 = IntervalAmbiguitySets(;
         0.0 0.0
         0.0 0.0
         1.0 1.0
-    ])
+    ]),
 )
 
 transition_probs = [prob1, prob2, prob3]

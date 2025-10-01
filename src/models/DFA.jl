@@ -33,7 +33,7 @@ struct DFA{T <: TransitionFunction, DA <: AbstractDict{String, Int32}} <:
 
     # TODO: Add explicit sink states for non-accepting self-looping states since we do not need to iterate for these.
     # TODO: Detection of non-accepting end components. They can be replaced by a single state.
-    
+
     function DFA(
         transition::T,
         initial_state::Int32,

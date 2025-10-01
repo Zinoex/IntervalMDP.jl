@@ -1,17 +1,16 @@
 using Revise, Test
 using IntervalMDP, SparseArrays
 
-
 @testset for N in [Float32, Float64, Rational{BigInt}]
     prob1 = IntervalAmbiguitySets(;
         lower = sparse(N[
-            0     1//2
+            0 1//2
             1//10 3//10
-            1//5  1//10
+            1//5 1//10
         ]),
         upper = sparse(N[
-            1//2  7//10
-            3//5  1//2
+            1//2 7//10
+            3//5 1//2
             7//10 3//10
         ]),
     )
@@ -19,7 +18,7 @@ using IntervalMDP, SparseArrays
     prob2 = IntervalAmbiguitySets(;
         lower = sparse(N[
             1//10 1//5
-            1//5  3//10
+            1//5 3//10
             3//10 2//5
         ]),
         upper = sparse(N[
@@ -39,7 +38,7 @@ using IntervalMDP, SparseArrays
             0 0
             0 0
             1 1
-        ])
+        ]),
     )
 
     transition_probs = [prob1, prob2, prob3]
@@ -53,11 +52,19 @@ using IntervalMDP, SparseArrays
     @testset "bellman" begin
         V = N[1, 2, 3]
         Vres = IntervalMDP.bellman(V, mdp; upper_bound = false, maximize = true)
-        @test Vres ≈ N[(1//2) * 1 + (3//10) * 2 + (1//5) * 3, (3//10) * 1 + (3//10) * 2 + (2//5) * 3, 1 * 3]
+        @test Vres ≈ N[
+            (1 // 2) * 1 + (3 // 10) * 2 + (1 // 5) * 3,
+            (3 // 10) * 1 + (3 // 10) * 2 + (2 // 5) * 3,
+            1 * 3,
+        ]
 
         Vres = similar(Vres)
         IntervalMDP.bellman!(Vres, V, mdp; upper_bound = false, maximize = true)
-        @test Vres ≈ N[(1//2) * 1 + (3//10) * 2 + (1//5) * 3, (3//10) * 1 + (3//10) * 2 + (2//5) * 3, 1 * 3]
+        @test Vres ≈ N[
+            (1 // 2) * 1 + (3 // 10) * 2 + (1 // 5) * 3,
+            (3 // 10) * 1 + (3 // 10) * 2 + (2 // 5) * 3,
+            1 * 3,
+        ]
     end
 
     @testset "explicit sink state" begin

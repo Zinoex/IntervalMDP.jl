@@ -4,10 +4,7 @@ using Documenter, DocumenterCitations
 push!(LOAD_PATH, "../src/")
 DocMeta.setdocmeta!(IntervalMDP, :DocTestSetup, :(using IntervalMDP); recursive = true)
 
-bib = CitationBibliography(
-    joinpath(@__DIR__, "src", "refs.bib");
-    style=:numeric
-)
+bib = CitationBibliography(joinpath(@__DIR__, "src", "refs.bib"); style = :numeric)
 
 makedocs(;
     modules = [IntervalMDP, IntervalMDP.Data],
