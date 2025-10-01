@@ -34,7 +34,7 @@ JuMP = "1.29.0"
 JuliaFormatter = "2.1.6"
 LLVM = "7, 8, 9"
 NCDatasets = "0.13, 0.14"
-StyledStrings = "1.11.0"
+StyledStrings = "1.0.3"
 julia = "1.9"
 
 [extras]
