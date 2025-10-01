@@ -170,7 +170,45 @@ end
 
         n = 100000
         m = 10
-        nnz_per_column = 4000   # It has to be greater than 3800 to exceed shared memory for ff implementation
+        nnz_per_column = 4000   # It has to be greater than 3100 to exceed shared memory for ff implementation
+        prob, V, cuda_prob, cuda_V =
+            sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+
+        ws = IntervalMDP.construct_workspace(prob)
+        strategy_cache = IntervalMDP.construct_strategy_cache(prob)
+        V_cpu = zeros(Float64, m)
+        IntervalMDP._bellman_helper!(
+            ws,
+            strategy_cache,
+            V_cpu,
+            V,
+            prob;
+            upper_bound = false,
+        )
+
+        ws = IntervalMDP.construct_workspace(cuda_prob)
+        strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
+        V_gpu = CUDA.zeros(Float64, m)
+        IntervalMDP._bellman_helper!(
+            ws,
+            strategy_cache,
+            V_gpu,
+            cuda_V,
+            cuda_prob;
+            upper_bound = false,
+        )
+        V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
+
+        @test V_cpu ≈ V_gpu
+    end
+
+    # Even more non-zeros
+    @testset "even more non-zeros" begin
+        rng = MersenneTwister(55392)
+
+        n = 100000
+        m = 10
+        nnz_per_column = 6000   # It has to be greater than 4100 to exceed shared memory for fi implementation
         prob, V, cuda_prob, cuda_V =
             sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
 
@@ -208,7 +246,7 @@ end
 
         n = 100000
         m = 10
-        nnz_per_column = 6000   # It has to be greater than 5800 to exceed shared memory for fi implementation
+        nnz_per_column = 8000   # It has to be greater than 6144 to exceed shared memory for ii implementation
         prob, V, cuda_prob, cuda_V =
             sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
 
@@ -246,7 +284,7 @@ end
 
         n = 100000
         m = 10
-        nnz_per_column = 16000   # It has to be greater than 15600 to exceed shared memory for i implementation
+        nnz_per_column = 16000   # It has to be greater than 12300 to exceed shared memory for i implementation
         prob, V, cuda_prob, cuda_V =
             sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
 

@@ -82,6 +82,8 @@ mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, m
 !!! warn
     Notice that source-action pairs are on the columns of the matrices to defined the interval bounds. This is counter to most literature on transition matrices where transitions are from row to column. The choice of layout is to ensure that the memory access pattern is cache-friendly, as each column is stored contiguously in memory (column-major) and the Bellman updates iterate outer-most over source-action pairs. However, it also has a fundamental mathematical justification: the transition matrix can be viewed as a linear operator and the matrix form of a linear operator is defined such that the columns correspond to the input dimensions, i.e. from column to row. Furthermore, actions for the same source state are stored contiguously, which is also important for cache efficiency.
 
+A general and useful subclass of fRMDPs is when each marginal ambiguity set is an interval ambiguity set. This subclass is called factored IMDPs (fIMDPs) and is described in more detail [below](@ref "fIMDPs").
+
 ## IMCs
 Interval Markov Chains (IMCs) [delahaye2011decision](@cite) are a subclass of fRMDPs and a generalization of Markov Chains (MCs), where the transition probabilities are not known exactly, but they are constrained to be in some probability interval.
 Formally, an IMC ``M`` is a tuple ``M = (S, S_0, \Gamma)``, where

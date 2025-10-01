@@ -38,7 +38,7 @@ function IntervalMDP._bellman_helper!(
         return Vres
     end
 
-    # Try if we can fit all values and permutation indices into shared memory (25% less memory relative to (Tv, Tv)) 
+    # Try if we can fit all values and permutation indices into shared memory (25% less memory relative to (Float64, Float64)) 
     if try_large_sparse_bellman!(
         Tv,
         Int32,
@@ -53,7 +53,22 @@ function IntervalMDP._bellman_helper!(
         return Vres
     end
 
-    # Try if we can fit permutation indices into shared memory (50% less memory relative to (Tv, Tv)) 
+    # Try if we can fit two permutation indices into shared memory (50% less memory relative to (Float64, Float64)) 
+    if try_large_sparse_bellman!(
+        Int32,
+        Int32,
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        model;
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
+        return Vres
+    end
+
+    # Try if we can fit permutation indices into shared memory (75% less memory relative to (Float64, Float64)) 
     if try_large_sparse_bellman!(
         Int32,
         Nothing,
@@ -68,7 +83,12 @@ function IntervalMDP._bellman_helper!(
         return Vres
     end
 
-    throw(IntervalMDP.OutOfSharedMemory(workspace.max_support * sizeof(Int32)))
+    throw(
+        IntervalMDP.OutOfSharedMemory(
+            workspace.max_support * sizeof(Int32),
+            CUDA.limit(CUDA.LIMIT_SHMEM_SIZE),
+        ),
+    )
 end
 
 function try_small_sparse_bellman!(
@@ -373,18 +393,14 @@ end
     lane,
 )
     assume(warpsize() == 32)
-    warp_aligned_length = kernel_nextwarp(IntervalMDP.supportsize(ambiguity_set))
-
     support = IntervalMDP.support(ambiguity_set)
 
     # Copy into shared memory
+    gap_nonzeros = nonzeros(gap(ambiguity_set))
     s = lane
-    @inbounds while s <= warp_aligned_length
-        if s <= IntervalMDP.supportsize(ambiguity_set)
-            idx = support[s]
-            value[s] = V[idx]
-            prob[s] = gap(ambiguity_set, idx)
-        end
+    @inbounds while s <= IntervalMDP.supportsize(ambiguity_set)
+        value[s] = V[support[s]]
+        prob[s] = gap_nonzeros[s]
         s += warpsize()
     end
 
@@ -401,13 +417,13 @@ end
     support = IntervalMDP.support(ambiguity_set)
 
     # Add the lower bound multiplied by the value
+    lower_nonzeros = nonzeros(lower(ambiguity_set))
     s = lane
     @inbounds while s <= warp_aligned_length
         # Find index of the permutation, and lookup the corresponding lower bound and multipy by the value
         if s <= IntervalMDP.supportsize(ambiguity_set)
-            idx = support[s]
-            l = lower(ambiguity_set, idx)
-            lower_value += l * V[idx]
+            l = lower_nonzeros[s]
+            lower_value += l * V[support[s]]
             used += l
         end
         s += warpsize()
@@ -489,6 +505,10 @@ function try_large_sparse_bellman!(
 
     shmem = workspace.max_support * (sizeof(T1) + sizeof(T2)) + n_actions * sizeof(Tv)
 
+    if shmem > CUDA.limit(CUDA.LIMIT_SHMEM_SIZE)  # Early exit if we cannot fit into shared memory
+        return false
+    end
+
     kernel = @cuda launch = false large_sparse_bellman_kernel!(
         T1,
         T2,
@@ -502,7 +522,7 @@ function try_large_sparse_bellman!(
     )
 
     config = launch_configuration(kernel.fun; shmem = shmem)
-    max_threads = prevwarp(device(), config.threads)  # 1600008 bytes
+    max_threads = prevwarp(device(), config.threads)
 
     if max_threads < 32
         return false
@@ -758,12 +778,12 @@ end
     support = IntervalMDP.support(ambiguity_set)
 
     # Add the lower bound multiplied by the value
+    lower_nonzeros = nonzeros(lower(ambiguity_set))
     s = threadIdx().x
     @inbounds while s <= supportsize
         # Find index of the permutation, and lookup the corresponding lower bound and multipy by the value
-        idx = support[s]
-        l = lower(ambiguity_set, idx)
-        lower_value += l * V[idx]
+        l = lower_nonzeros[s]
+        lower_value += l * V[support[s]]
         used += l
         s += blockDim().x
     end
@@ -787,11 +807,12 @@ end
     supportsize = IntervalMDP.supportsize(ambiguity_set)
 
     # Copy into shared memory
+    gap_nonzeros = nonzeros(gap(ambiguity_set))
     s = threadIdx().x
     @inbounds while s <= supportsize
         idx = support[s]
         value[s] = V[idx]
-        prob[s] = gap(ambiguity_set, idx)
+        prob[s] = gap_nonzeros[s]
         s += blockDim().x
     end
 
@@ -880,9 +901,8 @@ end
     # Copy into shared memory
     s = threadIdx().x
     @inbounds while s <= supportsize
-        idx = support[s]
-        value[s] = V[idx]
-        perm[s] = idx
+        value[s] = V[support[s]]
+        perm[s] = s
         s += blockDim().x
     end
 
@@ -904,11 +924,12 @@ end
     gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
+    gap_nonzeros = nonzeros(gap(ambiguity_set))
     s = threadIdx().x
     @inbounds while s <= warp_aligned_length
         # Find index of the permutation, and lookup the corresponding gap
         g = if s <= length(value)
-            gap(ambiguity_set, perm[s])
+            gap_nonzeros[perm[s]]
         else
             # 0 gap is a neural element
             zero(Tv)
@@ -925,6 +946,103 @@ end
         if s <= length(value)
             sub = clamp(remaining, zero(Tv), g)
             gap_value += sub * value[s]
+            remaining -= sub
+        end
+
+        # Update the remaining probability from the last thread in the block
+        if threadIdx().x == blockDim().x
+            reduction_ws[1] = remaining
+        end
+        sync_threads()
+
+        remaining = reduction_ws[1]
+        sync_threads()
+
+        # Early exit if the remaining probability is zero
+        if remaining <= zero(Tv)
+            break
+        end
+
+        s += blockDim().x
+    end
+
+    gap_value = CUDA.reduce_block(+, gap_value, zero(Tv), Val(true))
+
+    return gap_value
+end
+
+@inline function state_action_sparse_omaximization!(
+    Vperm::AbstractVector{Int32},
+    Pperm::AbstractVector{Int32},
+    V,
+    ambiguity_set,
+    value_lt,
+)
+    ii_sparse_initialize_sorting_shared_memory!(ambiguity_set, Vperm, Pperm)
+
+    Vperm = @view Vperm[1:IntervalMDP.supportsize(ambiguity_set)]
+    Pperm = @view Pperm[1:IntervalMDP.supportsize(ambiguity_set)]
+    block_bitonic_sortperm!(V, Vperm, Pperm, value_lt)
+
+    value, remaining = add_lower_mul_V_block(V, ambiguity_set)
+    value += ii_add_gap_mul_V_sparse(V, Vperm, Pperm, ambiguity_set, remaining)
+
+    return value
+end
+
+@inline function ii_sparse_initialize_sorting_shared_memory!(ambiguity_set, Vperm, Pperm)
+    support = IntervalMDP.support(ambiguity_set)
+    supportsize = IntervalMDP.supportsize(ambiguity_set)
+
+    # Copy into shared memory
+    i = threadIdx().x
+    @inbounds while i <= supportsize
+        Vperm[i] = support[i]
+        Pperm[i] = i
+        i += blockDim().x
+    end
+
+    # Need to synchronize to make sure all agree on the shared memory
+    sync_threads()
+end
+
+@inline function ii_add_gap_mul_V_sparse(
+    value,
+    Vperm,
+    Pperm,
+    ambiguity_set,
+    remaining::Tv,
+) where {Tv}
+    assume(warpsize() == 32)
+    wid, lane = fldmod1(threadIdx().x, warpsize())
+    reduction_ws = CuStaticSharedArray(Tv, 32)
+
+    warp_aligned_length = kernel_nextwarp(length(Vperm))
+    gap_value = zero(Tv)
+
+    # Block-strided loop and save into register `gap_value`
+    gap_nonzeros = nonzeros(gap(ambiguity_set))
+    s = threadIdx().x
+    @inbounds while s <= warp_aligned_length
+        # Find index of the permutation, and lookup the corresponding gap
+        g = if s <= length(Vperm)
+            gap_nonzeros[Pperm[s]]
+        else
+            # 0 gap is a neural element
+            zero(Tv)
+        end
+
+        # Cummulatively sum the gap with a tree reduction
+        cum_gap = cumsum_block(g, reduction_ws, wid, lane)
+
+        # Update the remaining probability
+        remaining -= cum_gap
+        remaining += g
+
+        # Update the probability
+        if s <= length(Vperm)
+            sub = clamp(remaining, zero(Tv), g)
+            gap_value += sub * value[Vperm[s]]
             remaining -= sub
         end
 
