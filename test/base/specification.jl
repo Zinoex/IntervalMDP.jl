@@ -125,11 +125,25 @@ using IntervalMDP
 
         @test avoid(prop) == [CartesianIndex(3)]
 
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("FiniteTimeSafety", str)
+        @test occursin("Time horizon: 10", str)
+        @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+
         prop = InfiniteTimeSafety([3], 1e-6)
         @test !IntervalMDP.isfinitetime(prop)
         @test convergence_eps(prop) == 1e-6
 
         @test avoid(prop) == [CartesianIndex(3)]
+
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("InfiniteTimeSafety", str)
+        @test occursin("Convergence threshold: 1.0e-6", str)
+        @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(3,)]", str)
     end
 
     @testset "reward" begin
@@ -215,6 +229,14 @@ end
     @test satisfaction_mode(spec) == Optimistic
     @test strategy_mode(spec) == Minimize
     @test system_property(spec) == prop
+
+    io = IOBuffer()
+    show(io, MIME("text/plain"), spec)
+    str = String(take!(io))
+    @test occursin("Specification", str)
+    @test occursin("Satisfaction mode: Optimistic", str)
+    @test occursin("Strategy mode: Minimize", str)
+    @test occursin("Property: FiniteTimeDFAReachability", str)
 end
 
 ##########
