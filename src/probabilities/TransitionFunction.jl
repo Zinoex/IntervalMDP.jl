@@ -77,23 +77,3 @@ num_states(tf::TransitionFunction) = size(tf.transition, 2)
 Return the number of labels (DFA inputs) in the transition function.
 """
 num_labels(tf::TransitionFunction) = size(tf.transition, 1)
-
-"""
-    onehot(tf:TransitionFunction)
-Return the transition function matrix one hot encoded.
-"""
-function onehot(tf::TransitionFunction)
-    nz = num_states(tf)
-    nl = num_labels(tf)
-
-    W = zeros(nz, nl, nz) #(|z| x |l| x |z'|)
-
-    for z in 1:nz
-        for l in 1:nl
-            y = getindex(tf, z, l)
-            W[z, l, y] = 1
-        end
-    end
-
-    return W
-end

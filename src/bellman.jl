@@ -295,12 +295,6 @@ function _bellman_helper!(
             end
 
             return v
-
-            # A = lf[idx]     #(Lx1) for IMDP state s', get all the p(f | s') for each label 
-            # B = V[idx, :]   #(Mx1) fir IMDP state s', get all V(s', z') for each DFA state
-            # C = onehot(transition(dfa))[state, :, :] #(LxM)
-
-            # return B' * C' * A
         end
 
         # For each state in the product process, compute the Bellman operator

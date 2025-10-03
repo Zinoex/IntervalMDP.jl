@@ -32,7 +32,7 @@ end
 function checklabellingprobs(map::AbstractMatrix{<:Real})
 
     # check for each state, all the labels probabilities sum to 1
-    if any(sum(map; dims=1) .!= 1)
+    if any(sum(map; dims = 1) .!= 1)
         throw(
             ArgumentError(
                 "For each IMDP state, probabilities over label states must sum to 1",
