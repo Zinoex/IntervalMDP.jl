@@ -32,7 +32,7 @@ end
 function checklabellingprobs(map::AbstractMatrix{<:Real})
 
     # check for each state, all the labels probabilities sum to 1
-    if any(sum(map; dims = 1) .!= 1)
+    if any(sum(map; dims = 1) .!= one(eltype(map)))
         throw(
             ArgumentError(
                 "For each IMDP state, probabilities over label states must sum to 1",
@@ -56,7 +56,7 @@ Base.size(pl::ProbabilisticLabelling, i) = size(pl.map, i)
 
 Return the probabilities for labelling l from state s.
 """
-Base.getindex(pl::ProbabilisticLabelling, s, l) = pl.map[l, s]
+Base.getindex(pl::ProbabilisticLabelling, l, s) = pl.map[l, s]
 
 """
     getindex(pl::ProbabilisticLabelling, s)
