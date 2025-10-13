@@ -30,6 +30,34 @@ using IntervalMDP
         @test occursin("Reach states: Int32[3]", str)
     end
 
+    @testset "DFA safety" begin
+        prop = FiniteTimeDFASafety([3], 10)
+        @test IntervalMDP.isfinitetime(prop)
+        @test time_horizon(prop) == 10
+
+        @test reach(prop) == [3]
+
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("FiniteTimeDFASafety", str)
+        @test occursin("Time horizon: 10", str)
+        @test occursin("Avoid states: Int32[3]", str)
+
+        prop = InfiniteTimeDFASafety([3], 1e-6)
+        @test !IntervalMDP.isfinitetime(prop)
+        @test convergence_eps(prop) == 1e-6
+
+        @test reach(prop) == [3]
+
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prop)
+        str = String(take!(io))
+        @test occursin("InfiniteTimeDFASafety", str)
+        @test occursin("Convergence threshold: 1.0e-6", str)
+        @test occursin("Avoid states: Int32[3]", str)
+    end
+
     @testset "reachability" begin
         prop = FiniteTimeReachability([3], 10)
         @test IntervalMDP.isfinitetime(prop)
@@ -290,6 +318,18 @@ end
         spec = Specification(prop)
         @test_throws DomainError VerificationProblem(prod_proc, spec, tv_prod_strat)
 
+        prop = FiniteTimeDFASafety([2], 0)
+        spec = Specification(prop)
+        @test_throws DomainError VerificationProblem(prod_proc, spec)
+
+        prop = FiniteTimeDFASafety([2], -1)
+        spec = Specification(prop)
+        @test_throws DomainError VerificationProblem(prod_proc, spec)
+
+        prop = FiniteTimeDFASafety([2], 0)
+        spec = Specification(prop)
+        @test_throws DomainError VerificationProblem(prod_proc, spec, tv_prod_strat)
+
         prop = FiniteTimeReachability([3], 0)
         spec = Specification(prop)
         @test_throws DomainError VerificationProblem(mc, spec)
@@ -373,6 +413,14 @@ end
         spec = Specification(prop)
         @test_throws ArgumentError VerificationProblem(prod_proc, spec, tv_prod_strat)
 
+        prop = FiniteTimeDFASafety([2], 2)
+        spec = Specification(prop)
+        @test_throws ArgumentError VerificationProblem(prod_proc, spec, tv_prod_strat)
+
+        prop = FiniteTimeDFASafety([2], 4)
+        spec = Specification(prop)
+        @test_throws ArgumentError VerificationProblem(prod_proc, spec, tv_prod_strat)
+
         prop = FiniteTimeReachability([3], 2)
         spec = Specification(prop)
         @test_throws ArgumentError VerificationProblem(mc, spec, tv_strat)
@@ -432,6 +480,14 @@ end
         spec = Specification(prop)
         @test_throws DomainError VerificationProblem(prod_proc, spec)
 
+        prop = InfiniteTimeDFASafety([2], 0.0)
+        spec = Specification(prop)
+        @test_throws DomainError VerificationProblem(prod_proc, spec)
+
+        prop = InfiniteTimeDFASafety([2], -1e-3)
+        spec = Specification(prop)
+        @test_throws DomainError VerificationProblem(prod_proc, spec)
+
         prop = InfiniteTimeReachability([3], 0.0)
         spec = Specification(prop)
         @test_throws DomainError VerificationProblem(mc, spec)
@@ -478,6 +534,10 @@ end
         prop = InfiniteTimeDFAReachability([2], 1e-6)
         spec = Specification(prop)
         @test_throws ArgumentError VerificationProblem(prod_proc, spec, tv_prod_strat)
+    
+        prop = InfiniteTimeDFASafety([2], 1e-6)
+        spec = Specification(prop)
+        @test_throws ArgumentError VerificationProblem(prod_proc, spec, tv_prod_strat)
 
         prop = InfiniteTimeReachability([3], 1e-6)
         spec = Specification(prop)
@@ -509,6 +569,16 @@ end
                 @test_throws InvalidStateError VerificationProblem(prod_proc, spec)
 
                 prop = FiniteTimeDFAReachability([0], 10) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError VerificationProblem(prod_proc, spec)
+            end
+
+            @testset "DFA safety" begin
+                prop = FiniteTimeDFASafety([3], 10) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError VerificationProblem(prod_proc, spec)
+
+                prop = FiniteTimeDFASafety([0], 10) # out-of-bounds
                 spec = Specification(prop)
                 @test_throws InvalidStateError VerificationProblem(prod_proc, spec)
             end
@@ -617,6 +687,16 @@ end
                 @test_throws InvalidStateError VerificationProblem(prod_proc, spec)
 
                 prop = InfiniteTimeDFAReachability([0], 1e-6) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError VerificationProblem(prod_proc, spec)
+            end
+
+            @testset "DFA safety" begin
+                prop = InfiniteTimeDFASafety([3], 1e-6) # out-of-bounds
+                spec = Specification(prop)
+                @test_throws InvalidStateError VerificationProblem(prod_proc, spec)
+
+                prop = InfiniteTimeDFASafety([0], 1e-6) # out-of-bounds
                 spec = Specification(prop)
                 @test_throws InvalidStateError VerificationProblem(prod_proc, spec)
             end
