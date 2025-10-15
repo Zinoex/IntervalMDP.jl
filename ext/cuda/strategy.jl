@@ -115,7 +115,8 @@ end
     opt_val, opt_idx = if iszero(cache.strategy[jₛ][1])
         action_neutral, one(Int32)
     else
-        values[jₛ], Int32(cache.strategy[jₛ][1])
+        s = cache.strategy[jₛ][1]
+        values[s], s
     end
 
     s = lane

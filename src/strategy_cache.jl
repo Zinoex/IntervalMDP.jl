@@ -117,7 +117,8 @@ function extract_strategy!(
     neutral = if all(iszero.(strategy_cache.strategy[jₛ]))
         maximize ? typemin(R) : typemax(R), 1
     else
-        values[jₛ], strategy_cache.strategy[jₛ]
+        s = strategy_cache.strategy[jₛ]
+        values[CartesianIndex(s)], s
     end
 
     return _extract_strategy!(strategy_cache.strategy, values, neutral, jₛ, maximize)
