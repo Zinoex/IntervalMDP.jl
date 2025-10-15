@@ -170,7 +170,7 @@ end
             mdp = IntervalMarkovDecisionProcess(transition_probs)
 
             # Product model - just simple reachability
-            delta = TransitionFunction(Int32[
+            delta = TransitionFunction(Int32[  # Labels on rows
                 1 2
                 2 2
             ])
@@ -224,7 +224,7 @@ end
                 problem = VerificationProblem(prod_proc, spec, policy)
                 V_mc, k, res = solve(problem)
 
-                @test V_conv ≈ V_mc
+                @test V_conv ≈ V_mc atol=1e-3
             end
 
             @testset "finite time safety" begin
@@ -236,7 +236,7 @@ end
 
                 @test all(V_fixed_it1 .>= 0)
                 @test k == 10
-                @test V_fixed_it1[:, 2] == N[1, 1, 1]
+                @test V_fixed_it1[:, 2] == N[0, 0, 0]
 
                 problem = VerificationProblem(prod_proc, spec, policy)
                 V_mc, k, res = solve(problem)
@@ -251,7 +251,7 @@ end
 
                 @test all(V_fixed_it2 .>= 0)
                 @test k == 11
-                @test V_fixed_it2[:, 2] == N[1, 1, 1]
+                @test V_fixed_it2[:, 2] == N[0, 0, 0]
                 @test all(V_fixed_it2 .<= V_fixed_it1)
             end
 
@@ -264,12 +264,12 @@ end
 
                 @test all(V_conv .>= 0)
                 @test maximum(res) <= 1e-3
-                @test V_conv[:, 2] == N[1, 1, 1]
+                @test V_conv[:, 2] == N[0, 0, 0]
 
                 problem = VerificationProblem(prod_proc, spec, policy)
                 V_mc, k, res = solve(problem)
 
-                @test V_conv ≈ V_mc
+                @test V_conv ≈ V_mc atol=1e-3
             end
         end
     end

@@ -35,7 +35,7 @@ using IntervalMDP
         @test IntervalMDP.isfinitetime(prop)
         @test time_horizon(prop) == 10
 
-        @test reach(prop) == [3]
+        @test avoid(prop) == [3]
 
         io = IOBuffer()
         show(io, MIME("text/plain"), prop)
@@ -48,7 +48,7 @@ using IntervalMDP
         @test !IntervalMDP.isfinitetime(prop)
         @test convergence_eps(prop) == 1e-6
 
-        @test reach(prop) == [3]
+        @test avoid(prop) == [3]
 
         io = IOBuffer()
         show(io, MIME("text/plain"), prop)
