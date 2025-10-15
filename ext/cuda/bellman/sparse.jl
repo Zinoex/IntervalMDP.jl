@@ -318,7 +318,6 @@ end
     v = extract_strategy_warp!(
         strategy_cache,
         action_workspace,
-        Vres,
         jₛ,
         action_reduce,
         lane,
@@ -710,7 +709,6 @@ end
         v = extract_strategy_warp!(
             strategy_cache,
             action_workspace,
-            Vres,
             jₛ,
             action_reduce,
             lane,

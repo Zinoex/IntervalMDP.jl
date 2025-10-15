@@ -362,7 +362,7 @@ function state_bellman!(
                 state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)
         end
 
-        Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, V, jₛ, maximize)
+        Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, jₛ, maximize)
     end
 end
 
@@ -510,7 +510,7 @@ function state_bellman!(
                 state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
         end
 
-        Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, V, jₛ, maximize)
+        Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, jₛ, maximize)
     end
 end
 
@@ -706,7 +706,7 @@ function state_bellman!(
             )
         end
 
-        Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, V, jₛ, maximize)
+        Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, jₛ, maximize)
     end
 end
 
@@ -854,7 +854,7 @@ function state_bellman!(
                 state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
         end
 
-        Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, V, jₛ, maximize)
+        Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, jₛ, maximize)
     end
 end
 
