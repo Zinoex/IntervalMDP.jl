@@ -385,7 +385,7 @@ mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
 
 ```@example product_process_example
 map = [1, 2, 3]  # "", "a", "b"
-lf = LabellingFunction(map)
+lf = DeterministicLabelling(map)
 
 product_process = ProductProcess(mdp, dfa, lf)
 ```
