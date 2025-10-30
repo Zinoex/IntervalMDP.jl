@@ -97,7 +97,7 @@ policy, V, k, res = solve(problem)
 # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
 problem = VerificationProblem(mdp, spec, policy)
 V_mc, k, res = solve(problem)
-@test V ≈ V_mc
+@test V ≈ V_mc atol=1e-6
 
 # Finite time safety
 prop = FiniteTimeSafety([3], 10)

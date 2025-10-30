@@ -20,7 +20,7 @@ end
 construct_strategy_cache(::VerificationProblem{S, F, <:NoStrategy}) where {S, F} =
     NoStrategyCache()
 
-function extract_strategy!(::NoStrategyCache, values, V, j, maximize)
+function extract_strategy!(::NoStrategyCache, values, j, maximize)
     return maximize ? maximum(values) : minimum(values)
 end
 step_postprocess_strategy_cache!(::NoStrategyCache) = nothing
@@ -75,7 +75,6 @@ cachetostrategy(strategy_cache::TimeVaryingStrategyCache) =
 function extract_strategy!(
     strategy_cache::TimeVaryingStrategyCache,
     values::AbstractArray{R},
-    V,
     jₛ,
     maximize,
 ) where {R <: Real}
@@ -112,14 +111,14 @@ cachetostrategy(strategy_cache::StationaryStrategyCache) =
 function extract_strategy!(
     strategy_cache::StationaryStrategyCache,
     values::AbstractArray{R},
-    V,
     jₛ,
     maximize,
 ) where {R <: Real}
     neutral = if all(iszero.(strategy_cache.strategy[jₛ]))
         maximize ? typemin(R) : typemax(R), 1
     else
-        V[jₛ], strategy_cache.strategy[jₛ]
+        s = strategy_cache.strategy[jₛ]
+        values[CartesianIndex(s)], s
     end
 
     return _extract_strategy!(strategy_cache.strategy, values, neutral, jₛ, maximize)

@@ -287,7 +287,7 @@ initial_state = 1
 
 dfa = DFA(delta, initial_state, atomic_props)
 ```
-Notice that the DFA does not include the set of accepting states. This is because the accepting states does not impact the Bellman operator and therefore are defined in `DFAReachability` objects, which is shown below.
+Notice that the DFA does not include the set of accepting states. This is because the accepting states do not impact the Bellman operator and therefore are defined in `DFAReachability` objects, which is shown below.
 
 ```@example
 using IntervalMDP # hide

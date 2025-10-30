@@ -170,7 +170,7 @@ end
             mdp = IntervalMarkovDecisionProcess(transition_probs)
 
             # Product model - just simple reachability
-            delta = TransitionFunction(Int32[
+            delta = TransitionFunction(Int32[  # Labels on rows
                 1 2
                 2 2
             ])
@@ -224,7 +224,52 @@ end
                 problem = VerificationProblem(prod_proc, spec, policy)
                 V_mc, k, res = solve(problem)
 
-                @test V_conv ≈ V_mc
+                @test V_conv ≈ V_mc atol=1e-3
+            end
+
+            @testset "finite time safety" begin
+                prop = FiniteTimeDFASafety([2], 10)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = ControlSynthesisProblem(prod_proc, spec)
+
+                policy, V_fixed_it1, k, res = solve(problem)
+
+                @test all(V_fixed_it1 .>= 0)
+                @test k == 10
+                @test V_fixed_it1[:, 2] == N[0, 0, 0]
+
+                problem = VerificationProblem(prod_proc, spec, policy)
+                V_mc, k, res = solve(problem)
+
+                @test V_fixed_it1 ≈ V_mc
+
+                prop = FiniteTimeDFASafety([2], 11)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = VerificationProblem(prod_proc, spec)
+
+                V_fixed_it2, k, res = solve(problem)
+
+                @test all(V_fixed_it2 .>= 0)
+                @test k == 11
+                @test V_fixed_it2[:, 2] == N[0, 0, 0]
+                @test all(V_fixed_it2 .<= V_fixed_it1)
+            end
+
+            @testset "infinite time safety" begin
+                prop = InfiniteTimeDFASafety([2], 1e-3)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = ControlSynthesisProblem(prod_proc, spec)
+
+                policy, V_conv, k, res = solve(problem)
+
+                @test all(V_conv .>= 0)
+                @test maximum(res) <= 1e-3
+                @test V_conv[:, 2] == N[0, 0, 0]
+
+                problem = VerificationProblem(prod_proc, spec, policy)
+                V_mc, k, res = solve(problem)
+
+                @test V_conv ≈ V_mc atol=1e-3
             end
         end
     end

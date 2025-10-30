@@ -94,3 +94,15 @@ InfiniteTimeDFAReachability
 reach(prop::InfiniteTimeDFAReachability)
 convergence_eps(prop::InfiniteTimeDFAReachability)
 ```
+
+## DFA Safety
+
+```@docs
+FiniteTimeDFASafety
+avoid(prop::FiniteTimeDFASafety)
+time_horizon(prop::FiniteTimeDFASafety)
+
+InfiniteTimeDFASafety
+avoid(prop::InfiniteTimeDFASafety)
+convergence_eps(prop::InfiniteTimeDFASafety)
+```

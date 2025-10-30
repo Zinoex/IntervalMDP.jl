@@ -41,7 +41,6 @@ Base.@propagate_inbounds Base.getindex(cache::GivenStrategyActiveCache, j) =
 @inline function extract_strategy_warp!(
     ::NoStrategyActiveCache,
     values::AbstractVector{Tv},
-    V,
     j,
     action_reduce,
     lane,
@@ -71,7 +70,6 @@ end
 @inline function extract_strategy_warp!(
     cache::TimeVaryingStrategyActiveCache{1, <:AbstractVector{Tuple{Int32}}},
     values::AbstractVector{Tv},
-    V,
     jₛ,
     action_reduce,
     lane,
@@ -106,7 +104,6 @@ end
 @inline function extract_strategy_warp!(
     cache::StationaryStrategyActiveCache{1, <:AbstractVector{Tuple{Int32}}},
     values::AbstractVector{Tv},
-    V,
     jₛ,
     action_reduce,
     lane,
@@ -118,7 +115,8 @@ end
     opt_val, opt_idx = if iszero(cache.strategy[jₛ][1])
         action_neutral, one(Int32)
     else
-        V[jₛ], Int32(cache.strategy[jₛ][1])
+        s = cache.strategy[jₛ][1]
+        values[s], s
     end
 
     s = lane

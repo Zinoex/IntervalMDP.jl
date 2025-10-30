@@ -77,7 +77,7 @@ end
 """
     AbstractDFAReachability
 
-Super type for all reachability-like properties.
+Super type for all DFA reachability-like properties.
 """
 abstract type AbstractDFAReachability <: ProductProperty end
 
@@ -202,6 +202,140 @@ function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeDFAReachab
         styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
     )
     println(io, prefix, styled"└─ Reach states: {magenta:$(reach(prop))}")
+end
+
+## DFA Safety
+
+"""
+    AbstractDFASafety
+
+Super type for all DFA safety-like properties.
+"""
+abstract type AbstractDFASafety <: ProductProperty end
+
+function initialize!(value_function, prop::AbstractDFASafety)
+    @inbounds selectdim(
+        value_function.current,
+        ndims(value_function.current),
+        avoid(prop),
+    ) .= -1.0
+end
+
+function step_postprocess_value_function!(value_function, prop::AbstractDFASafety)
+    @inbounds selectdim(
+        value_function.current,
+        ndims(value_function.current),
+        avoid(prop),
+    ) .= -1.0
+end
+
+function postprocess_value_function!(value_function, ::AbstractDFASafety)
+    value_function.current .+= 1.0
+end
+
+"""
+    FiniteTimeDFASafety{VT <: Vector{<:Integer}, T <: Integer}
+
+Finite time Safety specified by a set of target/terminal states and a time horizon. 
+That is, denote a trace by ``z_1 z_2 z_3 \\cdots`` with ``z_k = (s_k, q_k)`` then if ``T`` is the set of target states and ``H`` is the time horizon,
+the property is 
+```math
+    \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, q_k \\in T).
+```
+"""
+struct FiniteTimeDFASafety{VT <: Vector{<:Int32}, T <: Integer} <:
+       AbstractDFASafety
+    avoid::VT
+    time_horizon::T
+end
+
+function FiniteTimeDFASafety(avoid::Vector{<:Integer}, time_horizon)
+    avoid = Int32.(avoid)
+    return FiniteTimeDFASafety(avoid, time_horizon)
+end
+
+function checkproperty(prop::FiniteTimeDFASafety, system, strategy)
+    checktimehorizon(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::FiniteTimeDFASafety, system)
+    checkstatebounds(avoid(prop), system)
+end
+
+isfinitetime(prop::FiniteTimeDFASafety) = true
+
+"""
+    time_horizon(prop::FiniteTimeDFASafety)
+
+Return the time horizon of a finite time DFA safety property.
+"""
+time_horizon(prop::FiniteTimeDFASafety) = prop.time_horizon
+
+"""
+    avoid(prop::FiniteTimeDFASafety)
+
+Return the set of DFA states with respect to which to compute safety for a finite time DFA safety property.
+"""
+avoid(prop::FiniteTimeDFASafety) = prop.avoid
+
+function showproperty(io::IO, first_prefix, prefix, prop::FiniteTimeDFASafety)
+    println(io, first_prefix, styled"{code:FiniteTimeDFASafety}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(prop))}")
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+end
+
+"""
+    InfiniteTimeDFASafety{VT <: Vector{<:Integer}, R <: Real} 
+ 
+`InfiniteTimeDFASafety` is similar to [`FiniteTimeDFASafety`](@ref) except that the time horizon is infinite, i.e., ``H = \\infty``.
+In practice it means, performing the value iteration until the value function has converged, defined by some threshold `convergence_eps`.
+The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
+"""
+struct InfiniteTimeDFASafety{VT <: Vector{<:Int32}, R <: Real} <:
+       AbstractDFASafety
+    avoid::VT
+    convergence_eps::R
+end
+
+function InfiniteTimeDFASafety(avoid::Vector{<:Integer}, convergence_eps)
+    avoid = Int32.(avoid)
+    return InfiniteTimeDFASafety(avoid, convergence_eps)
+end
+
+function checkproperty(prop::InfiniteTimeDFASafety, system, strategy)
+    checkconvergence(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::InfiniteTimeDFASafety, system)
+    checkstatebounds(avoid(prop), system)
+end
+
+isfinitetime(prop::InfiniteTimeDFASafety) = false
+
+"""
+    convergence_eps(prop::InfiniteTimeDFASafety)
+
+Return the convergence threshold of an infinite time DFA safety property.
+"""
+convergence_eps(prop::InfiniteTimeDFASafety) = prop.convergence_eps
+
+"""
+    avoid(prop::InfiniteTimeDFASafety)
+
+Return the set of DFA states with respect to which to compute safety for a infinite time DFA safety property.
+"""
+avoid(prop::InfiniteTimeDFASafety) = prop.avoid
+
+function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeDFASafety)
+    println(io, first_prefix, styled"{code:InfiniteTimeDFASafety}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
 end
 
 ## Reachability

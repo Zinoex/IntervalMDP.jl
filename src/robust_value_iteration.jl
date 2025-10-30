@@ -1,7 +1,8 @@
 abstract type TerminationCriteria end
 function termination_criteria(spec::Specification)
     prop = system_property(spec)
-    return termination_criteria(prop, Val(isfinitetime(prop)))
+    ft = isfinitetime(prop)
+    return termination_criteria(prop, Val(ft))
 end
 
 struct FixedIterationsCriteria{T <: Integer} <: TerminationCriteria

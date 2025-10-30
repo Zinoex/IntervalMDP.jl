@@ -80,22 +80,6 @@ function checkindices(
     source_dims,
     action_vars,
 )
-    if length(state_indices) != length(source_dims)
-        throw(
-            ArgumentError(
-                "Length of state indices must match length of source dimensions.",
-            ),
-        )
-    end
-
-    if length(action_indices) != length(action_vars)
-        throw(
-            ArgumentError(
-                "Length of action indices must match length of action dimensions.",
-            ),
-        )
-    end
-
     if any(state_indices .<= 0)
         throw(ArgumentError("State indices must be positive."))
     end
