@@ -90,7 +90,7 @@ using IntervalMDP
     end
 end
 
-@testset "bellman" begin
+@testset "bellman deterministic labelling" begin
     for N in [Float32, Float64, Rational{BigInt}]
         @testset "N = $N" begin
             prob = IntervalAmbiguitySets(;
@@ -137,7 +137,335 @@ end
     end
 end
 
-@testset "value iteration" begin
+@testset "bellman deterministic labelling wtih strategy" begin
+    for N in [Float32, Float64, Rational{BigInt}]
+        @testset "N = $N" begin
+            prob1 = IntervalAmbiguitySets(;
+                lower = N[
+                    0//10 4//10
+                    1//10 3//10
+                    2//10 2//10
+                ],
+                upper = N[
+                    5//10 9//10
+                    6//10 8//10
+                    7//10 7//10
+                ],
+            )
+
+            prob2 = IntervalAmbiguitySets(;
+                lower = N[
+                    5//10 2//10
+                    3//10 3//10
+                    1//10 4//10
+                ],
+                upper = N[
+                    7//10 3//10
+                    5//10 6//10
+                    3//10 9//10
+                ],
+            )
+
+            prob3 = IntervalAmbiguitySets(; lower = N[
+                0 0
+                0 0
+                1 1
+            ], upper = N[
+                0 0
+                0 0
+                1 1
+            ])
+
+            transition_probs = [prob1, prob2, prob3]
+            mdp = IntervalMarkovDecisionProcess(transition_probs)
+
+            # Product model - just simple reachability
+            delta = TransitionFunction(Int32[
+                1 2
+                2 2
+            ])
+            istate = Int32(1)
+            atomic_props = ["reach"]
+            dfa = DFA(delta, istate, atomic_props)
+
+            labelling = DeterministicLabelling(Int32[1, 1, 2])
+
+            prod_proc = ProductProcess(mdp, dfa, labelling)
+
+            V = N[
+                4 1
+                2 3
+                0 5
+            ]
+
+            workspace = IntervalMDP.construct_workspace(prod_proc)
+
+            eps = one(N) / N(1000)
+
+            # No Strategy
+            Vtar = IntervalMDP.bellman(V, prod_proc; upper_bound = false)
+
+            # Non Stationary Strategy
+            prop = FiniteTimeDFAReachability([2], 10)
+            spec = Specification(prop, Pessimistic, Maximize)
+            problem = ControlSynthesisProblem(prod_proc, spec)
+            strategy_cache = IntervalMDP.construct_strategy_cache(problem)
+
+            Vres = copy(V)
+
+            Vres = IntervalMDP.bellman!(
+                workspace,
+                strategy_cache,
+                Vres,
+                V,
+                prod_proc,
+                upper_bound = false,
+            )
+
+            @test Vtar ≈ Vres atol=eps
+
+            # Stationary Strategy
+            prop = InfiniteTimeDFAReachability([2], eps)
+            spec = Specification(prop, Pessimistic, Maximize)
+            problem = ControlSynthesisProblem(prod_proc, spec)
+            strategy_cache = IntervalMDP.construct_strategy_cache(problem)
+
+            Vres = copy(V)
+
+            Vres = IntervalMDP.bellman!(
+                workspace,
+                strategy_cache,
+                Vres,
+                V,
+                prod_proc,
+                upper_bound = false,
+            )
+
+            @test Vtar ≈ Vres atol=eps
+
+            # Given Strategy 
+            strategy_cache = IntervalMDP.ActiveGivenStrategyCache(
+                [
+                    (Int32(1),) (Int32(1),);
+                    (Int32(1),) (Int32(1),);
+                    (Int32(1),) (Int32(1),);
+                ],
+            )
+
+            Vres = copy(V)
+
+            Vres = IntervalMDP.bellman!(
+                workspace,
+                strategy_cache,
+                Vres,
+                V,
+                prod_proc,
+                upper_bound = false,
+            )
+
+            @test Vres ≈ N[
+                30//10 24//10
+                33//10 2
+                5 5
+            ] atol=eps
+        end
+    end
+end
+
+@testset "bellman probabilistic labelling" begin
+    for N in [Float32, Float64, Rational{BigInt}]
+        @testset "N = $N" begin
+            prob = IntervalAmbiguitySets(;
+                lower = N[
+                    0 5//10 0
+                    1//10 3//10 0
+                    2//10 1//10 1
+                ],
+                upper = N[
+                    5//10 7//10 0
+                    6//10 5//10 0
+                    7//10 3//10 1
+                ],
+            )
+            mc = IntervalMarkovChain(prob)
+
+            # Product model - just simple reachability
+            delta = TransitionFunction(Int32[
+                1 2
+                2 2
+            ])
+            istate = Int32(1)
+            atomic_props = ["reach"]
+            dfa = DFA(delta, istate, atomic_props)
+
+            m = N[
+                9//10 7//10 1//10
+                1//10 3//10 9//10
+            ]
+
+            labelling = ProbabilisticLabelling(m)
+
+            prod_proc = ProductProcess(mc, dfa, labelling)
+
+            V = N[
+                4 1
+                2 3
+                0 5
+            ]
+
+            Vtar = N[
+                302//100 24//10
+                322//100 2
+                45//10 5
+            ]
+
+            Vres = IntervalMDP.bellman(V, prod_proc; upper_bound = false)
+            @test Vres ≈ Vtar
+        end
+    end
+end
+
+@testset "bellman probabilistic labelling wtih strategy" begin
+    for N in [Float32, Float64, Rational{BigInt}]
+        @testset "N = $N" begin
+            prob1 = IntervalAmbiguitySets(;
+                lower = N[
+                    0//10 4//10
+                    1//10 3//10
+                    2//10 2//10
+                ],
+                upper = N[
+                    5//10 9//10
+                    6//10 8//10
+                    7//10 7//10
+                ],
+            )
+
+            prob2 = IntervalAmbiguitySets(;
+                lower = N[
+                    5//10 2//10
+                    3//10 3//10
+                    1//10 4//10
+                ],
+                upper = N[
+                    7//10 3//10
+                    5//10 6//10
+                    3//10 9//10
+                ],
+            )
+
+            prob3 = IntervalAmbiguitySets(; lower = N[
+                0 0
+                0 0
+                1 1
+            ], upper = N[
+                0 0
+                0 0
+                1 1
+            ])
+
+            transition_probs = [prob1, prob2, prob3]
+            mdp = IntervalMarkovDecisionProcess(transition_probs)
+
+            # Product model - just simple reachability
+            delta = TransitionFunction(Int32[
+                1 2
+                2 2
+            ])
+            istate = Int32(1)
+            atomic_props = ["reach"]
+            dfa = DFA(delta, istate, atomic_props)
+
+            m = N[
+                9//10 7//10 1//10
+                1//10 3//10 9//10
+            ]
+
+            labelling = ProbabilisticLabelling(m)
+
+            prod_proc = ProductProcess(mdp, dfa, labelling)
+
+            V = N[
+                4 1
+                2 3
+                0 5
+            ]
+
+            workspace = IntervalMDP.construct_workspace(prod_proc)
+
+            eps = one(N) / N(1000)
+
+            # No Strategy
+            Vtar = IntervalMDP.bellman(V, prod_proc; upper_bound = false)
+
+            # Non Stationary Strategy
+            prop = FiniteTimeDFAReachability([2], 10)
+            spec = Specification(prop, Pessimistic, Maximize)
+            problem = ControlSynthesisProblem(prod_proc, spec)
+            strategy_cache = IntervalMDP.construct_strategy_cache(problem)
+
+            Vres = copy(V)
+
+            Vres = IntervalMDP.bellman!(
+                workspace,
+                strategy_cache,
+                Vres,
+                V,
+                prod_proc,
+                upper_bound = false,
+            )
+
+            @test Vtar ≈ Vres atol=eps
+
+            # Stationary Strategy
+            prop = InfiniteTimeDFAReachability([2], eps)
+            spec = Specification(prop, Pessimistic, Maximize)
+            problem = ControlSynthesisProblem(prod_proc, spec)
+            strategy_cache = IntervalMDP.construct_strategy_cache(problem)
+
+            Vres = copy(V)
+
+            Vres = IntervalMDP.bellman!(
+                workspace,
+                strategy_cache,
+                Vres,
+                V,
+                prod_proc,
+                upper_bound = false,
+            )
+
+            @test Vtar ≈ Vres atol=eps
+
+            # Given Strategy 
+            strategy_cache = IntervalMDP.ActiveGivenStrategyCache(
+                [
+                    (Int32(1),) (Int32(1),);
+                    (Int32(1),) (Int32(1),);
+                    (Int32(1),) (Int32(1),);
+                ],
+            )
+
+            Vres = copy(V)
+
+            Vres = IntervalMDP.bellman!(
+                workspace,
+                strategy_cache,
+                Vres,
+                V,
+                prod_proc,
+                upper_bound = false,
+            )
+
+            @test Vres ≈ N[
+                302//100 24//10
+                322//100 2
+                45//10 5
+            ] atol=eps
+        end
+    end
+end
+
+@testset "value iteration deterministic labelling" begin
     for N in [Float32, Float64, Rational{BigInt}]
         @testset "N = $N" begin
             prob1 = IntervalAmbiguitySets(;
@@ -270,6 +598,151 @@ end
                 V_mc, k, res = solve(problem)
 
                 @test V_conv ≈ V_mc atol=1e-3
+            end
+        end
+    end
+end
+
+@testset "value iteration probabilistic labelling" begin
+    for N in [Float32, Float64, Rational{BigInt}]
+        @testset "N = $N" begin
+            prob1 = IntervalAmbiguitySets(;
+                lower = N[
+                    0//10 5//10
+                    1//10 3//10
+                    2//10 1//10
+                ],
+                upper = N[
+                    5//10 7//10
+                    6//10 5//10
+                    7//10 3//10
+                ],
+            )
+
+            prob2 = IntervalAmbiguitySets(;
+                lower = N[
+                    1//10 2//10
+                    2//10 3//10
+                    3//10 4//10
+                ],
+                upper = N[
+                    6//10 6//10
+                    5//10 5//10
+                    4//10 4//10
+                ],
+            )
+
+            transition_probs = [prob1, prob2]
+            mdp = IntervalMarkovDecisionProcess(transition_probs)
+
+            # Product model - just simple reachability
+            delta = TransitionFunction(Int32[
+                1 2
+                2 2
+            ])
+            istate = Int32(1)
+            atomic_props = ["reach"]
+            dfa = DFA(delta, istate, atomic_props)
+
+            m = N[
+                9//10 7//10 1//10
+                1//10 3//10 9//10
+            ]
+
+            labelling = ProbabilisticLabelling(m)
+
+            prod_proc = ProductProcess(mdp, dfa, labelling)
+
+            eps = one(N) / N(1000)
+
+            @testset "finite time reachability" begin
+                prop = FiniteTimeDFAReachability([2], 10)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = ControlSynthesisProblem(prod_proc, spec)
+
+                policy, V_fixed_it1, k, res = solve(problem)
+
+                @test all(V_fixed_it1 .>= 0)
+                @test k == 10
+                @test V_fixed_it1[:, 2] == N[1, 1, 1]
+
+                problem = VerificationProblem(prod_proc, spec, policy)
+                V_mc, k, res = solve(problem)
+
+                @test V_fixed_it1 ≈ V_mc
+
+                prop = FiniteTimeDFAReachability([2], 11)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = VerificationProblem(prod_proc, spec)
+
+                V_fixed_it2, k, res = solve(problem)
+
+                @test all(V_fixed_it2 .>= 0)
+                @test k == 11
+                @test V_fixed_it2[:, 2] == N[1, 1, 1]
+                @test all(V_fixed_it2 .>= V_fixed_it1)
+            end
+
+            @testset "infinite time reachability" begin
+                prop = InfiniteTimeDFAReachability([2], eps)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = ControlSynthesisProblem(prod_proc, spec)
+
+                policy, V_conv, k, res = solve(problem)
+
+                @test all(V_conv .>= 0)
+                @test maximum(res) <= eps
+                @test V_conv[:, 2] == N[1, 1, 1]
+
+                problem = VerificationProblem(prod_proc, spec, policy)
+                V_mc, k, res = solve(problem)
+
+                @test V_conv ≈ V_mc atol=eps
+            end
+
+            @testset "finite time safety" begin
+                prop = FiniteTimeDFASafety([2], 10)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = ControlSynthesisProblem(prod_proc, spec)
+
+                policy, V_fixed_it1, k, res = solve(problem)
+
+                @test all(V_fixed_it1 .>= 0)
+                @test k == 10
+                @test V_fixed_it1[:, 2] == N[0, 0, 0]
+
+                problem = VerificationProblem(prod_proc, spec, policy)
+                V_mc, k, res = solve(problem)
+
+                @test V_fixed_it1 ≈ V_mc
+
+                prop = FiniteTimeDFASafety([2], 11)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = VerificationProblem(prod_proc, spec)
+
+                V_fixed_it2, k, res = solve(problem)
+
+                @test all(V_fixed_it2 .>= 0)
+                @test k == 11
+                @test V_fixed_it2[:, 2] == N[0, 0, 0]
+                @test all(V_fixed_it2 .<= V_fixed_it1)
+            end
+
+            @testset "infinite time safety" begin
+                prop = InfiniteTimeDFASafety([2], eps)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = ControlSynthesisProblem(prod_proc, spec)
+
+                policy, V_conv, k, res = solve(problem)
+
+                @test all(V_conv .>= 0)
+                @test maximum(res) <= eps
+                @test V_conv[:, 2] == N[0, 0, 0]
+
+                problem = VerificationProblem(prod_proc, spec, policy)
+                V_mc, k, res = solve(problem)
+
+                @test V_conv ≈ V_mc atol=eps
             end
         end
     end
