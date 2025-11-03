@@ -400,8 +400,6 @@ function IntervalAmbiguitySetVertexIterator(set::IntervalAmbiguitySet)
     return IntervalAmbiguitySetVertexIterator(set, v)
 end
 
-Base.IteratorEltype(::Type{<:IntervalAmbiguitySetVertexIterator}) = Base.HasEltype()
-Base.eltype(::IntervalAmbiguitySetVertexIterator{R}) where {R} = Vector{R}
 Base.IteratorSize(::Type{<:IntervalAmbiguitySetVertexIterator}) = Base.SizeUnknown()
 
 function Base.iterate(

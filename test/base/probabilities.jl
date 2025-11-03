@@ -124,3 +124,99 @@ using IntervalMDP
         @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
 end
+
+@testset "marginal" begin
+    N = Float64
+    l = N[0 1//2; 1//10 3//10; 2//10 1//10]
+    u = N[5//10 7//10; 6//10 5//10; 7//10 3//10]
+
+    prob = IntervalAmbiguitySets(; lower = l, upper = u)
+
+    # Negative state index
+    @test_throws ArgumentError Marginal(
+        prob,
+        (-1,),
+        (1,),
+        (2,),
+        (1,),
+    )
+
+    # Negative action index
+    @test_throws ArgumentError Marginal(
+        prob,
+        (1,),
+        (-1,),
+        (2,),
+        (1,),
+    )
+
+    # Negative source_dim
+    @test_throws ArgumentError Marginal(
+        prob,
+        (1,),
+        (1,),
+        (-2,),
+        (1,),
+    )
+
+    # Negative action_vars
+    @test_throws ArgumentError Marginal(
+        prob,
+        (1,),
+        (1,),
+        (2,),
+        (-1,),
+    )
+
+    # Mismatch between expected number of ambiguity sets and what is available in `ambiguity_sets`
+    @test_throws ArgumentError Marginal(
+        prob,
+        (1,),
+        (1,),
+        (3,),
+        (1,),
+    )
+
+    # Valid marginal 2 source, 1 action
+    marg = Marginal(
+        prob,
+        (1,),
+        (1,),
+        (2,),
+        (1,),
+    )
+
+    amb_set = marg[CartesianIndex(1), CartesianIndex(1)]
+    @test amb_set == prob[1]
+
+    amb_set = marg[CartesianIndex(1), CartesianIndex(2)]
+    @test amb_set == prob[2]
+
+    @test state_variables(marg) == (1,)
+    @test action_variables(marg) == (1,)
+    @test source_shape(marg) == (2,)
+    @test action_shape(marg) == (1,)
+    @test ambiguity_sets(marg) == prob
+
+    io = IOBuffer()
+    show(io, MIME("text/plain"), marg)
+    str = String(take!(io))
+    @test occursin("Marginal", str)
+    @test occursin("Conditional variables: states = (1,), actions = (1,)", str)
+    @test occursin("Ambiguity set type: Interval", str)
+
+    # Valid marginal 1 source, 2 actions
+    marg = Marginal(
+        prob,
+        (1,),
+        (1,),
+        (1,),
+        (2,),
+    )
+
+    amb_set = marg[CartesianIndex(1), CartesianIndex(1)]
+    @test amb_set == prob[1]
+
+    amb_set = marg[CartesianIndex(2), CartesianIndex(1)]
+    @test amb_set == prob[2]
+end
