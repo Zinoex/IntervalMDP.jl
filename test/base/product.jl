@@ -206,10 +206,8 @@ end
             Vtar = IntervalMDP.bellman(V, prod_proc; upper_bound = false)
 
             # Non Stationary Strategy
-            prop = FiniteTimeDFAReachability([2], 10)
-            spec = Specification(prop, Pessimistic, Maximize)
-            problem = ControlSynthesisProblem(prod_proc, spec)
-            strategy_cache = IntervalMDP.construct_strategy_cache(problem)
+            strategy_cache =
+                IntervalMDP.TimeVaryingStrategyCache(fill(ntuple(_ -> Int32(0), 1), 3, 2))
 
             Vres = copy(V)
 
@@ -225,10 +223,8 @@ end
             @test Vtar ≈ Vres atol=eps
 
             # Stationary Strategy
-            prop = InfiniteTimeDFAReachability([2], eps)
-            spec = Specification(prop, Pessimistic, Maximize)
-            problem = ControlSynthesisProblem(prod_proc, spec)
-            strategy_cache = IntervalMDP.construct_strategy_cache(problem)
+            strategy_cache =
+                IntervalMDP.StationaryStrategyCache(fill(ntuple(_ -> Int32(0), 1), 3, 2))
 
             Vres = copy(V)
 
@@ -399,10 +395,8 @@ end
             Vtar = IntervalMDP.bellman(V, prod_proc; upper_bound = false)
 
             # Non Stationary Strategy
-            prop = FiniteTimeDFAReachability([2], 10)
-            spec = Specification(prop, Pessimistic, Maximize)
-            problem = ControlSynthesisProblem(prod_proc, spec)
-            strategy_cache = IntervalMDP.construct_strategy_cache(problem)
+            strategy_cache =
+                IntervalMDP.TimeVaryingStrategyCache(fill(ntuple(_ -> Int32(0), 1), 3, 2))
 
             Vres = copy(V)
 
@@ -418,10 +412,8 @@ end
             @test Vtar ≈ Vres atol=eps
 
             # Stationary Strategy
-            prop = InfiniteTimeDFAReachability([2], eps)
-            spec = Specification(prop, Pessimistic, Maximize)
-            problem = ControlSynthesisProblem(prod_proc, spec)
-            strategy_cache = IntervalMDP.construct_strategy_cache(problem)
+            strategy_cache =
+                IntervalMDP.StationaryStrategyCache(fill(ntuple(_ -> Int32(0), 1), 3, 2))
 
             Vres = copy(V)
 
