@@ -206,23 +206,21 @@ end
     IntervalMDP.num_target(p::SingletonAmbiguitySets) = size(p.transition_matrix, 1)
     IntervalMDP.num_sets(p::SingletonAmbiguitySets) = size(p.transition_matrix, 2)
 
-    IntervalMDP.showambiguitysets(io::IO, prefix::AbstractString, p::SingletonAmbiguitySets) =
-        println(io, prefix, "SingletonAmbiguitySets with Storage type: Matrix{$(eltype(p.transition_matrix))}, Number of target states: $(size(p.transition_matrix, 1)), Number of ambiguity sets: $(size(p.transition_matrix, 2))")
-    
-    @testset "1d" begin
-        marginal = Marginal(
-            SingletonAmbiguitySets(N[0.2 0.8; 0.5 0.5]),
-            (1,),
-            (1,),
-            (2,),
-            (1,),
-        )
+    IntervalMDP.showambiguitysets(
+        io::IO,
+        prefix::AbstractString,
+        p::SingletonAmbiguitySets,
+    ) = println(
+        io,
+        prefix,
+        "SingletonAmbiguitySets with Storage type: Matrix{$(eltype(p.transition_matrix))}, Number of target states: $(size(p.transition_matrix, 1)), Number of ambiguity sets: $(size(p.transition_matrix, 2))",
+    )
 
-        mc = FactoredRobustMarkovDecisionProcess(
-            (2,),
-            (1,),
-            (marginal,),
-        )
+    @testset "1d" begin
+        marginal =
+            Marginal(SingletonAmbiguitySets(N[0.2 0.8; 0.5 0.5]), (1,), (1,), (2,), (1,))
+
+        mc = FactoredRobustMarkovDecisionProcess((2,), (1,), (marginal,))
 
         io = IOBuffer()
         show(io, MIME("text/plain"), mc)
@@ -231,28 +229,14 @@ end
         @test occursin("Default model checking algorithm: Robust Value Iteration", str)
         @test occursin("Default Bellman operator algorithm: None", str)
     end
-    
-    @testset "2d" begin
-        marginal1 = Marginal(
-            SingletonAmbiguitySets(N[0.2 0.8; 0.5 0.5]),
-            (1,),
-            (1,),
-            (2,),
-            (1,),
-        )
-        marginal2 = Marginal(
-            SingletonAmbiguitySets(N[0.2 0.8; 0.5 0.5]),
-            (2,),
-            (1,),
-            (2,),
-            (1,),
-        )
 
-        mc = FactoredRobustMarkovDecisionProcess(
-            (2, 2),
-            (1,),
-            (marginal1, marginal2),
-        )
+    @testset "2d" begin
+        marginal1 =
+            Marginal(SingletonAmbiguitySets(N[0.2 0.8; 0.5 0.5]), (1,), (1,), (2,), (1,))
+        marginal2 =
+            Marginal(SingletonAmbiguitySets(N[0.2 0.8; 0.5 0.5]), (2,), (1,), (2,), (1,))
+
+        mc = FactoredRobustMarkovDecisionProcess((2, 2), (1,), (marginal1, marginal2))
 
         io = IOBuffer()
         show(io, MIME("text/plain"), mc)

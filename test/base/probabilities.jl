@@ -133,58 +133,22 @@ end
     prob = IntervalAmbiguitySets(; lower = l, upper = u)
 
     # Negative state index
-    @test_throws ArgumentError Marginal(
-        prob,
-        (-1,),
-        (1,),
-        (2,),
-        (1,),
-    )
+    @test_throws ArgumentError Marginal(prob, (-1,), (1,), (2,), (1,))
 
     # Negative action index
-    @test_throws ArgumentError Marginal(
-        prob,
-        (1,),
-        (-1,),
-        (2,),
-        (1,),
-    )
+    @test_throws ArgumentError Marginal(prob, (1,), (-1,), (2,), (1,))
 
     # Negative source_dim
-    @test_throws ArgumentError Marginal(
-        prob,
-        (1,),
-        (1,),
-        (-2,),
-        (1,),
-    )
+    @test_throws ArgumentError Marginal(prob, (1,), (1,), (-2,), (1,))
 
     # Negative action_vars
-    @test_throws ArgumentError Marginal(
-        prob,
-        (1,),
-        (1,),
-        (2,),
-        (-1,),
-    )
+    @test_throws ArgumentError Marginal(prob, (1,), (1,), (2,), (-1,))
 
     # Mismatch between expected number of ambiguity sets and what is available in `ambiguity_sets`
-    @test_throws ArgumentError Marginal(
-        prob,
-        (1,),
-        (1,),
-        (3,),
-        (1,),
-    )
+    @test_throws ArgumentError Marginal(prob, (1,), (1,), (3,), (1,))
 
     # Valid marginal 2 source, 1 action
-    marg = Marginal(
-        prob,
-        (1,),
-        (1,),
-        (2,),
-        (1,),
-    )
+    marg = Marginal(prob, (1,), (1,), (2,), (1,))
 
     amb_set = marg[CartesianIndex(1), CartesianIndex(1)]
     @test amb_set == prob[1]
@@ -206,13 +170,7 @@ end
     @test occursin("Ambiguity set type: Interval", str)
 
     # Valid marginal 1 source, 2 actions
-    marg = Marginal(
-        prob,
-        (1,),
-        (1,),
-        (1,),
-        (2,),
-    )
+    marg = Marginal(prob, (1,), (1,), (1,), (2,))
 
     amb_set = marg[CartesianIndex(1), CartesianIndex(1)]
     @test amb_set == prob[1]
