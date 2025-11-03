@@ -230,7 +230,7 @@ function FactoredIntervalOMaxWorkspace(sys::FactoredRMDP)
     max_support = maximum(max_support_per_marginal)
 
     expectation_cache = NTuple{N - 1, Vector{R}}(
-        Vector{R}(undef, n) for n in max_support_per_marginal[2:end]
+        zeros(R, n) for n in num_target.(marginals(sys)[2:end])
     )
     values_gaps = Vector{Tuple{R, R}}(undef, max_support)
     scratch = Vector{Tuple{R, R}}(undef, max_support)
