@@ -294,7 +294,7 @@ function check_initial_states(state_vars, initial_states)
             throw(DimensionMismatch("Each initial state must have length $N."))
         end
 
-        if !all(1 .<= initial_state .<= state_vars)
+        if !all(1 .<= Tuple(initial_state) .<= state_vars)
             throw(
                 DimensionMismatch(
                     "Each initial state must be within the valid range of states (should be 1 .<= initial_state <= $state_vars, was initial_state=$initial_state).",
