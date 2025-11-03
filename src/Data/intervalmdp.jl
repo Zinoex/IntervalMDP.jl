@@ -299,7 +299,7 @@ function write_intervalmdp_jl_spec(spec_path, spec::Specification; indent = 4)
         "strategy_mode" => intervalmdp_jl_strategy_mode(strategy_mode(spec)),
     )
 
-    return JSON.json(spec_path, data; pretty=indent)
+    return JSON.json(spec_path, data; pretty = indent)
 end
 
 write_intervalmdp_jl_spec(spec_path, problem::IntervalMDP.AbstractIntervalMDPProblem) =
