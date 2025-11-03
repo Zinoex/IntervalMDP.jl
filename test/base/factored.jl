@@ -309,7 +309,10 @@ end
     @test occursin("Number of states: 27", str)
     @test occursin("Number of actions: 1", str)
     @test occursin("Default model checking algorithm: Robust Value Iteration", str)
-    @test occursin("Default Bellman operator algorithm: Binary tree LP McCormick Relaxation", str)
+    @test occursin(
+        "Default Bellman operator algorithm: Binary tree LP McCormick Relaxation",
+        str,
+    )
 end
 
 @testset for N in [Float32, Float64]
