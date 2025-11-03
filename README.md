@@ -4,23 +4,28 @@
 [![Build Status](https://github.com/zinoex/IntervalMDP.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/zinoex/IntervalMDP.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Codecov](https://codecov.io/gh/Zinoex/IntervalMDP.jl/graph/badge.svg?token=K62S0148BK)](https://codecov.io/gh/Zinoex/IntervalMDP.jl)
 
-IntervalMDP.jl is a Julia package for modeling and certifying Interval Markov Decision Processes (IMDPs) via Value Iteration.
+for modeling
+and verifying properties of various subclasses of factored Robust Markov Decision Processes (fRMDPs), in particular
+Interval Markov Decision Processes (IMDPs) and factored IMDPs (fIMDPs) via Value Iteration.
 
-IMDPs are a generalization of Markov Decision Processes (MDPs) where the transition probabilities
-are represented by intervals instead of point values, to model uncertainty. IMDPs are also frequently
-chosen as the model for abstracting the dynamics of a stochastic system, as one may compute upper
-and lower bounds on transitioning from one region to another.
+RMDPs are an extension of Markov Decision Processes (MDPs) that account for uncertainty in the transition
+probabilities, and the factored variant introduces state and action variables such that the transition model
+is a product of the transition models of the individual variables, allowing for more compact representations
+and efficient algorithms. This package focuses on different subclasses of fRMDPs for which value iteration
+can be performed efficiently including Interval Markov Chains (IMCs), IMDPs, orthogonally-decoupled IMDPs
+(odIMDPs), and fIMDPs. 
 
-The aim of this package is to provide a user-friendly interface to solve value iteration for IMDPs
-with great efficiency. Furthermore, it provides methods for accelerating the computation of the
-certificate using CUDA hardware. 
+The aim of this package is to provide a user-friendly interface to solve verification and control synthesis
+problems for fRMDPs with great efficiency, which includes methods for accelerating the computation using
+CUDA hardware, pre-allocation, and other optimization techniques.
 
 ## Features
-- Value iteration (Bellman operator via O-maximization)
-- Dense and sparse matrix support
-- Parametric probability and value types for customizable precision including rationals and floating-point numbers
-- Multithreaded CPU and CUDA-accelerated value iteration
-- Data loading and writing in formats by various tools (PRISM, bmdp-tool, IMDP.jl)
+- Value iteration over IMCs, IMDPs, odIMDPs, and fIMDPs.
+- Multithreaded CPU and CUDA-accelerated value iteration.
+- Dense and sparse matrix support.
+- Parametric probability types (`Float64`, `Float32`, `Rational{BigInt}`) for customizable precision. Note that
+  `Rational{BigInt}` is not supported for CUDA acceleration.
+- Data loading and writing in formats by various tools (PRISM, bmdp-tool, IntervalMDP.jl)
 
 ## Installation
 
@@ -44,7 +49,7 @@ The goal is to compute the maximum pessimistic probability of reaching state 3 w
 using IntervalMDP
 
 # IMC
-prob = IntervalProbabilities(;
+prob = IntervalAmbiguitySets(;
     lower = [
         0.0 0.5 0.0
         0.1 0.3 0.0

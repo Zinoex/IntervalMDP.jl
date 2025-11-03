@@ -4,6 +4,14 @@ using IntervalMDP, IntervalMDP.Data, SparseArrays, CUDA, Adapt
 
 path = joinpath(@__DIR__, "multiObj_robotIMDP.txt")
 mdp, terminal_states = read_bmdp_tool_file(path)
-prop = InfiniteTimeReachability(terminal_states, 1e-6)
+
+marginal = marginals(mdp)[1]
+amb = IntervalAmbiguitySets(
+    Array(ambiguity_sets(marginal).lower),
+    Array(ambiguity_sets(marginal).gap),
+)
+
+mdp = IntervalMarkovDecisionProcess(amb, num_actions(mdp), initial_states(mdp))
+prop = FiniteTimeReachability(terminal_states, 100)
 spec = Specification(prop, Pessimistic, Maximize)
-prob = Problem(mdp, spec)
+prob = VerificationProblem(mdp, spec)

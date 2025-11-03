@@ -1,7 +1,8 @@
 abstract type TerminationCriteria end
 function termination_criteria(spec::Specification)
     prop = system_property(spec)
-    return termination_criteria(prop, Val(isfinitetime(prop)))
+    ft = isfinitetime(prop)
+    return termination_criteria(prop, Val(ft))
 end
 
 struct FixedIterationsCriteria{T <: Integer} <: TerminationCriteria
@@ -11,7 +12,7 @@ end
 termination_criteria(prop, finitetime::Val{true}) =
     FixedIterationsCriteria(time_horizon(prop))
 
-struct CovergenceCriteria{T <: AbstractFloat} <: TerminationCriteria
+struct CovergenceCriteria{T <: Real} <: TerminationCriteria
     tol::T
 end
 (f::CovergenceCriteria)(V, k, u) = maximum(abs, u) < f.tol
@@ -19,7 +20,7 @@ termination_criteria(prop, finitetime::Val{false}) =
     CovergenceCriteria(convergence_eps(prop))
 
 """
-    solve(problem::AbstractIntervalMDPAlgorithm, alg::RobustValueIteration; callback=nothing)
+    solve(problem::AbstractIntervalMDPProblem, alg::RobustValueIteration; callback=nothing)
 
 Solve minimizes/maximizes optimistic/pessimistic specification problems using value iteration for interval Markov processes. 
 
@@ -30,8 +31,10 @@ iteration count. The callback function should have the signature `callback(V::Ab
 
 ### Examples
 
-```jldoctest
-prob1 = IntervalProbabilities(;
+```jldoctest robust_vi
+using IntervalMDP
+
+prob1 = IntervalAmbiguitySets(;
     lower = [
         0.0 0.5
         0.1 0.3
@@ -44,7 +47,7 @@ prob1 = IntervalProbabilities(;
     ],
 )
 
-prob2 = IntervalProbabilities(;
+prob2 = IntervalAmbiguitySets(;
     lower = [
         0.1 0.2
         0.2 0.3
@@ -57,29 +60,99 @@ prob2 = IntervalProbabilities(;
     ],
 )
 
-prob3 = IntervalProbabilities(;
-    lower = [0.0; 0.0; 1.0],
-    upper = [0.0; 0.0; 1.0]
+prob3 = IntervalAmbiguitySets(;
+    lower = [
+        0.0 0.0
+        0.0 0.0
+        1.0 1.0
+    ],
+    upper = [
+        0.0 0.0
+        0.0 0.0
+        1.0 1.0
+    ]
 )
 
 transition_probs = [prob1, prob2, prob3]
-initial_state = 1
+initial_state = [1]
 mdp = IntervalMarkovDecisionProcess(transition_probs, initial_state)
 
-terminal_states = [3]
+# output
+
+FactoredRobustMarkovDecisionProcess
+├─ 1 state variables with cardinality: (3,)
+├─ 1 action variables with cardinality: (2,)
+├─ Initial states: [1]
+├─ Transition marginals:
+│  └─ Marginal 1:
+│     ├─ Conditional variables: states = (1,), actions = (1,)
+│     └─ Ambiguity set type: Interval (dense, Matrix{Float64})
+└─Inferred properties
+   ├─Model type: Interval MDP
+   ├─Number of states: 3
+   ├─Number of actions: 2
+   ├─Default model checking algorithm: Robust Value Iteration
+   └─Default Bellman operator algorithm: O-Maximization
+```
+
+```jldoctest robust_vi
+reach_states = [3]
 time_horizon = 10
-prop = FiniteTimeReachability(terminal_states, time_horizon)
+prop = FiniteTimeReachability(reach_states, time_horizon)
 spec = Specification(prop, Pessimistic, Maximize)
 
-### Verification
+# output
+
+Specification
+├─ Satisfaction mode: Pessimistic
+├─ Strategy mode: Maximize
+└─ Property: FiniteTimeReachability
+   ├─ Time horizon: 10
+   └─ Reach states: CartesianIndex{1}[CartesianIndex(3,)]
+```
+
+
+```jldoctest robust_vi
+# Verification
 problem = VerificationProblem(mdp, spec)
-sol = solve(problem, RobustValueIteration(); callback = (V, k) -> println("Iteration ", k))
+sol = solve(problem, RobustValueIteration(default_bellman_algorithm(mdp)); callback = (V, k) -> println("Iteration ", k))
 V, k, res = sol  # or `value_function(sol), num_iterations(sol), residual(sol)`
 
+# output
+
+Iteration 1
+Iteration 2
+Iteration 3
+Iteration 4
+Iteration 5
+Iteration 6
+Iteration 7
+Iteration 8
+Iteration 9
+Iteration 10
+IntervalMDP.VerificationSolution{Float64, Vector{Float64}, Nothing}([0.9597716063999999, 0.9710050144, 1.0], [0.01593864639999998, 0.011487926399999848, -0.0], 10, nothing)
+
+```
+
+```jldoctest robust_vi
 # Control synthesis
 problem = ControlSynthesisProblem(mdp, spec)
-sol = solve(problem, RobustValueIteration(); callback = (V, k) -> println("Iteration ", k))
+sol = solve(problem, RobustValueIteration(default_bellman_algorithm(mdp)); callback = (V, k) -> println("Iteration ", k))
 σ, V, k, res = sol # or `strategy(sol), value_function(sol), num_iterations(sol), residual(sol)`
+
+# output
+
+Iteration 1
+Iteration 2
+Iteration 3
+Iteration 4
+Iteration 5
+Iteration 6
+Iteration 7
+Iteration 8
+Iteration 9
+Iteration 10
+IntervalMDP.ControlSynthesisSolution{TimeVaryingStrategy{1, Vector{Tuple{Int32}}}, Float64, Vector{Float64}, Nothing}(TimeVaryingStrategy{1, Vector{Tuple{Int32}}}(Vector{Tuple{Int32}}[[(1,), (2,), (1,)], [(1,), (2,), (1,)], [(1,), (2,), (1,)], [(1,), (2,), (1,)], [(1,), (2,), (1,)], [(1,), (2,), (1,)], [(1,), (2,), (1,)], [(1,), (2,), (1,)], [(1,), (2,), (1,)], [(1,), (2,), (1,)]]), [0.9597716063999999, 0.9710050144, 1.0], [0.01593864639999998, 0.011487926399999848, -0.0], 10, nothing)
 ```
 """
 function solve(problem::VerificationProblem, alg::RobustValueIteration; kwargs...)
@@ -102,7 +175,7 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     maximize = ismaximize(spec)
 
     # It is more efficient to use allocate first and reuse across iterations
-    workspace = construct_workspace(mp)
+    workspace = construct_workspace(mp, bellman_algorithm(alg))
     strategy_cache = construct_strategy_cache(problem)
 
     value_function = ValueFunction(problem)
@@ -161,16 +234,17 @@ end
 
 function ValueFunction(problem::AbstractIntervalMDPProblem)
     mp = system(problem)
-    previous = arrayfactory(mp, valuetype(mp), product_num_states(mp))
+    previous = arrayfactory(mp, valuetype(mp), state_values(mp))
+    previous .= zero(valuetype(mp))
     current = copy(previous)
 
     return ValueFunction(previous, current)
 end
 
-function lastdiff!(V)
+function lastdiff!(V::ValueFunction{R}) where {R}
     # Reuse prev to store the latest difference
     V.previous .-= V.current
-    rmul!(V.previous, -1.0)
+    rmul!(V.previous, -one(R))
 
     return V.previous
 end

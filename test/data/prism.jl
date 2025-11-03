@@ -35,12 +35,20 @@ mdp, new_mdp = system(problem), system(new_problem)
 
 @test num_states(mdp) == num_states(new_mdp)
 
-transition_probabilities = transition_prob(mdp)
-new_transition_probabilities = transition_prob(new_mdp)
+marginal = marginals(mdp)[1]
+new_marginal = marginals(new_mdp)[1]
 
-@test size(transition_probabilities) == size(new_transition_probabilities)
-@test lower(transition_probabilities) ≈ lower(new_transition_probabilities)
-@test gap(transition_probabilities) ≈ gap(new_transition_probabilities)
+as = ambiguity_sets(marginal)
+new_as = ambiguity_sets(new_marginal)
+
+@test source_shape(marginal) == source_shape(new_marginal)
+@test action_shape(marginal) == action_shape(new_marginal)
+@test num_target(marginal) == num_target(new_marginal)
+@test state_values(mdp) == state_values(new_mdp)
+@test action_values(mdp) == action_values(new_mdp)
+
+@test as.lower ≈ new_as.lower
+@test as.gap ≈ new_as.gap
 
 spec = specification(new_problem)
 @test satisfaction_mode(spec) == Pessimistic
@@ -88,12 +96,20 @@ mdp, new_mdp = system(problem), system(new_problem)
 
 @test num_states(mdp) == num_states(new_mdp)
 
-transition_probabilities = transition_prob(mdp)
-new_transition_probabilities = transition_prob(new_mdp)
+marginal = marginals(mdp)[1]
+new_marginal = marginals(new_mdp)[1]
 
-@test size(transition_probabilities) == size(new_transition_probabilities)
-@test lower(transition_probabilities) ≈ lower(new_transition_probabilities)
-@test gap(transition_probabilities) ≈ gap(new_transition_probabilities)
+as = ambiguity_sets(marginal)
+new_as = ambiguity_sets(new_marginal)
+
+@test source_shape(marginal) == source_shape(new_marginal)
+@test action_shape(marginal) == action_shape(new_marginal)
+@test num_target(marginal) == num_target(new_marginal)
+@test state_values(mdp) == state_values(new_mdp)
+@test action_values(mdp) == action_values(new_mdp)
+
+@test as.lower ≈ new_as.lower
+@test as.gap ≈ new_as.gap
 
 spec = specification(new_problem)
 @test satisfaction_mode(spec) == Pessimistic
@@ -137,12 +153,20 @@ new_mdp = system(new_problem)
 
 @test num_states(mdp) == num_states(new_mdp)
 
-transition_probabilities = transition_prob(mdp)
-new_transition_probabilities = transition_prob(new_mdp)
+marginal = marginals(mdp)[1]
+new_marginal = marginals(new_mdp)[1]
 
-@test size(transition_probabilities) == size(new_transition_probabilities)
-@test lower(transition_probabilities) ≈ lower(new_transition_probabilities)
-@test gap(transition_probabilities) ≈ gap(new_transition_probabilities)
+as = ambiguity_sets(marginal)
+new_as = ambiguity_sets(new_marginal)
+
+@test source_shape(marginal) == source_shape(new_marginal)
+@test action_shape(marginal) == action_shape(new_marginal)
+@test num_target(marginal) == num_target(new_marginal)
+@test state_values(mdp) == state_values(new_mdp)
+@test action_values(mdp) == action_values(new_mdp)
+
+@test as.lower ≈ new_as.lower
+@test as.gap ≈ new_as.gap
 
 spec = specification(new_problem)
 @test satisfaction_mode(spec) == Pessimistic

@@ -8,89 +8,52 @@ using GPUArrays: AbstractGPUArray, AbstractGPUVector, AbstractGPUMatrix
 
 using IntervalMDP, LinearAlgebra
 
-Adapt.@adapt_structure IntervalProbabilities
-Adapt.@adapt_structure OrthogonalIntervalProbabilities
+# Opinionated conversion to GPU with preserved value types and Int32 indices
+IntervalMDP.cu(obj) = adapt(IntervalMDP.CuModelAdaptor{IntervalMDP.valuetype(obj)}, obj)
+IntervalMDP.cpu(obj) = adapt(IntervalMDP.CpuModelAdaptor{IntervalMDP.valuetype(obj)}, obj)
+
+Adapt.@adapt_structure Marginal
 Adapt.@adapt_structure StationaryStrategy
-Adapt.@adapt_structure TimeVaryingStrategy
-
-# Opinionated conversion to GPU with Float64 values and Int32 indices
-IntervalMDP.cu(model) = adapt(IntervalMDP.CuModelAdaptor{Float64}, model)
-IntervalMDP.cpu(model) = adapt(IntervalMDP.CpuModelAdaptor{Float64}, model)
+Adapt.adapt_structure(to, strategy::TimeVaryingStrategy) =
+    TimeVaryingStrategy([adapt(to, s) for s in strategy.strategy])
 
 function Adapt.adapt_structure(
     T::Type{<:IntervalMDP.CuModelAdaptor},
-    mdp::IntervalMarkovDecisionProcess,
+    mdp::IntervalMDP.FactoredRMDP,
 )
-    return IntervalMarkovDecisionProcess(
-        adapt(T, transition_prob(mdp)),
-        adapt(CuArray{Int32}, IntervalMDP.stateptr(mdp)),
+    return IntervalMDP.FactoredRMDP(
+        state_values(mdp),
+        action_values(mdp),
+        IntervalMDP.source_shape(mdp),
+        adapt(T, marginals(mdp)),
         adapt(CuArray{Int32}, initial_states(mdp)),
-        num_states(mdp),
+        Val(false), # check = false
     )
 end
 
 function Adapt.adapt_structure(
     T::Type{<:IntervalMDP.CpuModelAdaptor},
-    mdp::IntervalMarkovDecisionProcess,
+    mdp::IntervalMDP.FactoredRMDP,
 )
-    return IntervalMarkovDecisionProcess(
-        adapt(T, transition_prob(mdp)),
-        adapt(Array{Int32}, IntervalMDP.stateptr(mdp)),
+    return IntervalMDP.FactoredRMDP(
+        state_values(mdp),
+        action_values(mdp),
+        IntervalMDP.source_shape(mdp),
+        adapt(T, marginals(mdp)),
         adapt(Array{Int32}, initial_states(mdp)),
-        num_states(mdp),
+        Val(false), # check = false
     )
 end
 
-function Adapt.adapt_structure(
-    T::Type{<:IntervalMDP.CuModelAdaptor},
-    mdp::OrthogonalIntervalMarkovDecisionProcess,
-)
-    return OrthogonalIntervalMarkovDecisionProcess(
-        adapt(T, transition_prob(mdp)),
-        adapt(CuArray{Int32}, IntervalMDP.stateptr(mdp)),
-        adapt(CuArray{Int32}, initial_states(mdp)),
-        num_states(mdp),
+function Adapt.adapt_structure(to, as::IntervalAmbiguitySets)
+    return IntervalAmbiguitySets(
+        adapt(to, as.lower),
+        adapt(to, as.gap),
+        Val(false), # check = false
     )
 end
 
-function Adapt.adapt_structure(
-    T::Type{<:IntervalMDP.CpuModelAdaptor},
-    mdp::OrthogonalIntervalMarkovDecisionProcess,
-)
-    return OrthogonalIntervalMarkovDecisionProcess(
-        adapt(T, transition_prob(mdp)),
-        adapt(Array{Int32}, IntervalMDP.stateptr(mdp)),
-        adapt(Array{Int32}, initial_states(mdp)),
-        num_states(mdp),
-    )
-end
-
-function Adapt.adapt_structure(
-    T::Type{<:IntervalMDP.CuModelAdaptor},
-    mdp::MixtureIntervalMarkovDecisionProcess,
-)
-    return MixtureIntervalMarkovDecisionProcess(
-        adapt(T, transition_prob(mdp)),
-        adapt(CuArray{Int32}, IntervalMDP.stateptr(mdp)),
-        adapt(CuArray{Int32}, initial_states(mdp)),
-        num_states(mdp),
-    )
-end
-
-function Adapt.adapt_structure(
-    T::Type{<:IntervalMDP.CpuModelAdaptor},
-    mdp::MixtureIntervalMarkovDecisionProcess,
-)
-    return MixtureIntervalMarkovDecisionProcess(
-        adapt(T, transition_prob(mdp)),
-        adapt(Array{Int32}, IntervalMDP.stateptr(mdp)),
-        adapt(Array{Int32}, initial_states(mdp)),
-        num_states(mdp),
-    )
-end
-
-Adapt.adapt_structure(T::Type{<:IntervalMDP.CuModelAdaptor}, is::AllStates) = is
-Adapt.adapt_structure(T::Type{<:IntervalMDP.CpuModelAdaptor}, is::AllStates) = is
+Adapt.@adapt_structure IntervalMDP.AllStates
 
 function IntervalMDP.checkdevice(::AbstractGPUArray, ::AbstractGPUMatrix)
     # Both arguments are on the GPU.
@@ -120,8 +83,8 @@ end
 IntervalMDP.arrayfactory(
     ::MR,
     T,
-    num_states,
-) where {R, MR <: Union{CuSparseMatrixCSC{R}, CuArray{R}}} = CUDA.zeros(T, num_states)
+    sizes,
+) where {R, MR <: Union{CuSparseMatrixCSC{R}, CuArray{R}}} = CuArray{T}(undef, sizes)
 
 include("cuda/utils.jl")
 include("cuda/array.jl")
@@ -130,7 +93,7 @@ include("cuda/workspace.jl")
 include("cuda/strategy.jl")
 include("cuda/bellman/dense.jl")
 include("cuda/bellman/sparse.jl")
-include("cuda/interval_probabilities.jl")
+include("cuda/probabilities.jl")
 include("cuda/specification.jl")
 
 end

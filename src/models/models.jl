@@ -1,17 +1,16 @@
 abstract type StochasticProcess end
 
 include("IntervalMarkovProcess.jl")
-export IntervalMarkovProcess, AllStates
-export transition_prob, num_states, initial_states, stateptr, tomarkovchain
+export AllStates
+export num_states, num_actions, initial_states
 
+include("FactoredRobustMarkovDecisionProcess.jl")
+export FactoredRobustMarkovDecisionProcess, state_values, action_values, marginals
+
+# Convenience model constructors - they all return a FactoredRobustMarkovDecisionProcess
+include("IntervalMarkovChain.jl")
 include("IntervalMarkovDecisionProcess.jl")
-export IntervalMarkovDecisionProcess, IntervalMarkovChain
-
-include("OrthogonalIntervalMarkovDecisionProcess.jl")
-export OrthogonalIntervalMarkovDecisionProcess, OrthogonalIntervalMarkovChain
-
-include("MixtureIntervalMarkovDecisionProcess.jl")
-export MixtureIntervalMarkovDecisionProcess, MixtureIntervalMarkovChain
+export IntervalMarkovChain, IntervalMarkovDecisionProcess
 
 include("DeterministicAutomaton.jl")
 

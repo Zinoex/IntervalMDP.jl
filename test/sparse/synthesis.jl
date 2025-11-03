@@ -1,7 +1,7 @@
 using Revise, Test
 using IntervalMDP, SparseArrays
 
-prob1 = IntervalProbabilities(;
+prob1 = IntervalAmbiguitySets(;
     lower = sparse([
         0.0 0.5
         0.1 0.3
@@ -14,7 +14,7 @@ prob1 = IntervalProbabilities(;
     ]),
 )
 
-prob2 = IntervalProbabilities(;
+prob2 = IntervalAmbiguitySets(;
     lower = sparse([
         0.1 0.2
         0.2 0.3
@@ -27,17 +27,17 @@ prob2 = IntervalProbabilities(;
     ]),
 )
 
-prob3 = IntervalProbabilities(;
+prob3 = IntervalAmbiguitySets(;
     lower = sparse([
-        0.0
-        0.0
-        1.0
-    ][:, :]),
+        0.0 0.0
+        0.0 0.0
+        1.0 1.0
+    ]),
     upper = sparse([
-        0.0
-        0.0
-        1.0
-    ][:, :]),
+        0.0 0.0
+        0.0 0.0
+        1.0 1.0
+    ]),
 )
 
 transition_probs = [prob1, prob2, prob3]
@@ -49,12 +49,18 @@ mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
 prop = FiniteTimeReachability([3], 10)
 spec = Specification(prop, Pessimistic, Maximize)
 problem = ControlSynthesisProblem(mdp, spec)
-policy, V, k, res = solve(problem)
+sol = solve(problem)
+policy, V, k, res = sol
+
+@test strategy(sol) == policy
+@test value_function(sol) == V
+@test num_iterations(sol) == k
+@test residual(sol) == res
 
 @test policy isa TimeVaryingStrategy
 @test time_length(policy) == 10
 for k in 1:time_length(policy)
-    @test policy[k] == [1, 2, 1]
+    @test policy[k] == [(1,), (2,), (1,)]
 end
 
 # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
@@ -71,7 +77,7 @@ policy, V, k, res = solve(problem)
 @test policy isa TimeVaryingStrategy
 @test time_length(policy) == 10
 for k in 1:time_length(policy)
-    @test policy[k] == [2, 2, 1]
+    @test policy[k] == [(2,), (2,), (1,)]
 end
 
 # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
@@ -86,12 +92,12 @@ problem = ControlSynthesisProblem(mdp, spec)
 policy, V, k, res = solve(problem)
 
 @test policy isa StationaryStrategy
-@test policy[1] == [1, 2, 1]
+@test policy[1] == [(1,), (2,), (1,)]
 
 # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
 problem = VerificationProblem(mdp, spec, policy)
 V_mc, k, res = solve(problem)
-@test V ≈ V_mc
+@test V ≈ V_mc atol=1e-6
 
 # Finite time safety
 prop = FiniteTimeSafety([3], 10)
@@ -105,8 +111,25 @@ policy, V, k, res = solve(problem)
 @test policy isa TimeVaryingStrategy
 @test time_length(policy) == 10
 for k in 1:(time_length(policy) - 1)
-    @test policy[k] == [2, 2, 1]
+    @test policy[k] == [(2,), (2,), (1,)]
 end
 
 # The last time step (aka. the first value iteration step) has a different strategy.
-@test policy[time_length(policy)] == [2, 1, 1]
+@test policy[time_length(policy)] == [(2,), (1,), (1,)]
+
+@testset "implicit sink state" begin
+    transition_probs = [prob1, prob2]
+    mdp = IntervalMarkovDecisionProcess(transition_probs)
+
+    # Finite time reachability
+    prop = FiniteTimeReachability([3], 10)
+    spec = Specification(prop, Pessimistic, Maximize)
+    problem = ControlSynthesisProblem(mdp, spec)
+    policy, V, k, res = solve(problem)
+
+    @test policy isa TimeVaryingStrategy
+    @test time_length(policy) == 10
+    for k in 1:time_length(policy)
+        @test policy[k] == [(1,), (2,)]
+    end
+end

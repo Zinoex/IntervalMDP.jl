@@ -1,16 +1,51 @@
-abstract type AbstractIntervalProbabilities end
-export lower, upper, gap, sum_lower
-export num_source, axes_source, num_target, axes_target
+# Ambiguity sets
+abstract type AbstractAmbiguitySets end
+abstract type PolytopicAmbiguitySets <: AbstractAmbiguitySets end
 
-include("IntervalProbabilities.jl")
-export IntervalProbabilities
+abstract type AbstractAmbiguitySet end
+abstract type PolytopicAmbiguitySet <: AbstractAmbiguitySet end
 
-include("OrthogonalIntervalProbabilities.jl")
-export OrthogonalIntervalProbabilities
+abstract type VertexIterator end
 
-include("MixtureIntervalProbabilities.jl")
-export MixtureIntervalProbabilities, mixture_probs, weighting_probs
+"""
+    num_sets(ambiguity_sets::AbstractAmbiguitySets)
 
+Return the number of ambiguity sets in the AbstractAmbiguitySets object.
+"""
+function num_sets end
+export num_sets
+
+"""
+    support(ambiguity_set::AbstractAmbiguitySet)
+
+Return the support (set of indices with non-zero probability) of the ambiguity set.
+"""
+function support end
+export support
+
+include("IntervalAmbiguitySets.jl")
+export IntervalAmbiguitySets, lower, upper, gap
+
+abstract type AbstractIsInterval end
+struct IsInterval <: AbstractIsInterval end
+struct IsNotInterval <: AbstractIsInterval end
+
+isinterval(::AbstractAmbiguitySets) = IsNotInterval()
+isinterval(::IntervalAmbiguitySets) = IsInterval()
+
+# Marginals
+include("Marginal.jl")
+export Marginal,
+    ambiguity_sets,
+    state_variables,
+    action_variables,
+    source_shape,
+    action_shape,
+    num_target
+
+isinterval(marginal::Marginal) = isinterval(ambiguity_sets(marginal))
+
+# DFA
 include("TransitionFunction.jl")
 export TransitionFunction, transition
 

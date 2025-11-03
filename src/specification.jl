@@ -1,10 +1,5 @@
 ### Property types
 
-"""
-    Property
-
-Super type for all system Property
-"""
 abstract type Property end
 
 function checkmodelpropertycompatibility(prop, system)
@@ -15,24 +10,14 @@ function checkmodelpropertycompatibility(prop, system)
     )
 end
 
-"""
-    BasicProperty
+Base.show(io::IO, mime::MIME"text/plain", prop::Property) = showproperty(io, "", "", prop)
 
-A basic property that applies to a "raw" [`IntervalMarkovProcess`](@ref).
-"""
 abstract type BasicProperty <: Property end
-
 function checkmodelpropertycompatibility(::BasicProperty, ::IntervalMarkovProcess)
     return nothing
 end
 
-"""
-    ProductProperty
-
-A property that applies to a [`ProductProcess`](@ref).
-"""
 abstract type ProductProperty <: Property end
-
 function checkmodelpropertycompatibility(::ProductProperty, ::ProductProcess)
     return nothing
 end
@@ -92,7 +77,7 @@ end
 """
     AbstractDFAReachability
 
-Super type for all reachability-like properties.
+Super type for all DFA reachability-like properties.
 """
 abstract type AbstractDFAReachability <: ProductProperty end
 
@@ -115,7 +100,7 @@ end
 postprocess_value_function!(value_function, ::AbstractDFAReachability) = nothing
 
 """
-    FiniteTimeDFAReachability{VT <: Vector{<:Int32}, T <: Integer}
+    FiniteTimeDFAReachability{VT <: Vector{<:Integer}, T <: Integer}
 
 Finite time reachability specified by a set of target/terminal states and a time horizon. 
 That is, denote a trace by ``z_1 z_2 z_3 \\cdots`` with ``z_k = (s_k, q_k)`` then if ``T`` is the set of target states and ``H`` is the time horizon,
@@ -126,13 +111,13 @@ the property is
 """
 struct FiniteTimeDFAReachability{VT <: Vector{<:Int32}, T <: Integer} <:
        AbstractDFAReachability
-    terminal_states::VT
+    reach::VT
     time_horizon::T
 end
 
-function FiniteTimeDFAReachability(terminal_states::Vector{<:Integer}, time_horizon)
-    terminal_states = Int32.(terminal_states)
-    return FiniteTimeDFAReachability(terminal_states, time_horizon)
+function FiniteTimeDFAReachability(reach::Vector{<:Integer}, time_horizon)
+    reach = Int32.(reach)
+    return FiniteTimeDFAReachability(reach, time_horizon)
 end
 
 function checkproperty(prop::FiniteTimeDFAReachability, system, strategy)
@@ -141,55 +126,47 @@ function checkproperty(prop::FiniteTimeDFAReachability, system, strategy)
 end
 
 function checkproperty(prop::FiniteTimeDFAReachability, system)
-    checkstatebounds(terminal_states(prop), system)
+    checkstatebounds(reach(prop), system)
 end
 
-"""
-    isfinitetime(prop::FiniteTimeDFAReachability)
-
-Return `true` for FiniteTimeDFAReachability.
-"""
 isfinitetime(prop::FiniteTimeDFAReachability) = true
 
 """
     time_horizon(prop::FiniteTimeDFAReachability)
 
-Return the time horizon of a finite time reachability property.
+Return the time horizon of a finite time DFA reachability property.
 """
 time_horizon(prop::FiniteTimeDFAReachability) = prop.time_horizon
 
 """
-    terminal_states(spec::FiniteTimeDFAReachability)
-
-Return the set of terminal states of a finite time reachability property.
-"""
-terminal_states(prop::FiniteTimeDFAReachability) = prop.terminal_states
-
-"""
     reach(prop::FiniteTimeDFAReachability)
 
-Return the set of states with which to compute reachbility for a finite time reachability prop.
-This is equivalent for [`terminal_states(prop::FiniteTimeDFAReachability)`](@ref) for a DFA reachability
-property. 
+Return the set of DFA states with respect to which to compute reachbility for a finite time DFA reachability property.
 """
-reach(prop::FiniteTimeDFAReachability) = prop.terminal_states
+reach(prop::FiniteTimeDFAReachability) = prop.reach
+
+function showproperty(io::IO, first_prefix, prefix, prop::FiniteTimeDFAReachability)
+    println(io, first_prefix, styled"{code:FiniteTimeDFAReachability}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(prop))}")
+    println(io, prefix, styled"└─ Reach states: {magenta:$(reach(prop))}")
+end
 
 """
-    InfiniteTimeDFAReachability{R <: Real, VT <: Vector{<:Int32}} 
+    InfiniteTimeDFAReachability{VT <: Vector{<:Integer}, R <: Real} 
  
 `InfiniteTimeDFAReachability` is similar to [`FiniteTimeDFAReachability`](@ref) except that the time horizon is infinite, i.e., ``H = \\infty``.
 In practice it means, performing the value iteration until the value function has converged, defined by some threshold `convergence_eps`.
 The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
 """
-struct InfiniteTimeDFAReachability{R <: Real, VT <: Vector{<:Int32}} <:
+struct InfiniteTimeDFAReachability{VT <: Vector{<:Int32}, R <: Real} <:
        AbstractDFAReachability
-    terminal_states::VT
+    reach::VT
     convergence_eps::R
 end
 
-function InfiniteTimeDFAReachability(terminal_states::Vector{<:Integer}, convergence_eps)
-    terminal_states = Int32.(terminal_states)
-    return InfiniteTimeDFAReachability(terminal_states, convergence_eps)
+function InfiniteTimeDFAReachability(reach::Vector{<:Integer}, convergence_eps)
+    reach = Int32.(reach)
+    return InfiniteTimeDFAReachability(reach, convergence_eps)
 end
 
 function checkproperty(prop::InfiniteTimeDFAReachability, system, strategy)
@@ -198,38 +175,166 @@ function checkproperty(prop::InfiniteTimeDFAReachability, system, strategy)
 end
 
 function checkproperty(prop::InfiniteTimeDFAReachability, system)
-    checkstatebounds(terminal_states(prop), system)
+    checkstatebounds(reach(prop), system)
 end
 
-"""
-    isfinitetime(prop::InfiniteTimeDFAReachability)
-
-Return `false` for InfiniteTimeDFAReachability.
-"""
 isfinitetime(prop::InfiniteTimeDFAReachability) = false
 
 """
     convergence_eps(prop::InfiniteTimeDFAReachability)
 
-Return the convergence threshold of an infinite time reachability property.
+Return the convergence threshold of an infinite time DFA reachability property.
 """
 convergence_eps(prop::InfiniteTimeDFAReachability) = prop.convergence_eps
 
 """
-    terminal_states(prop::InfiniteTimeDFAReachability)
-
-Return the set of terminal states of an infinite time reachability property.
-"""
-terminal_states(prop::InfiniteTimeDFAReachability) = prop.terminal_states
-
-"""
     reach(prop::InfiniteTimeDFAReachability)
 
-Return the set of states with which to compute reachbility for a infinite time reachability property.
-This is equivalent for [`terminal_states(prop::InfiniteTimeDFAReachability)`](@ref) for a DFA reachability
-property.
+Return the set of DFA states with respect to which to compute reachbility for a infinite time DFA reachability property.
 """
-reach(prop::InfiniteTimeDFAReachability) = prop.terminal_states
+reach(prop::InfiniteTimeDFAReachability) = prop.reach
+
+function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeDFAReachability)
+    println(io, first_prefix, styled"{code:InfiniteTimeDFAReachability}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
+    println(io, prefix, styled"└─ Reach states: {magenta:$(reach(prop))}")
+end
+
+## DFA Safety
+
+"""
+    AbstractDFASafety
+
+Super type for all DFA safety-like properties.
+"""
+abstract type AbstractDFASafety <: ProductProperty end
+
+function initialize!(value_function, prop::AbstractDFASafety)
+    @inbounds selectdim(
+        value_function.current,
+        ndims(value_function.current),
+        avoid(prop),
+    ) .= -1.0
+end
+
+function step_postprocess_value_function!(value_function, prop::AbstractDFASafety)
+    @inbounds selectdim(
+        value_function.current,
+        ndims(value_function.current),
+        avoid(prop),
+    ) .= -1.0
+end
+
+function postprocess_value_function!(value_function, ::AbstractDFASafety)
+    value_function.current .+= 1.0
+end
+
+"""
+    FiniteTimeDFASafety{VT <: Vector{<:Integer}, T <: Integer}
+
+Finite time Safety specified by a set of target/terminal states and a time horizon. 
+That is, denote a trace by ``z_1 z_2 z_3 \\cdots`` with ``z_k = (s_k, q_k)`` then if ``T`` is the set of target states and ``H`` is the time horizon,
+the property is 
+```math
+    \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, q_k \\in T).
+```
+"""
+struct FiniteTimeDFASafety{VT <: Vector{<:Int32}, T <: Integer} <: AbstractDFASafety
+    avoid::VT
+    time_horizon::T
+end
+
+function FiniteTimeDFASafety(avoid::Vector{<:Integer}, time_horizon)
+    avoid = Int32.(avoid)
+    return FiniteTimeDFASafety(avoid, time_horizon)
+end
+
+function checkproperty(prop::FiniteTimeDFASafety, system, strategy)
+    checktimehorizon(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::FiniteTimeDFASafety, system)
+    checkstatebounds(avoid(prop), system)
+end
+
+isfinitetime(prop::FiniteTimeDFASafety) = true
+
+"""
+    time_horizon(prop::FiniteTimeDFASafety)
+
+Return the time horizon of a finite time DFA safety property.
+"""
+time_horizon(prop::FiniteTimeDFASafety) = prop.time_horizon
+
+"""
+    avoid(prop::FiniteTimeDFASafety)
+
+Return the set of DFA states with respect to which to compute safety for a finite time DFA safety property.
+"""
+avoid(prop::FiniteTimeDFASafety) = prop.avoid
+
+function showproperty(io::IO, first_prefix, prefix, prop::FiniteTimeDFASafety)
+    println(io, first_prefix, styled"{code:FiniteTimeDFASafety}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(prop))}")
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+end
+
+"""
+    InfiniteTimeDFASafety{VT <: Vector{<:Integer}, R <: Real} 
+ 
+`InfiniteTimeDFASafety` is similar to [`FiniteTimeDFASafety`](@ref) except that the time horizon is infinite, i.e., ``H = \\infty``.
+In practice it means, performing the value iteration until the value function has converged, defined by some threshold `convergence_eps`.
+The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
+"""
+struct InfiniteTimeDFASafety{VT <: Vector{<:Int32}, R <: Real} <: AbstractDFASafety
+    avoid::VT
+    convergence_eps::R
+end
+
+function InfiniteTimeDFASafety(avoid::Vector{<:Integer}, convergence_eps)
+    avoid = Int32.(avoid)
+    return InfiniteTimeDFASafety(avoid, convergence_eps)
+end
+
+function checkproperty(prop::InfiniteTimeDFASafety, system, strategy)
+    checkconvergence(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::InfiniteTimeDFASafety, system)
+    checkstatebounds(avoid(prop), system)
+end
+
+isfinitetime(prop::InfiniteTimeDFASafety) = false
+
+"""
+    convergence_eps(prop::InfiniteTimeDFASafety)
+
+Return the convergence threshold of an infinite time DFA safety property.
+"""
+convergence_eps(prop::InfiniteTimeDFASafety) = prop.convergence_eps
+
+"""
+    avoid(prop::InfiniteTimeDFASafety)
+
+Return the set of DFA states with respect to which to compute safety for a infinite time DFA safety property.
+"""
+avoid(prop::InfiniteTimeDFASafety) = prop.avoid
+
+function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeDFASafety)
+    println(io, first_prefix, styled"{code:InfiniteTimeDFASafety}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+end
 
 ## Reachability
 
@@ -251,24 +356,24 @@ end
 postprocess_value_function!(value_function, ::AbstractReachability) = nothing
 
 """
-    FiniteTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer}
+    FiniteTimeReachability{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}, T <: Integer}
 
 Finite time reachability specified by a set of target/terminal states and a time horizon. 
-That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states and ``H`` is the time horizon,
+That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``G`` is the set of target states and ``K`` is the time horizon,
 the property is 
 ```math
-    \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T).
+    \\mathbb{P}^{\\pi, \\eta}_{\\mathrm{reach}}(G, K) = \\mathbb{P}^{\\pi, \\eta} \\left[\\omega \\in \\Omega : \\exists k \\in \\{0, \\ldots, K\\}, \\, \\omega[k] \\in G \\right].
 ```
 """
 struct FiniteTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer} <:
        AbstractReachability
-    terminal_states::VT
+    reach::VT
     time_horizon::T
 end
 
-function FiniteTimeReachability(terminal_states::Vector{<:UnionIndex}, time_horizon)
-    terminal_states = CartesianIndex.(terminal_states)
-    return FiniteTimeReachability(terminal_states, time_horizon)
+function FiniteTimeReachability(reach::Vector{<:UnionIndex}, time_horizon)
+    reach = CartesianIndex.(reach)
+    return FiniteTimeReachability(reach, time_horizon)
 end
 
 function checkproperty(prop::FiniteTimeReachability, system, strategy)
@@ -277,14 +382,9 @@ function checkproperty(prop::FiniteTimeReachability, system, strategy)
 end
 
 function checkproperty(prop::FiniteTimeReachability, system)
-    checkstatebounds(terminal_states(prop), system)
+    checkstatebounds(reach(prop), system)
 end
 
-"""
-    isfinitetime(prop::FiniteTimeReachability)
-
-Return `true` for FiniteTimeReachability.
-"""
 isfinitetime(prop::FiniteTimeReachability) = true
 
 """
@@ -295,38 +395,34 @@ Return the time horizon of a finite time reachability property.
 time_horizon(prop::FiniteTimeReachability) = prop.time_horizon
 
 """
-    terminal_states(spec::FiniteTimeReachability)
-
-Return the set of terminal states of a finite time reachability property.
-"""
-terminal_states(prop::FiniteTimeReachability) = prop.terminal_states
-
-"""
     reach(prop::FiniteTimeReachability)
 
-Return the set of states with which to compute reachbility for a finite time reachability prop.
-This is equivalent for [`terminal_states(prop::FiniteTimeReachability)`](@ref) for a regular reachability
-property. See [`FiniteTimeReachAvoid`](@ref) for a more complex property where the reachability and
-terminal states differ.
+Return the set of states with respect to which to compute reachbility for a finite time reachability property.
 """
-reach(prop::FiniteTimeReachability) = prop.terminal_states
+reach(prop::FiniteTimeReachability) = prop.reach
+
+function showproperty(io::IO, first_prefix, prefix, prop::FiniteTimeReachability)
+    println(io, first_prefix, styled"{code:FiniteTimeReachability}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(prop))}")
+    println(io, prefix, styled"└─ Reach states: {magenta:$(reach(prop))}")
+end
 
 """
-    InfiniteTimeReachability{R <: Real, VT <: Vector{<:CartesianIndex}} 
- 
-`InfiniteTimeReachability` is similar to [`FiniteTimeReachability`](@ref) except that the time horizon is infinite, i.e., ``H = \\infty``.
+    InfiniteTimeReachability{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}, R <: Real}
+
+`InfiniteTimeReachability` is similar to [`FiniteTimeReachability`](@ref) except that the time horizon is infinite, i.e., ``K = \\infty``.
 In practice it means, performing the value iteration until the value function has converged, defined by some threshold `convergence_eps`.
 The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
 """
-struct InfiniteTimeReachability{R <: Real, VT <: Vector{<:CartesianIndex}} <:
+struct InfiniteTimeReachability{VT <: Vector{<:CartesianIndex}, R <: Real} <:
        AbstractReachability
-    terminal_states::VT
+    reach::VT
     convergence_eps::R
 end
 
-function InfiniteTimeReachability(terminal_states::Vector{<:UnionIndex}, convergence_eps)
-    terminal_states = CartesianIndex.(terminal_states)
-    return InfiniteTimeReachability(terminal_states, convergence_eps)
+function InfiniteTimeReachability(reach::Vector{<:UnionIndex}, convergence_eps)
+    reach = CartesianIndex.(reach)
+    return InfiniteTimeReachability(reach, convergence_eps)
 end
 
 function checkproperty(prop::InfiniteTimeReachability, system, strategy)
@@ -335,14 +431,9 @@ function checkproperty(prop::InfiniteTimeReachability, system, strategy)
 end
 
 function checkproperty(prop::InfiniteTimeReachability, system)
-    checkstatebounds(terminal_states(prop), system)
+    checkstatebounds(reach(prop), system)
 end
 
-"""
-    isfinitetime(prop::InfiniteTimeReachability)
-
-Return `false` for InfiniteTimeReachability.
-"""
 isfinitetime(prop::InfiniteTimeReachability) = false
 
 """
@@ -353,41 +444,41 @@ Return the convergence threshold of an infinite time reachability property.
 convergence_eps(prop::InfiniteTimeReachability) = prop.convergence_eps
 
 """
-    terminal_states(prop::InfiniteTimeReachability)
-
-Return the set of terminal states of an infinite time reachability property.
-"""
-terminal_states(prop::InfiniteTimeReachability) = prop.terminal_states
-
-"""
     reach(prop::InfiniteTimeReachability)
 
 Return the set of states with which to compute reachbility for a infinite time reachability property.
-This is equivalent for [`terminal_states(prop::InfiniteTimeReachability)`](@ref) for a regular reachability
-property. See [`InfiniteTimeReachAvoid`](@ref) for a more complex property where the reachability and
-terminal states differ.
 """
-reach(prop::InfiniteTimeReachability) = prop.terminal_states
+reach(prop::InfiniteTimeReachability) = prop.reach
+
+function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachability)
+    println(io, first_prefix, styled"{code:InfiniteTimeReachability}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
+    println(io, prefix, styled"└─ Reach states: {magenta:$(reach(prop))}")
+end
 
 """
-    ExactTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer}
+    ExactTimeReachability{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}, T <: Integer}
 
 Exact time reachability specified by a set of target/terminal states and a time horizon. 
-That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states and ``H`` is the time horizon,
+That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``G`` is the set of target states and ``K`` is the time horizon,
 the property is 
 ```math
-    \\mathbb{P}(s_H \\in T).
+    \\mathbb{P}^{\\pi, \\eta}_{\\mathrm{exact-reach}}(G, K) = \\mathbb{P}^{\\pi, \\eta} \\left[\\omega \\in \\Omega : \\omega[K] \\in G \\right].
 ```
 """
 struct ExactTimeReachability{VT <: Vector{<:CartesianIndex}, T <: Integer} <:
        AbstractReachability
-    terminal_states::VT
+    reach::VT
     time_horizon::T
 end
 
-function ExactTimeReachability(terminal_states::Vector{<:UnionIndex}, time_horizon)
-    terminal_states = CartesianIndex.(terminal_states)
-    return ExactTimeReachability(terminal_states, time_horizon)
+function ExactTimeReachability(reach::Vector{<:UnionIndex}, time_horizon)
+    reach = CartesianIndex.(reach)
+    return ExactTimeReachability(reach, time_horizon)
 end
 
 function checkproperty(prop::ExactTimeReachability, system, strategy)
@@ -396,18 +487,13 @@ function checkproperty(prop::ExactTimeReachability, system, strategy)
 end
 
 function checkproperty(prop::ExactTimeReachability, system)
-    checkstatebounds(terminal_states(prop), system)
+    checkstatebounds(reach(prop), system)
 end
 
 function step_postprocess_value_function!(_, ::ExactTimeReachability)
     return nothing
 end
 
-"""
-    isfinitetime(prop::ExactTimeReachability)
-
-Return `true` for ExactTimeReachability.
-"""
 isfinitetime(prop::ExactTimeReachability) = true
 
 """
@@ -418,21 +504,17 @@ Return the time horizon of an exact time reachability property.
 time_horizon(prop::ExactTimeReachability) = prop.time_horizon
 
 """
-    terminal_states(spec::ExactTimeReachability)
-
-Return the set of terminal states of an exact time reachability property.
-"""
-terminal_states(prop::ExactTimeReachability) = prop.terminal_states
-
-"""
     reach(prop::ExactTimeReachability)
 
 Return the set of states with which to compute reachbility for an exact time reachability prop.
-This is equivalent for [`terminal_states(prop::ExactTimeReachability)`](@ref) for a regular reachability
-property. See [`ExactTimeReachAvoid`](@ref) for a more complex property where the reachability and
-terminal states differ.
 """
-reach(prop::ExactTimeReachability) = prop.terminal_states
+reach(prop::ExactTimeReachability) = prop.reach
+
+function showproperty(io::IO, first_prefix, prefix, prop::ExactTimeReachability)
+    println(io, first_prefix, styled"{code:ExactTimeReachability}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(prop))}")
+    println(io, prefix, styled"└─ Reach states: {magenta:$(reach(prop))}")
+end
 
 ## Reach-avoid
 
@@ -448,226 +530,8 @@ function step_postprocess_value_function!(value_function, prop::AbstractReachAvo
     @inbounds value_function.current[avoid(prop)] .= 0.0
 end
 
-"""
-    FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}}, T <: Integer}
-
-Finite time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
-That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states, ``A`` is the set of states to avoid,
-and ``H`` is the time horizon, the property is 
-```math
-    \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, s_k \\in T, \\text{ and } \\forall k' = \\{0, \\ldots, k\\}, s_k' \\notin A).
-```
-"""
-struct FiniteTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}, T <: Integer} <:
-       AbstractReachAvoid
-    reach::VT
-    avoid::VT
-    time_horizon::T
-end
-
-function FiniteTimeReachAvoid(
-    reach::Vector{<:UnionIndex},
-    avoid::Vector{<:UnionIndex},
-    time_horizon,
-)
-    reach = CartesianIndex.(reach)
-    avoid = CartesianIndex.(avoid)
-    return FiniteTimeReachAvoid(reach, avoid, time_horizon)
-end
-
-function checkproperty(prop::FiniteTimeReachAvoid, system, strategy)
-    checktimehorizon(prop, strategy)
-    checkproperty(prop, system)
-end
-
-function checkproperty(prop::FiniteTimeReachAvoid, system)
-    checkstatebounds(terminal_states(prop), system)
-    checkdisjoint(reach(prop), avoid(prop))
-end
-
-"""
-    isfinitetime(prop::FiniteTimeReachAvoid)
-
-Return `true` for FiniteTimeReachAvoid.
-"""
-isfinitetime(prop::FiniteTimeReachAvoid) = true
-
-"""
-    time_horizon(prop::FiniteTimeReachAvoid)
-
-Return the time horizon of a finite time reach-avoid property.
-"""
-time_horizon(prop::FiniteTimeReachAvoid) = prop.time_horizon
-
-"""
-    terminal_states(prop::FiniteTimeReachAvoid)
-
-Return the set of terminal states of a finite time reach-avoid property.
-That is, the union of the reach and avoid sets.
-"""
-terminal_states(prop::FiniteTimeReachAvoid) = [prop.reach; prop.avoid]
-
-"""
-    reach(prop::FiniteTimeReachAvoid)
-
-Return the set of target states.
-"""
-reach(prop::FiniteTimeReachAvoid) = prop.reach
-
-"""
-    avoid(prop::FiniteTimeReachAvoid)
-
-Return the set of states to avoid.
-"""
-avoid(prop::FiniteTimeReachAvoid) = prop.avoid
-
-"""
-    InfiniteTimeReachAvoid{R <: Real, VT <: AbstractVector{<:CartesianIndex}}
-
-`InfiniteTimeReachAvoid` is similar to [`FiniteTimeReachAvoid`](@ref) except that the time horizon is infinite, i.e., ``H = \\infty``.
-"""
-struct InfiniteTimeReachAvoid{R <: Real, VT <: AbstractVector{<:CartesianIndex}} <:
-       AbstractReachAvoid
-    reach::VT
-    avoid::VT
-    convergence_eps::R
-end
-
-function InfiniteTimeReachAvoid(
-    reach::Vector{<:UnionIndex},
-    avoid::Vector{<:UnionIndex},
-    convergence_eps,
-)
-    reach = CartesianIndex.(reach)
-    avoid = CartesianIndex.(avoid)
-    return InfiniteTimeReachAvoid(reach, avoid, convergence_eps)
-end
-
-function checkproperty(prop::InfiniteTimeReachAvoid, system, strategy)
-    checkconvergence(prop, strategy)
-    checkproperty(prop, system)
-end
-
-function checkproperty(prop::InfiniteTimeReachAvoid, system)
-    checkstatebounds(terminal_states(prop), system)
-    checkdisjoint(reach(prop), avoid(prop))
-end
-
-"""
-    isfinitetime(prop::InfiniteTimeReachAvoid)
-
-Return `false` for InfiniteTimeReachAvoid.
-"""
-isfinitetime(prop::InfiniteTimeReachAvoid) = false
-
-"""
-    convergence_eps(prop::InfiniteTimeReachAvoid)
-
-Return the convergence threshold of an infinite time reach-avoid property.
-"""
-convergence_eps(prop::InfiniteTimeReachAvoid) = prop.convergence_eps
-
-"""
-    terminal_states(prop::InfiniteTimeReachAvoid)
-
-Return the set of terminal states of an infinite time reach-avoid property.
-That is, the union of the reach and avoid sets.
-"""
-terminal_states(prop::InfiniteTimeReachAvoid) = [prop.reach; prop.avoid]
-
-"""
-    reach(prop::InfiniteTimeReachAvoid)
-
-Return the set of target states.
-"""
-reach(prop::InfiniteTimeReachAvoid) = prop.reach
-
-"""
-    avoid(prop::InfiniteTimeReachAvoid)
-
-Return the set of states to avoid.
-"""
-avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
-
-"""
-    ExactTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}}, T <: Integer}
-
-Exact time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
-That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``T`` is the set of target states, ``A`` is the set of states to avoid,
-and ``H`` is the time horizon, the property is 
-```math
-    \\mathbb{P}(s_H \\in T, \\text{ and } \\forall k = \\{0, \\ldots, H\\}, s_k \\notin A).
-```
-"""
-struct ExactTimeReachAvoid{VT <: AbstractVector{<:CartesianIndex}, T <: Integer} <:
-       AbstractReachAvoid
-    reach::VT
-    avoid::VT
-    time_horizon::T
-end
-
-function ExactTimeReachAvoid(
-    reach::Vector{<:UnionIndex},
-    avoid::Vector{<:UnionIndex},
-    time_horizon,
-)
-    reach = CartesianIndex.(reach)
-    avoid = CartesianIndex.(avoid)
-    return ExactTimeReachAvoid(reach, avoid, time_horizon)
-end
-
-function checkproperty(prop::ExactTimeReachAvoid, system, strategy)
-    checktimehorizon(prop, strategy)
-    checkproperty(prop, system)
-end
-
-function checkproperty(prop::ExactTimeReachAvoid, system)
-    checkstatebounds(terminal_states(prop), system)
-    checkdisjoint(reach(prop), avoid(prop))
-end
-
-function step_postprocess_value_function!(value_function, prop::ExactTimeReachAvoid)
-    @inbounds value_function.current[avoid(prop)] .= 0.0
-end
-
-"""
-    isfinitetime(prop::ExactTimeReachAvoid)
-
-Return `true` for ExactTimeReachAvoid.
-"""
-isfinitetime(prop::ExactTimeReachAvoid) = true
-
-"""
-    time_horizon(prop::ExactTimeReachAvoid)
-
-Return the time horizon of an exact time reach-avoid property.
-"""
-time_horizon(prop::ExactTimeReachAvoid) = prop.time_horizon
-
-"""
-    terminal_states(prop::ExactTimeReachAvoid)
-
-Return the set of terminal states of an exact time reach-avoid property.
-That is, the union of the reach and avoid sets.
-"""
-terminal_states(prop::ExactTimeReachAvoid) = [prop.reach; prop.avoid]
-
-"""
-    reach(prop::ExactTimeReachAvoid)
-
-Return the set of target states.
-"""
-reach(prop::ExactTimeReachAvoid) = prop.reach
-
-"""
-    avoid(prop::ExactTimeReachAvoid)
-
-Return the set of states to avoid.
-"""
-avoid(prop::ExactTimeReachAvoid) = prop.avoid
-
 function checkstatebounds(states, system::IntervalMarkovProcess)
-    pns = product_num_states(system)
+    pns = state_values(system)
     for j in states
         j = Tuple(j)
 
@@ -698,6 +562,213 @@ function checkdisjoint(reach, avoid)
     end
 end
 
+"""
+    FiniteTimeReachAvoid{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}}, T <: Integer}
+
+Finite time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
+That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``G`` is the set of target states, ``O`` is the set of states to avoid,
+and ``K`` is the time horizon, the property is 
+```math
+    \\mathbb{P}^{\\pi, \\eta}_{\\mathrm{reach-avoid}}(G, O, K) = \\mathbb{P}^{\\pi, \\eta} \\left[\\omega \\in \\Omega : \\exists k \\in \\{0, \\ldots, K\\}, \\, \\omega[k] \\in G, \\; \\forall k' \\in \\{0, \\ldots, k' \\}, \\, \\omega[k] \\notin O \\right].
+```
+"""
+struct FiniteTimeReachAvoid{VT <: Vector{<:CartesianIndex}, T <: Integer} <:
+       AbstractReachAvoid
+    reach::VT
+    avoid::VT
+    time_horizon::T
+end
+
+function FiniteTimeReachAvoid(
+    reach::Vector{<:UnionIndex},
+    avoid::Vector{<:UnionIndex},
+    time_horizon,
+)
+    reach = CartesianIndex.(reach)
+    avoid = CartesianIndex.(avoid)
+    return FiniteTimeReachAvoid(reach, avoid, time_horizon)
+end
+
+function checkproperty(prop::FiniteTimeReachAvoid, system, strategy)
+    checktimehorizon(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::FiniteTimeReachAvoid, system)
+    checkstatebounds(reach(prop), system)
+    checkstatebounds(avoid(prop), system)
+    checkdisjoint(reach(prop), avoid(prop))
+end
+
+isfinitetime(prop::FiniteTimeReachAvoid) = true
+
+"""
+    time_horizon(prop::FiniteTimeReachAvoid)
+
+Return the time horizon of a finite time reach-avoid property.
+"""
+time_horizon(prop::FiniteTimeReachAvoid) = prop.time_horizon
+
+"""
+    reach(prop::FiniteTimeReachAvoid)
+
+Return the set of target states.
+"""
+reach(prop::FiniteTimeReachAvoid) = prop.reach
+
+"""
+    avoid(prop::FiniteTimeReachAvoid)
+
+Return the set of states to avoid.
+"""
+avoid(prop::FiniteTimeReachAvoid) = prop.avoid
+
+function showproperty(io::IO, first_prefix, prefix, prop::FiniteTimeReachAvoid)
+    println(io, first_prefix, styled"{code:FiniteTimeReachAvoid}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(prop))}")
+    println(io, prefix, styled"├─ Reach states: {magenta:$(reach(prop))}")
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+end
+
+"""
+    InfiniteTimeReachAvoid{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}, R <: Real}
+
+`InfiniteTimeReachAvoid` is similar to [`FiniteTimeReachAvoid`](@ref) except that the time horizon is infinite, i.e., ``K = \\infty``.
+"""
+struct InfiniteTimeReachAvoid{VT <: Vector{<:CartesianIndex}, R <: Real} <:
+       AbstractReachAvoid
+    reach::VT
+    avoid::VT
+    convergence_eps::R
+end
+
+function InfiniteTimeReachAvoid(
+    reach::Vector{<:UnionIndex},
+    avoid::Vector{<:UnionIndex},
+    convergence_eps,
+)
+    reach = CartesianIndex.(reach)
+    avoid = CartesianIndex.(avoid)
+    return InfiniteTimeReachAvoid(reach, avoid, convergence_eps)
+end
+
+function checkproperty(prop::InfiniteTimeReachAvoid, system, strategy)
+    checkconvergence(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::InfiniteTimeReachAvoid, system)
+    checkstatebounds(reach(prop), system)
+    checkstatebounds(avoid(prop), system)
+    checkdisjoint(reach(prop), avoid(prop))
+end
+
+isfinitetime(prop::InfiniteTimeReachAvoid) = false
+
+"""
+    convergence_eps(prop::InfiniteTimeReachAvoid)
+
+Return the convergence threshold of an infinite time reach-avoid property.
+"""
+convergence_eps(prop::InfiniteTimeReachAvoid) = prop.convergence_eps
+
+"""
+    reach(prop::InfiniteTimeReachAvoid)
+
+Return the set of target states.
+"""
+reach(prop::InfiniteTimeReachAvoid) = prop.reach
+
+"""
+    avoid(prop::InfiniteTimeReachAvoid)
+
+Return the set of states to avoid.
+"""
+avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
+
+function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachAvoid)
+    println(io, first_prefix, styled"{code:InfiniteTimeReachAvoid}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
+    println(io, prefix, styled"├─ Reach states: {magenta:$(reach(prop))}")
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+end
+
+"""
+    ExactTimeReachAvoid{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}}, T <: Integer}
+
+Exact time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
+That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``G`` is the set of target states, ``O`` is the set of states to avoid,
+and ``K`` is the time horizon, the property is 
+```math
+    \\mathbb{P}^{\\pi, \\eta}_{\\mathrm{exact-reach-avoid}}(G, O, K) = \\mathbb{P}^{\\pi, \\eta} \\left[\\omega \\in \\Omega : \\omega[K] \\in G, \\; \\forall k \\in \\{0, \\ldots, K\\}, \\, \\omega[k] \\notin O \\right].
+```
+"""
+struct ExactTimeReachAvoid{VT <: Vector{<:CartesianIndex}, T <: Integer} <:
+       AbstractReachAvoid
+    reach::VT
+    avoid::VT
+    time_horizon::T
+end
+
+function ExactTimeReachAvoid(
+    reach::Vector{<:UnionIndex},
+    avoid::Vector{<:UnionIndex},
+    time_horizon,
+)
+    reach = CartesianIndex.(reach)
+    avoid = CartesianIndex.(avoid)
+    return ExactTimeReachAvoid(reach, avoid, time_horizon)
+end
+
+function checkproperty(prop::ExactTimeReachAvoid, system, strategy)
+    checktimehorizon(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::ExactTimeReachAvoid, system)
+    checkstatebounds(reach(prop), system)
+    checkstatebounds(avoid(prop), system)
+    checkdisjoint(reach(prop), avoid(prop))
+end
+
+function step_postprocess_value_function!(value_function, prop::ExactTimeReachAvoid)
+    @inbounds value_function.current[avoid(prop)] .= 0.0
+end
+
+isfinitetime(prop::ExactTimeReachAvoid) = true
+
+"""
+    time_horizon(prop::ExactTimeReachAvoid)
+
+Return the time horizon of an exact time reach-avoid property.
+"""
+time_horizon(prop::ExactTimeReachAvoid) = prop.time_horizon
+
+"""
+    reach(prop::ExactTimeReachAvoid)
+
+Return the set of target states.
+"""
+reach(prop::ExactTimeReachAvoid) = prop.reach
+
+"""
+    avoid(prop::ExactTimeReachAvoid)
+
+Return the set of states to avoid.
+"""
+avoid(prop::ExactTimeReachAvoid) = prop.avoid
+
+function showproperty(io::IO, first_prefix, prefix, prop::ExactTimeReachAvoid)
+    println(io, first_prefix, styled"{code:ExactTimeReachAvoid}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(prop))}")
+    println(io, prefix, styled"├─ Reach states: {magenta:$(reach(prop))}")
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+end
+
 ## Safety
 
 """
@@ -720,23 +791,23 @@ function postprocess_value_function!(value_function, ::AbstractSafety)
 end
 
 """
-    FiniteTimeSafety{VT <: Vector{<:CartesianIndex}, T <: Integer}
+    FiniteTimeSafety{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}, T <: Integer}
 
 Finite time safety specified by a set of avoid states and a time horizon. 
-That is, denote a trace by ``s_1 s_2 s_3 \\cdots``, then if ``A`` is the set of avoid states and ``H`` is the time horizon,
+That is, denote a trace by ``\\omega = s_1 s_2 s_3 \\cdots``, then if ``O`` is the set of avoid states and ``K`` is the time horizon,
 the property is 
 ```math
-    \\mathbb{P}(\\forall k = \\{0, \\ldots, H\\}, s_k \\notin A).
+    \\mathbb{P}^{\\pi, \\eta}_{\\mathrm{safe}}(O, K) = \\mathbb{P}^{\\pi, \\eta} \\left[\\omega \\in \\Omega : \\forall k \\in \\{0, \\ldots, K\\}, \\, \\omega[k] \\notin O \\right].
 ```
 """
 struct FiniteTimeSafety{VT <: Vector{<:CartesianIndex}, T <: Integer} <: AbstractSafety
-    avoid_states::VT
+    avoid::VT
     time_horizon::T
 end
 
-function FiniteTimeSafety(avoid_states::Vector{<:UnionIndex}, time_horizon)
-    avoid_states = CartesianIndex.(avoid_states)
-    return FiniteTimeSafety(avoid_states, time_horizon)
+function FiniteTimeSafety(avoid::Vector{<:UnionIndex}, time_horizon)
+    avoid = CartesianIndex.(avoid)
+    return FiniteTimeSafety(avoid, time_horizon)
 end
 
 function checkproperty(prop::FiniteTimeSafety, system, strategy)
@@ -745,14 +816,9 @@ function checkproperty(prop::FiniteTimeSafety, system, strategy)
 end
 
 function checkproperty(prop::FiniteTimeSafety, system)
-    checkstatebounds(terminal_states(prop), system)
+    checkstatebounds(avoid(prop), system)
 end
 
-"""
-    isfinitetime(prop::FiniteTimeSafety)
-
-Return `true` for FiniteTimeSafety.
-"""
 isfinitetime(prop::FiniteTimeSafety) = true
 
 """
@@ -763,35 +829,33 @@ Return the time horizon of a finite time safety property.
 time_horizon(prop::FiniteTimeSafety) = prop.time_horizon
 
 """
-    terminal_states(spec::FiniteTimeSafety)
-
-Return the set of terminal states of a finite time safety property.
-"""
-terminal_states(prop::FiniteTimeSafety) = prop.avoid_states
-
-"""
     avoid(prop::FiniteTimeSafety)
 
 Return the set of states with which to compute reachbility for a finite time reachability prop.
-This is equivalent for [`terminal_states(prop::FiniteTimeSafety)`](@ref).
 """
-avoid(prop::FiniteTimeSafety) = prop.avoid_states
+avoid(prop::FiniteTimeSafety) = prop.avoid
+
+function showproperty(io::IO, first_prefix, prefix, prop::FiniteTimeSafety)
+    println(io, first_prefix, styled"{code:FiniteTimeSafety}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(prop))}")
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+end
 
 """
-    InfiniteTimeSafety{R <: Real, VT <: Vector{<:CartesianIndex}} 
+    InfiniteTimeSafety{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}, R <: Real} 
  
-`InfiniteTimeSafety` is similar to [`FiniteTimeSafety`](@ref) except that the time horizon is infinite, i.e., ``H = \\infty``.
+`InfiniteTimeSafety` is similar to [`FiniteTimeSafety`](@ref) except that the time horizon is infinite, i.e., ``K = \\infty``.
 In practice it means, performing the value iteration until the value function has converged, defined by some threshold `convergence_eps`.
 The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
 """
-struct InfiniteTimeSafety{R <: Real, VT <: Vector{<:CartesianIndex}} <: AbstractSafety
-    avoid_states::VT
+struct InfiniteTimeSafety{VT <: Vector{<:CartesianIndex}, R <: Real} <: AbstractSafety
+    avoid::VT
     convergence_eps::R
 end
 
-function InfiniteTimeSafety(avoid_states::Vector{<:UnionIndex}, convergence_eps)
-    avoid_states = CartesianIndex.(avoid_states)
-    return InfiniteTimeSafety(avoid_states, convergence_eps)
+function InfiniteTimeSafety(avoid::Vector{<:UnionIndex}, convergence_eps)
+    avoid = CartesianIndex.(avoid)
+    return InfiniteTimeSafety(avoid, convergence_eps)
 end
 
 function checkproperty(prop::InfiniteTimeSafety, system, strategy)
@@ -800,14 +864,9 @@ function checkproperty(prop::InfiniteTimeSafety, system, strategy)
 end
 
 function checkproperty(prop::InfiniteTimeSafety, system)
-    checkstatebounds(terminal_states(prop), system)
+    checkstatebounds(avoid(prop), system)
 end
 
-"""
-    isfinitetime(prop::InfiniteTimeSafety)
-
-Return `false` for InfiniteTimeSafety.
-"""
 isfinitetime(prop::InfiniteTimeSafety) = false
 
 """
@@ -818,19 +877,21 @@ Return the convergence threshold of an infinite time safety property.
 convergence_eps(prop::InfiniteTimeSafety) = prop.convergence_eps
 
 """
-    terminal_states(prop::InfiniteTimeSafety)
-
-Return the set of terminal states of an infinite time safety property.
-"""
-terminal_states(prop::InfiniteTimeSafety) = prop.avoid_states
-
-"""
     avoid(prop::InfiniteTimeSafety)
 
 Return the set of states with which to compute safety for a infinite time safety property.
-This is equivalent for [`terminal_states(prop::InfiniteTimeSafety)`](@ref).
 """
-avoid(prop::InfiniteTimeSafety) = prop.avoid_states
+avoid(prop::InfiniteTimeSafety) = prop.avoid
+
+function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeSafety)
+    println(io, first_prefix, styled"{code:InfiniteTimeSafety}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+end
 
 ## Reward
 
@@ -854,7 +915,7 @@ postprocess_value_function!(value_function, ::AbstractReward) = value_function
 function checkreward(prop::AbstractReward, system)
     checkdevice(reward(prop), system)
 
-    pns = product_num_states(system)
+    pns = state_values(system)
     if size(reward(prop)) != pns
         throw(
             DimensionMismatch(
@@ -871,11 +932,10 @@ end
 """
     FiniteTimeReward{R <: Real, AR <: AbstractArray{R}, T <: Integer}
 
-`FiniteTimeReward` is a property of rewards ``R : S \\to \\mathbb{R}`` assigned to each state at each iteration
-and a discount factor ``\\gamma``. The time horizon ``H`` is finite, so the discount factor is optional and 
-the optimal policy will be time-varying. Given a strategy ``\\pi : S \\to A``, the property is
+`FiniteTimeReward` is a property of rewards ``r : S \\to \\mathbb{R}`` assigned to each state at each iteration
+and a discount factor ``\\nu``. The time horizon ``K`` is finite, so the discount factor can be greater than or equal to one. The property is
 ```math
-    V(s_0) = \\mathbb{E}\\left[\\sum_{k=0}^{H} \\gamma^k R(s_k) \\mid s_0, \\pi\\right].
+    \\mathbb{E}^{\\pi,\\eta}_{\\mathrm{reward}}(r, \\nu, K) = \\mathbb{E}^{\\pi,\\eta}\\left[\\sum_{k=0}^{K} \\nu^k r(\\omega[k]) \\right].
 ```
 """
 struct FiniteTimeReward{R <: Real, AR <: AbstractArray{R}, T <: Integer} <:
@@ -894,11 +954,6 @@ function checkproperty(prop::FiniteTimeReward, system)
     checkreward(prop, system)
 end
 
-"""
-    isfinitetime(prop::FiniteTimeReward)
-
-Return `true` for FiniteTimeReward.
-"""
 isfinitetime(prop::FiniteTimeReward) = true
 
 """
@@ -922,12 +977,22 @@ Return the time horizon of a finite time reward optimization.
 """
 time_horizon(prop::FiniteTimeReward) = prop.time_horizon
 
+function showproperty(io::IO, first_prefix, prefix, prop::FiniteTimeReward)
+    println(io, first_prefix, styled"{code:FiniteTimeReward}")
+    println(io, prefix, styled"├─ Time horizon: {magenta:$(time_horizon(prop))}")
+    println(io, prefix, styled"├─ Discount factor: {magenta:$(discount(prop))}")
+    println(
+        io,
+        prefix,
+        styled"└─ Reward storage: {magenta:$(eltype(reward(prop))), $(size(reward(prop)))}",
+    )
+end
+
 """
     InfiniteTimeReward{R <: Real, AR <: AbstractArray{R}}
 
 `InfiniteTimeReward` is a property of rewards assigned to each state at each iteration
-and a discount factor for guaranteed convergence. The time horizon is infinite, i.e. ``H = \\infty``, so the optimal
-policy will be stationary.
+and a discount factor for guaranteed convergence. The time horizon is infinite, i.e. ``K = \\infty``.
 """
 struct InfiniteTimeReward{R <: Real, AR <: AbstractArray{R}} <: AbstractReward{R}
     reward::AR
@@ -956,11 +1021,6 @@ function checkdiscountupperbound(prop::InfiniteTimeReward)
     end
 end
 
-"""
-    isfinitetime(prop::InfiniteTimeReward)
-
-Return `false` for InfiniteTimeReward.
-"""
 isfinitetime(prop::InfiniteTimeReward) = false
 
 """
@@ -984,6 +1044,21 @@ Return the convergence threshold of an infinite time reward optimization.
 """
 convergence_eps(prop::InfiniteTimeReward) = prop.convergence_eps
 
+function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReward)
+    println(io, first_prefix, styled"{code:InfiniteTimeReward}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
+    println(io, prefix, styled"├─ Discount factor: {magenta:$(discount(prop))}")
+    println(
+        io,
+        prefix,
+        styled"└─ Reward storage: {magenta:$(eltype(reward(prop))), $(size(reward(prop)))}",
+    )
+end
+
 ## Hitting time
 """
     AbstractHittingTime
@@ -995,21 +1070,19 @@ abstract type AbstractHittingTime <: BasicProperty end
 postprocess_value_function!(value_function, ::AbstractHittingTime) = value_function
 
 """
-    ExpectedExitTime{R <: Real, VT <: Vector{<:CartesianIndex}}
+    ExpectedExitTime{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}, R <: Real}
 
 `ExpectedExitTime` is a property of hitting time with respect to an unsafe set. An equivalent
 characterization is that of the expected number of steps in the safe set until reaching the unsafe set.
-The time horizon is infinite, i.e., ``H = \\infty``, thus the package performs value iteration until the value function
+The time horizon is infinite, i.e., ``K = \\infty``, thus the package performs value iteration until the value function
 has converged. The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
-As this is an infinite horizon property, the resulting optimal policy will be stationary.
-In formal language, given a strategy ``\\pi : S \\to A`` and an unsafe set ``O``, the property is defined as
+Given an unsafe set ``O``, the property is defined as
 ```math
-    V(s_0) = \\mathbb{E}\\left[\\lvert \\omega_{0:k-1} \\rvert \\mid s_0, \\pi, \\omega_{0:k-1} \\notin O, \\omega_k \\in O \\right]
+    \\mathbb{E}^{\\pi,\\eta}_{\\mathrm{exit}}(O) = \\mathbb{E}^{\\pi,\\eta}\\left[k : \\omega[k] \\in O, \\, \\forall k' \\in \\{0, \\ldots, k - 1\\}, \\, \\omega[k'] \\notin O \\right].
 ```
-where ``\\omega = s_0 s_1 \\ldots s_k`` is the trajectory of the system, ``\\omega_{0:k-1} = s_0 s_1 \\ldots s_{k-1}`` denotes the subtrajectory
-excluding the final state, and ``\\omega_k = s_k``.
+where ``\\omega = s_0 s_1 \\ldots s_k`` is a trace of the system.
 """
-struct ExpectedExitTime{R <: Real, VT <: Vector{<:CartesianIndex}} <: AbstractHittingTime
+struct ExpectedExitTime{VT <: Vector{<:CartesianIndex}, R <: Real} <: AbstractHittingTime
     avoid_states::VT
     convergence_eps::R
 end
@@ -1038,25 +1111,12 @@ function step_postprocess_value_function!(value_function, prop::ExpectedExitTime
     value_function.current[avoid(prop)] .= 0.0
 end
 
-"""
-    isfinitetime(prop::ExpectedExitTime)
-
-Return `true` for ExpectedExitTime.
-"""
 isfinitetime(prop::ExpectedExitTime) = false
-
-"""
-    terminal_states(prop::ExpectedExitTime)
-
-Return the set of terminal states of an expected hitting time property.
-"""
-terminal_states(prop::ExpectedExitTime) = prop.avoid_states
 
 """
     avoid(prop::ExpectedExitTime)
 
 Return the set of unsafe states that we compute the expected hitting time with respect to.
-This is equivalent for [`terminal_states(prop::ExpectedExitTime)`](@ref).
 """
 avoid(prop::ExpectedExitTime) = prop.avoid_states
 
@@ -1066,6 +1126,16 @@ avoid(prop::ExpectedExitTime) = prop.avoid_states
 Return the convergence threshold of an expected exit time.
 """
 convergence_eps(prop::ExpectedExitTime) = prop.convergence_eps
+
+function showproperty(io::IO, first_prefix, prefix, prop::ExpectedExitTime)
+    println(io, first_prefix, styled"{code:ExpectedExitTime}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+end
 
 ## Problem
 
@@ -1156,3 +1226,12 @@ Return the strategy mode of a specification.
 strategy_mode(spec::Specification) = spec.strategy
 ismaximize(spec::Specification) = ismaximize(strategy_mode(spec))
 isminimize(spec::Specification) = isminimize(strategy_mode(spec))
+
+Base.show(io::IO, spec::Specification) = showspecification(io, "", "", spec)
+
+function showspecification(io::IO, first_prefix, prefix, spec::Specification)
+    println(io, first_prefix, styled"{code:Specification}")
+    println(io, prefix, styled"├─ Satisfaction mode: {magenta:$(satisfaction_mode(spec))}")
+    println(io, prefix, styled"├─ Strategy mode: {magenta:$(strategy_mode(spec))}")
+    showproperty(io, prefix * "└─ Property: ", prefix * "   ", system_property(spec))
+end

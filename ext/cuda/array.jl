@@ -1,33 +1,29 @@
-function IntervalMDP.maxdiff(stateptr::CuVector{Int32})
-    return reducediff(max, stateptr, typemin(Int32))
+function maxdiff(colptr::CuVector{Int32})
+    return reducediff(max, colptr, typemin(Int32))
 end
 
-function IntervalMDP.mindiff(stateptr::CuVector{Int32})
-    return reducediff(min, stateptr, typemax(Int32))
-end
-
-function reducediff(op, stateptr::CuVector{Int32}, neutral)
+function reducediff(op, colptr::CuVector{Int32}, neutral)
     ret_arr = CuArray{Int32}(undef, 1)
-    kernel = @cuda launch = false reducediff_kernel!(op, stateptr, neutral, ret_arr)
+    kernel = @cuda launch = false reducediff_kernel!(op, colptr, neutral, ret_arr)
 
     config = launch_configuration(kernel.fun)
     max_threads = prevwarp(device(), config.threads)
-    wanted_threads = min(1024, nextwarp(device(), length(stateptr) - 1))
+    wanted_threads = min(1024, nextwarp(device(), length(colptr) - 1))
 
     threads = min(max_threads, wanted_threads)
     blocks = 1
 
-    kernel(op, stateptr, neutral, ret_arr; blocks = blocks, threads = threads)
+    kernel(op, colptr, neutral, ret_arr; blocks = blocks, threads = threads)
 
     return CUDA.@allowscalar ret_arr[1]
 end
 
-function reducediff_kernel!(op, stateptr, neutral, retarr)
+function reducediff_kernel!(op, colptr, neutral, retarr)
     diff = neutral
 
     i = threadIdx().x
-    @inbounds while i <= length(stateptr) - 1
-        diff = op(diff, stateptr[i + 1] - stateptr[i])
+    @inbounds while i <= length(colptr) - 1
+        diff = op(diff, colptr[i + 1] - colptr[i])
         i += blockDim().x
     end
 
@@ -58,39 +54,40 @@ CUDA.CUSPARSE.CuSparseMatrixCSC{Tv, Ti}(M::SparseMatrixCSC) where {Tv, Ti} =
         size(M),
     )
 
-const CuSparseColumnView{Tv, Ti} = SubArray{
-    Tv,
-    1,
-    CuSparseMatrixCSC{Tv, Ti},
-    Tuple{Base.Slice{Base.OneTo{Int}}, Int},
-    false,
-}
-
-function SparseArrays.nnz(x::CuSparseColumnView)
-    rowidx, colidx = parentindices(x)
-    return length(nzrange(parent(x), colidx))
-end
 SparseArrays.nzrange(S::CuSparseMatrixCSC, col::Integer) =
     CUDA.@allowscalar(S.colPtr[col]):(CUDA.@allowscalar(S.colPtr[col + 1]) - 1)
 
 Adapt.adapt_storage(
-    ::Type{IntervalMDP.CuModelAdaptor{Tv}},
+    ::Type{<:IntervalMDP.CuModelAdaptor{Tv}},
     M::SparseArrays.FixedSparseCSC,
 ) where {Tv} = CuSparseMatrixCSC{Tv, Int32}(M)
 
-Adapt.adapt_storage(::Type{IntervalMDP.CuModelAdaptor{Tv}}, M::SparseMatrixCSC) where {Tv} =
-    CuSparseMatrixCSC{Tv, Int32}(M)
+Adapt.adapt_storage(
+    ::Type{<:IntervalMDP.CuModelAdaptor{Tv1}},
+    M::SparseMatrixCSC{Tv2},
+) where {Tv1, Tv2} = CuSparseMatrixCSC{Tv1, Int32}(M)
 
-Adapt.adapt_storage(::Type{IntervalMDP.CuModelAdaptor{Tv}}, x::AbstractArray) where {Tv} =
-    adapt(CuArray{Tv}, x)
+Adapt.adapt_storage(
+    ::Type{<:IntervalMDP.CuModelAdaptor{Tv1}},
+    x::AbstractArray{Tv2},
+) where {Tv1, Tv2} = adapt(CuArray{Tv1}, x)
+
+Adapt.adapt_storage(
+    ::Type{<:IntervalMDP.CuModelAdaptor{Tv1}},
+    x::AbstractArray{NTuple{N, T}},
+) where {Tv1, N, T <: Integer} = adapt(CuArray{NTuple{N, T}}, x)
 
 Adapt.adapt_storage(
     ::Type{IntervalMDP.CpuModelAdaptor{Tv}},
     M::CuSparseMatrixCSC,
 ) where {Tv} = SparseMatrixCSC{Tv, Int32}(M)
 
-Adapt.adapt_storage(::Type{IntervalMDP.CpuModelAdaptor{Tv}}, x::CuArray{Tv}) where {Tv} =
-    adapt(Array{Tv}, x)
+Adapt.adapt_storage(
+    ::Type{<:IntervalMDP.CpuModelAdaptor{Tv1}},
+    x::CuArray{Tv2},
+) where {Tv1, Tv2} = adapt(Array{Tv1}, x)
 
-Adapt.adapt_storage(::Type{IntervalMDP.CpuModelAdaptor{Tv}}, x::CuArray{Int32}) where {Tv} =
-    adapt(Array{Int32}, x)
+Adapt.adapt_storage(
+    ::Type{<:IntervalMDP.CpuModelAdaptor{Tv1}},
+    x::CuArray{NTuple{N, T}},
+) where {Tv1, N, T <: Integer} = adapt(Array{NTuple{N, T}}, x)

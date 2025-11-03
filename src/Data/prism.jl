@@ -15,13 +15,13 @@ See [Data storage formats](@ref) for more information on the file format.
 write_prism_file(path_without_file_ending, problem) =
     write_prism_file(path_without_file_ending, system(problem), specification(problem))
 
-write_prism_file(path_without_file_ending, mdp_or_mc, spec) = write_prism_file(
+write_prism_file(path_without_file_ending, mdp, spec) = write_prism_file(
     path_without_file_ending * ".sta",
     path_without_file_ending * ".tra",
     path_without_file_ending * ".lab",
     path_without_file_ending * ".srew",
     path_without_file_ending * ".pctl",
-    mdp_or_mc,
+    mdp,
     spec,
 )
 
@@ -45,16 +45,22 @@ function write_prism_file(
     lab_path,
     srew_path,
     pctl_path,
-    mdp_or_mc,
+    mdp::IntervalMDP.FactoredRMDP,
     spec,
 )
-    write_prism_states_file(sta_path, mdp_or_mc)
-    write_prism_transitions_file(tra_path, mdp_or_mc)
-    write_prism_spec(lab_path, srew_path, pctl_path, mdp_or_mc, spec)
+    write_prism_states_file(sta_path, mdp)
+    write_prism_transitions_file(tra_path, mdp)
+    write_prism_spec(lab_path, srew_path, pctl_path, mdp, spec)
 end
 
-function write_prism_states_file(sta_path, mdp_or_mc)
-    number_states = num_states(mdp_or_mc)
+write_prism_states_file(sta_path, mdp::IntervalMDP.FactoredRMDP) =
+    _write_prism_states_file(sta_path, mdp, IntervalMDP.modeltype(mdp))
+function _write_prism_states_file(
+    sta_path,
+    mdp::IntervalMDP.FactoredRMDP,
+    ::IntervalMDP.NonFactored,
+)
+    number_states = num_states(mdp)
 
     open(sta_path, "w") do io
         println(io, "(s)")
@@ -66,59 +72,58 @@ function write_prism_states_file(sta_path, mdp_or_mc)
     end
 end
 
-function write_prism_transitions_file(tra_path, mdp::IntervalMarkovDecisionProcess)
-    number_states = num_states(mdp)
+write_prism_transitions_file(
+    tra_path,
+    mdp::IntervalMDP.FactoredRMDP;
+    lb_threshold = 1e-12,
+) = _write_prism_transitions_file(
+    tra_path,
+    mdp,
+    IntervalMDP.modeltype(mdp);
+    lb_threshold = lb_threshold,
+)
 
-    prob = transition_prob(mdp)
-    l, g = lower(prob), gap(prob)
+function _write_prism_transitions_file(
+    tra_path,
+    mdp::IntervalMDP.FactoredRMDP,
+    ::IntervalMDP.IsIMDP;
+    lb_threshold,
+)
+    marginal = marginals(mdp)[1]
 
-    num_columns = num_source(prob)
-    num_transitions = nnz(l)
-
-    sptr = IntervalMDP.stateptr(mdp)
-    num_choices = num_columns
+    num_transitions = nnz(ambiguity_sets(marginal).lower)  # Number of non-zero entries in the lower bound matrix
+    num_choices = source_shape(marginal)[1] * action_shape(marginal)[1]
 
     open(tra_path, "w") do io
-        println(io, "$number_states $num_choices $num_transitions")
+        println(io, "$(num_states(mdp)) $num_choices $num_transitions")
 
-        s = 1
-        action_idx = 0
-        for j in 1:num_columns
-            if sptr[s + 1] == j
-                s += 1
-                action_idx = 0
+        for jₛ in CartesianIndices(source_shape(marginal))
+            src = jₛ[1] - 1  # PRISM uses 0-based indexing
+
+            for jₐ in CartesianIndices(action_shape(marginal))
+                act = jₐ[1] - 1  # PRISM uses 0-based indexing
+                ambiguity_set = marginal[jₐ, jₛ]
+
+                for i in support(ambiguity_set)
+                    dest = i - 1  # PRISM uses 0-based indexing
+                    pl = max(lower(ambiguity_set, i), lb_threshold)  # PRISM requires constant support
+                    pu = upper(ambiguity_set, i)
+
+                    println(io, "$src $act $dest [$pl,$pu]")
+                end
             end
-            src = s - 1
-
-            column_lower = view(l, :, j)
-            I, V = SparseArrays.findnz(column_lower)
-
-            for (i, v) in zip(I, V)
-                dest = i - 1
-                pl = v
-                pu = pl + g[i, j]
-                pl = max(pl, 1e-12)
-
-                println(io, "$src $action_idx $dest [$pl,$pu] $j")
-            end
-
-            action_idx += 1
         end
     end
 end
 
-function write_prism_spec(lab_path, srew_path, pctl_path, mdp_or_mc, spec)
-    write_prism_labels_file(lab_path, mdp_or_mc, system_property(spec))
-    write_prism_rewards_file(srew_path, mdp_or_mc, system_property(spec))
+function write_prism_spec(lab_path, srew_path, pctl_path, mdp, spec)
+    write_prism_labels_file(lab_path, mdp, system_property(spec))
+    write_prism_rewards_file(srew_path, mdp, system_property(spec))
     write_prism_props_file(pctl_path, spec)
 end
 
-function write_prism_labels_file(
-    lab_path,
-    mdp_or_mc,
-    prop::IntervalMDP.AbstractReachability,
-)
-    istates = initial_states(mdp_or_mc)
+function write_prism_labels_file(lab_path, mdp, prop::IntervalMDP.AbstractReachability)
+    istates = initial_states(mdp)
     target_states = reach(prop)
 
     open(lab_path, "w") do io
@@ -136,8 +141,8 @@ function write_prism_labels_file(
     end
 end
 
-function write_prism_labels_file(lab_path, mdp_or_mc, prop::IntervalMDP.AbstractReachAvoid)
-    istates = initial_states(mdp_or_mc)
+function write_prism_labels_file(lab_path, mdp, prop::IntervalMDP.AbstractReachAvoid)
+    istates = initial_states(mdp)
     target_states = reach(prop)
     avoid_states = avoid(prop)
 
@@ -161,8 +166,8 @@ function write_prism_labels_file(lab_path, mdp_or_mc, prop::IntervalMDP.Abstract
     end
 end
 
-function write_prism_labels_file(lab_path, mdp_or_mc, prop::IntervalMDP.AbstractReward)
-    istates = initial_states(mdp_or_mc)
+function write_prism_labels_file(lab_path, mdp, prop::IntervalMDP.AbstractReward)
+    istates = initial_states(mdp)
 
     open(lab_path, "w") do io
         println(io, "0=\"init\" 1=\"deadlock\"")
@@ -174,20 +179,16 @@ function write_prism_labels_file(lab_path, mdp_or_mc, prop::IntervalMDP.Abstract
     end
 end
 
-function write_prism_rewards_file(
-    lab_path,
-    mdp_or_mc,
-    prop::IntervalMDP.AbstractReachability,
-)
+function write_prism_rewards_file(lab_path, mdp, prop::IntervalMDP.AbstractReachability)
     # Do nothing - no rewards for reachability
     return nothing
 end
 
-function write_prism_rewards_file(srew_path, mdp_or_mc, prop::IntervalMDP.AbstractReward)
+function write_prism_rewards_file(srew_path, mdp, prop::IntervalMDP.AbstractReward)
     rew = reward(prop)
 
     open(srew_path, "w") do io
-        println(io, "$(num_states(mdp_or_mc)) $(length(rew))")
+        println(io, "$(num_states(mdp)) $(length(rew))")
 
         for (i, r) in enumerate(rew)
             s = i - 1  # PRISM uses 0-based indexing
@@ -273,10 +274,10 @@ read_prism_file(sta_path, tra_path, lab_path, pctl_path) =
 
 function read_prism_file(sta_path, tra_path, lab_path, srew_path, pctl_path)
     num_states = read_prism_states_file(sta_path)
-    probs, stateptr = read_prism_transitions_file(tra_path, num_states)
+    probs, num_actions = read_prism_transitions_file(tra_path, num_states)
     initial_states, spec = read_prism_spec(lab_path, srew_path, pctl_path, num_states)
 
-    mdp = IntervalMarkovDecisionProcess(probs, stateptr, initial_states)
+    mdp = IntervalMarkovDecisionProcess(probs, num_actions, initial_states)
 
     return ControlSynthesisProblem(mdp, spec)
 end
@@ -294,57 +295,88 @@ function read_prism_transitions_file(tra_path, num_states)
         num_states_t, num_choices, num_transitions =
             read_prism_transitions_file_header(readline(io))
 
-        @assert num_states == num_states_t
+        if num_states != num_states_t
+            throw(
+                DimensionMismatch(
+                    "Number of states in .sta file ($num_states) does not match number of states in .tra file ($num_states_t).",
+                ),
+            )
+        end
+
+        if num_choices <= 0
+            throw(ArgumentError("Number of choices must be positive, was $num_choices."))
+        end
+
+        if num_transitions <= 0
+            throw(
+                ArgumentError(
+                    "Number of transitions must be positive, was $num_transitions.",
+                ),
+            )
+        end
+
+        if num_choices % num_states_t != 0
+            throw(
+                ArgumentError(
+                    "Number of choices ($num_choices) must be a multiple of the number of states ($num_states_t).",
+                ),
+            )
+        end
+        num_actions = num_choices ÷ num_states_t
+        num_src_states = num_choices ÷ num_actions
 
         probs_lower = Vector{SparseVector{Float64, Int32}}(undef, num_choices)
         probs_upper = Vector{SparseVector{Float64, Int32}}(undef, num_choices)
 
-        stateptr = Vector{Int32}(undef, num_states + 1)
-        stateptr[1] = 1
-        stateptr[end] = num_choices + 1
-
         lines_it = eachline(io)
-        next = iterate(lines_it)
 
+        next = iterate(lines_it)
         if isnothing(next)
             throw(ArgumentError("Transitions file is empty"))
         end
 
         cur_line, state = next
-        # We ignore the act field since we only use indices for actions/choices
-        src, act_idx, dest, lower, upper, act = read_prism_transition_line(cur_line)
+        src, act, dest, lower, upper, _ = read_prism_transition_line(cur_line)
 
-        outer_src = src
+        for jₛ in 1:num_src_states
+            for jₐ in 1:num_actions
+                state_action_probs_lower = spzeros(Float64, Int32, num_states)
+                state_action_probs_upper = spzeros(Float64, Int32, num_states)
 
-        for j in 1:num_choices
-            state_action_probs_lower = spzeros(Float64, Int32, num_states)
-            state_action_probs_upper = spzeros(Float64, Int32, num_states)
-
-            cur_src = src
-            cur_act_idx = act_idx
-
-            if src != outer_src
-                # PRISM uses 0-based indexing
-                stateptr[src + 1] = j
-                outer_src = src
-            end
-
-            while src == cur_src && act_idx == cur_act_idx
-                # PRISM uses 0-based indexing
-                state_action_probs_lower[dest + 1] = lower
-                state_action_probs_upper[dest + 1] = upper
-
-                next = iterate(lines_it, state)
-                if isnothing(next)
-                    break
+                if src != jₛ - 1
+                    throw(
+                        ArgumentError(
+                            "Transitions file is not sorted by source index or the number of actions was less than expected. Expected source index $(jₛ - 1), got $src.",
+                        ),
+                    )
                 end
 
-                cur_line, state = next
-                src, act_idx, dest, lower, upper, act = read_prism_transition_line(cur_line)
-            end
+                if act != jₐ - 1
+                    throw(
+                        ArgumentError(
+                            "Transitions file is not sorted by action index or the number of actions was less than expected. Expected action index $(jₐ - 1), got $act.",
+                        ),
+                    )
+                end
 
-            probs_lower[j] = state_action_probs_lower
-            probs_upper[j] = state_action_probs_upper
+                while src == jₛ - 1 && act == jₐ - 1
+                    # PRISM uses 0-based indexing
+                    state_action_probs_lower[dest + 1] = lower
+                    state_action_probs_upper[dest + 1] = upper
+
+                    next = iterate(lines_it, state)
+                    if isnothing(next)
+                        break
+                    end
+
+                    cur_line, state = next
+                    src, act, dest, lower, upper, _ = read_prism_transition_line(cur_line)
+                end
+
+                j = (jₛ - 1) * num_actions + jₐ
+                probs_lower[j] = state_action_probs_lower
+                probs_upper[j] = state_action_probs_upper
+            end
         end
 
         # Colptr is the same for both lower and upper
@@ -377,9 +409,9 @@ function read_prism_transitions_file(tra_path, num_states)
             probs_upper_nzval,
         )
 
-        probs = IntervalProbabilities(; lower = probs_lower, upper = probs_upper)
+        probs = IntervalAmbiguitySets(; lower = probs_lower, upper = probs_upper)
 
-        return probs, stateptr
+        return probs, num_actions
     end
 end
 

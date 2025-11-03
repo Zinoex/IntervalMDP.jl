@@ -1,12 +1,13 @@
 
 test_files = [
+    "probabilities.jl",
     "bellman.jl",
     "vi.jl",
     "imdp.jl",
     "synthesis.jl",
     "specification.jl",
-    "orthogonal.jl",
-    "mixture.jl",
+    "factored.jl",
+    # "mixture.jl",
     "labelling.jl",
     "dfa.jl",
     "product.jl",

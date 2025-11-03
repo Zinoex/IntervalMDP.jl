@@ -1,185 +1,193 @@
+function IntervalMarkovDecisionProcess(
+    marginal::Marginal{<:IntervalAmbiguitySets},
+    initial_states::InitialStates = AllStates(),
+)
+    state_vars = (Int32(num_target(marginal)),)
+    action_vars = action_shape(marginal)
+    source_dims = source_shape(marginal)
+    transition = (marginal,)
+
+    return FactoredRMDP(state_vars, action_vars, source_dims, transition, initial_states)
+end
+
 """
-    IntervalMarkovDecisionProcess{
-        P <: IntervalProbabilities,
-        VT <: AbstractVector{Int32},
-        VI <: Union{AllStates, AbstractVector}
-    }
+    IntervalMarkovDecisionProcess(ambiguity_set::IntervalAmbiguitySets, num_actions::Integer, initial_states::InitialStates = AllStates())
 
-A type representing (stationary) Interval Markov Decision Processes (IMDP), which are Markov Decision Processes with uncertainty in the form of intervals on
-the transition probabilities.
+A convenience constructor for a [`FactoredRobustMarkovDecisionProcess`](@ref) representing an interval Markov decision process,
+as IMDPs are a subclass of fRMDPs, from a single [`IntervalAmbiguitySets`](@ref) object and a specified number of actions.
 
-Formally, let ``(S, S_0, A, \\Gamma)`` be an interval Markov decision process, where 
-- ``S`` is the set of states,
-- ``S_0 \\subseteq S`` is the set of initial states,
-- ``A`` is the set of actions, and
-- ``\\Gamma = \\{\\Gamma_{s,a}\\}_{s \\in S, a \\in A}`` is a set of interval ambiguity sets on the transition probabilities, for each source-action pair.
+Formally, an IMDP ``M`` is a tuple ``M = (S, S_0, A, \\Gamma)``, where
 
-Then the ```IntervalMarkovDecisionProcess``` type is defined as follows: indices `1:num_states` are the states in ``S``, 
-`transition_prob` represents ``\\Gamma``, actions are implicitly defined by `stateptr` (e.g. if `stateptr[3] == 4` and `stateptr[4] == 7` then
-the actions available to state 3 are `[1, 2, 3]`), and `initial_states` is the set of initial states ``S_0``. If no initial states are specified,
-then the initial states are assumed to be all states in ``S`` represented by `AllStates`. See [`IntervalProbabilities`](@ref) and [Theory](@ref) for more information
-on the structure of the transition probability ambiguity sets.
+- ``S`` is a finite set of states,
+- ``S_0 \\subseteq S`` is a set of initial states,
+- ``A`` is a finite set of actions,
+- ```\\Gamma = \\{\\Gamma_{s,a}\\}_{s \\in S,a \\in A}`` is a set of ambiguity sets for source-action pair ``(s, a)``, where each ``\\Gamma_{s,a}`` is an _interval_ ambiguity set over ``S``.
 
-### Fields
-- `transition_prob::P`: interval on transition probabilities where columns represent source/action pairs and rows represent target states.
-- `stateptr::VT`: pointer to the start of each source state in `transition_prob` (i.e. `transition_prob[:, stateptr[j]:stateptr[j + 1] - 1]` is the transition
-    probability matrix for source state `j`) in the style of colptr for sparse matrices in CSC format.
-- `initial_states::VI`: initial states.
-- `num_states::Int32`: number of states.
-
-### Examples
-
+### Example
 ```jldoctest
-transition_probs = IntervalProbabilities(;
+using IntervalMDP
+
+prob1 = IntervalAmbiguitySets(;
     lower = [
-        0.0 0.5 0.1 0.2 0.0
-        0.1 0.3 0.2 0.3 0.0
-        0.2 0.1 0.3 0.4 1.0
+        0    1/2
+        1/10 3/10
+        1/5  1/10
     ],
     upper = [
-        0.5 0.7 0.6 0.6 0.0
-        0.6 0.5 0.5 0.5 0.0
-        0.7 0.3 0.4 0.4 1.0
+        1/2  7/10
+        3/5  1/2
+        7/10 3/10
     ],
 )
 
-stateptr = [1, 3, 5, 6]
+prob2 = IntervalAmbiguitySets(;
+    lower = [
+        1/10 1/5
+        1/5  3/10
+        3/10 2/5
+    ],
+    upper = [
+        3/5 3/5
+        1/2 1/2
+        2/5 2/5
+    ],
+)
+
+prob3 = IntervalAmbiguitySets(;
+    lower = Float64[
+        0 0
+        0 0
+        1 1
+    ],
+    upper = Float64[
+        0 0
+        0 0
+        1 1
+    ]
+)
+
 initial_states = [1]
+mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3], initial_states)
 
-mdp = IntervalMarkovDecisionProcess(transition_probs, stateptr, initial_states)
-```
+# output
 
-There is also a constructor for `IntervalMarkovDecisionProcess` where the transition probabilities are given as a list of 
-transition probabilities for each source state.
-
-```jldoctest
-prob1 = IntervalProbabilities(;
-    lower = [
-        0.0 0.5
-        0.1 0.3
-        0.2 0.1
-    ],
-    upper = [
-        0.5 0.7
-        0.6 0.5
-        0.7 0.3
-    ],
-)
-
-prob2 = IntervalProbabilities(;
-    lower = [
-        0.1 0.2
-        0.2 0.3
-        0.3 0.4
-    ],
-    upper = [
-        0.6 0.6
-        0.5 0.5
-        0.4 0.4
-    ],
-)
-
-prob3 = IntervalProbabilities(;
-    lower = [0.0; 0.0; 1.0],
-    upper = [0.0; 0.0; 1.0]
-)
-
-transition_probs = [prob1, prob2, prob3]
-initial_states = [1]
-
-mdp = IntervalMarkovDecisionProcess(transition_probs, initial_states)
+FactoredRobustMarkovDecisionProcess
+├─ 1 state variables with cardinality: (3,)
+├─ 1 action variables with cardinality: (2,)
+├─ Initial states: [1]
+├─ Transition marginals:
+│  └─ Marginal 1:
+│     ├─ Conditional variables: states = (1,), actions = (1,)
+│     └─ Ambiguity set type: Interval (dense, Matrix{Float64})
+└─Inferred properties
+   ├─Model type: Interval MDP
+   ├─Number of states: 3
+   ├─Number of actions: 2
+   ├─Default model checking algorithm: Robust Value Iteration
+   └─Default Bellman operator algorithm: O-Maximization
 ```
 
 """
-struct IntervalMarkovDecisionProcess{
-    P <: IntervalProbabilities,
-    VT <: AbstractVector{Int32},
-    VI <: InitialStates,
-} <: IntervalMarkovProcess
-    transition_prob::P
-    stateptr::VT
-    initial_states::VI
-    num_states::Int32
-end
-
 function IntervalMarkovDecisionProcess(
-    transition_prob::IntervalProbabilities,
-    stateptr::AbstractVector{Int32},
+    ambiguity_set::IntervalAmbiguitySets,
+    num_actions::Integer,
     initial_states::InitialStates = AllStates(),
 )
-    num_states = checksize_imdp(transition_prob, stateptr)
-
-    return IntervalMarkovDecisionProcess(
-        transition_prob,
-        stateptr,
-        initial_states,
-        num_states,
-    )
-end
-
-function IntervalMarkovDecisionProcess(
-    transition_probs::Vector{<:IntervalProbabilities},
-    initial_states::InitialStates = AllStates(),
-)
-    transition_prob, stateptr = interval_prob_hcat(transition_probs)
-
-    return IntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
-end
-
-"""
-    IntervalMarkovChain(transition_prob::IntervalProbabilities, initial_states::InitialStates = AllStates())
-
-Construct an Interval Markov Chain from a square matrix pair of interval transition probabilities. The initial states are optional and if not specified,
-all states are assumed to be initial states. The number of states is inferred from the size of the transition probability matrix.
-
-The returned type is an `IntervalMarkovDecisionProcess` with only one action per state (i.e. `stateptr[j + 1] - stateptr[j] == 1` for all `j`).
-This is done to unify the interface for value iteration.
-"""
-function IntervalMarkovChain(
-    transition_prob::IntervalProbabilities,
-    initial_states::InitialStates = AllStates(),
-)
-    stateptr = UnitRange{Int32}(1, num_source(transition_prob) + 1)
-    return IntervalMarkovDecisionProcess(transition_prob, stateptr, initial_states)
-end
-
-function checksize_imdp(p::IntervalProbabilities, stateptr::AbstractVector{Int32})
-    num_states = length(stateptr) - 1
-
-    min_actions = mindiff(stateptr)
-    if any(min_actions <= 0)
-        throw(ArgumentError("The number of actions per state must be positive."))
-    end
-
-    if num_states > num_target(p)
+    if num_sets(ambiguity_set) % num_actions != 0
         throw(
-            DimensionMismatch(
-                "The number of target states ($(num_target(p))) is less than the number of states in the stateptr $(num_states).",
+            ArgumentError(
+                "The number of sets in the ambiguity set must be a multiple of the number of actions.",
             ),
         )
     end
 
-    if stateptr[end] - 1 != num_source(p)
-        throw(
-            DimensionMismatch(
-                "The number of source states ($(num_source(p))) must be equal to the number of states in the stateptr $(num_states).",
-            ),
-        )
-    end
+    source_dims = (num_sets(ambiguity_set) ÷ num_actions,)
+    action_vars = (num_actions,)
+    marginal = Marginal(ambiguity_set, source_dims, action_vars)
 
-    return Int32(num_target(p))
+    return IntervalMarkovDecisionProcess(marginal, initial_states)
 end
 
 """
-    stateptr(mdp::IntervalMarkovDecisionProcess)
+    IntervalMarkovDecisionProcess(ps::Vector{<:IntervalAmbiguitySets}, initial_states::InitialStates = AllStates())
 
-Return the state pointer of the Interval Markov Decision Process. The state pointer is a vector of integers where the `i`-th element
-is the index of the first element of the `i`-th state in the transition probability matrix. 
-I.e. `transition_prob[:, stateptr[j]:stateptr[j + 1] - 1]` is the transition probability matrix for source state `j`.
+A convenience constructor for a [`FactoredRobustMarkovDecisionProcess`](@ref) representing an interval Markov decision process
+from a vector of [`IntervalAmbiguitySets`](@ref) objects, one for each state and with the same number of actions in each. 
+
+### Example
+```jldoctest
+using IntervalMDP
+
+prob = IntervalAmbiguitySets(;
+    lower = [
+        0    1/2  1/10 1/5  0 0
+        1/10 3/10 1/5  3/10 0 0
+        1/5  1/10 3/10 2/5  1 1
+    ],
+    upper = [
+        1/2  7/10 3/5 2/5 0 0
+        3/5  1/2  1/2 2/5 0 0
+        7/10 3/10 2/5 2/5 1 1
+    ],
+)
+
+num_actions = 2
+initial_states = [1]
+mdp = IntervalMarkovDecisionProcess(prob, num_actions, initial_states)
+
+# output
+
+FactoredRobustMarkovDecisionProcess
+├─ 1 state variables with cardinality: (3,)
+├─ 1 action variables with cardinality: (2,)
+├─ Initial states: [1]
+├─ Transition marginals:
+│  └─ Marginal 1:
+│     ├─ Conditional variables: states = (1,), actions = (1,)
+│     └─ Ambiguity set type: Interval (dense, Matrix{Float64})
+└─Inferred properties
+   ├─Model type: Interval MDP
+   ├─Number of states: 3
+   ├─Number of actions: 2
+   ├─Default model checking algorithm: Robust Value Iteration
+   └─Default Bellman operator algorithm: O-Maximization
+```
+
 """
-stateptr(mdp::IntervalMarkovDecisionProcess) = mdp.stateptr
+function IntervalMarkovDecisionProcess(
+    ps::Vector{<:IntervalAmbiguitySets{R, MR}},
+    initial_states::InitialStates = AllStates(),
+) where {R, MR <: AbstractMatrix{R}}
+    marginal = interval_prob_hcat(ps)
+    return IntervalMarkovDecisionProcess(marginal, initial_states)
+end
 
-max_actions(mdp::IntervalMarkovDecisionProcess) = maxdiff(stateptr(mdp))
-Base.ndims(::IntervalMarkovDecisionProcess) = one(Int32)
-product_num_states(mp::IntervalMarkovDecisionProcess) = (num_states(mp),)
-source_shape(mp::IntervalMarkovDecisionProcess) = (length(stateptr(mp)) - 1,)
+function interval_prob_hcat(
+    ps::Vector{<:IntervalAmbiguitySets{R, MR}},
+) where {R, MR <: AbstractMatrix{R}}
+    if length(ps) == 0
+        throw(ArgumentError("Cannot concatenate an empty vector of IntervalAmbiguitySets."))
+    end
+
+    num_actions = num_sets(ps[1])
+    for (i, p) in enumerate(ps)
+        if num_sets(p) != num_actions
+            throw(
+                DimensionMismatch(
+                    "All IntervalAmbiguitySets must have the same number of sets (actions). Expected $num_actions, was $(num_sets(p)) at index $i.",
+                ),
+            )
+        end
+    end
+
+    l = mapreduce(p -> p.lower, hcat, ps)
+    g = mapreduce(p -> p.gap, hcat, ps)
+
+    ambiguity_set = IntervalAmbiguitySets(l, g)
+
+    source_dims = (length(ps),)
+    action_vars = (num_actions,)
+    marginal = Marginal(ambiguity_set, source_dims, action_vars)
+
+    return marginal
+end

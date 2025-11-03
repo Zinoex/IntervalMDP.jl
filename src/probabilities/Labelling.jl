@@ -3,7 +3,7 @@ abstract type AbstractLabelling end
 """
     struct LabellingFunction{
         T  <: Integer, 
-        VT <: AbstractVector{T}
+        AT <: AbstractArray{T}
     }
 
 A type representing the labelling of IMDP states into DFA inputs.
@@ -15,9 +15,8 @@ Formally, let ``L : S \\to 2^{AP}`` be a labelling function, where
 Then the ```LabellingFunction``` type is defined as vector which stores the mapping. 
 
 ### Fields
-- `map::VT`: mapping function where indices are (factored) IMDP states and stored values are DFA inputs.
+- `map::AT`: mapping function where indices are (factored) IMDP states and stored values are DFA inputs.
 - `num_inputs::Int32`: number of IMDP states accounted for in mapping.
-- `num_outputs::Int32`: number of DFA inputs accounted for in mapping.
 
 """
 struct LabellingFunction{T <: Integer, AT <: AbstractArray{T}} <: AbstractLabelling

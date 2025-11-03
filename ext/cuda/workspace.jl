@@ -3,29 +3,33 @@ abstract type AbstractCuWorkspace end
 ###################
 # Dense workspace #
 ###################
-struct CuDenseWorkspace <: AbstractCuWorkspace
-    max_actions::Int32
+struct CuDenseOMaxWorkspace <: AbstractCuWorkspace
+    num_actions::Int32
 end
 
 IntervalMDP.construct_workspace(
-    prob::IntervalProbabilities{R, VR, MR},
-    max_actions = 1,
-) where {R, VR, MR <: AbstractGPUMatrix{R}} = CuDenseWorkspace(max_actions)
+    prob::IntervalAmbiguitySets{R, MR},
+    ::OMaximization = IntervalMDP.default_bellman_algorithm(prob);
+    num_actions = 1,
+    kwargs...,
+) where {R, MR <: AbstractGPUMatrix{R}} = CuDenseOMaxWorkspace(num_actions)
 
 ####################
 # Sparse workspace #
 ####################
-struct CuSparseWorkspace <: AbstractCuWorkspace
-    max_nonzeros::Int32
-    max_actions::Int32
+struct CuSparseOMaxWorkspace <: AbstractCuWorkspace
+    max_support::Int32
+    num_actions::Int32
 end
 
-function CuSparseWorkspace(p::AbstractCuSparseMatrix, max_actions)
-    max_nonzeros = maximum(nnz, eachcol(p))
-    return CuSparseWorkspace(max_nonzeros, max_actions)
+function CuSparseOMaxWorkspace(p::IntervalAmbiguitySets, num_actions)
+    max_support = IntervalMDP.maxsupportsize(p)
+    return CuSparseOMaxWorkspace(max_support, num_actions)
 end
 
 IntervalMDP.construct_workspace(
-    prob::IntervalProbabilities{R, VR, MR},
-    max_actions = 1,
-) where {R, VR, MR <: AbstractCuSparseMatrix{R}} = CuSparseWorkspace(gap(prob), max_actions)
+    prob::IntervalAmbiguitySets{R, MR},
+    ::OMaximization = IntervalMDP.default_bellman_algorithm(prob);
+    num_actions = 1,
+    kwargs...,
+) where {R, MR <: AbstractCuSparseMatrix{R}} = CuSparseOMaxWorkspace(prob, num_actions)

@@ -5,6 +5,7 @@ solve
 residual
 num_iterations
 value_function
+strategy(res::IntervalMDP.ControlSynthesisSolution)
 StationaryStrategy
 TimeVaryingStrategy
 ```

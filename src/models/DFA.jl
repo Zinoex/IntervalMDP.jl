@@ -15,7 +15,7 @@ Formally, let ``(Q, 2^{AP}, \\delta, q_0, Q_{ac})`` be an DFA, where
 - ``\\delta : |Q| \\times |2^{AP}| => |Q|`` is the deterministic transition function, for each state-input pair.
 
 Then the `DFA` type is defined as follows: indices `1:num_states` are the states in ``Q``, 
-`transition` represents ``\\delta``, the set ``2^{AP}`` is , and `initial_states` is the set of initial states ``q_0``. 
+`transition` represents ``\\delta``, the set ``2^{AP}`` is , and `initial_state` is the initial state ``q_0``. 
 See [`TransitionFunction`](@ref) for more information on the structure of the transition function.
 
 ### Fields
@@ -24,15 +24,25 @@ See [`TransitionFunction`](@ref) for more information on the structure of the tr
 - `accepting_states::VT`: vector of accepting states
 - `labelmap::DA`: mapping from label to index.
 
-TODO: Add explicit sink states for non-accepting self-looping states since we do not need to iterate for these.
-TODO: Detection of non-accepting end components. They can be replaced by a single state.
-
 """
 struct DFA{T <: TransitionFunction, DA <: AbstractDict{String, Int32}} <:
        DeterministicAutomaton
     transition::T # delta : |Q| x |2^{AP}| => |Q|   
     initial_state::Int32 # q_0
     labelmap::DA
+
+    # TODO: Add explicit sink states for non-accepting self-looping states since we do not need to iterate for these.
+    # TODO: Detection of non-accepting end components. They can be replaced by a single state.
+
+    function DFA(
+        transition::T,
+        initial_state::Int32,
+        labelmap::DA,
+    ) where {T <: TransitionFunction, DA <: AbstractDict{String, Int32}}
+        checkdfa(transition, initial_state, labelmap)
+
+        return new{T, DA}(transition, initial_state, labelmap)
+    end
 end
 
 function DFA(
@@ -41,9 +51,16 @@ function DFA(
     atomic_propositions::AbstractVector{String},
 )
     labelmap = atomicpropositions2labels(atomic_propositions)
-    checkdfa(transition, initial_state, labelmap)
 
     return DFA(transition, initial_state, labelmap)
+end
+
+function DFA(
+    transition::TransitionFunction,
+    initial_state::Integer,
+    atomic_propositions::AbstractVector{String},
+)
+    return DFA(transition, Int32.(initial_state), atomic_propositions)
 end
 
 """
@@ -133,13 +150,6 @@ Return the initial state of the Deterministic Finite Automaton.
 initial_state(dfa::DFA) = dfa.initial_state
 
 """
-    accepting_states(dfa::DFA)
-
-Return the accepting states of the Deterministic Finite Automaton. 
-"""
-accepting_states(dfa::DFA) = dfa.accepting_states
-
-"""
     getindex(dfa::DFA, q, w)
 
 Return the the next state for source state ``q`` and input ``w`` of the Deterministic Finite Automaton. 
@@ -155,3 +165,13 @@ Base.getindex(dfa::DFA, q, w::String) = dfa[q, dfa.labelmap[w]]
 
 Base.iterate(dfa::DFA, state::Int32 = one(Int32)) =
     state > num_states(dfa) ? nothing : (state, state + one(Int32))
+
+Base.show(io::IO, dfa::DFA) = showsystem(io, "", "", dfa)
+
+function showsystem(io::IO, first_prefix, prefix, dfa::DFA)
+    # TODO: Print diagram?
+    println(io, first_prefix, styled"{code:DFA} (Deterministic Finite Automaton)")
+    println(io, prefix, styled"├─ Number of states: {magenta:$(num_states(dfa))}")
+    println(io, prefix, styled"├─ Number of labels: {magenta:$(num_labels(dfa))}")
+    println(io, prefix, styled"└─ Initial state: {magenta:$(initial_state(dfa))}")
+end

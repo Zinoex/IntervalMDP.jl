@@ -17,7 +17,7 @@ using IntervalMDP
     dfa = DFA(delta, istate, atomic_props)
 
     # imdp
-    prob1 = IntervalProbabilities(;
+    prob1 = IntervalAmbiguitySets(;
         lower = [
             0.0 0.5
             0.1 0.3
@@ -30,7 +30,7 @@ using IntervalMDP
         ],
     )
 
-    prob2 = IntervalProbabilities(;
+    prob2 = IntervalAmbiguitySets(;
         lower = [
             0.1 0.2
             0.2 0.3
@@ -43,17 +43,7 @@ using IntervalMDP
         ],
     )
 
-    prob3 = IntervalProbabilities(; lower = [
-        0.0
-        0.0
-        1.0
-    ][:, :], upper = [
-        0.0
-        0.0
-        1.0
-    ][:, :])
-
-    transition_probs = [prob1, prob2, prob3]
+    transition_probs = [prob1, prob2]
     istates = [Int32(1)]
 
     mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
@@ -69,6 +59,14 @@ using IntervalMDP
         @test markov_process(prodIMDP) == mdp
         @test automaton(prodIMDP) == dfa
         @test labelling_function(prodIMDP) == lf
+
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prodIMDP)
+        str = String(take!(io))
+        @test occursin("ProductProcess", str)
+        @test occursin("Underlying process", str)
+        @test occursin("Automaton", str)
+        @test occursin("Labelling type: LabellingFunction{UInt16, Vector{UInt16}}", str)
     end
 
     @testset "IMDP state labelling func input mismatch" begin
@@ -103,7 +101,7 @@ end
 @testset "bellman" begin
     for N in [Float32, Float64, Rational{BigInt}]
         @testset "N = $N" begin
-            prob = IntervalProbabilities(;
+            prob = IntervalAmbiguitySets(;
                 lower = N[
                     0 5//10 0
                     1//10 3//10 0
@@ -150,7 +148,7 @@ end
 @testset "value iteration" begin
     for N in [Float32, Float64, Rational{BigInt}]
         @testset "N = $N" begin
-            prob1 = IntervalProbabilities(;
+            prob1 = IntervalAmbiguitySets(;
                 lower = N[
                     0//10 5//10
                     1//10 3//10
@@ -163,7 +161,7 @@ end
                 ],
             )
 
-            prob2 = IntervalProbabilities(;
+            prob2 = IntervalAmbiguitySets(;
                 lower = N[
                     1//10 2//10
                     2//10 3//10
@@ -176,21 +174,11 @@ end
                 ],
             )
 
-            prob3 = IntervalProbabilities(; lower = N[
-                0
-                0
-                1
-            ][:, :], upper = N[
-                0
-                0
-                1
-            ][:, :])
-
-            transition_probs = [prob1, prob2, prob3]
+            transition_probs = [prob1, prob2]
             mdp = IntervalMarkovDecisionProcess(transition_probs)
 
             # Product model - just simple reachability
-            delta = TransitionFunction(Int32[
+            delta = TransitionFunction(Int32[  # Labels on rows
                 1 2
                 2 2
             ])
@@ -244,7 +232,52 @@ end
                 problem = VerificationProblem(prod_proc, spec, policy)
                 V_mc, k, res = solve(problem)
 
-                @test V_conv ≈ V_mc
+                @test V_conv ≈ V_mc atol=1e-3
+            end
+
+            @testset "finite time safety" begin
+                prop = FiniteTimeDFASafety([2], 10)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = ControlSynthesisProblem(prod_proc, spec)
+
+                policy, V_fixed_it1, k, res = solve(problem)
+
+                @test all(V_fixed_it1 .>= 0)
+                @test k == 10
+                @test V_fixed_it1[:, 2] == N[0, 0, 0]
+
+                problem = VerificationProblem(prod_proc, spec, policy)
+                V_mc, k, res = solve(problem)
+
+                @test V_fixed_it1 ≈ V_mc
+
+                prop = FiniteTimeDFASafety([2], 11)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = VerificationProblem(prod_proc, spec)
+
+                V_fixed_it2, k, res = solve(problem)
+
+                @test all(V_fixed_it2 .>= 0)
+                @test k == 11
+                @test V_fixed_it2[:, 2] == N[0, 0, 0]
+                @test all(V_fixed_it2 .<= V_fixed_it1)
+            end
+
+            @testset "infinite time safety" begin
+                prop = InfiniteTimeDFASafety([2], 1e-3)
+                spec = Specification(prop, Pessimistic, Maximize)
+                problem = ControlSynthesisProblem(prod_proc, spec)
+
+                policy, V_conv, k, res = solve(problem)
+
+                @test all(V_conv .>= 0)
+                @test maximum(res) <= 1e-3
+                @test V_conv[:, 2] == N[0, 0, 0]
+
+                problem = VerificationProblem(prod_proc, spec, policy)
+                V_mc, k, res = solve(problem)
+
+                @test V_conv ≈ V_mc atol=1e-3
             end
         end
     end

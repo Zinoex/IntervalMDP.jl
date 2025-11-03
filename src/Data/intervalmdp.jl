@@ -60,10 +60,14 @@ function read_intervalmdp_jl_model(model_path)
             upper_nzval,
         )
 
-        prob = IntervalProbabilities(; lower = P̲, upper = P̅)
+        prob = IntervalAmbiguitySets(; lower = P̲, upper = P̅)
         stateptr = convert.(Int32, dataset["stateptr"][:])
+        num_actions = diff(stateptr)
+        if any(num_actions .!= num_actions[1])
+            throw(DimensionMismatch("All states must have the same number of actions."))
+        end
 
-        return IntervalMarkovDecisionProcess(prob, stateptr, initial_states)
+        return IntervalMarkovDecisionProcess(prob, num_actions[1], initial_states)
     end
 
     return mdp
@@ -77,7 +81,7 @@ Read a `Specification` from an IntervalMDP.jl spec file (JSON-format).
 See [Data storage formats](@ref) for more information on the file format.
 """
 function read_intervalmdp_jl_spec(spec_path)
-    data = JSON.parsefile(spec_path; inttype = Int32)
+    data = JSON.parsefile(spec_path)
 
     prop = read_intervalmdp_jl_property(data["property"])
 
@@ -169,7 +173,20 @@ Write an `IntervalMarkovDecisionProcess` to an IntervalMDP.jl system file (netCD
 
 See [Data storage formats](@ref) for more information on the file format.
 """
-function write_intervalmdp_jl_model(model_path, mdp::IntervalMarkovDecisionProcess)
+write_intervalmdp_jl_model(model_path, mdp::IntervalMDP.FactoredRMDP; deflate_level = 5) =
+    _write_intervalmdp_jl_model(
+        model_path,
+        mdp,
+        IntervalMDP.modeltype(mdp);
+        deflate_level = deflate_level,
+    )
+
+function _write_intervalmdp_jl_model(
+    model_path,
+    mdp::IntervalMDP.FactoredRMDP,
+    ::IntervalMDP.IsIMDP;
+    deflate_level,
+)
     Dataset(model_path, "c") do dataset
         dataset.attrib["model"] = "imdp"
         dataset.attrib["format"] = "sparse_csc"
@@ -182,19 +199,38 @@ function write_intervalmdp_jl_model(model_path, mdp::IntervalMarkovDecisionProce
             istates = Int32[]
         end
         defDim(dataset, "initial_states", length(istates))
-        v = defVar(dataset, "initial_states", Int32, ("initial_states",); deflatelevel = 5)
+        v = defVar(
+            dataset,
+            "initial_states",
+            Int32,
+            ("initial_states",);
+            deflatelevel = deflate_level,
+        )
         v[:] = istates
 
-        prob = transition_prob(mdp)
-        l = lower(prob)
-        g = gap(prob)
+        marginal = marginals(mdp)[1]
+        as = ambiguity_sets(marginal)
+        l = as.lower
+        g = as.gap
 
         defDim(dataset, "lower_colptr", length(l.colptr))
-        v = defVar(dataset, "lower_colptr", Int32, ("lower_colptr",); deflatelevel = 5)
+        v = defVar(
+            dataset,
+            "lower_colptr",
+            Int32,
+            ("lower_colptr",);
+            deflatelevel = deflate_level,
+        )
         v[:] = l.colptr
 
         defDim(dataset, "lower_rowval", length(l.rowval))
-        v = defVar(dataset, "lower_rowval", Int32, ("lower_rowval",); deflatelevel = 5)
+        v = defVar(
+            dataset,
+            "lower_rowval",
+            Int32,
+            ("lower_rowval",);
+            deflatelevel = deflate_level,
+        )
         v[:] = l.rowval
 
         defDim(dataset, "lower_nzval", length(l.nzval))
@@ -203,16 +239,28 @@ function write_intervalmdp_jl_model(model_path, mdp::IntervalMarkovDecisionProce
             "lower_nzval",
             eltype(l.nzval),
             ("lower_nzval",);
-            deflatelevel = 5,
+            deflatelevel = deflate_level,
         )
         v[:] = l.nzval
 
         defDim(dataset, "upper_colptr", length(g.colptr))
-        v = defVar(dataset, "upper_colptr", Int32, ("upper_colptr",); deflatelevel = 5)
+        v = defVar(
+            dataset,
+            "upper_colptr",
+            Int32,
+            ("upper_colptr",);
+            deflatelevel = deflate_level,
+        )
         v[:] = g.colptr
 
         defDim(dataset, "upper_rowval", length(g.rowval))
-        v = defVar(dataset, "upper_rowval", Int32, ("upper_rowval",); deflatelevel = 5)
+        v = defVar(
+            dataset,
+            "upper_rowval",
+            Int32,
+            ("upper_rowval",);
+            deflatelevel = deflate_level,
+        )
         v[:] = g.rowval
 
         defDim(dataset, "upper_nzval", length(g.nzval))
@@ -221,13 +269,13 @@ function write_intervalmdp_jl_model(model_path, mdp::IntervalMarkovDecisionProce
             "upper_nzval",
             eltype(g.nzval),
             ("upper_nzval",);
-            deflatelevel = 5,
+            deflatelevel = deflate_level,
         )
         v[:] = l.nzval + g.nzval
 
-        defDim(dataset, "stateptr", length(stateptr(mdp)))
+        defDim(dataset, "stateptr", source_shape(marginal)[1] + 1)
         v = defVar(dataset, "stateptr", Int32, ("stateptr",))
-        v[:] = stateptr(mdp)
+        v[:] = [[Int32(1)]; (1:num_states(mdp)) .* Int32(num_actions(mdp)) .+ 1]
 
         return nothing
     end
@@ -251,9 +299,7 @@ function write_intervalmdp_jl_spec(spec_path, spec::Specification; indent = 4)
         "strategy_mode" => intervalmdp_jl_strategy_mode(strategy_mode(spec)),
     )
 
-    open(spec_path, "w") do io
-        return JSON.print(io, data, indent)
-    end
+    return JSON.json(spec_path, data; pretty = indent)
 end
 
 write_intervalmdp_jl_spec(spec_path, problem::IntervalMDP.AbstractIntervalMDPProblem) =

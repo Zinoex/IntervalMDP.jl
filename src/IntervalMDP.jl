@@ -7,6 +7,8 @@ export solve
 
 # Import necessary libraries
 using LinearAlgebra, SparseArrays
+using JuMP, HiGHS
+using StyledStrings
 
 ### Utilities
 const UnionIndex = Union{<:Integer, <:Tuple}
@@ -26,14 +28,14 @@ include("specification.jl")
 export Property, BasicProperty, ProductProperty
 
 export FiniteTimeDFAReachability, InfiniteTimeDFAReachability
+export FiniteTimeDFASafety, InfiniteTimeDFASafety
 export FiniteTimeReachability, InfiniteTimeReachability, ExactTimeReachability
 export FiniteTimeReachAvoid, InfiniteTimeReachAvoid, ExactTimeReachAvoid
 export FiniteTimeSafety, InfiniteTimeSafety
 export FiniteTimeReward, InfiniteTimeReward
 export ExpectedExitTime
 
-export isfinitetime
-export reach, avoid, safe, terminal_states, time_horizon, convergence_eps, reward, discount
+export reach, avoid, safe, time_horizon, convergence_eps, reward, discount
 
 export SatisfactionMode, Pessimistic, Optimistic, ispessimistic, isoptimistic
 export StrategyMode, Maximize, Minimize, ismaximize, isminimize
@@ -45,16 +47,19 @@ export VerificationProblem, ControlSynthesisProblem
 export value_function, residual, num_iterations
 
 include("cuda.jl")
+public cu, cpu
 
 ### Solving
+include("algorithms.jl")
+export OMaximization, LPMcCormickRelaxation, VertexEnumeration
+export RobustValueIteration
+export default_algorithm, default_bellman_algorithm, bellman_algorithm
+
 include("utils.jl")
 include("threading.jl")
 include("workspace.jl")
 include("strategy_cache.jl")
 include("bellman.jl")
-
-include("algorithms.jl")
-export RobustValueIteration
 
 include("robust_value_iteration.jl")
 

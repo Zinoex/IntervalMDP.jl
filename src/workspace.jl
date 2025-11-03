@@ -1,4 +1,14 @@
 
+"""
+    construct_workspace(sys::StochasticProcess)
+
+Construct a workspace for computing the Bellman update, given a value function.
+If the Bellman update is used in a hot-loop, it is more efficient to use this function
+to preallocate the workspace and reuse across iterations.
+
+The workspace type is determined by the system type, the type (including device) and size of the ambiguity sets,
+as well as the number of threads available.
+"""
 function construct_workspace end
 
 struct ProductWorkspace{W, MT <: AbstractArray}
@@ -6,460 +16,301 @@ struct ProductWorkspace{W, MT <: AbstractArray}
     intermediate_values::MT
 end
 
-"""
-    construct_workspace(proc::ProductProcess)
-
-Construct a workspace for computing the Bellman update, given a value function.
-If the Bellman update is used in a hot-loop, it is more efficient to use this function
-to preallocate the workspace and reuse across iterations.
-
-The underlying workspace type is determined by the type and size of the transition probability matrix,
-as well as the number of threads available.
-"""
-function construct_workspace(proc::ProductProcess)
+function construct_workspace(
+    proc::ProductProcess,
+    alg = default_bellman_algorithm(proc);
+    kwargs...,
+)
     mp = markov_process(proc)
-    underlying_workspace = construct_workspace(mp)
-    intermediate_values = arrayfactory(mp, valuetype(mp), product_num_states(mp))
+    underlying_workspace = construct_workspace(mp, alg; kwargs...)
+    intermediate_values = arrayfactory(mp, valuetype(mp), state_values(mp))
 
     return ProductWorkspace(underlying_workspace, intermediate_values)
 end
 
-"""
-    construct_workspace(mp::IntervalMarkovProcess)
+construct_workspace(mdp::FactoredRMDP, alg = default_bellman_algorithm(mdp); kwargs...) =
+    construct_workspace(mdp, modeltype(mdp), alg; kwargs...)
 
-Construct a workspace for computing the Bellman update, given a value function.
-If the Bellman update is used in a hot-loop, it is more efficient to use this function
-to preallocate the workspace and reuse across iterations.
-
-The workspace type is determined by the type and size of the transition probability matrix,
-as well as the number of threads available.
-"""
-construct_workspace(mp::IntervalMarkovProcess) =
-    construct_workspace(transition_prob(mp), max_actions(mp))
+function construct_workspace(
+    sys::FactoredRMDP,
+    ::IsIMDP,
+    ::OMaximization;
+    threshold = 10,
+    kwargs...,
+)
+    prob = ambiguity_sets(marginals(sys)[1])
+    return construct_workspace(
+        prob,
+        OMaximization();
+        threshold = threshold,
+        num_actions = num_actions(sys),
+        kwargs...,
+    )
+end
 
 # Dense
-struct DenseWorkspace{T <: Real}
+struct DenseIntervalOMaxWorkspace{T <: Real}
+    budget::Vector{T}
     scratch::Vector{Int32}
     permutation::Vector{Int32}
     actions::Vector{T}
 end
 
-function DenseWorkspace(p::AbstractMatrix{T}, max_actions) where {T <: Real}
-    n = size(p, 1)
-    scratch = Vector{Int32}(undef, n)
-    perm = Vector{Int32}(undef, n)
-    actions = Vector{T}(undef, max_actions)
-    return DenseWorkspace(scratch, perm, actions)
+function DenseIntervalOMaxWorkspace(
+    ambiguity_set::IntervalAmbiguitySets{R},
+    nactions,
+) where {R <: Real}
+    budget = 1 .- vec(sum(ambiguity_set.lower; dims = 1))
+    scratch = Vector{Int32}(undef, num_target(ambiguity_set))
+    perm = Vector{Int32}(undef, num_target(ambiguity_set))
+    actions = Vector{R}(undef, nactions)
+    return DenseIntervalOMaxWorkspace(budget, scratch, perm, actions)
 end
 
-permutation(ws::DenseWorkspace) = ws.permutation
-scratch(ws::DenseWorkspace) = ws.scratch
+permutation(ws::DenseIntervalOMaxWorkspace) = ws.permutation
+scratch(ws::DenseIntervalOMaxWorkspace) = ws.scratch
 
-struct ThreadedDenseWorkspace{T <: Real}
-    thread_workspaces::Vector{DenseWorkspace{T}}
+struct ThreadedDenseIntervalOMaxWorkspace{T <: Real}
+    thread_workspaces::Vector{DenseIntervalOMaxWorkspace{T}}
 end
 
-function ThreadedDenseWorkspace(p::AbstractMatrix{T}, max_actions) where {T <: Real}
-    n = size(p, 1)
-    scratch = Vector{Int32}(undef, n)
-    perm = Vector{Int32}(undef, n)
+function ThreadedDenseIntervalOMaxWorkspace(
+    ambiguity_set::IntervalAmbiguitySets{R},
+    nactions,
+) where {R <: Real}
+    budget = 1 .- vec(sum(ambiguity_set.lower; dims = 1))
+    scratch = Vector{Int32}(undef, num_target(ambiguity_set))
+    perm = Vector{Int32}(undef, num_target(ambiguity_set))
 
     workspaces = [
-        DenseWorkspace(scratch, perm, Vector{T}(undef, max_actions)) for
-        _ in 1:Threads.nthreads()
+        DenseIntervalOMaxWorkspace(budget, scratch, perm, Vector{R}(undef, nactions))
+        for _ in 1:Threads.nthreads()
     ]
-    return ThreadedDenseWorkspace(workspaces)
+    return ThreadedDenseIntervalOMaxWorkspace(workspaces)
 end
 
-Base.getindex(ws::ThreadedDenseWorkspace, i) = ws.thread_workspaces[i]
+Base.getindex(ws::ThreadedDenseIntervalOMaxWorkspace, i) = ws.thread_workspaces[i]
 
 ## permutation and scratch space is shared across threads
-permutation(ws::ThreadedDenseWorkspace) = permutation(first(ws.thread_workspaces))
-scratch(ws::ThreadedDenseWorkspace) = scratch(first(ws.thread_workspaces))
+permutation(ws::ThreadedDenseIntervalOMaxWorkspace) =
+    permutation(first(ws.thread_workspaces))
+scratch(ws::ThreadedDenseIntervalOMaxWorkspace) = scratch(first(ws.thread_workspaces))
 
-"""
-    construct_workspace(prob::IntervalProbabilities)
-
-Construct a workspace for computing the Bellman update, given a value function.
-If the Bellman update is used in a hot-loop, it is more efficient to use this function
-to preallocate the workspace and reuse across iterations.
-
-The workspace type is determined by the type and size of the transition probability matrix,
-as well as the number of threads available.
-"""
 function construct_workspace(
-    prob::IntervalProbabilities{R, VR, MR},
-    max_actions = 1;
+    prob::IntervalAmbiguitySets{R, MR},
+    ::OMaximization = default_bellman_algorithm(prob);
     threshold = 10,
-) where {R, VR, MR <: AbstractMatrix{R}}
-    if Threads.nthreads() == 1 || size(gap(prob), 2) <= threshold
-        return DenseWorkspace(gap(prob), max_actions)
+    num_actions = 1,
+    kwargs...,
+) where {R, MR <: AbstractMatrix{R}}
+    if Threads.nthreads() == 1 || num_sets(prob) <= threshold
+        return DenseIntervalOMaxWorkspace(prob, num_actions)
     else
-        return ThreadedDenseWorkspace(gap(prob), max_actions)
+        return ThreadedDenseIntervalOMaxWorkspace(prob, num_actions)
     end
 end
 
 # Sparse
-struct SparseWorkspace{T <: Real}
+struct SparseIntervalOMaxWorkspace{T <: Real}
+    budget::Vector{T}
     scratch::Vector{Tuple{T, T}}
     values_gaps::Vector{Tuple{T, T}}
     actions::Vector{T}
 end
 
-function SparseWorkspace(p::AbstractSparseMatrix{T}, max_actions) where {T <: Real}
-    max_nonzeros = maximum(map(nnz, eachcol(p)))
-    scratch = Vector{Tuple{T, T}}(undef, max_nonzeros)
-    values_gaps = Vector{Tuple{T, T}}(undef, max_nonzeros)
-    actions = Vector{T}(undef, max_actions)
-    return SparseWorkspace(scratch, values_gaps, actions)
+function SparseIntervalOMaxWorkspace(
+    ambiguity_sets::IntervalAmbiguitySets{R},
+    nactions,
+) where {R <: Real}
+    max_support = maxsupportsize(ambiguity_sets)
+
+    budget = 1 .- vec(sum(ambiguity_sets.lower; dims = 1))
+    scratch = Vector{Tuple{R, R}}(undef, max_support)
+    values_gaps = Vector{Tuple{R, R}}(undef, max_support)
+    actions = Vector{R}(undef, nactions)
+    return SparseIntervalOMaxWorkspace(budget, scratch, values_gaps, actions)
 end
 
-scratch(ws::SparseWorkspace) = ws.scratch
+scratch(ws::SparseIntervalOMaxWorkspace) = ws.scratch
 
-struct ThreadedSparseWorkspace{T}
-    thread_workspaces::Vector{SparseWorkspace{T}}
+struct ThreadedSparseIntervalOMaxWorkspace{T <: Real}
+    thread_workspaces::Vector{SparseIntervalOMaxWorkspace{T}}
 end
 
-function ThreadedSparseWorkspace(p::AbstractSparseMatrix, max_actions)
+function ThreadedSparseIntervalOMaxWorkspace(
+    ambiguity_sets::IntervalAmbiguitySets,
+    nactions,
+)
     nthreads = Threads.nthreads()
-    thread_workspaces = [SparseWorkspace(p, max_actions) for _ in 1:nthreads]
-    return ThreadedSparseWorkspace(thread_workspaces)
+    thread_workspaces =
+        [SparseIntervalOMaxWorkspace(ambiguity_sets, nactions) for _ in 1:nthreads]
+    return ThreadedSparseIntervalOMaxWorkspace(thread_workspaces)
 end
 
-Base.getindex(ws::ThreadedSparseWorkspace, i) = ws.thread_workspaces[i]
+Base.getindex(ws::ThreadedSparseIntervalOMaxWorkspace, i) = ws.thread_workspaces[i]
 
 function construct_workspace(
-    prob::IntervalProbabilities{R, VR, MR},
-    max_actions = 1;
+    prob::IntervalAmbiguitySets{R, MR},
+    ::OMaximization = default_bellman_algorithm(prob);
     threshold = 10,
-) where {R, VR, MR <: AbstractSparseMatrix{R}}
-    if Threads.nthreads() == 1 || size(gap(prob), 2) <= threshold
-        return SparseWorkspace(gap(prob), max_actions)
+    num_actions = 1,
+    kwargs...,
+) where {R, MR <: AbstractSparseMatrix{R}}
+    if Threads.nthreads() == 1 || num_sets(prob) <= threshold
+        return SparseIntervalOMaxWorkspace(prob, num_actions)
     else
-        return ThreadedSparseWorkspace(gap(prob), max_actions)
+        return ThreadedSparseIntervalOMaxWorkspace(prob, num_actions)
     end
 end
 
-## Orthogonal
-abstract type SimpleOrthogonalWorkspace end
-
-# Dense
-struct DenseOrthogonalWorkspace{N, M, T <: Real} <: SimpleOrthogonalWorkspace
-    expectation_cache::NTuple{N, Vector{T}}
-    first_level_perm::Array{Int32, M}
-    permutation::Vector{Int32}
-    scratch::Vector{Int32}
-    actions::Vector{T}
+# Factored interval McCormick workspace
+struct FactoredIntervalMcCormickWorkspace{
+    M <: JuMP.Model,
+    T <: Real,
+    AT <: AbstractArray{T},
+}
+    model::M
+    actions::AT
 end
 
-function DenseOrthogonalWorkspace(
-    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R}},
-    max_actions,
-) where {N, R}
-    pns = num_target(p)
-    nmax = maximum(pns)
+function FactoredIntervalMcCormickWorkspace(sys, alg)
+    model = JuMP.Model(alg.lp_solver)
+    JuMP.set_silent(model)
+    set_string_names_on_creation(model, false)
 
-    first_level_perm = Array{Int32}(undef, pns)
-    perm = Vector{Int32}(undef, nmax)
-    scratch = Vector{Int32}(undef, nmax)
-    expectation_cache = NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in pns[2:end])
-    actions = Vector{R}(undef, max_actions)
-    return DenseOrthogonalWorkspace(
+    actions = Array{valuetype(sys)}(undef, action_shape(sys))
+
+    return FactoredIntervalMcCormickWorkspace(model, actions)
+end
+
+struct ThreadedFactoredIntervalMcCormickWorkspace{
+    M <: JuMP.Model,
+    T <: Real,
+    AT <: AbstractArray{T},
+}
+    thread_workspaces::Vector{FactoredIntervalMcCormickWorkspace{M, T, AT}}
+end
+
+function ThreadedFactoredIntervalMcCormickWorkspace(sys, alg)
+    nthreads = Threads.nthreads()
+    thread_workspaces = [FactoredIntervalMcCormickWorkspace(sys, alg) for _ in 1:nthreads]
+    return ThreadedFactoredIntervalMcCormickWorkspace(thread_workspaces)
+end
+Base.getindex(ws::ThreadedFactoredIntervalMcCormickWorkspace, i) = ws.thread_workspaces[i]
+
+function construct_workspace(
+    sys::FactoredRMDP,
+    ::Union{IsFIMDP, IsIMDP},
+    alg::LPMcCormickRelaxation;
+    threshold = 10,
+    kwargs...,
+)
+    if Threads.nthreads() == 1 || num_states(sys) <= threshold
+        return FactoredIntervalMcCormickWorkspace(sys, alg)
+    else
+        return ThreadedFactoredIntervalMcCormickWorkspace(sys, alg)
+    end
+end
+
+# Factored interval o-max workspace
+struct FactoredIntervalOMaxWorkspace{N, M, T <: Real, AT <: AbstractArray{T}}
+    expectation_cache::NTuple{M, Vector{T}}
+    values_gaps::Vector{Tuple{T, T}}
+    scratch::Vector{Tuple{T, T}}
+    budgets::NTuple{N, Vector{T}}
+    actions::AT
+end
+
+function FactoredIntervalOMaxWorkspace(sys::FactoredRMDP)
+    N = length(marginals(sys))
+    R = valuetype(sys)
+
+    max_support_per_marginal =
+        Tuple(maxsupportsize(ambiguity_sets(marginal)) for marginal in marginals(sys))
+    max_support = maximum(max_support_per_marginal)
+
+    expectation_cache = NTuple{N - 1, Vector{R}}(
+        Vector{R}(undef, n) for n in max_support_per_marginal[2:end]
+    )
+    values_gaps = Vector{Tuple{R, R}}(undef, max_support)
+    scratch = Vector{Tuple{R, R}}(undef, max_support)
+
+    budgets = ntuple(r -> one(R) .- vec(sum(ambiguity_sets(sys[r]).lower; dims = 1)), N)
+    actions = Array{R}(undef, action_shape(sys))
+
+    return FactoredIntervalOMaxWorkspace(
         expectation_cache,
-        first_level_perm,
-        perm,
+        values_gaps,
         scratch,
+        budgets,
         actions,
     )
 end
-permutation(ws::DenseOrthogonalWorkspace) = ws.permutation
-scratch(ws::DenseOrthogonalWorkspace) = ws.scratch
-first_level_perm(ws::DenseOrthogonalWorkspace) = ws.first_level_perm
-actions(ws::DenseOrthogonalWorkspace) = ws.actions
+scratch(ws::FactoredIntervalOMaxWorkspace) = ws.scratch
 
-struct ThreadedDenseOrthogonalWorkspace{N, M, T}
-    thread_workspaces::Vector{DenseOrthogonalWorkspace{N, M, T}}
+struct ThreadedFactoredIntervalOMaxWorkspace{N, M, T <: Real, AT <: AbstractArray{T}}
+    thread_workspaces::Vector{FactoredIntervalOMaxWorkspace{N, M, T, AT}}
 end
 
-function ThreadedDenseOrthogonalWorkspace(
-    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R}},
-    max_actions,
-) where {N, R}
+function ThreadedFactoredIntervalOMaxWorkspace(sys::FactoredRMDP)
     nthreads = Threads.nthreads()
-    pns = num_target(p)
-    nmax = maximum(pns)
-
-    first_level_perm = Array{Int32}(undef, pns)
-
-    workspaces = map(1:nthreads) do _
-        perm = Vector{Int32}(undef, nmax)
-        scratch = Vector{Int32}(undef, nmax)
-        expectation_cache =
-            NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in pns[2:end])
-        actions = Vector{R}(undef, max_actions)
-        return DenseOrthogonalWorkspace(
-            expectation_cache,
-            first_level_perm,
-            perm,
-            scratch,
-            actions,
-        )
-    end
-
-    return ThreadedDenseOrthogonalWorkspace(workspaces)
+    thread_workspaces = [FactoredIntervalOMaxWorkspace(sys) for _ in 1:nthreads]
+    return ThreadedFactoredIntervalOMaxWorkspace(thread_workspaces)
 end
+Base.getindex(ws::ThreadedFactoredIntervalOMaxWorkspace, i) = ws.thread_workspaces[i]
 
-Base.getindex(ws::ThreadedDenseOrthogonalWorkspace, i) = ws.thread_workspaces[i]
-
-"""
-    construct_workspace(prob::OrthogonalIntervalProbabilities)
-
-Construct a workspace for computing the Bellman update, given a value function.
-If the Bellman update is used in a hot-loop, it is more efficient to use this function
-to preallocate the workspace and reuse across iterations.
-
-The workspace type is determined by the type and size of the transition probability matrix,
-as well as the number of threads available.
-"""
 function construct_workspace(
-    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}},
-    max_actions = 1,
-) where {N, R, VR, MR <: AbstractMatrix{R}}
-    if Threads.nthreads() == 1
-        return DenseOrthogonalWorkspace(p, max_actions)
+    sys::FactoredRMDP,
+    ::IsFIMDP,
+    ::OMaximization;
+    threshold = 10,
+    kwargs...,
+)
+    if Threads.nthreads() == 1 || num_states(sys) <= threshold
+        return FactoredIntervalOMaxWorkspace(sys)
     else
-        return ThreadedDenseOrthogonalWorkspace(p, max_actions)
+        return ThreadedFactoredIntervalOMaxWorkspace(sys)
     end
 end
 
-# Sparse
-struct SparseOrthogonalWorkspace{N, T <: Real} <: SimpleOrthogonalWorkspace
-    expectation_cache::NTuple{N, Vector{T}}
-    values_gaps::Vector{Tuple{T, T}}
-    scratch::Vector{Tuple{T, T}}
-    actions::Vector{T}
-end
-scratch(ws::SparseOrthogonalWorkspace) = ws.scratch
-actions(ws::SparseOrthogonalWorkspace) = ws.actions
-
-function SparseOrthogonalWorkspace(
-    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}},
-    max_actions,
-) where {N, R, VR, MR <: AbstractSparseMatrix{R}}
-    max_nonzeros_per_prob = [maximum(map(nnz, eachcol(gap(pᵢ)))) for pᵢ in p]
-    max_nonzeros = maximum(max_nonzeros_per_prob)
-
-    scratch = Vector{Tuple{R, R}}(undef, max_nonzeros)
-    values_gaps = Vector{Tuple{R, R}}(undef, max_nonzeros)
-    expectation_cache =
-        NTuple{N - 1, Vector{R}}(Vector{R}(undef, n) for n in max_nonzeros_per_prob[2:end])
-    actions = Vector{R}(undef, max_actions)
-
-    return SparseOrthogonalWorkspace(expectation_cache, values_gaps, scratch, actions)
+# Factored vertex iterator workspace
+struct FactoredVertexIteratorWorkspace{N, T, AT <: AbstractArray{T}}
+    result_vectors::NTuple{N, Vector{T}}
+    actions::AT
 end
 
-struct ThreadedSparseOrthogonalWorkspace{N, T}
-    thread_workspaces::Vector{SparseOrthogonalWorkspace{N, T}}
+function FactoredVertexIteratorWorkspace(sys::FactoredRMDP)
+    N = length(marginals(sys))
+    R = valuetype(sys)
+
+    result_vectors = ntuple(r -> Vector{R}(undef, state_values(sys, r)), N)
+    actions = Array{valuetype(sys)}(undef, action_shape(sys))
+
+    return FactoredVertexIteratorWorkspace(result_vectors, actions)
 end
 
-function ThreadedSparseOrthogonalWorkspace(p::OrthogonalIntervalProbabilities, max_actions)
+struct ThreadedFactoredVertexIteratorWorkspace{N, T, AT <: AbstractArray{T}}
+    thread_workspaces::Vector{FactoredVertexIteratorWorkspace{N, T, AT}}
+end
+
+function ThreadedFactoredVertexIteratorWorkspace(sys::FactoredRMDP)
     nthreads = Threads.nthreads()
-    thread_workspaces = [SparseOrthogonalWorkspace(p, max_actions) for _ in 1:nthreads]
-
-    return ThreadedSparseOrthogonalWorkspace(thread_workspaces)
+    thread_workspaces = [FactoredVertexIteratorWorkspace(sys) for _ in 1:nthreads]
+    return ThreadedFactoredVertexIteratorWorkspace(thread_workspaces)
 end
 
-Base.getindex(ws::ThreadedSparseOrthogonalWorkspace, i) = ws.thread_workspaces[i]
+Base.getindex(ws::ThreadedFactoredVertexIteratorWorkspace, i) = ws.thread_workspaces[i]
 
-"""
-    construct_workspace(prob::OrthogonalIntervalProbabilities)
-
-Construct a workspace for computing the Bellman update, given a value function.
-If the Bellman update is used in a hot-loop, it is more efficient to use this function
-to preallocate the workspace and reuse across iterations.
-
-The workspace type is determined by the type and size of the transition probability matrix,
-as well as the number of threads available.
-"""
 function construct_workspace(
-    p::OrthogonalIntervalProbabilities{N, <:IntervalProbabilities{R, VR, MR}},
-    max_actions = 1,
-) where {N, R, VR, MR <: AbstractSparseMatrix{R}}
-    if Threads.nthreads() == 1
-        return SparseOrthogonalWorkspace(p, max_actions)
+    sys::FactoredRMDP,
+    ::Union{IsFIMDP, IsIMDP},
+    ::VertexEnumeration;
+    threshold = 10,
+    kwargs...,
+)
+    if Threads.nthreads() == 1 || num_states(sys) <= threshold
+        return FactoredVertexIteratorWorkspace(sys)
     else
-        return ThreadedSparseOrthogonalWorkspace(p, max_actions)
-    end
-end
-
-## Mixture
-
-# Sequential
-struct MixtureWorkspace{W <: SimpleOrthogonalWorkspace, R}
-    orthogonal_workspace::W
-    mixture_cache::Vector{R}
-    scratch::Vector{Int32}
-    permutation::Vector{Int32}
-end
-permutation(ws::MixtureWorkspace) = ws.permutation
-scratch(ws::MixtureWorkspace) = ws.scratch
-actions(ws::MixtureWorkspace) = actions(ws.orthogonal_workspace)
-
-function MixtureWorkspace(
-    p::MixtureIntervalProbabilities{
-        N,
-        <:OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}},
-    },
-    max_actions,
-) where {N, M, R, VR, MR <: AbstractMatrix{R}}
-    mixture_cache = Vector{R}(undef, N)
-    scratch = Vector{Int32}(undef, N)
-    permutation = Vector{Int32}(undef, N)
-    return MixtureWorkspace(
-        DenseOrthogonalWorkspace(first(p), max_actions),
-        mixture_cache,
-        scratch,
-        permutation,
-    )
-end
-
-function MixtureWorkspace(
-    p::MixtureIntervalProbabilities{
-        N,
-        <:OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}},
-    },
-    max_actions,
-) where {N, M, R, VR, MR <: AbstractSparseMatrix{R}}
-    mixture_cache = Vector{R}(undef, N)
-    mixture_scratch = Vector{Int32}(undef, N)
-    mixture_permutation = Vector{Int32}(undef, N)
-
-    max_nonzeros_per_prob = map(1:M) do l
-        return maximum(1:N) do k
-            return maximum(map(nnz, eachcol(gap(p[k], l))))
-        end
-    end
-    max_nonzeros = maximum(max_nonzeros_per_prob)
-
-    scratch = Vector{Tuple{R, R}}(undef, max_nonzeros)
-    values_gaps = Vector{Tuple{R, R}}(undef, max_nonzeros)
-    expectation_cache =
-        NTuple{M - 1, Vector{R}}(Vector{R}(undef, n) for n in max_nonzeros_per_prob[2:end])
-    actions = Vector{R}(undef, max_actions)
-
-    return MixtureWorkspace(
-        SparseOrthogonalWorkspace(expectation_cache, values_gaps, scratch, actions),
-        mixture_cache,
-        mixture_scratch,
-        mixture_permutation,
-    )
-end
-
-# Threaded
-struct ThreadedMixtureWorkspace{W <: SimpleOrthogonalWorkspace, V <: MixtureWorkspace{W}}
-    thread_workspaces::Vector{V}
-end
-
-function ThreadedMixtureWorkspace(
-    p::MixtureIntervalProbabilities{
-        N,
-        <:OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}},
-    },
-    max_actions,
-) where {N, M, R, VR, MR <: AbstractMatrix{R}}
-    nthreads = Threads.nthreads()
-    pns = num_target(p)
-    nmax = maximum(pns)
-
-    first_level_perm = Array{Int32}(undef, pns)
-
-    workspaces = map(1:nthreads) do _
-        mixture_cache = Vector{R}(undef, N)
-        mixture_scratch = Vector{Int32}(undef, N)
-        mixture_permutation = Vector{Int32}(undef, N)
-
-        perm = Vector{Int32}(undef, nmax)
-        scratch = Vector{Int32}(undef, nmax)
-        expectation_cache =
-            NTuple{M - 1, Vector{R}}(Vector{R}(undef, n) for n in pns[2:end])
-        actions = Vector{R}(undef, max_actions)
-        return MixtureWorkspace(
-            DenseOrthogonalWorkspace(
-                expectation_cache,
-                first_level_perm,
-                perm,
-                scratch,
-                actions,
-            ),
-            mixture_cache,
-            mixture_scratch,
-            mixture_permutation,
-        )
-    end
-
-    return ThreadedMixtureWorkspace(workspaces)
-end
-
-function ThreadedMixtureWorkspace(
-    p::MixtureIntervalProbabilities{
-        N,
-        <:OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}},
-    },
-    max_actions,
-) where {N, M, R, VR, MR <: AbstractSparseMatrix{R}}
-    nthreads = Threads.nthreads()
-
-    max_nonzeros_per_prob = map(1:M) do l
-        return maximum(1:N) do k
-            return maximum(map(nnz, eachcol(gap(p[k], l))))
-        end
-    end
-    max_nonzeros = maximum(max_nonzeros_per_prob)
-
-    workspaces = map(1:nthreads) do _
-        mixture_cache = Vector{R}(undef, N)
-        mixture_scratch = Vector{Int32}(undef, N)
-        mixture_permutation = Vector{Int32}(undef, N)
-
-        scratch = Vector{Tuple{R, R}}(undef, max_nonzeros)
-        values_gaps = Vector{Tuple{R, R}}(undef, max_nonzeros)
-        expectation_cache = NTuple{M - 1, Vector{R}}(
-            Vector{R}(undef, n) for n in max_nonzeros_per_prob[2:end]
-        )
-        actions = Vector{R}(undef, max_actions)
-        return MixtureWorkspace(
-            SparseOrthogonalWorkspace(expectation_cache, values_gaps, scratch, actions),
-            mixture_cache,
-            mixture_scratch,
-            mixture_permutation,
-        )
-    end
-
-    return ThreadedMixtureWorkspace(workspaces)
-end
-
-Base.getindex(ws::ThreadedMixtureWorkspace, i) = ws.thread_workspaces[i]
-
-"""
-    construct_workspace(prob::MixtureIntervalProbabilities)
-
-Construct a workspace for computing the Bellman update, given a value function.
-If the Bellman update is used in a hot-loop, it is more efficient to use this function
-to preallocate the workspace and reuse across iterations.
-
-The workspace type is determined by the type and size of the transition probability matrix,
-as well as the number of threads available.
-"""
-function construct_workspace(
-    p::MixtureIntervalProbabilities{
-        N,
-        <:OrthogonalIntervalProbabilities{M, <:IntervalProbabilities{R, VR, MR}},
-    },
-    max_actions = 1,
-) where {N, M, R, VR, MR <: Union{AbstractMatrix{R}, AbstractSparseMatrix{R}}}
-    if Threads.nthreads() == 1
-        return MixtureWorkspace(p, max_actions)
-    else
-        return ThreadedMixtureWorkspace(p, max_actions)
+        return ThreadedFactoredVertexIteratorWorkspace(sys)
     end
 end

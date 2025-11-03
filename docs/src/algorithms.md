@@ -1,151 +1,267 @@
 # Algorithms
 
-To simplify the dicussion on the algorithmic choices, we will assume that the goal is to compute the maximizing pessimistic probability of reaching a set of states ``G``, that is, 
+## Model checking
+The core algorithmic component of this package is (robust) value iteration, which is used to solve verification and control synthesis problems for fRMDPs. Value iteration is an iterative algorithm that computes the value function for a given specification by repeatedly applying the [Bellman operator](@ref "Bellman operator algorithms") until convergence.
 
+To simplify the dicussion on the algorithmic choices, we will assume that the goal is to compute the maximizing pessimistic probability of reaching a set of states ``G``, that is, 
 ```math
-\max_{\pi} \; \min_{\eta} \; \mathbb{P}_{\pi,\eta }\left[\omega \in \Omega : \exists k \in [0,K], \, \omega(k)\in G  \right].
+\max_{\pi} \; \min_{\eta} \;  \mathbb{P}^{\pi, \eta}_{\mathrm{reach}}(G, K).
 ```
 
-See [Theory](@ref) for more details on the theory behind IMDPs including strategies and adversaries; in this case the maximization and minimization operators respectively. The algorithms are easily adapted to other specifications, such as minimizing optimistic probability, which is useful for safety, or maximizing pessimitic discounted reward. Assume furthermore that the transition probabilities are represented as a sparse matrix.
-This is the most common representation for large models, and the algorithms are easily adapted to dense matrices with the sorting (see [Sorting](@ref)) being shared across states such that parallelizing this has a smaller impact on performance.
+See [Models](@ref) for more details on the formal definition of fRMDPs, strategies, and adversaries; in this case the maximization and minimization operators respectively. The algorithms are easily adapted to [other specifications](@ref "Specifications").
 
-## Solving reachability as value iteration
-Computing the solution to the above problem can be reframed in terms of value iteration. The value function ``V_k`` is the probability of reaching ``G`` in ``k`` steps or fewer. The value function is initialized to ``V_0(s) = 1`` if ``s \in G`` and ``V_0(s) = 0`` otherwise. The value function is then iteratively updated according to the Bellman equation
+Computing the solution to the above problem can be framed in terms of value iteration. The value function ``V_k`` is the probability of reaching ``G`` in ``k`` steps or fewer. The value function is initialized to ``V_0(s) = 1`` if ``s \in G`` and ``V_0(s) = 0`` otherwise. The value function is then iteratively updated according to the Bellman equation
 ```math
 \begin{aligned}
     V_{0}(s) &= \mathbf{1}_{G}(s) \\
-    V_{k}(s) &= \mathbf{1}_{G}(s) + \mathbf{1}_{S\setminus G}(s) \max_{a \in A} \min_{p_{s,a}\in \Gamma_{s,a}} \sum_{s' \in S} V_{k-1}(s') p_{s,a}(s'),
+    V_{k}(s) &= \mathbf{1}_{G}(s) + \mathbf{1}_{S \setminus G}(s) \max_{a \in A} \min_{\gamma_{s,a} \in \Gamma_{s,a}} \sum_{t \in S} V_{k-1}(t) \gamma_{s,a}(t),
 \end{aligned}
 ```
 where ``\mathbf{1}_{G}(s) = 1``  if ``s \in G`` and ``0`` otherwise is the indicator function for set ``G``. This Bellman update is repeated until ``k = K``, or if ``K = \infty``, until the value function converges, i.e. ``V_k = V_{k-1}`` for some ``k``. The value function is then the solution to the problem.
-Exact convergence is virtually impossible to achieve in a finite number of iterations due to the finite precision of floating point numbers. Hence, we instead use a residual tolerance ``\epsilon`` and stop when Bellman residual ``V_k - V_{k-1}`` is less than the threshold, ``\|V_k - V_{k-1}\|_\infty < \epsilon``.
 
-In a more programmatic formulation, the algorithm (for ``K = \infty``) can be summarized as follows:
-
+In a more programmatic formulation, the algorithm can be summarized as follows:
 ```julia
 function value_iteration(system, spec)
-    V = initialize_value_function(spec)
+    V = initialize_value_function(spec)  # E.g. V[s] = 1 if s in G else 0 for reachability
 
-    while !converged(V)
-        V = bellman_update(V, system)
+    while !converged(V)  # or for k in 1:K if K is finite
+        # Compute max_{a \in A} \min_{γ_{s,a} \in Γ_{s,a}} \sum_{t \in S} V_{k-1}(t) γ_{s,a}(t) for all states s
+        V = bellman_update(V, system) # System contains information about S, A, and Γ
+        post_process!(V, spec) # E.g. set V[s] = 1 for s in G for reachability
     end
 end
 ```
+We slightly abuse terminology and call the max/min expectation the Bellman update, even though it is not a proper Bellman operator as it does not include the indicator function for ``G``. The min/max expectation is however shared between all specifications, and thus it is natural to separate it from the specification-dependent post-processing step.
 
-## Efficient value iteration
+Note that exact convergence is virtually, impossible, unless using (computationally slow) exact arithmetic, to achieve in a finite number of iterations due to the finite precision of floating point numbers. Hence, we instead use a residual tolerance ``\epsilon`` and stop when Bellman residual ``V_k - V_{k-1}`` is less than the threshold, ``\|V_k - V_{k-1}\|_\infty < \epsilon``. See [Bellman operator algorithms](@ref) for algorithms that support exact arithmetic.
 
-Computing the Bellman update for can be done indepently for each state. 
-```julia
-function bellman_update(V, system)
-    # Thread.@threads parallelize across available threads
-    Thread.@threads for s in states(system)
-        # Minimize over probability distributions in `Gamma_{s,a}`, i.e. pessimistic
-        V_state = minimize_feasible_dist(V, system, s)
+## Bellman operator algorithms
+As the Bellman update is the most computationally intensive part of the algorithm, it is crucial to implement it efficiently including considerations about type stability, pre-allocation and in-place operations, memory access patterns, and parallelization.
 
-        # Maximize over actions
-        V[s] = maximum(V_state)
-    end
-end
-```
+1. Type stability: the Bellman update should be type stable, i.e. the correct kernel to dispatch to should be inferable at compile time, to avoid dynamic dispatch and heap allocations in the hot loop. This can be achieved by using parametric types and avoiding abstract types in the hot loop.
+2. Pre-allocation and in-place operations: to avoid unnecessary allocations and reducing GC pressure, the value function (pre and post Bellman update) is be pre-allocated and updated in-place, and the Bellman update relies on pre-allocated workspace objects.
+3. Memory access patterns: to ensure cache efficiency, the memory access pattern should be as contiguous as possible. This is achieved by storing the transition matrices/ambiguity sets in column-major order, where each column corresponds to a source-action pair.
+4. Parallelization: to leverage multi-core CPUs and CUDA hardware, the Bellman update should be parallelized across source-states and in the case of CUDA, also across actions and target states.
 
-For each state, we need to compute the minimum over all feasible distributions per state-action pairs and the maximum over all actions for each state.
-The minimum over all feasible distributions can be computed as a solution to a Linear Programming (LP) problem, namely
+A challenge with designing Bellman operator algorithms for fRMDPs is that ``\min_{\gamma_{s,a} \in \Gamma_{s,a}} \sum_{t \in S} V_{k-1}(t) \gamma_{s,a}(t)`` is not always computable exactly, and thus, we must resort to sound approximations. For IMDPs, the minimum can be computed exactly via [O-maximization](@ref). Below, we will describe different algorithms for computing the Bellman update, their trade-offs, and algorithmic choices for an efficient implementation.
 
+### O-maximization
+In case of an IMDP, the minimum over all feasible distributions can be computed as a solution to a Linear Programming (LP) problem, namely
 ```math
     \begin{aligned}
-        \min_{p_{s,a}} \quad & \sum_{s' \in S} V_{k-1}(s') \cdot p_{s,a}(s'), \\
-        \quad & \underline{P}(s,a,s') \leq p_{s,a}(s') \leq \overline{P}(s,a,s') \quad \forall s' \in S, \\
-        \quad & \sum_{s' \in S} p_{s,a}(s') = 1. \\
+        \min_{\gamma_{s, a}} \quad & \sum_{t \in S} V_{k-1}(t) \cdot \gamma_{s, a}(t), \\
+        \quad & \underline{\gamma}_{s, a}(t) \leq \gamma_{s, a}(t) \leq \overline{\gamma}_{s, a}(t) \quad \forall t \in S, \\
+        \quad & \sum_{t \in S} \gamma_{s,a}(t) = 1.
     \end{aligned}
 ```
-
-However, due to the particular structure of the LP problem, we can use a more efficient algorithm: O-maximization, or ordering-maximization [1].
+However, due to the particular structure of the LP problem, we can use a more efficient algorithm: O-maximization, or ordering-maximization [givan2000bounded, lahijanian2015formal](@cite).
 In the case of pessimistic probability, we want to assign the most possible probability mass to the destinations with the smallest value of ``V_{k-1}``, while obeying that the probability distribution is feasible, i.e. within the probability bounds and that it sums to 1. This is done by sorting the values of ``V_{k-1}`` and then assigning state with the smallest value its upper bound, then the second smallest, and so on until the remaining mass must be assigned to the lower bound of the remaining states for probability distribution is feasible.
 ```julia
-function minimize_feasible_dist(V, system, s)
+function min_value(V, system, source, action)
     # Sort values of `V` in ascending order
     order = sortperm(V)
 
     # Initialize distribution to lower bounds
-    p = lower_bounds(system, s)
-    rem = 1 - sum(p)
+    p = lower_bounds(system, source, action)
+    budget = 1 - sum(p)
 
     # Assign upper bounds to states with smallest values
     # until remaining mass is zero
     for idx in order
-        gap = upper_bounds(system, s)[idx] - p[idx]
-        if rem <= gap
-            p[idx] += rem
+        gap = upper_bounds(system, source, action)[idx] - p[idx]
+        if budget <= gap
+            p[idx] += budget
             break
         else
             p[idx] += gap
-            rem -= gap
+            budget -= gap
         end
     end
 
-    return p
+    v = dot(V, p)
+    return v
 end
 ```
 
-We abstract this algorithm into the sorting phase and the O-maximization phase: 
-```julia
-function minimize_feasible_dist(V, system, s)
-    # Sort values of `V` in ascending order
-    order = sortstates(V)
-    p = o_maximize(system, s, order)
-    return p
-end
+For fIMDPs, O-maximization can be applied recursively over the marginals as a sound under-approximation of the minimum [mathiesen2025scalable](@cite). Let ``S = S_1 \times \cdots \times S_n`` be the state space factored into ``n`` state variables, and let ``\Gamma_{s,a} = \Gamma^1_{s,a} \times \cdots \times \Gamma^n_{s,a}`` be the transition ambiguity sets factored into ``n`` marginals. Then, we can compute a bound on the minimum as
+```math
+    \begin{aligned}
+        W_{s,a}^{k,n}(t^1, \ldots, t^n) &= V_{k - 1}(t)\\
+        W_{s,a}^{k,i-1}(t^1, \ldots, t^{i-1}) &= \min_{\gamma^i_{s,a} \in \Gamma^i_{s,a}} \sum_{t^i \in S_i} W_{s,a}^{k,i}(
+            t^1, \ldots, t^i) \gamma^i_{s,a}(t^i),\\
+            &\qquad \qquad \text{ for } i = 2, \ldots, n \\
+        W_{s,a}^{k} :=  W_{s,a}^{k,0} &= \min_{\gamma^1_{s,a} \in \Gamma^1_{s,a}} \sum_{t^1 \in S_1} W_{s,a}^{k,1}(t^1) \gamma^1_{s,a}(t^1).
+    \end{aligned}
+```
+Then, ``V_k(s) := \mathbf{1}_{G}(s) + \mathbf{1}_{S \setminus G}(s) \max_{a \in A} W_{s,a}^{k}``. Note that this is strictly better than building a joint ambiguity set by multiplying the marginal interval bounds [mathiesen2025scalable](@cite).
+
+The algorithm is the default Bellman algorithm for IMDPs, but not for fIMDPs. To explicitly select (recursive) O-maximization, do the following:
+```@setup explicit_omax
+using IntervalMDP
+N = Float64
+
+prob1 = IntervalAmbiguitySets(;
+    lower = N[
+        0     1//2
+        1//10 3//10
+        1//5  1//10
+    ],
+    upper = N[
+        1//2  7//10
+        3//5  1//2
+        7//10 3//10
+    ],
+)
+
+prob2 = IntervalAmbiguitySets(;
+    lower = N[
+        1//10 1//5
+        1//5  3//10
+        3//10 2//5
+    ],
+    upper = N[
+        3//5 3//5
+        1//2 1//2
+        2//5 2//5
+    ],
+)
+
+prob3 = IntervalAmbiguitySets(;
+    lower = N[
+        0 0
+        0 0
+        1 1
+    ],
+    upper = N[
+        0 0
+        0 0
+        1 1
+    ]
+)
+
+transition_probs = [prob1, prob2, prob3]
+
+mdp = IntervalMarkovDecisionProcess(transition_probs)
+prop = FiniteTimeReachability([3], 10)  # Reach state 3 within 10 timesteps
+spec = Specification(prop, Pessimistic, Maximize)
+problem = VerificationProblem(mdp, spec)
+```
+```@example explicit_omax
+alg = RobustValueIteration(OMaximization())
+result = solve(problem, alg)
+nothing # hide
+```
+O-maximization supports both floating point and exact arithmetic, and it is implemented for both CPU and CUDA hardware.
+
+### Vertex enumeration
+A way to compute the minimum exactly for fIMDPs, and in general polytopic ambiguity sets, is via vertex enumeration [schnitzer2025efficient](@cite). The idea is to enumerate the Cartesian product of all vertices of each polytope and then compute the minimum over the vertices. This is however only feasible for few state values along each marginal, as the potential number of vertices for each marginal can grow with the factorial of the number of state values, and exponentially in the number of dimensions. Hence, this algorithm is only feasible for small problems, but it is included for completeness and as a reference implementation. To use vertex enumeration, do the following:
+```@setup explicit_vertex
+using IntervalMDP
+N = Float64
+
+state_vars = (2, 3)
+action_vars = (1, 2)
+
+marginal1 = Marginal(IntervalAmbiguitySets(;
+    lower = N[
+        1//15  7//30  1//15  13//30  4//15  1//6
+        2//5   7//30  1//30  11//30  2//15  1//10
+    ],
+    upper = N[
+        17//30   7//10  2//3   4//5  7//10   2//3
+        9//10  13//15  9//10  5//6  4//5   14//15
+    ]
+), (1, 2), (1,), (2, 3), (1,))
+
+marginal2 = Marginal(IntervalAmbiguitySets(;
+    lower = N[
+        1//30  1//3   1//6   1//15  2//5   2//15
+        4//15  1//4   1//6   1//30  2//15  1//30
+        2//15  7//30  1//10  7//30  7//15  1//5
+    ],
+    upper = N[
+        2//3   7//15   4//5   11//30  19//30   1//2
+        23//30  4//5   23//30   3//5    7//10   8//15
+        7//15  4//5   23//30   7//10   7//15  23//30
+    ]
+), (2,), (2,), (3,), (2,))
+
+mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, marginal2))
+
+prop = FiniteTimeReachability([(2, 3)], 10)  # Reach state (2, 3) within 10 timesteps
+spec = Specification(prop, Pessimistic, Maximize)
+problem = VerificationProblem(mdp, spec)
+```
+```@example explicit_vertex
+alg = RobustValueIteration(VertexEnumeration())
+result = solve(problem, alg)
+nothing # hide
+```
+The implementation iterates vertex combinations in a lazy manner, and thus, it does not store all vertices in memory. Furthermore, efficient generation of vertices for each marginal is done via backtracking to avoid enumerating all possible orderings.
+
+Vertex enumeration supports both floating point and exact arithmetic.
+
+### Recursive McCormick envelopes
+Another method for computing a sound under-approximation of the minimum for fIMDPs is via recursive McCormick envelopes [schnitzer2025efficient](@cite). The idea is to relace each bilinear term ``\gamma^1_{s, a}(t^1) \cdot \gamma^2_{s, a}(t^2)`` in ``\sum_{t \in S} V_{k-1}(') \gamma^1_{s, a}(t^1) \cdot \gamma^2_{s, a}(t^2)`` (for a system with two marginals) with a new variable ``q_{s, a}(t^1, t^2)`` and add linear McCormick constraints to ensure that ``q_{s, a}(t^1, t^2)`` is an over-approximation of the bilinear term. That is,
+```math
+    \begin{aligned}
+        q_{s, a}(t^1, t^2) &\geq \underline{\gamma}^1_{s,a}(t^1) \cdot \gamma^2_{s,a}(t^2) + \underline{\gamma}^2_{s,a}(t^2) \cdot \gamma^1_{s,a}(t^1) - \underline{\gamma}^1_{s,a}(t^1) \cdot \underline{\gamma}^2_{s,a}(t^2), \\
+        q_{s, a}(t^1, t^2) &\geq \overline{\gamma}^1_{s,a}(t^1) \cdot \gamma^2_{s,a}(t^2) + \overline{\gamma}^2_{s,a}(t^2) \cdot \gamma^1_{s,a}(t^1) - \overline{\gamma}^1_{s,a}(t^1) \cdot \overline{\gamma}^2_{s,a}(t^2), \\
+        q_{s, a}(t^1, t^2) &\leq \underline{\gamma}^1_{s,a}(t^1) \cdot \gamma^2_{s,a}(t^2) + \overline{\gamma}^2_{s,a}(t^2) \cdot \gamma^1_{s,a}(t^1) - \underline{\gamma}^1_{s,a}(t^1) \cdot \overline{\gamma}^2_{s,a}(t^2), \\
+        q_{s, a}(t^1, t^2) &\leq \overline{\gamma}^1_{s,a}(t^1) \cdot \gamma^2_{s,a}(t^2) + \underline{\gamma}^2_{s,a}(t^2) \cdot \gamma^1_{s,a}(t^1) - \overline{\gamma}^1_{s,a}(t^1) \cdot \underline{\gamma}^2_{s,a}(t^2).
+    \end{aligned}
+```
+In addition, we add the constraint that ``\sum_{t^1 \in S_1} \sum_{t^2 \in S_2} q_{s, a}(t^1, t^2) = 1`` such that ``q_{s, a}`` is a valid probability distribution.
+
+This results in a Linear Programming (LP) problem that can be solved efficiently. The McCormick envelopes can be applied recursively for more than two marginals. The algorithm is more efficient than vertex enumeration and is thus the default Bellman algorithm for fIMDPs.
+
+To use recursive McCormick envelopes, do the following:
+```@setup explicit_mccormick
+using IntervalMDP, HiGHS
+N = Float64
+
+state_vars = (2, 3)
+action_vars = (1, 2)
+
+marginal1 = Marginal(IntervalAmbiguitySets(;
+    lower = N[
+        1//15  7//30  1//15  13//30  4//15  1//6
+        2//5   7//30  1//30  11//30  2//15  1//10
+    ],
+    upper = N[
+        17//30   7//10  2//3   4//5  7//10   2//3
+        9//10  13//15  9//10  5//6  4//5   14//15
+    ]
+), (1, 2), (1,), (2, 3), (1,))
+
+marginal2 = Marginal(IntervalAmbiguitySets(;
+    lower = N[
+        1//30  1//3   1//6   1//15  2//5   2//15
+        4//15  1//4   1//6   1//30  2//15  1//30
+        2//15  7//30  1//10  7//30  7//15  1//5
+    ],
+    upper = N[
+        2//3   7//15   4//5   11//30  19//30   1//2
+        23//30  4//5   23//30   3//5    7//10   8//15
+        7//15  4//5   23//30   7//10   7//15  23//30
+    ]
+), (2,), (2,), (3,), (2,))
+
+mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, (marginal1, marginal2))
+prop = FiniteTimeReachability([(2, 3)], 10)  # Reach state (2, 3) within 10 timesteps
+spec = Specification(prop, Pessimistic, Maximize)
+problem = VerificationProblem(mdp, spec)
+```
+```@example explicit_mccormick
+# Use default LP solver (HiGHS)
+alg = RobustValueIteration(LPMcCormickRelaxation())
+
+# Choose a different LP solver
+using Clarabel
+alg = RobustValueIteration(LPMcCormickRelaxation(; lp_solver=Clarabel.Optimizer))
+
+result = solve(problem, alg)
+nothing # hide
 ```
 
-When computing computing the above on a GPU, we can and should parallelize both the sorting and the O-maximization phase.
-In the following two sections, we will discuss how parallelize these phases.
-
-### Sorting
-Sorting in parallel on the GPU is a well-studied problem, and there are many algorithms for doing so. We choose to use bitonic sorting, which is a sorting network that is easily parallelized and implementable on a GPU. The idea is to merge bitonic subsets, i.e. sets with first increasing then decreasing subsets of equal size, of increasingly larger sizes and perform minor rounds of swaps to maintain the bitonic property. The figure below shows 3 major rounds to sort a set of 8 elements (each line represents an element, each arrow is a comparison pointing towards the larger element). The latency[^1] of the sorting network is ``O((\lg n)^2)``, and thus it scales well to larger number of elements. See [Wikipedia](https://en.wikipedia.org/wiki/Bitonic_sorter) for more details.
-
-![](assets/bitonic_sorting.svg)
-
-
-### O-maximization
-In order to parallelize the O-maximization phase, observe that O-maximization implicity implements a cumulative sum according to the ordering over gaps and this is the only dependency between the states. Hence, if we can parallelize this cumulative sum, then we can parallelize the O-maximization phase.
-Luckily, there is a well-studied algorithm for computing the cumulative sum in parallel: tree reduction for prefix scan. The idea is best explained with figure below.
-
-![](assets/tree_reduction_prefix_scan.svg)
-
-Here, we recursively compute the cumulative sum of larger and larger subsets of the array. The latency is ``O(\lg n)``, and thus very efficient. See [Wikipedia](https://en.wikipedia.org/wiki/Prefix_sum) for more details. When implementing the tree reduction on GPU, it is possible to use warp shuffles to very efficiently perform tree reductions of up to 32 elements. For larger sets, shared memory to store the intermediate results, which is much faster than global memory. See [CUDA Programming Model](@ref) for more details on why these choices are important.
-
-Putting it all together, we get the following (pseudo-code) algorithm for O-maximization:
-```julia
-function o_maximize(system, s, order)
-    p = lower_bounds(system, s)
-    rem = 1 - sum(p)
-    gap = upper_bounds(system, s) - p
-
-    # Ordered cumulative sum of gaps
-    cumgap = cumulative_sum(gap[order])
-
-    @parallelize for (i, o) in enumerate(order)
-        rem_state = max(rem - cumgap[i] + gap[o], 0)
-        if gap[o] < rem_state
-            p[o] += gap[o]
-        else
-            p[o] += rem_state
-            break
-        end
-    end
-
-    return p
-end
-```
-
-## CUDA Programming Model
-We here give a brief introduction to the CUDA programming model to understand to algorithmic choices. For a more in-depth introduction, see the [CUDA C++ Programming Guide](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html). The CUDA framework is Single-Instruction Multiple-Thread (SIMT) parallel execution platform and Application Programming Interface. This is in contrast to Single-Instruction Multiple-Data where all data must be processed homogeneously without control flow. SIMT makes CUDA more flexible for heterogeneous processing and control flow. The smallest execution unit in CUDA is a thread, which is a sequential processing of instructions. A thread is uniquely identified by its thread index, which allows indexing into the global data for parallel processing. A group of 32 threads[^2] is called a warp, which will be executed _mostly_ synchronously on a streaming multiprocessor. If control flow makes threads in a wrap diverge, instructions may need to be decoded twice and executed in two separate cycles. Due to this synchronous behavior, data can be shared in registers between threads in a warp for maximum performance. A collection of (up to) 1024 threads is called a block, and this is the largest aggregation that can be synchronized. Furthermore, threads in a block share the appropriately named shared memory. This is memory that is stored locally on the streaming multiprocessor for fast access. Note that shared memory is unintuitively faster than local memory (not to be confused with registers) due to local memory being allocated in device memory. Finally, a collection of (up to) 65536 blocks is called the grid of a kernel, which is the set of instructions to be executed. The grid is singular as only a single ever exists per launched kernel. Hence, if more blocks are necessary to process the amount of data, then a grid-strided loop or multiple kernels are necessary. 
-
-![](assets/cuda_programming_model.svg)
-
-
-[1] M. Lahijanian, S. B. Andersson and C. Belta, "Formal Verification and Synthesis for Discrete-Time Stochastic Systems," in IEEE Transactions on Automatic Control, vol. 60, no. 8, pp. 2031-2045, Aug. 2015, doi: 10.1109/TAC.2015.2398883.
-
-[^1]: Note that when assessing parallel algorithms, the asymptotic performance is measured by the latency, which is the delay in the number of parallel operations, before the result is available. This is in contrast to traditional algorithms, which are assessed by the total number of operations.
-
-[^2]: with consecutive thread indices aligned to a multiple of 32.
+See the [JuMP documentation](https://jump.dev/JuMP.jl/stable/installation/#Supported-solvers) for a list of supported LP solvers. The recursive McCormick envelopes Bellman operator algorithm supports primarily floating point, but also exact arithmetic if the chosen LP solver does.

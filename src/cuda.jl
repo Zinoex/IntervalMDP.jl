@@ -11,39 +11,38 @@ function cu end
 function cpu end
 
 struct OutOfSharedMemory <: Exception
-    min_shared_memory::Int
+    required::Int
+    available::Int
 end
 
 function Base.showerror(io::IO, e::OutOfSharedMemory)
     println(
         io,
         "Out of shared memory: minimum required shared memory for the problem is ",
-        e.min_shared_memory,
-        " bytes.",
+        e.required,
+        " bytes (",
+        e.available,
+        " bytes available on the device).",
     )
     println(
         io,
-        "Please try either the CPU implementation, the (dense) decomposed representation (preferred), or use a larger GPU.",
+        "Please try either the CPU implementation, the decomposed representation, or use a larger GPU.",
     )
 end
 
-function checkdevice(v::AbstractArray, system::IntervalMarkovProcess)
-    checkdevice(v, transition_prob(system))
+function checkdevice(v::AbstractArray, system::FactoredRMDP)
+    for marginal in system.transition
+        checkdevice(v, marginal)
+    end
 end
 
-function checkdevice(v::AbstractArray, p::IntervalProbabilities)
-    # Lower and gap are required to be the same type.
-    checkdevice(v, lower(p))
+function checkdevice(v::AbstractArray, marginal::Marginal)
+    checkdevice(v, ambiguity_sets(marginal))
 end
 
-function checkdevice(v::AbstractArray, p::OrthogonalIntervalProbabilities)
-    # All axes of p are required to be the same type.
-    checkdevice(v, first(pᵢ))
-end
-
-function checkdevice(v::AbstractArray, p::MixtureIntervalProbabilities)
-    # All mixtures (and weighting_probs) of p are required to be the same type.
-    checkdevice(v, first(pᵢ))
+function checkdevice(v::AbstractArray, p::IntervalAmbiguitySets)
+    # Lower and gap are required to be the same type, so not necessary to check.
+    checkdevice(v, p.lower)
 end
 
 function checkdevice(::AbstractArray, ::AbstractMatrix)
