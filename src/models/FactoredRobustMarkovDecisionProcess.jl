@@ -346,7 +346,6 @@ struct IsRMDP <: NonFactored end # Robust MDP
 
 abstract type Factored <: ModelType end
 struct IsFIMDP <: ModelType end # Factored Interval MDP
-struct IsFPMDP <: ModelType end # Factored Polytopic MDP
 struct IsFRMDP <: ModelType end # Factored Robust MDP
 
 # Single marginal - special case
@@ -361,12 +360,7 @@ modeltype(mdp::FactoredRMDP{N}) where {N} = modeltype(mdp, isinterval.(mdp.trans
 modeltype(::FactoredRMDP{N}, ::NTuple{N, IsInterval}) where {N} = IsFIMDP()
 
 # If not, check if all marginals are polytopic ambiguity sets
-modeltype(::FactoredRMDP{N}, ::NTuple{N, AbstractIsInterval}) where {N} =
-    modeltype(mdp, ispolytopic.(mdp.transition))
-modeltype(::FactoredRMDP{N}, ::NTuple{N, IsPolytopic}) where {N} = IsFPMDP()
-
-# Otherwise, it is a general factored robust MDP
-modeltype(::FactoredRMDP{N}, ::NTuple{N, AbstractIsPolytopic}) where {N} = IsFRMDP()
+modeltype(::FactoredRMDP{N}, ::NTuple{N, AbstractIsInterval}) where {N} = IsFRMDP()
 
 ### Pretty printing
 function Base.show(io::IO, mime::MIME"text/plain", mdp::FactoredRMDP)
@@ -423,10 +417,6 @@ showmodeltype(io::IO, prefix, mdp::FactoredRMDP) = showmodeltype(io, prefix, mod
 
 function showmodeltype(io::IO, prefix, ::IsFIMDP)
     println(io, prefix, "├─", styled"Model type: {green:Factored Interval MDP}")
-end
-
-function showmodeltype(io::IO, prefix, ::IsFPMDP)
-    println(io, prefix, "├─", styled"Model type: {green:Factored Polytopic MDP}")
 end
 
 function showmodeltype(io::IO, prefix, ::IsFRMDP)

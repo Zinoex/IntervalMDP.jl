@@ -69,6 +69,14 @@ using Random: MersenneTwister
 
     # Negative number of state variables
     @test_throws ArgumentError FactoredRobustMarkovDecisionProcess(
+        (-3, 3, 3),
+        action_vars,
+        source_dims,
+        (marginal1, marginal2, marginal3),
+    )
+
+    # Negative source_dim
+    @test_throws ArgumentError FactoredRobustMarkovDecisionProcess(
         state_vars,
         action_vars,
         (-2, 3, 3),
@@ -189,6 +197,72 @@ using Random: MersenneTwister
     )
 end
 
+@testset "non-interval" begin
+    N = Float64
+    struct SingletonAmbiguitySets <: IntervalMDP.AbstractAmbiguitySets
+        transition_matrix::Matrix{N}
+    end
+
+    IntervalMDP.num_target(p::SingletonAmbiguitySets) = size(p.transition_matrix, 1)
+    IntervalMDP.num_sets(p::SingletonAmbiguitySets) = size(p.transition_matrix, 2)
+
+    IntervalMDP.showambiguitysets(io::IO, prefix::AbstractString, p::SingletonAmbiguitySets) =
+        println(io, prefix, "SingletonAmbiguitySets with Storage type: Matrix{$(eltype(p.transition_matrix))}, Number of target states: $(size(p.transition_matrix, 1)), Number of ambiguity sets: $(size(p.transition_matrix, 2))")
+    
+    @testset "1d" begin
+        marginal = Marginal(
+            SingletonAmbiguitySets(N[0.2 0.8; 0.5 0.5]),
+            (1,),
+            (1,),
+            (2,),
+            (1,),
+        )
+
+        mc = FactoredRobustMarkovDecisionProcess(
+            (2,),
+            (1,),
+            (marginal,),
+        )
+
+        io = IOBuffer()
+        show(io, MIME("text/plain"), mc)
+        str = String(take!(io))
+        @test occursin("Model type: Robust MDP", str)
+        @test occursin("Default model checking algorithm: Robust Value Iteration", str)
+        @test occursin("Default Bellman operator algorithm: None", str)
+    end
+    
+    @testset "2d" begin
+        marginal1 = Marginal(
+            SingletonAmbiguitySets(N[0.2 0.8; 0.5 0.5]),
+            (1,),
+            (1,),
+            (2,),
+            (1,),
+        )
+        marginal2 = Marginal(
+            SingletonAmbiguitySets(N[0.2 0.8; 0.5 0.5]),
+            (2,),
+            (1,),
+            (2,),
+            (1,),
+        )
+
+        mc = FactoredRobustMarkovDecisionProcess(
+            (2, 2),
+            (1,),
+            (marginal1, marginal2),
+        )
+
+        io = IOBuffer()
+        show(io, MIME("text/plain"), mc)
+        str = String(take!(io))
+        @test occursin("Model type: Factored Robust MDP", str)
+        @test occursin("Default model checking algorithm: Robust Value Iteration", str)
+        @test occursin("Default Bellman operator algorithm: None", str)
+    end
+end
+
 @testset "show 1d" begin
     N = Float64
     ambiguity_sets = IntervalAmbiguitySets(;
@@ -203,7 +277,7 @@ end
             7//10 3//10 5//10
         ],
     )
-    imc = IntervalMarkovChain(ambiguity_sets)
+    imc = IntervalMarkovChain(ambiguity_sets, [CartesianIndex(2)])
 
     io = IOBuffer()
     show(io, MIME("text/plain"), imc)
@@ -211,7 +285,7 @@ end
     @test occursin("FactoredRobustMarkovDecisionProcess", str)
     @test occursin("1 state variables with cardinality: (3,)", str)
     @test occursin("1 action variables with cardinality: (1,)", str)
-    @test occursin("Initial states: All states", str)
+    @test occursin("Initial states: CartesianIndex{1}[$(CartesianIndex(2))]", str)
     @test occursin("Marginal 1:", str)
     @test !occursin("Marginal 2:", str)
     @test occursin("Inferred properties", str)
