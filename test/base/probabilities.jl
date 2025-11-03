@@ -6,14 +6,14 @@ using IntervalMDP
         l = N[0 1//2; 1//10 3//10; 2//10 1//10]
         u = N[5//10 7//10; 6//10 5//10; 7//10 3//10]
 
-        prob = IntervalAmbiguitySets(;lower = l, upper = u)
+        prob = IntervalAmbiguitySets(; lower = l, upper = u)
 
         @test length(prob) == 2
         @test num_sets(prob) == 2
         @test num_target(prob) == 3
-        
+
         res = sum(upper, prob) # Test iteration and upper
-        @test res == N[6//5, 11//10, 1]
+        @test res == N[6 // 5, 11 // 10, 1]
 
         io = IOBuffer()
         show(io, MIME("text/plain"), prob)
@@ -28,7 +28,7 @@ using IntervalMDP
         lower = N[0 1//2; 1//10 3//10; 2//10 1//10]
         upper = N[5//10 7//10; 6//10 5//10; 7//10 3//10]
 
-        prob = IntervalAmbiguitySets(;lower = lower, upper = upper)
+        prob = IntervalAmbiguitySets(; lower = lower, upper = upper)
 
         ambiguity_set = prob[1] # First ambiguity set
         verts = IntervalMDP.vertices(ambiguity_set)
@@ -57,13 +57,13 @@ using IntervalMDP
         @test length(verts) ≥ size(expected_verts, 1)  # at least the unique ones
         @test all(any(v2 -> v1 ≈ v2, verts) for v1 in eachrow(expected_verts))
     end
-    
+
     @testset "check vs no check" begin
         lower = N[0 1//2; 1//10 3//10; 2//10 1//10]
         upper = N[5//10 7//10; 6//10 5//10; 7//10 3//10]
         gap = upper - lower
 
-        prob = IntervalAmbiguitySets(;lower = lower, upper = upper)
+        prob = IntervalAmbiguitySets(; lower = lower, upper = upper)
         prob_no_check = IntervalAmbiguitySets(lower, gap, Val{false}())
 
         @test prob.lower == prob_no_check.lower
@@ -74,7 +74,7 @@ using IntervalMDP
         lower = N[0 1//2; 1//10 3//10; 2//10 1//10]
         upper = N[5//10 7//10; 6//10 5//10] # Wrong size
 
-        @test_throws DimensionMismatch IntervalAmbiguitySets(;lower = lower, upper = upper)
+        @test_throws DimensionMismatch IntervalAmbiguitySets(; lower = lower, upper = upper)
 
         lower = N[0 1//2; 1//10 3//10; 2//10 1//10]
         gap = N[5//10 7//10; 6//10 5//10] # Wrong size
@@ -86,41 +86,41 @@ using IntervalMDP
         lower = N[0 1//2; -1//10 3//10; 2//10 1//10] # Negative entry
         upper = N[5//10 7//10; 6//10 5//10; 7//10 3//10]
 
-        @test_throws ArgumentError IntervalAmbiguitySets(;lower = lower, upper = upper)
+        @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
 
     @testset "lower bound greater than one" begin
         lower = N[0 1//2; 1//10 3//10; 2//10 11//10]
         upper = N[5//10 7//10; 6//10 5//10; 7//10 3//10]
 
-        @test_throws ArgumentError IntervalAmbiguitySets(;lower = lower, upper = upper)
+        @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
 
     @testset "lower greater than upper" begin
         lower = N[0 1//2; 1//10 3//10; 2//10 1//10]
         upper = N[5//10 7//10; 6//10 2//10; 7//10 3//10] # Lower bound greater than upper bound
 
-        @test_throws ArgumentError IntervalAmbiguitySets(;lower = lower, upper = upper)
+        @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
 
     @testset "upper bound greater than one" begin
         lower = N[0 1//2; 1//10 3//10; 2//10 1//10]
         upper = N[5//10 7//10; 6//10 5//10; 7//10 13//10] # Entry greater than 1
 
-        @test_throws ArgumentError IntervalAmbiguitySets(;lower = lower, upper = upper)
+        @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
 
     @testset "sum lower greater than one" begin
         lower = N[0 1//2; 1//10 3//10; 6//10 1//2] # Column sums to more than 1
         upper = N[5//10 7//10; 6//10 5//10; 7//10 1//2]
 
-        @test_throws ArgumentError IntervalAmbiguitySets(;lower = lower, upper = upper)
+        @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
 
     @testset "sum upper less than one" begin
         lower = N[0 1//2; 1//10 3//10; 2//10 1//10]
         upper = N[1//10 7//10; 2//10 5//10; 3//10 6//10] # Column sums to less than 1
 
-        @test_throws ArgumentError IntervalAmbiguitySets(;lower = lower, upper = upper)
+        @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
 end

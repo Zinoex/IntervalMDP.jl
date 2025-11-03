@@ -90,7 +90,7 @@ using IntervalMDP
         @test time_horizon(prop) == 10
 
         @test reach(prop) == [CartesianIndex(3)]
-        
+
         io = IOBuffer()
         show(io, MIME("text/plain"), prop)
         str = String(take!(io))
@@ -534,7 +534,7 @@ end
         prop = InfiniteTimeDFAReachability([2], 1e-6)
         spec = Specification(prop)
         @test_throws ArgumentError VerificationProblem(prod_proc, spec, tv_prod_strat)
-    
+
         prop = InfiniteTimeDFASafety([2], 1e-6)
         spec = Specification(prop)
         @test_throws ArgumentError VerificationProblem(prod_proc, spec, tv_prod_strat)
