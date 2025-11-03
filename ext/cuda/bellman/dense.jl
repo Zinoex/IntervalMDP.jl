@@ -235,13 +235,7 @@ end
     end
 
     # Find the best action
-    v = extract_strategy_warp!(
-        strategy_cache,
-        action_workspace,
-        jₛ,
-        action_reduce,
-        lane,
-    )
+    v = extract_strategy_warp!(strategy_cache, action_workspace, jₛ, action_reduce, lane)
 
     if lane == one(Int32)
         Vres[jₛ] = v

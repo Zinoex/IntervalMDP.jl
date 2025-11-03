@@ -2,6 +2,378 @@ using Revise, Test
 using IntervalMDP
 using Random: MersenneTwister
 
+@testset "invalid factored MDPs" begin
+    N = Float64
+    state_indices = (1, 2, 3)
+    action_indices = (1,)
+    state_vars = (3, 3, 3)
+    source_dims = (2, 3, 3)
+    action_vars = (1,)
+
+    marginal1 = Marginal(
+        IntervalAmbiguitySets(;
+            lower = N[
+                1//15 3//10 1//15 3//10 1//30 1//3 7//30 4//15 1//6 1//5 1//10 1//5 0 7//30 7//30 1//5 2//15 1//6
+                1//5 4//15 1//10 1//5 3//10 3//10 1//10 1//15 3//10 3//10 7//30 1//5 1//10 1//5 1//5 1//30 1//5 3//10
+                4//15 1//30 1//5 1//5 7//30 4//15 2//15 7//30 1//5 1//3 2//15 1//6 1//6 1//3 4//15 3//10 1//30 3//10
+            ],
+            upper = N[
+                7//15 17//30 13//30 3//5 17//30 17//30 17//30 13//30 3//5 2//3 11//30 7//15 0 1//2 17//30 13//30 7//15 13//30
+                8//15 1//2 3//5 7//15 8//15 17//30 2//3 17//30 11//30 7//15 19//30 19//30 13//15 1//2 17//30 13//30 3//5 11//30
+                11//30 1//3 2//5 8//15 7//15 3//5 2//3 17//30 2//3 8//15 2//15 3//5 2//3 3//5 17//30 2//3 7//15 8//15
+            ],
+        ),
+        state_indices,
+        action_indices,
+        source_dims,
+        action_vars,
+    )
+
+    marginal2 = Marginal(
+        IntervalAmbiguitySets(;
+            lower = N[
+                1//10 1//15 3//10 0 1//6 1//15 1//15 1//6 1//6 1//30 1//10 1//10 1//3 2//15 3//10 4//15 2//15 2//15
+                3//10 1//5 3//10 2//15 0 1//30 0 1//15 1//30 7//30 1//30 1//15 7//30 1//15 1//6 1//30 1//10 1//15
+                3//10 4//15 1//10 3//10 2//15 1//3 3//10 1//10 1//6 3//10 7//30 1//6 1//15 1//15 1//10 1//5 1//5 4//15
+            ],
+            upper = N[
+                2//5 17//30 3//5 11//30 3//5 7//15 19//30 2//5 3//5 2//3 2//3 8//15 8//15 19//30 8//15 8//15 13//30 13//30
+                1//3 13//30 11//30 2//5 2//3 2//3 0 13//30 1//2 17//30 17//30 1//3 2//5 1//3 13//30 11//30 8//15 1//3
+                17//30 3//5 8//15 1//2 7//15 1//2 2//3 17//30 11//30 2//5 1//2 7//15 2//5 17//30 11//30 2//5 11//30 2//3
+            ],
+        ),
+        state_indices,
+        action_indices,
+        source_dims,
+        action_vars,
+    )
+
+    marginal3 = Marginal(
+        IntervalAmbiguitySets(;
+            lower = N[
+                4//15 1//5 3//10 3//10 4//15 7//30 1//5 4//15 7//30 1//6 1//5 0 1//15 1//30 3//10 1//3 2//15 1//15
+                2//15 4//15 1//10 1//30 7//30 2//15 1//15 1//30 3//10 1//3 1//5 1//10 2//15 1//30 2//15 4//15 0 4//15
+                1//5 1//3 3//10 1//10 1//15 1//10 1//30 1//5 2//15 7//30 1//3 2//15 1//10 1//6 3//10 1//5 7//30 1//30
+            ],
+            upper = N[
+                3//5 17//30 1//2 3//5 19//30 2//5 8//15 1//3 11//30 2//5 17//30 13//30 2//5 3//5 3//5 11//30 1//2 11//30
+                3//5 2//3 13//30 19//30 1//3 2//5 17//30 7//15 11//30 3//5 19//30 7//15 2//5 8//15 17//30 11//30 19//30 13//30
+                3//5 2//3 1//2 1//2 2//3 7//15 3//5 3//5 1//2 1//3 2//5 8//15 2//5 11//30 1//3 8//15 7//15 13//30
+            ],
+        ),
+        state_indices,
+        action_indices,
+        source_dims,
+        action_vars,
+    )
+
+    # Negative number of state variables
+    @test_throws ArgumentError FactoredRobustMarkovDecisionProcess(
+        (-3, 3, 3),
+        action_vars,
+        source_dims,
+        (marginal1, marginal2, marginal3),
+    )
+
+    # Negative source_dim
+    @test_throws ArgumentError FactoredRobustMarkovDecisionProcess(
+        state_vars,
+        action_vars,
+        (-2, 3, 3),
+        (marginal1, marginal2, marginal3),
+    )
+
+    # source_dim exceeding state variable
+    @test_throws ArgumentError FactoredRobustMarkovDecisionProcess(
+        state_vars,
+        action_vars,
+        (2, 4, 3),
+        (marginal1, marginal2, marginal3),
+    )
+
+    # Negative number of action variables
+    @test_throws ArgumentError FactoredRobustMarkovDecisionProcess(
+        state_vars,
+        (-1,),
+        source_dims,
+        (marginal1, marginal2, marginal3),
+    )
+
+    # num_target for a marginal not matching state variable
+    @test_throws DimensionMismatch FactoredRobustMarkovDecisionProcess(
+        (2, 3, 3),
+        action_vars,
+        source_dims,
+        (marginal1, marginal2, marginal3),
+    )
+
+    # Incorrect number of source states in a marginal
+    malformed_marginal3 = Marginal(
+        IntervalAmbiguitySets(;
+            lower = N[
+                4//15 1//5 3//10 3//10 4//15 7//30 1//5 4//15 7//30 1//6 1//5 0
+                2//15 4//15 1//10 1//30 7//30 2//15 1//15 1//30 3//10 1//3 1//5 1//10
+                1//5 1//3 3//10 1//10 1//15 1//10 1//30 1//5 2//15 7//30 1//3 2//15
+            ],
+            upper = N[
+                3//5 17//30 1//2 3//5 19//30 2//5 8//15 1//3 11//30 2//5 17//30 13//30
+                3//5 2//3 13//30 19//30 1//3 2//5 17//30 7//15 11//30 3//5 19//30 7//15
+                3//5 2//3 1//2 1//2 2//3 7//15 3//5 3//5 1//2 1//3 2//5 8//15
+            ],
+        ),
+        state_indices,
+        action_indices,
+        (2, 2, 3),
+        action_vars,
+    )
+
+    @test_throws DimensionMismatch FactoredRobustMarkovDecisionProcess(
+        state_vars,
+        action_vars,
+        source_dims,
+        (marginal1, marginal2, malformed_marginal3),
+    )
+
+    # Incorrect number of actions in a marginal
+    malformed_marginal3 = Marginal(
+        IntervalAmbiguitySets(;
+            lower = N[
+                4//15 1//5 3//10 3//10 4//15 7//30 1//5 4//15 7//30 1//6 1//5 0 1//15 1//30 3//10 1//3 2//15 1//15 4//15 1//5 3//10 3//10 4//15 7//30 1//5 4//15 7//30 1//6 1//5 0 1//15 1//30 3//10 1//3 2//15 1//15
+                2//15 4//15 1//10 1//30 7//30 2//15 1//15 1//30 3//10 1//3 1//5 1//10 2//15 1//30 2//15 4//15 0 4//15 2//15 4//15 1//10 1//30 7//30 2//15 1//15 1//30 3//10 1//3 1//5 1//10 2//15 1//30 2//15 4//15 0 4//15
+                1//5 1//3 3//10 1//10 1//15 1//10 1//30 1//5 2//15 7//30 1//3 2//15 1//10 1//6 3//10 1//5 7//30 1//30 1//5 1//3 3//10 1//10 1//15 1//10 1//30 1//5 2//15 7//30 1//3 2//15 1//10 1//6 3//10 1//5 7//30 1//30
+            ],
+            upper = N[
+                3//5 17//30 1//2 3//5 19//30 2//5 8//15 1//3 11//30 2//5 17//30 13//30 2//5 3//5 3//5 11//30 1//2 11//30 3//5 17//30 1//2 3//5 19//30 2//5 8//15 1//3 11//30 2//5 17//30 13//30 2//5 3//5 3//5 11//30 1//2 11//30
+                3//5 2//3 13//30 19//30 1//3 2//5 17//30 7//15 11//30 3//5 19//30 7//15 2//5 8//15 17//30 11//30 19//30 13//30 3//5 2//3 13//30 19//30 1//3 2//5 17//30 7//15 11//30 3//5 19//30 7//15 2//5 8//15 17//30 11//30 19//30 13//30
+                3//5 2//3 1//2 1//2 2//3 7//15 3//5 3//5 1//2 1//3 2//5 8//15 2//5 11//30 1//3 8//15 7//15 13//30 3//5 2//3 1//2 1//2 2//3 7//15 3//5 3//5 1//2 1//3 2//5 8//15 2//5 11//30 1//3 8//15 7//15 13//30
+            ],
+        ),
+        state_indices,
+        action_indices,
+        source_dims,
+        (2,),
+    )
+
+    @test_throws DimensionMismatch FactoredRobustMarkovDecisionProcess(
+        state_vars,
+        action_vars,
+        source_dims,
+        (marginal1, marginal2, malformed_marginal3),
+    )
+
+    # Incorrect dimension initial state
+    @test_throws DimensionMismatch FactoredRobustMarkovDecisionProcess(
+        state_vars,
+        action_vars,
+        source_dims,
+        (marginal1, marginal2, marginal3),
+        [CartesianIndex(1, 2)],
+    )
+
+    @test_throws DimensionMismatch FactoredRobustMarkovDecisionProcess(
+        state_vars,
+        action_vars,
+        source_dims,
+        (marginal1, marginal2, marginal3),
+        [CartesianIndex(1, 2, 3, 4)],
+    )
+
+    # Negative indices in initial state
+    @test_throws DimensionMismatch FactoredRobustMarkovDecisionProcess(
+        state_vars,
+        action_vars,
+        source_dims,
+        (marginal1, marginal2, marginal3),
+        [CartesianIndex(1, -2, 3)],
+    )
+
+    # Indices exceeding variable sizes in initial state
+    @test_throws DimensionMismatch FactoredRobustMarkovDecisionProcess(
+        state_vars,
+        action_vars,
+        source_dims,
+        (marginal1, marginal2, marginal3),
+        [CartesianIndex(1, 4, 3)],
+    )
+end
+
+@testset "non-interval" begin
+    N = Float64
+    struct SingletonAmbiguitySets <: IntervalMDP.AbstractAmbiguitySets
+        transition_matrix::Matrix{N}
+    end
+
+    IntervalMDP.num_target(p::SingletonAmbiguitySets) = size(p.transition_matrix, 1)
+    IntervalMDP.num_sets(p::SingletonAmbiguitySets) = size(p.transition_matrix, 2)
+
+    IntervalMDP.showambiguitysets(
+        io::IO,
+        prefix::AbstractString,
+        p::SingletonAmbiguitySets,
+    ) = println(
+        io,
+        prefix,
+        "SingletonAmbiguitySets with Storage type: Matrix{$(eltype(p.transition_matrix))}, Number of target states: $(size(p.transition_matrix, 1)), Number of ambiguity sets: $(size(p.transition_matrix, 2))",
+    )
+
+    @testset "1d" begin
+        marginal =
+            Marginal(SingletonAmbiguitySets(N[0.2 0.8; 0.5 0.5]), (1,), (1,), (2,), (1,))
+
+        mc = FactoredRobustMarkovDecisionProcess((2,), (1,), (marginal,))
+
+        io = IOBuffer()
+        show(io, MIME("text/plain"), mc)
+        str = String(take!(io))
+        @test occursin("Model type: Robust MDP", str)
+        @test occursin("Default model checking algorithm: Robust Value Iteration", str)
+        @test occursin("Default Bellman operator algorithm: None", str)
+    end
+
+    @testset "2d" begin
+        marginal1 =
+            Marginal(SingletonAmbiguitySets(N[0.2 0.8; 0.5 0.5]), (1,), (1,), (2,), (1,))
+        marginal2 =
+            Marginal(SingletonAmbiguitySets(N[0.2 0.8; 0.5 0.5]), (2,), (1,), (2,), (1,))
+
+        mc = FactoredRobustMarkovDecisionProcess((2, 2), (1,), (marginal1, marginal2))
+
+        io = IOBuffer()
+        show(io, MIME("text/plain"), mc)
+        str = String(take!(io))
+        @test occursin("Model type: Factored Robust MDP", str)
+        @test occursin("Default model checking algorithm: Robust Value Iteration", str)
+        @test occursin("Default Bellman operator algorithm: None", str)
+    end
+end
+
+@testset "show 1d" begin
+    N = Float64
+    ambiguity_sets = IntervalAmbiguitySets(;
+        lower = N[
+            0 5//10 2//10
+            1//10 3//10 3//10
+            2//10 1//10 5//10
+        ],
+        upper = N[
+            5//10 7//10 3//10
+            6//10 5//10 4//10
+            7//10 3//10 5//10
+        ],
+    )
+    imc = IntervalMarkovChain(ambiguity_sets, [CartesianIndex(2)])
+
+    io = IOBuffer()
+    show(io, MIME("text/plain"), imc)
+    str = String(take!(io))
+    @test occursin("FactoredRobustMarkovDecisionProcess", str)
+    @test occursin("1 state variables with cardinality: (3,)", str)
+    @test occursin("1 action variables with cardinality: (1,)", str)
+    @test occursin("Initial states: CartesianIndex{1}[$(CartesianIndex(2))]", str)
+    @test occursin("Marginal 1:", str)
+    @test occursin("Ambiguity set type: Interval (dense, Matrix{Float64})", str)
+    @test !occursin("Marginal 2:", str)
+    @test occursin("Inferred properties", str)
+    @test occursin("Model type: Interval MDP", str)
+    @test occursin("Number of states: 3", str)
+    @test occursin("Number of actions: 1", str)
+    @test occursin("Default model checking algorithm: Robust Value Iteration", str)
+    @test occursin("Default Bellman operator algorithm: O-Maximization", str)
+end
+
+@testset "show 3d" begin
+    N = Float64
+    state_indices = (1, 2, 3)
+    action_indices = (1,)
+    state_vars = (3, 3, 3)
+    source_dims = (2, 3, 3)
+    action_vars = (1,)
+
+    marginal1 = Marginal(
+        IntervalAmbiguitySets(;
+            lower = N[
+                1//15 3//10 1//15 3//10 1//30 1//3 7//30 4//15 1//6 1//5 1//10 1//5 0 7//30 7//30 1//5 2//15 1//6
+                1//5 4//15 1//10 1//5 3//10 3//10 1//10 1//15 3//10 3//10 7//30 1//5 1//10 1//5 1//5 1//30 1//5 3//10
+                4//15 1//30 1//5 1//5 7//30 4//15 2//15 7//30 1//5 1//3 2//15 1//6 1//6 1//3 4//15 3//10 1//30 3//10
+            ],
+            upper = N[
+                7//15 17//30 13//30 3//5 17//30 17//30 17//30 13//30 3//5 2//3 11//30 7//15 0 1//2 17//30 13//30 7//15 13//30
+                8//15 1//2 3//5 7//15 8//15 17//30 2//3 17//30 11//30 7//15 19//30 19//30 13//15 1//2 17//30 13//30 3//5 11//30
+                11//30 1//3 2//5 8//15 7//15 3//5 2//3 17//30 2//3 8//15 2//15 3//5 2//3 3//5 17//30 2//3 7//15 8//15
+            ],
+        ),
+        state_indices,
+        action_indices,
+        source_dims,
+        action_vars,
+    )
+
+    marginal2 = Marginal(
+        IntervalAmbiguitySets(;
+            lower = N[
+                1//10 1//15 3//10 0 1//6 1//15 1//15 1//6 1//6 1//30 1//10 1//10 1//3 2//15 3//10 4//15 2//15 2//15
+                3//10 1//5 3//10 2//15 0 1//30 0 1//15 1//30 7//30 1//30 1//15 7//30 1//15 1//6 1//30 1//10 1//15
+                3//10 4//15 1//10 3//10 2//15 1//3 3//10 1//10 1//6 3//10 7//30 1//6 1//15 1//15 1//10 1//5 1//5 4//15
+            ],
+            upper = N[
+                2//5 17//30 3//5 11//30 3//5 7//15 19//30 2//5 3//5 2//3 2//3 8//15 8//15 19//30 8//15 8//15 13//30 13//30
+                1//3 13//30 11//30 2//5 2//3 2//3 0 13//30 1//2 17//30 17//30 1//3 2//5 1//3 13//30 11//30 8//15 1//3
+                17//30 3//5 8//15 1//2 7//15 1//2 2//3 17//30 11//30 2//5 1//2 7//15 2//5 17//30 11//30 2//5 11//30 2//3
+            ],
+        ),
+        state_indices,
+        action_indices,
+        source_dims,
+        action_vars,
+    )
+
+    marginal3 = Marginal(
+        IntervalAmbiguitySets(;
+            lower = N[
+                4//15 1//5 3//10 3//10 4//15 7//30 1//5 4//15 7//30 1//6 1//5 0 1//15 1//30 3//10 1//3 2//15 1//15
+                2//15 4//15 1//10 1//30 7//30 2//15 1//15 1//30 3//10 1//3 1//5 1//10 2//15 1//30 2//15 4//15 0 4//15
+                1//5 1//3 3//10 1//10 1//15 1//10 1//30 1//5 2//15 7//30 1//3 2//15 1//10 1//6 3//10 1//5 7//30 1//30
+            ],
+            upper = N[
+                3//5 17//30 1//2 3//5 19//30 2//5 8//15 1//3 11//30 2//5 17//30 13//30 2//5 3//5 3//5 11//30 1//2 11//30
+                3//5 2//3 13//30 19//30 1//3 2//5 17//30 7//15 11//30 3//5 19//30 7//15 2//5 8//15 17//30 11//30 19//30 13//30
+                3//5 2//3 1//2 1//2 2//3 7//15 3//5 3//5 1//2 1//3 2//5 8//15 2//5 11//30 1//3 8//15 7//15 13//30
+            ],
+        ),
+        state_indices,
+        action_indices,
+        source_dims,
+        action_vars,
+    )
+
+    mdp = FactoredRobustMarkovDecisionProcess(
+        state_vars,
+        action_vars,
+        source_dims,
+        (marginal1, marginal2, marginal3),
+    )
+
+    io = IOBuffer()
+    show(io, MIME("text/plain"), mdp)
+    str = String(take!(io))
+    @test occursin("FactoredRobustMarkovDecisionProcess", str)
+    @test occursin("3 state variables with cardinality: (3, 3, 3)", str)
+    @test occursin("1 action variables with cardinality: (1,)", str)
+    @test occursin("Initial states: All states", str)
+    @test occursin("Marginal 1:", str)
+    @test occursin("Marginal 2:", str)
+    @test occursin("Marginal 3:", str)
+    @test occursin("Inferred properties", str)
+    @test occursin("Model type: Factored Interval MDP", str)
+    @test occursin("Number of states: 27", str)
+    @test occursin("Number of actions: 1", str)
+    @test occursin("Default model checking algorithm: Robust Value Iteration", str)
+    @test occursin(
+        "Default Bellman operator algorithm: Binary tree LP McCormick Relaxation",
+        str,
+    )
+end
+
 @testset for N in [Float32, Float64]
     @testset "bellman 1d" begin
         ambiguity_sets = IntervalAmbiguitySets(;
@@ -190,6 +562,19 @@ using Random: MersenneTwister
             action_vars,
             (marginal1, marginal2),
         )
+
+        mdp_nonchecked = FactoredRobustMarkovDecisionProcess(
+            Int32.(state_vars),
+            Int32.(action_vars),
+            Int32.(state_vars),
+            (marginal1, marginal2),
+            AllStates(),
+            Val(false),
+        )
+
+        @test state_values(mdp) == state_values(mdp_nonchecked)
+        @test action_values(mdp) == action_values(mdp_nonchecked)
+        @test marginals(mdp) == marginals(mdp_nonchecked)
 
         V = N[
             3 13 18

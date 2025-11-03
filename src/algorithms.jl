@@ -4,6 +4,7 @@ Base.@kwdef struct LPMcCormickRelaxation{O} <: BellmanAlgorithm
     lp_solver::O = HiGHS.Optimizer
 end
 struct VertexEnumeration <: BellmanAlgorithm end
+struct UnknownBellmanAlgorithm <: BellmanAlgorithm end
 
 default_bellman_algorithm(pp::ProductProcess) =
     default_bellman_algorithm(markov_process(pp))
@@ -12,6 +13,7 @@ default_bellman_algorithm(mdp::FactoredRMDP) =
 default_bellman_algorithm(::FactoredRMDP, ::IsIMDP) = OMaximization()
 default_bellman_algorithm(::FactoredRMDP, ::IsFIMDP) = LPMcCormickRelaxation()
 default_bellman_algorithm(::IntervalAmbiguitySets) = OMaximization()
+default_bellman_algorithm(_, ::Union{IsRMDP, IsFRMDP}) = UnknownBellmanAlgorithm()
 
 function showbellmanalg(io::IO, prefix, ::IsIMDP, ::OMaximization)
     println(

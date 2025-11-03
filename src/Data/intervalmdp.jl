@@ -81,7 +81,7 @@ Read a `Specification` from an IntervalMDP.jl spec file (JSON-format).
 See [Data storage formats](@ref) for more information on the file format.
 """
 function read_intervalmdp_jl_spec(spec_path)
-    data = JSON.parsefile(spec_path; inttype = Int32)
+    data = JSON.parsefile(spec_path)
 
     prop = read_intervalmdp_jl_property(data["property"])
 
@@ -299,9 +299,7 @@ function write_intervalmdp_jl_spec(spec_path, spec::Specification; indent = 4)
         "strategy_mode" => intervalmdp_jl_strategy_mode(strategy_mode(spec)),
     )
 
-    open(spec_path, "w") do io
-        return JSON.print(io, data, indent)
-    end
+    return JSON.json(spec_path, data; pretty = indent)
 end
 
 write_intervalmdp_jl_spec(spec_path, problem::IntervalMDP.AbstractIntervalMDPProblem) =

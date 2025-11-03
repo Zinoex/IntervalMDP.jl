@@ -59,6 +59,14 @@ using IntervalMDP
         @test markov_process(prodIMDP) == mdp
         @test automaton(prodIMDP) == dfa
         @test labelling_function(prodIMDP) == lf
+
+        io = IOBuffer()
+        show(io, MIME("text/plain"), prodIMDP)
+        str = String(take!(io))
+        @test occursin("ProductProcess", str)
+        @test occursin("Underlying process", str)
+        @test occursin("Automaton", str)
+        @test occursin("Labelling type: LabellingFunction{UInt16, Vector{UInt16}}", str)
     end
 
     @testset "IMDP state labelling func input mismatch" begin

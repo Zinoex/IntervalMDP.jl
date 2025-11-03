@@ -243,8 +243,7 @@ the property is
     \\mathbb{P}(\\exists k = \\{0, \\ldots, H\\}, q_k \\in T).
 ```
 """
-struct FiniteTimeDFASafety{VT <: Vector{<:Int32}, T <: Integer} <:
-       AbstractDFASafety
+struct FiniteTimeDFASafety{VT <: Vector{<:Int32}, T <: Integer} <: AbstractDFASafety
     avoid::VT
     time_horizon::T
 end
@@ -292,8 +291,7 @@ end
 In practice it means, performing the value iteration until the value function has converged, defined by some threshold `convergence_eps`.
 The convergence threshold is that the largest value of the most recent Bellman residual is less than `convergence_eps`.
 """
-struct InfiniteTimeDFASafety{VT <: Vector{<:Int32}, R <: Real} <:
-       AbstractDFASafety
+struct InfiniteTimeDFASafety{VT <: Vector{<:Int32}, R <: Real} <: AbstractDFASafety
     avoid::VT
     convergence_eps::R
 end

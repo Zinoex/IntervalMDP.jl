@@ -2,6 +2,43 @@ using Revise, Test
 using IntervalMDP, SparseArrays
 using Random: MersenneTwister
 
+@testset "show 1d" begin
+    N = Float64
+    ambiguity_sets = IntervalAmbiguitySets(;
+        lower = sparse(N[
+            0 5//10 2//10
+            1//10 3//10 3//10
+            2//10 1//10 5//10
+        ]),
+        upper = sparse(N[
+            5//10 7//10 3//10
+            6//10 5//10 4//10
+            7//10 3//10 5//10
+        ]),
+    )
+    imc = IntervalMarkovChain(ambiguity_sets, [CartesianIndex(2)])
+
+    io = IOBuffer()
+    show(io, MIME("text/plain"), imc)
+    str = String(take!(io))
+    @test occursin("FactoredRobustMarkovDecisionProcess", str)
+    @test occursin("1 state variables with cardinality: (3,)", str)
+    @test occursin("1 action variables with cardinality: (1,)", str)
+    @test occursin("Initial states: CartesianIndex{1}[$(CartesianIndex(2))]", str)
+    @test occursin("Marginal 1:", str)
+    @test occursin(
+        "Ambiguity set type: Interval (sparse, SparseArrays.FixedSparseCSC{Float64, Int64})",
+        str,
+    )
+    @test !occursin("Marginal 2:", str)
+    @test occursin("Inferred properties", str)
+    @test occursin("Model type: Interval MDP", str)
+    @test occursin("Number of states: 3", str)
+    @test occursin("Number of actions: 1", str)
+    @test occursin("Default model checking algorithm: Robust Value Iteration", str)
+    @test occursin("Default Bellman operator algorithm: O-Maximization", str)
+end
+
 @testset for N in [Float32, Float64]
     @testset "bellman 1d" begin
         ambiguity_sets = IntervalAmbiguitySets(;

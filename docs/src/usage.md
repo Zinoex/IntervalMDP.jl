@@ -148,7 +148,7 @@ V, k, res, strategy = sol
 
 # output
 
-IntervalMDP.ControlSynthesisSolution{StationaryStrategy{1, Vector{Tuple{Int32}}}, Float64, Vector{Float64}, Nothing}(StationaryStrategy{1, Vector{Tuple{Int32}}}(Tuple{Int32}[(2,), (1,), (1,)]), [0.19999999999999998, 0.4, 1.0], [-0.0, -0.0, -0.0], 2, nothing)
+IntervalMDP.ControlSynthesisSolution{StationaryStrategy{1, Vector{Tuple{Int32}}}, Float64, Vector{Float64}, Nothing}(StationaryStrategy{1, Vector{Tuple{Int32}}}(Tuple{Int32}[(2,), (2,), (1,)]), [0.9999977725460893, 0.9999985150307263, 1.0], [9.546231045653997e-7, 6.364154030435998e-7, -0.0], 37, nothing)
 ```
 For now, only [`RobustValueIteration`](@ref) is supported, but more algorithms are planned.
 

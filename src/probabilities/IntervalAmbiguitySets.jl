@@ -186,11 +186,19 @@ function checkprobabilities(lower::MR, gap::MR) where {R, MR <: AbstractSparseMa
     end
 
     if SparseArrays.getcolptr(lower) != SparseArrays.getcolptr(gap)
-        throw(DimensionMismatch("The lower and gap matrices must have the same column structure."))
+        throw(
+            DimensionMismatch(
+                "The lower and gap matrices must have the same column structure.",
+            ),
+        )
     end
 
     if SparseArrays.rowvals(lower) != SparseArrays.rowvals(gap)
-        throw(DimensionMismatch("The lower and gap matrices must have the same row structure."))
+        throw(
+            DimensionMismatch(
+                "The lower and gap matrices must have the same row structure.",
+            ),
+        )
     end
 
     if any(nonzeros(lower) .< 0)
@@ -392,8 +400,6 @@ function IntervalAmbiguitySetVertexIterator(set::IntervalAmbiguitySet)
     return IntervalAmbiguitySetVertexIterator(set, v)
 end
 
-Base.IteratorEltype(::Type{<:IntervalAmbiguitySetVertexIterator}) = Base.HasEltype()
-Base.eltype(::IntervalAmbiguitySetVertexIterator{R}) where {R} = Vector{R}
 Base.IteratorSize(::Type{<:IntervalAmbiguitySetVertexIterator}) = Base.SizeUnknown()
 
 function Base.iterate(

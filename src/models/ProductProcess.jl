@@ -99,7 +99,6 @@ state_values(proc::ProductProcess) =
 source_shape(proc::ProductProcess) =
     (source_shape(markov_process(proc))..., num_states(automaton(proc)))
 action_values(proc::ProductProcess) = action_values(markov_process(proc))
-action_shape(proc::ProductProcess) = action_shape(markov_process(proc))
 
 Base.show(io::IO, proc::ProductProcess) = showsystem(io, "", "", proc)
 
