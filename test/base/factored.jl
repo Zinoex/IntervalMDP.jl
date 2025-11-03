@@ -287,6 +287,7 @@ end
     @test occursin("1 action variables with cardinality: (1,)", str)
     @test occursin("Initial states: CartesianIndex{1}[$(CartesianIndex(2))]", str)
     @test occursin("Marginal 1:", str)
+    @test occursin("Ambiguity set type: Interval (dense, Matrix{Float64})", str)
     @test !occursin("Marginal 2:", str)
     @test occursin("Inferred properties", str)
     @test occursin("Model type: Interval MDP", str)
