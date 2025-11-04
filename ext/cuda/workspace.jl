@@ -33,3 +33,33 @@ IntervalMDP.construct_workspace(
     num_actions = 1,
     kwargs...,
 ) where {R, MR <: AbstractCuSparseMatrix{R}} = CuSparseOMaxWorkspace(prob, num_actions)
+
+
+######################
+# Factored workspace #
+######################
+struct CuFactoredOMaxWorkspace{N} <: AbstractCuWorkspace
+    max_support_per_marginal::NTuple{N, Int32}
+end
+
+function CuFactoredOMaxWorkspace(sys::IntervalMDP.FactoredRMDP)
+    max_support_per_marginal =
+        Tuple(Int32(IntervalMDP.maxsupportsize(ambiguity_sets(marginal))) for marginal in marginals(sys))
+    return CuFactoredOMaxWorkspace(max_support_per_marginal)
+end
+
+IntervalMDP.construct_workspace(
+    sys::IntervalMDP.FactoredRMDP,
+    marginal::Marginal{<:IntervalAmbiguitySets{R, MR}},
+    ::IntervalMDP.IsFIMDP,
+    ::OMaximization;
+    kwargs...,
+) where {R, MR <:AbstractGPUMatrix{R}} = CuFactoredOMaxWorkspace(sys)
+
+IntervalMDP.construct_workspace(
+    sys::IntervalMDP.FactoredRMDP,
+    marginal::Marginal{<:IntervalAmbiguitySets{R, MR}},
+    ::IntervalMDP.IsFIMDP,
+    ::OMaximization;
+    kwargs...,
+) where {R, MR <:AbstractCuSparseMatrix{R}} = CuFactoredOMaxWorkspace(sys)

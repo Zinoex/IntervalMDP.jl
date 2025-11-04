@@ -369,7 +369,7 @@ end
     @test occursin("Number of actions: 1", str)
     @test occursin("Default model checking algorithm: Robust Value Iteration", str)
     @test occursin(
-        "Default Bellman operator algorithm: Binary tree LP McCormick Relaxation",
+        "Default Bellman operator algorithm: Recursive O-Maximization",
         str,
     )
 end

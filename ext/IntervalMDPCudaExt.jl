@@ -45,6 +45,20 @@ function Adapt.adapt_structure(
     )
 end
 
+function Adapt.adapt_structure(
+    to,
+    mdp::IntervalMDP.FactoredRMDP,
+)
+    return IntervalMDP.FactoredRMDP(
+        state_values(mdp),
+        action_values(mdp),
+        IntervalMDP.source_shape(mdp),
+        adapt(to, marginals(mdp)),
+        adapt(to, initial_states(mdp)),
+        Val(false), # check = false
+    )
+end
+
 function Adapt.adapt_structure(to, as::IntervalAmbiguitySets)
     return IntervalAmbiguitySets(
         adapt(to, as.lower),
@@ -93,6 +107,7 @@ include("cuda/workspace.jl")
 include("cuda/strategy.jl")
 include("cuda/bellman/dense.jl")
 include("cuda/bellman/sparse.jl")
+include("cuda/bellman/factored.jl")
 include("cuda/probabilities.jl")
 include("cuda/specification.jl")
 
