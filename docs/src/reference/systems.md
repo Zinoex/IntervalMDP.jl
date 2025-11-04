@@ -68,7 +68,12 @@ num_labels(tf::TransitionFunction)
 
 ### Labelling of IMDP states to Automaton alphabet
 ```@docs
-LabellingFunction
-mapping(labelling_func::LabellingFunction)
-num_labels(labelling_func::LabellingFunction)
+DeterministicLabelling
+mapping(dl::DeterministicLabelling)
+num_labels(dl::DeterministicLabelling)
+state_values(dl::DeterministicLabelling)
+ProbabilisticLabelling
+mapping(pl::ProbabilisticLabelling)
+num_labels(pl::ProbabilisticLabelling)
+state_values(pl::ProbabilisticLabelling)
 ```

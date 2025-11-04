@@ -50,4 +50,9 @@ include("TransitionFunction.jl")
 export TransitionFunction, transition
 
 include("Labelling.jl")
-export LabellingFunction, mapping, num_labels
+
+include("DeterministicLabelling.jl")
+export DeterministicLabelling, mapping, num_labels, state_values, num_states
+
+include("ProbabilisticLabelling.jl")
+export ProbabilisticLabelling, mapping, num_labels, state_values, num_states

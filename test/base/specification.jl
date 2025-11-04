@@ -295,7 +295,7 @@ end
     atomic_props = ["reach"]
     dfa = DFA(delta, istate, atomic_props)
 
-    labelling = LabellingFunction(Int32[1, 1, 2])
+    labelling = DeterministicLabelling(Int32[1, 1, 2])
 
     prod_proc = ProductProcess(mc, dfa, labelling)
     tv_prod_strat = TimeVaryingStrategy([Tuple{Int32}[

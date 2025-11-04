@@ -55,7 +55,7 @@ function checkproduct(
 )
 
     # check labelling states (input) match MDP states
-    if size(labelling_func) != state_values(mdp)
+    if state_values(labelling_func) != state_values(mdp)
         throw(
             DimensionMismatch(
                 "The mapped states $(size(labelling_func)) in the labelling function is not equal the fRMDP state variables $(state_values(mdp)).",
