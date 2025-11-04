@@ -807,9 +807,15 @@ Base.@propagate_inbounds function state_action_bellman(
     upper_bound,
 )
     Vₑ = workspace.expectation_cache
+    R = valuetype(model)
+
+    s = support.(ambiguity_sets)
+    ssize = supportsize.(ambiguity_sets)
 
     # For each higher-level state in the product space
-    for I in CartesianIndices(state_values(model)[2:end])
+    for Isparse in CartesianIndices(ssize[2:end])
+        I = CartesianIndex(getindex.(s[2:end], Tuple(Isparse)))
+
         # For the first dimension, we need to copy the values from V
         v = orthogonal_inner_bellman!(
             workspace,
@@ -822,7 +828,7 @@ Base.@propagate_inbounds function state_action_bellman(
 
         # For the remaining dimensions, if "full", compute expectation and store in the next level
         for d in 2:(length(ambiguity_sets) - 1)
-            if I[d - 1] == state_values(model, d)
+            if Isparse[d - 1] == ssize[d]
                 v = orthogonal_inner_bellman!(
                     workspace,
                     Vₑ[d - 1],
@@ -830,6 +836,7 @@ Base.@propagate_inbounds function state_action_bellman(
                     budgets[d],
                     upper_bound,
                 )
+                fill!(Vₑ[d - 1], zero(R))
                 Vₑ[d][I[d]] = v
             else
                 break
@@ -845,6 +852,7 @@ Base.@propagate_inbounds function state_action_bellman(
         budgets[end],
         upper_bound,
     )
+    fill!(Vₑ[end], zero(R))
 
     return v
 end
