@@ -817,12 +817,12 @@ end
     wid, lane = fldmod1(threadIdx().x, warpsize())
     reduction_ws = CuStaticSharedArray(Tv, 32)
 
-    warp_aligned_length = kernel_nextwarp(length(prob))
+    loop_length = nextpow(blockDim().x, length(prob))
     gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
     s = threadIdx().x
-    @inbounds while s <= warp_aligned_length
+    @inbounds while s <= loop_length
         # Find index of the permutation, and lookup the corresponding gap
         g = if s <= length(prob)
             prob[s]
@@ -912,13 +912,13 @@ end
     wid, lane = fldmod1(threadIdx().x, warpsize())
     reduction_ws = CuStaticSharedArray(Tv, 32)
 
-    warp_aligned_length = kernel_nextwarp(length(value))
+    loop_length = nextpow(blockDim().x, length(prob))
     gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
     gap_nonzeros = nonzeros(gap(ambiguity_set))
     s = threadIdx().x
-    @inbounds while s <= warp_aligned_length
+    @inbounds while s <= loop_length
         # Find index of the permutation, and lookup the corresponding gap
         g = if s <= length(value)
             gap_nonzeros[perm[s]]
@@ -1009,13 +1009,13 @@ end
     wid, lane = fldmod1(threadIdx().x, warpsize())
     reduction_ws = CuStaticSharedArray(Tv, 32)
 
-    warp_aligned_length = kernel_nextwarp(length(Vperm))
+    loop_length = nextpow(blockDim().x, length(prob))
     gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
     gap_nonzeros = nonzeros(gap(ambiguity_set))
     s = threadIdx().x
-    @inbounds while s <= warp_aligned_length
+    @inbounds while s <= loop_length
         # Find index of the permutation, and lookup the corresponding gap
         g = if s <= length(Vperm)
             gap_nonzeros[Pperm[s]]
@@ -1103,12 +1103,12 @@ end
     wid, lane = fldmod1(threadIdx().x, warpsize())
     reduction_ws = CuStaticSharedArray(Tv, 32)
 
-    warp_aligned_length = kernel_nextwarp(length(perm))
+    loop_length = nextpow(blockDim().x, length(perm))
     gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
     s = threadIdx().x
-    @inbounds while s <= warp_aligned_length
+    @inbounds while s <= loop_length
         # Find index of the permutation, and lookup the corresponding gap
         g = if s <= length(perm)
             gap(ambiguity_set, perm[s])
