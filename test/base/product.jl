@@ -66,7 +66,10 @@ using IntervalMDP
         @test occursin("ProductProcess", str)
         @test occursin("Underlying process", str)
         @test occursin("Automaton", str)
-        @test occursin("Labelling type: DeterministicLabelling{UInt16, Vector{UInt16}}", str)
+        @test occursin(
+            "Labelling type: DeterministicLabelling{UInt16, Vector{UInt16}}",
+            str,
+        )
     end
 
     @testset "IMDP state labelling func input mismatch" begin
@@ -210,12 +213,63 @@ end
 
             eps = one(N) / N(1000)
 
-            # No Strategy
-            Vtar = IntervalMDP.bellman(V, prod_proc; upper_bound = false)
+            Vtar = N[
+                34//10 24//10
+                36//10 32//10
+                5 5
+            ]
 
-            # Non Stationary Strategy
+            # No Strategy
+            Vres = IntervalMDP.bellman(V, prod_proc; upper_bound = false)
+            @test Vtar ≈ Vres atol=eps
+
+            # Non Stationary Strategy (Init iteration)
             strategy_cache =
                 IntervalMDP.TimeVaryingStrategyCache(fill(ntuple(_ -> Int32(0), 1), 3, 2))
+
+            Vres = copy(V)
+
+            Vres = IntervalMDP.bellman!(
+                workspace,
+                strategy_cache,
+                Vres,
+                V,
+                prod_proc,
+                upper_bound = false,
+            )
+
+            @test Vtar ≈ Vres atol=eps
+
+            # Non Stationary Strategy (optimal policy in cache)
+            strategy_cache = IntervalMDP.TimeVaryingStrategyCache(
+                [
+                    (Int32(2),) (Int32(1),);
+                    (Int32(2),) (Int32(2),);
+                    (Int32(1),) (Int32(1),);
+                ],
+            )
+
+            Vres = copy(V)
+
+            Vres = IntervalMDP.bellman!(
+                workspace,
+                strategy_cache,
+                Vres,
+                V,
+                prod_proc,
+                upper_bound = false,
+            )
+
+            @test Vtar ≈ Vres atol=eps
+
+            # Non Stationary Strategy (non optimal policy in cache)
+            strategy_cache = IntervalMDP.TimeVaryingStrategyCache(
+                [
+                    (Int32(1),) (Int32(1),);
+                    (Int32(1),) (Int32(1),);
+                    (Int32(1),) (Int32(1),);
+                ],
+            )
 
             Vres = copy(V)
 
@@ -233,6 +287,50 @@ end
             # Stationary Strategy
             strategy_cache =
                 IntervalMDP.StationaryStrategyCache(fill(ntuple(_ -> Int32(0), 1), 3, 2))
+
+            Vres = copy(V)
+
+            Vres = IntervalMDP.bellman!(
+                workspace,
+                strategy_cache,
+                Vres,
+                V,
+                prod_proc,
+                upper_bound = false,
+            )
+
+            @test Vtar ≈ Vres atol=eps
+
+            # Stationary Strategy (non optimal policy in cache)
+            strategy_cache = IntervalMDP.StationaryStrategyCache(
+                [
+                    (Int32(1),) (Int32(1),);
+                    (Int32(1),) (Int32(1),);
+                    (Int32(1),) (Int32(1),);
+                ],
+            )
+
+            Vres = copy(V)
+
+            Vres = IntervalMDP.bellman!(
+                workspace,
+                strategy_cache,
+                Vres,
+                V,
+                prod_proc,
+                upper_bound = false,
+            )
+
+            @test Vtar ≈ Vres atol=eps
+
+            # Stationary Strategy (optimal policy in cache)
+            strategy_cache = IntervalMDP.StationaryStrategyCache(
+                [
+                    (Int32(2),) (Int32(1),);
+                    (Int32(2),) (Int32(2),);
+                    (Int32(1),) (Int32(1),);
+                ],
+            )
 
             Vres = copy(V)
 
@@ -399,8 +497,15 @@ end
 
             eps = one(N) / N(1000)
 
+            Vtar = N[
+                33//10 24//10
+                346//100 32//10
+                45//10 5
+            ]
+
             # No Strategy
-            Vtar = IntervalMDP.bellman(V, prod_proc; upper_bound = false)
+            Vres = IntervalMDP.bellman(V, prod_proc; upper_bound = false)
+            @test Vtar ≈ Vres atol=eps
 
             # Non Stationary Strategy
             strategy_cache =
@@ -419,9 +524,97 @@ end
 
             @test Vtar ≈ Vres atol=eps
 
+            # Non Stationary Strategy (non optimal policy in cache)
+            strategy_cache = IntervalMDP.TimeVaryingStrategyCache(
+                [
+                    (Int32(1),) (Int32(1),);
+                    (Int32(1),) (Int32(1),);
+                    (Int32(1),) (Int32(1),);
+                ],
+            )
+
+            Vres = copy(V)
+
+            Vres = IntervalMDP.bellman!(
+                workspace,
+                strategy_cache,
+                Vres,
+                V,
+                prod_proc,
+                upper_bound = false,
+            )
+
+            @test Vtar ≈ Vres atol=eps
+
+            # Non Stationary Strategy (optimal policy in cache)
+            strategy_cache = IntervalMDP.TimeVaryingStrategyCache(
+                [
+                    (Int32(2),) (Int32(1),);
+                    (Int32(2),) (Int32(2),);
+                    (Int32(1),) (Int32(1),);
+                ],
+            )
+
+            Vres = copy(V)
+
+            Vres = IntervalMDP.bellman!(
+                workspace,
+                strategy_cache,
+                Vres,
+                V,
+                prod_proc,
+                upper_bound = false,
+            )
+
+            @test Vtar ≈ Vres atol=eps
+
             # Stationary Strategy
             strategy_cache =
                 IntervalMDP.StationaryStrategyCache(fill(ntuple(_ -> Int32(0), 1), 3, 2))
+
+            Vres = copy(V)
+
+            Vres = IntervalMDP.bellman!(
+                workspace,
+                strategy_cache,
+                Vres,
+                V,
+                prod_proc,
+                upper_bound = false,
+            )
+
+            @test Vtar ≈ Vres atol=eps
+
+            # Stationary Strategy (non optimal policy in cache)
+            strategy_cache = IntervalMDP.StationaryStrategyCache(
+                [
+                    (Int32(1),) (Int32(1),);
+                    (Int32(1),) (Int32(1),);
+                    (Int32(1),) (Int32(1),);
+                ],
+            )
+
+            Vres = copy(V)
+
+            Vres = IntervalMDP.bellman!(
+                workspace,
+                strategy_cache,
+                Vres,
+                V,
+                prod_proc,
+                upper_bound = false,
+            )
+
+            @test Vtar ≈ Vres atol=eps
+
+            # Stationary Strategy (optimal policy in cache)
+            strategy_cache = IntervalMDP.StationaryStrategyCache(
+                [
+                    (Int32(2),) (Int32(1),);
+                    (Int32(2),) (Int32(2),);
+                    (Int32(1),) (Int32(1),);
+                ],
+            )
 
             Vres = copy(V)
 
