@@ -229,9 +229,8 @@ function FactoredIntervalOMaxWorkspace(sys::FactoredRMDP)
         Tuple(maxsupportsize(ambiguity_sets(marginal)) for marginal in marginals(sys))
     max_support = maximum(max_support_per_marginal)
 
-    expectation_cache = NTuple{N - 1, Vector{R}}(
-        zeros(R, n) for n in num_target.(marginals(sys)[2:end])
-    )
+    expectation_cache =
+        NTuple{N - 1, Vector{R}}(zeros(R, n) for n in num_target.(marginals(sys)[2:end]))
     values_gaps = Vector{Tuple{R, R}}(undef, max_support)
     scratch = Vector{Tuple{R, R}}(undef, max_support)
 
