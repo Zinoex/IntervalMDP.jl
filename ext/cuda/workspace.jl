@@ -38,14 +38,16 @@ IntervalMDP.construct_workspace(
 ######################
 # Factored workspace #
 ######################
-struct CuFactoredOMaxWorkspace{N} <: AbstractCuWorkspace
+struct CuFactoredOMaxWorkspace{N, M} <: AbstractCuWorkspace
     max_support_per_marginal::NTuple{N, Int32}
+    workspace_partitioning::NTuple{M, Int32}
 end
 
 function CuFactoredOMaxWorkspace(sys::IntervalMDP.FactoredRMDP)
     max_support_per_marginal =
         Tuple(Int32(IntervalMDP.maxsupportsize(ambiguity_sets(marginal))) for marginal in marginals(sys))
-    return CuFactoredOMaxWorkspace(max_support_per_marginal)
+    workspace_partitioning = (one(Int32), Int32.(cumsum(max_support_per_marginal) .+ 1)...)
+    return CuFactoredOMaxWorkspace(max_support_per_marginal, workspace_partitioning)
 end
 
 IntervalMDP.construct_workspace(

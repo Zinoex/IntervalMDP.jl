@@ -105,13 +105,13 @@ end
 @inline function initialize_dense_action_workspace(
     workspace,
     ::OptimizingActiveCache,
-    marginal,
+    V,
 )
     assume(warpsize() == 32)
     nwarps = div(blockDim().x, warpsize())
     wid = fld1(threadIdx().x, warpsize())
     action_workspace = CuDynamicSharedArray(
-        IntervalMDP.valuetype(marginal),
+        IntervalMDP.valuetype(V),
         (workspace.num_actions, nwarps),
     )
     @inbounds action_workspace = @view action_workspace[:, wid]
@@ -122,7 +122,7 @@ end
 @inline function initialize_dense_action_workspace(
     workspace,
     ::NonOptimizingActiveCache,
-    marginal,
+    V,
 )
     return nothing
 end
