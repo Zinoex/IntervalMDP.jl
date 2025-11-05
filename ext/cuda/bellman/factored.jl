@@ -118,7 +118,7 @@ end
 ) where {N, M}
     action_workspace = CuDynamicSharedArray(
         IntervalMDP.valuetype(model),
-        source_shape(model),
+        action_shape(model),
     )
 
     return action_workspace
@@ -264,17 +264,18 @@ end
         )
 
         if threadIdx().x == one(Int32)
-            action_workspace[I] = v
+            action_workspace[jₐ] = v
         end
 
         sync_threads()
         jₐ += one(Int32)
     end
 
-    # TODO: Reduce over actions
-    # if wid == one(Int32)
-    #     Vres[jₛ] = reduce(action_reduce, action_workspace[1:n_actions])
-    # end
+    v = extract_strategy_block!(strategy_cache, action_workspace, jₛ, action_reduce)
+    
+    if threadIdx().x == one(Int32)
+        Vres[jₛ] = v
+    end
 
     return nothing
 end

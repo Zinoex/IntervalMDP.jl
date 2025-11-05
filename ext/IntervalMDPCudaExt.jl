@@ -26,7 +26,7 @@ function Adapt.adapt_structure(
         action_values(mdp),
         IntervalMDP.source_shape(mdp),
         adapt(T, marginals(mdp)),
-        adapt(CuArray{Int32}, initial_states(mdp)),
+        adapt(CuArray{eltype(initial_states(mdp))}, initial_states(mdp)),
         Val(false), # check = false
     )
 end
@@ -40,7 +40,7 @@ function Adapt.adapt_structure(
         action_values(mdp),
         IntervalMDP.source_shape(mdp),
         adapt(T, marginals(mdp)),
-        adapt(Array{Int32}, initial_states(mdp)),
+        adapt(Array{eltype(initial_states(mdp))}, initial_states(mdp)),
         Val(false), # check = false
     )
 end

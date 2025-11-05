@@ -5,6 +5,10 @@
     return threads + (ws - threads % ws) % ws
 end
 
+@inline function nextmult(mult, value)
+    return value + (mult - value % mult) % mult
+end
+
 @inline function cumsum_warp(val, lane)
     assume(warpsize() == 32)
     offset = 0x00000001
@@ -53,6 +57,41 @@ end
         val, idx = argop(lt, val, idx, up_val, up_idx)
 
         offset >>= 1
+    end
+
+    return val, idx
+end
+
+@inline function argmin_block(lt, val::T, idx, neutral_val, neutral_idx, shuffle::Val{true}) where {T}
+    # shared mem for partial sums
+    assume(warpsize() == 32)
+    shared_val = CuStaticSharedArray(T, 32)
+    shared_idx = CuStaticSharedArray(Int32, 32)
+
+    wid, lane = fldmod1(threadIdx().x, warpsize())
+
+    # each warp performs partial reduction
+    val, idx = argmin_warp(lt, val, idx)
+
+    # write reduced value to shared memory
+    if lane == 1
+        @inbounds shared_val[wid] = val
+        @inbounds shared_idx[wid] = idx
+    end
+
+    # wait for all partial reductions
+    sync_threads()
+
+    # read from shared memory only if that warp existed
+    val, idx = if threadIdx().x <= fld1(blockDim().x, warpsize())
+         @inbounds shared_val[lane], @inbounds shared_idx[lane]
+    else
+        neutral_val, neutral_idx
+    end
+
+    # final reduce within first warp
+    if wid == 1
+        val, idx = argmin_warp(lt, val, idx)
     end
 
     return val, idx

@@ -817,7 +817,7 @@ end
     wid, lane = fldmod1(threadIdx().x, warpsize())
     reduction_ws = CuStaticSharedArray(Tv, 32)
 
-    loop_length = nextpow(blockDim().x, length(prob))
+    loop_length = nextmult(blockDim().x, length(prob))
     gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
@@ -912,7 +912,7 @@ end
     wid, lane = fldmod1(threadIdx().x, warpsize())
     reduction_ws = CuStaticSharedArray(Tv, 32)
 
-    loop_length = nextpow(blockDim().x, length(prob))
+    loop_length = nextmult(blockDim().x, length(prob))
     gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
@@ -1009,7 +1009,7 @@ end
     wid, lane = fldmod1(threadIdx().x, warpsize())
     reduction_ws = CuStaticSharedArray(Tv, 32)
 
-    loop_length = nextpow(blockDim().x, length(prob))
+    loop_length = nextmult(blockDim().x, length(prob))
     gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
@@ -1103,7 +1103,7 @@ end
     wid, lane = fldmod1(threadIdx().x, warpsize())
     reduction_ws = CuStaticSharedArray(Tv, 32)
 
-    loop_length = nextpow(blockDim().x, length(perm))
+    loop_length = nextmult(blockDim().x, length(perm))
     gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
