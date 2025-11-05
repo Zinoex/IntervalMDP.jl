@@ -332,6 +332,7 @@ initial_states(mdp::FactoredRMDP) = mdp.initial_states
 
 source_shape(m::FactoredRMDP) = m.source_dims
 action_shape(m::FactoredRMDP) = m.action_vars
+num_source(m::FactoredRMDP) = prod(source_shape(m))
 
 function Base.getindex(mdp::FactoredRMDP, r)
     return mdp.transition[r]

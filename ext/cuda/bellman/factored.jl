@@ -57,11 +57,9 @@ function IntervalMDP._bellman_helper!(
     max_threads = prevwarp(device(), config.threads)
     warps = div(max_threads, 32)
     warps = min(warps, workspace.max_support_per_marginal[end])
-    warps = 2
     threads = warps * 32
-    n_states = prod(source_shape(model))
-    # blocks = min(2^16 - 1, n_states)
-    blocks = 1
+    n_states = IntervalMDP.num_source(model)
+    blocks = min(2^16 - 1, n_states)
     shmem = shmem_func(threads)
 
     kernel(
@@ -207,7 +205,7 @@ end
     action_reduce,
 )    
     indices = CartesianIndices(source_shape(model))
-    n_states = num_states(model)
+    n_states = IntervalMDP.num_source(model)
 
     jₛ = blockIdx().x
     @inbounds while jₛ <= n_states
@@ -307,33 +305,31 @@ end
     j_final = wid
     @inbounds while j_final <= ssz[end]
         for Isparse in CartesianIndices(ssz[2:end - one(Int32)])
-            Isparse = Tuple(Isparse)
-            I = (getindex.(supp[2:end - one(Int32)], Isparse)..., supp[end][j_final])
+            Isparse = (Tuple(Isparse)..., j_final)
+            I = getindex.(supp[Int32(2):end], Isparse)
 
             # For the first dimension, we need to copy the values from V
-            factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), ambiguity_sets[1], value_ws[1], gap_ws[1], lane)
-            v = add_lower_mul_V_norem_warp(value_ws[1], ambiguity_sets[1], lane)
+            factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), ambiguity_sets[one(Int32)], value_ws[one(Int32)], gap_ws[one(Int32)], lane)
+            v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], ambiguity_sets[one(Int32)], lane)
 
-            warp_bitonic_sort!(value_ws[1], gap_ws[1], value_lt)
-            v += small_add_gap_mul_V_sparse(value_ws[1], gap_ws[1], budgets[1], lane)
+            warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
+            v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], budgets[one(Int32)], lane)
 
-            idx = N == 2 ? j_final : Isparse[1]
-            if lane == 1
-                value_ws[2][idx] = v
+            if lane == one(Int32)
+                value_ws[Int32(2)][Isparse[one(Int32)]] = v
             end
 
             # For the remaining dimensions, if "full", compute expectation and store in the next level
-            for d in 2:(length(ambiguity_sets) - one(Int32))
+            for d in Int32(2):(length(ambiguity_sets) - one(Int32))
                 if Isparse[d - one(Int32)] == ssz[d]
                     factored_initialize_warp_sorting_shared_memory!(ambiguity_sets[d], gap_ws[d], lane)
-                    v = add_lower_mul_V_norem_warp(value_ws[1], ambiguity_sets[1], lane)
+                    v = add_lower_mul_V_norem_warp(value_ws[d], ambiguity_sets[d], lane)
 
-                    warp_bitonic_sort!(value_ws[1], gap_ws[1], value_lt)
-                    v += small_add_gap_mul_V_sparse(value_ws[1], gap_ws[1], budgets[1], lane)
+                    warp_bitonic_sort!(value_ws[d], gap_ws[d], value_lt)
+                    v += small_add_gap_mul_V_sparse(value_ws[d], gap_ws[d], budgets[d], lane)
 
-                    idx = d == (length(ambiguity_sets) - one(Int32)) ? j_final : Isparse[d]
                     if lane == 1
-                        value_ws[d + one(Int32)][idx] = v
+                        value_ws[d + one(Int32)][Isparse[d]] = v
                     end
                 else
                     break
