@@ -83,10 +83,10 @@ function factored_bellman_kernel!(
     strategy_cache,
     Vres::AbstractArray{Tv},
     V::AbstractArray{Tv},
-    model,
+    model::IntervalMDP.FactoredRMDP{N, M},
     value_lt,
     action_reduce,
-) where {Tv}
+) where {N, M, Tv}
     
     # Prepare action workspace shared memory
     action_workspace = initialize_factored_action_workspace(workspace, strategy_cache, model)
@@ -197,13 +197,13 @@ end
     strategy_cache,
     Vres,
     V,
-    model,
+    model::IntervalMDP.FactoredRMDP{N, M},
     action_workspace,
     value_ws,
     gap_ws,
     value_lt,
     action_reduce,
-)    
+) where {N, M}
     indices = CartesianIndices(source_shape(model))
     n_states = IntervalMDP.num_source(model)
 
@@ -234,14 +234,14 @@ end
     strategy_cache::OptimizingActiveCache,
     Vres,
     V,
-    model,
+    model::IntervalMDP.FactoredRMDP{N, M},
     action_workspace,
     value_ws,
     gap_ws,
     jₛ,
     value_lt,
     action_reduce,
-)
+) where {N, M}
     indices = CartesianIndices(action_shape(model))
     n_actions = num_actions(model)
 
@@ -281,22 +281,22 @@ end
 @inline function state_action_factored_bellman!(
     workspace::CuFactoredOMaxWorkspace,
     V::AbstractArray{Tv},
-    model::IntervalMDP.FactoredRMDP{N, M},
+    model::IntervalMDP.FactoredRMDP{2, M},
     value_ws,
     gap_ws,
     jₛ,
     jₐ,
     value_lt,
-) where {N, M, Tv}
+) where {M, Tv}
     assume(warpsize() == 32)
     nwarps = div(blockDim().x, warpsize())
     wid, lane = fldmod1(threadIdx().x, warpsize())
 
-    ambiguity_sets = ntuple(r -> marginals(model)[r][jₐ, jₛ], N)
+    ambiguity_sets = ntuple(r -> marginals(model)[r][jₐ, jₛ], 2)
     used = sum.(lower.(ambiguity_sets))
     budgets = one(Tv) .- used
 
-    supp = IntervalMDP.support.(ambiguity_sets)
+    supp = IntervalMDP.support(ambiguity_sets[Int32(2)])
     ssz = IntervalMDP.supportsize.(ambiguity_sets)
 
     @inbounds value_ws = view.(value_ws, Base.OneTo.(ssz))
@@ -304,9 +304,64 @@ end
 
     j_final = wid
     @inbounds while j_final <= ssz[end]
-        for Isparse in CartesianIndices(ssz[2:end - one(Int32)])
-            Isparse = (Tuple(Isparse)..., j_final)
-            I = getindex.(supp[Int32(2):end], Isparse)
+        I = supp[j_final]
+
+        # For the first dimension, we need to copy the values from V
+        factored_initialize_warp_sorting_shared_memory!(@view(V[:, I]), ambiguity_sets[one(Int32)], value_ws[one(Int32)], gap_ws[one(Int32)], lane)
+        v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], ambiguity_sets[one(Int32)], lane)
+
+        warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
+        v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], budgets[one(Int32)], lane)
+
+        if lane == one(Int32)
+            value_ws[Int32(2)][j_final] = v
+        end
+
+        j_final += nwarps
+    end
+
+    sync_threads()
+
+    # Final layer reduction
+    value = add_lower_mul_V_norem_block(value_ws[end], ambiguity_sets[end])
+
+    factored_initialize_block_sorting_shared_memory!(ambiguity_sets[end], gap_ws[end])
+    block_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
+    value += ff_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], budgets[end])
+
+    return value
+end
+
+@inline function state_action_factored_bellman!(
+    workspace::CuFactoredOMaxWorkspace,
+    V::AbstractArray{Tv},
+    model::IntervalMDP.FactoredRMDP{3, M},
+    value_ws,
+    gap_ws,
+    jₛ,
+    jₐ,
+    value_lt,
+) where {M, Tv}
+    assume(warpsize() == 32)
+    nwarps = div(blockDim().x, warpsize())
+    wid, lane = fldmod1(threadIdx().x, warpsize())
+
+    ambiguity_sets = ntuple(r -> marginals(model)[r][jₐ, jₛ], 3)
+    used = sum.(lower.(ambiguity_sets))
+    budgets = one(Tv) .- used
+
+    supp = IntervalMDP.support.(ambiguity_sets[Int32(2):end])
+    ssz = IntervalMDP.supportsize.(ambiguity_sets)
+
+    @inbounds value_ws = view.(value_ws, Base.OneTo.(ssz))
+    @inbounds gap_ws = view.(gap_ws, Base.OneTo.(ssz))
+
+    j_final = wid
+    @inbounds while j_final <= ssz[end]
+        isparse = one(Int32)
+        while isparse <= ssz[Int32(2)]
+            Isparse = (isparse, j_final)
+            I = getindex.(supp, Isparse)
 
             # For the first dimension, we need to copy the values from V
             factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), ambiguity_sets[one(Int32)], value_ws[one(Int32)], gap_ws[one(Int32)], lane)
@@ -319,21 +374,23 @@ end
                 value_ws[Int32(2)][Isparse[one(Int32)]] = v
             end
 
+            isparse += one(Int32)
+
             # For the remaining dimensions, if "full", compute expectation and store in the next level
-            for d in Int32(2):(length(ambiguity_sets) - one(Int32))
-                if Isparse[d - one(Int32)] == ssz[d]
-                    factored_initialize_warp_sorting_shared_memory!(ambiguity_sets[d], gap_ws[d], lane)
-                    v = add_lower_mul_V_norem_warp(value_ws[d], ambiguity_sets[d], lane)
+            # The loop over dimensions is unrolled for performance, as N is known at compile time and
+            # GPU compiler fails at compiling the loop if N > 3.
+            if Isparse[Int32(1)] < ssz[Int32(2)]
+                continue
+            end
 
-                    warp_bitonic_sort!(value_ws[d], gap_ws[d], value_lt)
-                    v += small_add_gap_mul_V_sparse(value_ws[d], gap_ws[d], budgets[d], lane)
+            factored_initialize_warp_sorting_shared_memory!(ambiguity_sets[Int32(2)], gap_ws[Int32(2)], lane)
+            v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], ambiguity_sets[Int32(2)], lane)
 
-                    if lane == 1
-                        value_ws[d + one(Int32)][Isparse[d]] = v
-                    end
-                else
-                    break
-                end
+            warp_bitonic_sort!(value_ws[Int32(2)], gap_ws[Int32(2)], value_lt)
+            v += small_add_gap_mul_V_sparse(value_ws[Int32(2)], gap_ws[Int32(2)], budgets[Int32(2)], lane)
+
+            if lane == one(Int32)
+                value_ws[Int(3)][Isparse[Int32(2)]] = v
             end
         end
 
