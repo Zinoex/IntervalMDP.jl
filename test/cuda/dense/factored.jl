@@ -1015,38 +1015,38 @@ end
     end
 
     # 4-D abstraction
-    # @testset "4D abstraction" begin
-    #     rng = MersenneTwister(995)
+    @testset "4D abstraction" begin
+        rng = MersenneTwister(995)
 
-    #     prob_lower = [rand(rng, N, 3, 81) ./ N(3) for _ in 1:4]
-    #     prob_upper = [(rand(rng, N, 3, 81) .+ N(1)) ./ N(3) for _ in 1:4]
+        prob_lower = [rand(rng, N, 3, 81) ./ N(3) for _ in 1:4]
+        prob_upper = [(rand(rng, N, 3, 81) .+ N(1)) ./ N(3) for _ in 1:4]
 
-    #     ambs = ntuple(
-    #         i -> IntervalAmbiguitySets(; lower = prob_lower[i], upper = prob_upper[i]),
-    #         4,
-    #     )
+        ambs = ntuple(
+            i -> IntervalAmbiguitySets(; lower = prob_lower[i], upper = prob_upper[i]),
+            4,
+        )
 
-    #     margs = ntuple(
-    #         i ->
-    #             Marginal(ambs[i], (1, 2, 3, 4), (1,), (3, 3, 3, 3), (1,)),
-    #         4,
-    #     )
+        margs = ntuple(
+            i ->
+                Marginal(ambs[i], (1, 2, 3, 4), (1,), (3, 3, 3, 3), (1,)),
+            4,
+        )
 
-    #     mdp = FactoredRobustMarkovDecisionProcess((3, 3, 3, 3), (1,), margs)
-    #     cuda_mdp = IntervalMDP.cu(mdp)
+        mdp = FactoredRobustMarkovDecisionProcess((3, 3, 3, 3), (1,), margs)
+        cuda_mdp = IntervalMDP.cu(mdp)
 
-    #     prop = FiniteTimeReachability([(3, 3, 3, 3)], 10)
-    #     spec = Specification(prop, Pessimistic, Maximize)
-    #     prob = VerificationProblem(mdp, spec)
-    #     cuda_prob = VerificationProblem(cuda_mdp, spec)
+        prop = FiniteTimeReachability([(3, 3, 3, 3)], 10)
+        spec = Specification(prop, Pessimistic, Maximize)
+        prob = VerificationProblem(mdp, spec)
+        cuda_prob = VerificationProblem(cuda_mdp, spec)
 
-    #     V, it, res = solve(prob, alg)
-    #     V_cuda, it_cuda, res_cuda = solve(cuda_prob, alg)
+        V, it, res = solve(prob, alg)
+        V_cuda, it_cuda, res_cuda = solve(cuda_prob, alg)
 
-    #     @test V ≈ Array(V_cuda) 
-    #     @test it == it_cuda
-    #     @test res ≈ Array(res_cuda)
-    # end
+        @test V ≈ Array(V_cuda) 
+        @test it == it_cuda
+        @test res ≈ Array(res_cuda)
+    end
 
     # @testset "synthesis" begin
     #     rng = MersenneTwister(3286)
