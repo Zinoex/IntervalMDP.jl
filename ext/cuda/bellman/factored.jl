@@ -54,7 +54,7 @@ function IntervalMDP._bellman_helper!(
     
     max_threads = prevwarp(device(), config.threads)
     warps = div(max_threads, 32)
-    warps = min(warps, workspace.max_support_per_marginal[end])
+    warps = min(warps, n_actions)
     threads = warps * 32
     n_states = IntervalMDP.num_source(model)
     blocks = min(2^16 - 1, n_states)
