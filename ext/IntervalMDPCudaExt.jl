@@ -101,6 +101,7 @@ IntervalMDP.arrayfactory(
 ) where {R, MR <: Union{CuSparseMatrixCSC{R}, CuArray{R}}} = CuArray{T}(undef, sizes)
 
 include("cuda/utils.jl")
+include("cuda/indexing.jl")
 include("cuda/array.jl")
 include("cuda/sorting.jl")
 include("cuda/workspace.jl")
