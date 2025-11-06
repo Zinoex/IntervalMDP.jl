@@ -143,8 +143,8 @@ end
     value = CuDynamicSharedArray(Tv, (size, nwarps), num_actions(model) * sizeof(Tv))
     gap = CuDynamicSharedArray(Tv, (size, nwarps), num_actions(model) * sizeof(Tv) + size * nwarps * sizeof(Tv))
 
-    @inbounds _value = ntuple(i -> @view(value[workspace.workspace_partitioning[i]:(workspace.workspace_partitioning[i + 1] - one(Int32)), wid]), length(workspace.max_support_per_marginal))
-    @inbounds _gap = ntuple(i -> @view(gap[workspace.workspace_partitioning[i]:workspace.workspace_partitioning[i + 1] - one(Int32), wid]), length(workspace.max_support_per_marginal))
+    _value = ntuple(i -> @view(value[workspace.workspace_partitioning[i]:(workspace.workspace_partitioning[i + 1] - one(Int32)), wid]), length(workspace.max_support_per_marginal))
+    _gap = ntuple(i -> @view(gap[workspace.workspace_partitioning[i]:workspace.workspace_partitioning[i + 1] - one(Int32), wid]), length(workspace.max_support_per_marginal))
 
     return _value, _gap
 end
@@ -164,8 +164,8 @@ end
     value = CuDynamicSharedArray(Tv, (size, nwarps))
     gap = CuDynamicSharedArray(Tv, (size, nwarps), size * nwarps * sizeof(Tv))
 
-    @inbounds _value = ntuple(i -> @view(value[workspace.workspace_partitioning[i]:(workspace.workspace_partitioning[i + 1] - one(Int32)), wid]), length(workspace.max_support_per_marginal))
-    @inbounds _gap = ntuple(i -> @view(gap[workspace.workspace_partitioning[i]:workspace.workspace_partitioning[i + 1] - one(Int32), wid]), length(workspace.max_support_per_marginal))
+    _value = ntuple(i -> @view(value[workspace.workspace_partitioning[i]:(workspace.workspace_partitioning[i + 1] - one(Int32)), wid]), length(workspace.max_support_per_marginal))
+    _gap = ntuple(i -> @view(gap[workspace.workspace_partitioning[i]:workspace.workspace_partitioning[i + 1] - one(Int32), wid]), length(workspace.max_support_per_marginal))
 
     return _value, _gap
 end
@@ -272,17 +272,17 @@ end
     value_lt,
     lane,
 ) where {M, Tv}
-    @inbounds ambiguity_sets = ntuple(r -> marginals(model)[r][jₐ, jₛ], 2)
+    ambiguity_sets = ntuple(r -> marginals(model)[r][jₐ, jₛ], 2)
     budgets = one(Tv) .- sum.(lower.(ambiguity_sets))
 
-    @inbounds supp = IntervalMDP.support(ambiguity_sets[Int32(2)])
+    supp = IntervalMDP.support(ambiguity_sets[Int32(2)])
     ssz = IntervalMDP.supportsize.(ambiguity_sets)
 
-    @inbounds value_ws = view.(value_ws, Base.OneTo.(ssz))
-    @inbounds gap_ws = view.(gap_ws, Base.OneTo.(ssz))
+    value_ws = view.(value_ws, Base.OneTo.(ssz))
+    gap_ws = view.(gap_ws, Base.OneTo.(ssz))
 
     isparse = one(Int32)
-    @inbounds while isparse <= ssz[end]
+    while isparse <= ssz[end]
         I = supp[isparse]
 
         # For the first dimension, we need to copy the values from V
@@ -303,11 +303,11 @@ end
     sync_warp()
 
     # Final layer reduction
-    @inbounds factored_initialize_warp_sorting_shared_memory!(ambiguity_sets[end], gap_ws[end], lane)
-    @inbounds value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_sets[end], lane)
+    factored_initialize_warp_sorting_shared_memory!(ambiguity_sets[end], gap_ws[end], lane)
+    value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_sets[end], lane)
 
-    @inbounds warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
-    @inbounds value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], budgets[end], lane)
+    warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
+    value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], budgets[end], lane)
 
     return value
 end
@@ -323,18 +323,18 @@ end
     value_lt,
     lane,
 ) where {M, Tv}
-    @inbounds ambiguity_sets = ntuple(r -> marginals(model)[r][jₐ, jₛ], 3)
+    ambiguity_sets = ntuple(r -> marginals(model)[r][jₐ, jₛ], 3)
     budgets = one(Tv) .- sum.(lower.(ambiguity_sets))
 
-    @inbounds supp = IntervalMDP.support.(ambiguity_sets[Int32(2):end])
+    supp = IntervalMDP.support.(ambiguity_sets[Int32(2):end])
     ssz = IntervalMDP.supportsize.(ambiguity_sets)
 
-    @inbounds value_ws = view.(value_ws, Base.OneTo.(ssz))
-    @inbounds gap_ws = view.(gap_ws, Base.OneTo.(ssz))
+    value_ws = view.(value_ws, Base.OneTo.(ssz))
+    gap_ws = view.(gap_ws, Base.OneTo.(ssz))
 
     Isparse = (one(Int32), one(Int32))
     done = false
-    @inbounds while !done
+    while !done
         I = getindex.(supp, Isparse)
 
         # For the first dimension, we need to copy the values from V
@@ -374,11 +374,11 @@ end
     end
 
     # Final layer reduction
-    @inbounds factored_initialize_warp_sorting_shared_memory!(ambiguity_sets[end], gap_ws[end], lane)
-    @inbounds value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_sets[end], lane)
+    factored_initialize_warp_sorting_shared_memory!(ambiguity_sets[end], gap_ws[end], lane)
+    value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_sets[end], lane)
 
-    @inbounds warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
-    @inbounds value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], budgets[end], lane)
+    warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
+    value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], budgets[end], lane)
 
     return value
 end
@@ -394,18 +394,18 @@ end
     value_lt,
     lane,
 ) where {M, Tv}
-    @inbounds ambiguity_sets = ntuple(r -> marginals(model)[r][jₐ, jₛ], 4)
+    ambiguity_sets = ntuple(r -> marginals(model)[r][jₐ, jₛ], 4)
     budgets = one(Tv) .- sum.(lower.(ambiguity_sets))
 
-    @inbounds supp = IntervalMDP.support.(ambiguity_sets[Int32(2):end])
+    supp = IntervalMDP.support.(ambiguity_sets[Int32(2):end])
     ssz = IntervalMDP.supportsize.(ambiguity_sets)
 
-    @inbounds value_ws = view.(value_ws, Base.OneTo.(ssz))
-    @inbounds gap_ws = view.(gap_ws, Base.OneTo.(ssz))
+    value_ws = view.(value_ws, Base.OneTo.(ssz))
+    gap_ws = view.(gap_ws, Base.OneTo.(ssz))
 
     Isparse = (one(Int32), one(Int32), one(Int32))
     done = false
-    @inbounds while !done
+    while !done
         I = getindex.(supp, Isparse)
 
         # For the first dimension, we need to copy the values from V
@@ -464,11 +464,11 @@ end
     end
 
     # Final layer reduction
-    @inbounds factored_initialize_warp_sorting_shared_memory!(ambiguity_sets[end], gap_ws[end], lane)
-    @inbounds value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_sets[end], lane)
+    factored_initialize_warp_sorting_shared_memory!(ambiguity_sets[end], gap_ws[end], lane)
+    value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_sets[end], lane)
 
-    @inbounds warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
-    @inbounds value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], budgets[end], lane)
+    warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
+    value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], budgets[end], lane)
 
     return value
 end
@@ -481,7 +481,7 @@ end
 
     # Add the lower bound multiplied by the value
     s = lane
-    @inbounds while s <= ssz
+    while s <= ssz
         lower_value += lower(ambiguity_set, s) * V[s]
         s += warpsize()
     end
@@ -500,7 +500,7 @@ end
 
     # Add the lower bound multiplied by the value
     s = lane
-    @inbounds while s <= ssz
+    while s <= ssz
         lower_value += lower_nonzeros[s] * V[s]
         s += warpsize()
     end
@@ -521,7 +521,7 @@ end
 
     # Copy into shared memory
     s = lane
-    @inbounds while s <= ssz
+    while s <= ssz
         prob[s] = gap(ambiguity_set, s)
         s += warpsize()
     end
@@ -543,7 +543,7 @@ end
     # Copy into shared memory
     gap_nonzeros = nonzeros(gap(ambiguity_set))
     s = lane
-    @inbounds while s <= ssz
+    while s <= ssz
         prob[s] = gap_nonzeros[s]
         s += warpsize()
     end
@@ -564,7 +564,7 @@ end
 
     # Copy into shared memory
     s = lane
-    @inbounds while s <= ssz
+    while s <= ssz
         value[s] = V[s]
         prob[s] = gap(ambiguity_set, s)
         s += warpsize()
@@ -588,7 +588,7 @@ end
     # Copy into shared memory
     gap_nonzeros = gap(ambiguity_set)
     s = lane
-    @inbounds while s <= ssz
+    while s <= ssz
         value[s] = V[support[s]]
         prob[s] = gap_nonzeros[s]
         s += warpsize()
