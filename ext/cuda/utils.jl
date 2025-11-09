@@ -24,14 +24,12 @@ end
 end
 
 Base.@propagate_inbounds function cumsum_block(val, workspace, wid)
-    # TODO: Use static shared mem
-
     # Warp-reduction
     val = cumsum_warp(val)
 
     # Block-reduction
     if laneid() == Int32(32)
-        workspace[wid] = laneid()
+        workspace[wid] = val
     end
     sync_threads()
 
