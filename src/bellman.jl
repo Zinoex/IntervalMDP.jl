@@ -472,7 +472,7 @@ Base.@propagate_inbounds function gap_value(
 ) where {T, VR <: AbstractVector}
     res = zero(T)
 
-    @inbounds for i in perm
+    for i in perm
         p = min(budget, gap[i])
         res += p * V[i]
 

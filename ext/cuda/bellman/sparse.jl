@@ -742,7 +742,7 @@ Base.@propagate_inbounds function state_action_sparse_omaximization!(
     block_bitonic_sort!(value_ws, gap_ws, value_lt)
 
     value, remaining = add_lower_mul_V_block(V, ambiguity_set)
-    # value += ff_add_gap_mul_V_sparse(value_ws, gap_ws, remaining)
+    value += ff_add_gap_mul_V_sparse(value_ws, gap_ws, remaining)
 
     return value
 end
@@ -775,7 +775,7 @@ Base.@propagate_inbounds function add_lower_mul_V_block(V::AbstractVector{R}, am
     end
     sync_threads()
 
-    # used = share_ws[1]
+    used = share_ws[1]
     remaining = one(R) - used
 
     return lower_value, remaining
@@ -809,7 +809,7 @@ Base.@propagate_inbounds function ff_add_gap_mul_V_sparse(value, prob, remaining
 
     # Block-strided loop and save into register `gap_value`
     s = threadIdx().x
-    @inbounds while s <= loop_length
+    while s <= loop_length
         # Find index of the permutation, and lookup the corresponding gap
         g = if s <= length(prob)
             prob[s]
@@ -861,10 +861,10 @@ Base.@propagate_inbounds function state_action_sparse_omaximization!(
     ambiguity_set,
     value_lt,
 ) where {Tv}
-    fi_sparse_initialize_sorting_shared_memory!(V, ambiguity_set, value, perm)
-
     value = @view value[1:IntervalMDP.supportsize(ambiguity_set)]
     perm = @view perm[1:IntervalMDP.supportsize(ambiguity_set)]
+
+    fi_sparse_initialize_sorting_shared_memory!(V, ambiguity_set, value, perm)
     block_bitonic_sort!(value, perm, value_lt)
 
     value, remaining = add_lower_mul_V_block(V, ambiguity_set)
@@ -1061,7 +1061,6 @@ Base.@propagate_inbounds function state_action_sparse_omaximization!(
 
     value, remaining = add_lower_mul_V_block(V, ambiguity_set)
     value += i_add_gap_mul_V_sparse(V, perm, ambiguity_set, remaining)
-    value = zero(IntervalMDP.valuetype(V))
 
     return value
 end
