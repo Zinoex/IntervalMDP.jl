@@ -26,10 +26,10 @@ Base.@propagate_inbounds function block_bitonic_sort_minor_step!(value, aux, lt,
     assume(j >= Int32(1))
 
     thread = threadIdx().x
-    block = fld(thread, j)
+    block = fld1(thread, j)
     lane = mod1(thread, j)
-    i = block * j * Int32(2) + lane
-    l = block * j * Int32(2) + other_lane(j, lane)
+    i = (block - one(Int32)) * j * Int32(2) + lane
+    l = (block - one(Int32)) * j * Int32(2) + other_lane(j, lane)
 
     while i <= length(value)
         if l <= length(value) && !lt(value[i], value[l])
@@ -38,7 +38,7 @@ Base.@propagate_inbounds function block_bitonic_sort_minor_step!(value, aux, lt,
         end
 
         thread += blockDim().x
-        block = fld(thread, j)
+        block = fld1(thread, j)
         lane = mod1(thread, j)
         i = block * j * Int32(2) + lane
         l = block * j * Int32(2) + other_lane(j, lane)
@@ -81,10 +81,10 @@ Base.@propagate_inbounds function block_bitonic_sortperm_minor_step!(value, perm
     assume(j >= Int32(1))
 
     thread = threadIdx().x
-    block = fld(thread, j)
+    block = fld1(thread, j)
     lane = mod1(thread, j)
-    i = block * j * Int32(2) + lane
-    l = block * j * Int32(2) + other_lane(j, lane)
+    i = (block - one(Int32)) * j * Int32(2) + lane
+    l = (block - one(Int32)) * j * Int32(2) + other_lane(j, lane)
 
     while i <= length(perm)
         if l <= length(perm) && !lt(value[perm[i]], value[perm[l]])
@@ -93,10 +93,10 @@ Base.@propagate_inbounds function block_bitonic_sortperm_minor_step!(value, perm
         end
 
         thread += blockDim().x
-        block = fld(thread, j)
+        block = fld1(thread, j)
         lane = mod1(thread, j)
-        i = block * j * Int32(2) + lane
-        l = block * j * Int32(2) + other_lane(j, lane)
+        i = (block - one(Int32)) * j * Int32(2) + lane
+        l = (block - one(Int32)) * j * Int32(2) + other_lane(j, lane)
     end
 
     sync_threads()
@@ -125,27 +125,27 @@ Base.@propagate_inbounds function warp_bitonic_sort_major_step!(value, aux, lt, 
     end
 end
 
-Base.@propagate_inbounds function warp_bitonic_sort_minor_step!(value, aux, lt, other_lane, j)
+Base.@propagate_inbounds function warp_bitonic_sort_minor_step!(value, aux, lt, other_lane, j::Int32)
     assume(warpsize() == Int32(32))
     assume(j >= Int32(1))
 
     thread = mod1(threadIdx().x, warpsize())
-    block = fld(thread, j)
+    block = fld1(thread, j)
     lane = mod1(thread, j)
-    i = block * j * Int32(2) + lane
-    l = block * j * Int32(2) + other_lane(j, lane)
+    i = (block - one(Int32)) * j * Int32(2) + lane
+    l = (block - one(Int32)) * j * Int32(2) + other_lane(j, lane)
 
     while i <= length(value)
         if l <= length(value) && !lt(value[i], value[l])
-            swapelem(perm, i, l)
+            swapelem(value, i, l)
             swapelem(aux, i, l)
         end
 
         thread += warpsize()
-        block = fld(thread, j)
+        block = fld1(thread, j)
         lane = mod1(thread, j)
-        i = block * j * Int32(2) + lane
-        l = block * j * Int32(2) + other_lane(j, lane)
+        i = (block - one(Int32)) * j * Int32(2) + lane
+        l = (block - one(Int32)) * j * Int32(2) + other_lane(j, lane)
     end
 
     sync_warp()

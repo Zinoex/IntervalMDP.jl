@@ -15,10 +15,11 @@ const CuSparseDeviceColumnView{Tv, Ti} = SubArray{
     <:CuSparseDeviceMatrixCSC{Tv, Ti},
     Tuple{Base.Slice{Base.OneTo{Int}}, Int},
 }
-IntervalMDP.support(
+Base.@propagate_inbounds IntervalMDP.support(
     p::IntervalMDP.IntervalAmbiguitySet{R, <:CuSparseDeviceColumnView{R}},
 ) where {R} = rowvals(p.gap)
-IntervalMDP.supportsize(
+
+Base.@propagate_inbounds IntervalMDP.supportsize(
     p::IntervalMDP.IntervalAmbiguitySet{R, <:CuSparseDeviceColumnView{R}},
 ) where {R} = nnz(p.gap)
 

@@ -386,8 +386,8 @@ const SparseColumnView{Tv, Ti} = SubArray{
     <:SparseArrays.AbstractSparseMatrixCSC{Tv, Ti},
     Tuple{Base.Slice{Base.OneTo{Int}}, Int},
 }
-support(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = rowvals(p.gap)
-supportsize(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = nnz(p.gap)
+Base.@propagate_inbounds support(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = rowvals(p.gap)
+Base.@propagate_inbounds supportsize(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = nnz(p.gap)
 
 # Vertex iterator for IntervalAmbiguitySet
 struct IntervalAmbiguitySetVertexIterator{R, VR <: AbstractVector{R}} <: VertexIterator

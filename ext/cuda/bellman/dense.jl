@@ -20,10 +20,10 @@ function IntervalMDP._bellman_helper!(
         )
     end
 
-    max_states_per_block = 32 # == num_warps
-    shmem =
-        length(V) * (sizeof(Int32) + sizeof(Tv)) +
-        max_states_per_block * n_actions * sizeof(Tv)
+    function variable_shmem(threads)
+        warps = div(threads, 32)
+        return length(V) * (sizeof(Int32) + sizeof(Tv)) + warps * n_actions * sizeof(Tv)
+    end        
 
     kernel = @cuda launch = false dense_bellman_kernel!(
         workspace,
@@ -35,7 +35,7 @@ function IntervalMDP._bellman_helper!(
         maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv)),
     )
 
-    config = launch_configuration(kernel.fun; shmem = shmem)
+    config = launch_configuration(kernel.fun; shmem = variable_shmem)
     max_threads = prevwarp(device(), config.threads)
 
     # Execution plan:
@@ -48,8 +48,7 @@ function IntervalMDP._bellman_helper!(
     states_per_block = min(n_states, div(max_threads, threads_per_state))
     threads = threads_per_state * states_per_block
     blocks = min(2^16 - 1, cld(n_states, states_per_block))
-    shmem =
-        length(V) * (sizeof(Int32) + sizeof(Tv)) + states_per_block * n_actions * sizeof(Tv)
+    shmem = variable_shmem(threads)
 
     kernel(
         workspace,

@@ -130,7 +130,7 @@ Base.@propagate_inbounds function extract_strategy_warp!(
 
     opt_val, opt_idx = argmin_warp(action_lt, opt_val, opt_idx)
 
-    if lane == 1
+    if laneid() == 1
         @inbounds cache.strategy[jₛ] = (opt_idx,)
     end
 
