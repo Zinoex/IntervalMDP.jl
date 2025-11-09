@@ -40,8 +40,8 @@ Base.@propagate_inbounds function block_bitonic_sort_minor_step!(value, aux, lt,
         thread += blockDim().x
         block = fld1(thread, j)
         lane = mod1(thread, j)
-        i = block * j * Int32(2) + lane
-        l = block * j * Int32(2) + other_lane(j, lane)
+        i = (block - one(Int32)) * j * Int32(2) + lane
+        l = (block - one(Int32)) * j * Int32(2) + other_lane(j, lane)
     end
 
     sync_threads()
