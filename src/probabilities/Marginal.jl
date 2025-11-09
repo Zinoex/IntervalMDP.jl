@@ -156,20 +156,28 @@ Get the ambiguity set corresponding to the given `source` (state) and `action`, 
 the relevant indices of `source` and `action` are selected by `p.action_indices` and `p.state_indices` respectively.
 The selected index is then converted to a linear index for the underlying ambiguity sets.
 """
-Base.getindex(p::Marginal, action, source) = ambiguity_sets(p)[sub2ind(p, action, source)]
+Base.@propagate_inbounds Base.getindex(p::Marginal, action, source) = ambiguity_sets(p)[sub2ind(p, action, source)]
 
-sub2ind(p::Marginal, action::CartesianIndex, source::CartesianIndex) =
+Base.@propagate_inbounds sub2ind(p::Marginal, action::CartesianIndex, source::CartesianIndex) =
     sub2ind(p, Tuple(action), Tuple(source))
-function sub2ind(
-    p::Marginal,
-    action::NTuple{M, T},
-    source::NTuple{N, T},
-) where {N, M, T <: Integer}
-    action = getindex.((action,), p.action_indices)
-    source = getindex.((source,), p.state_indices)
-    j = p.linear_index[action..., source...]
+Base.@propagate_inbounds function sub2ind(
+    p::Marginal{A, N1, M1},
+    action::NTuple{M2, T},
+    source::NTuple{N2, T},
+) where {A, N1, M1, N2, M2, T <: Integer}
+    ind = zero(T)
 
-    return T(j)
+    for i in StepRange(N1, -1, 1)
+        ind *= p.source_dims[i]
+        ind += source[p.state_indices[i]] - one(T)
+    end
+
+    for i in StepRange(M1, -1, 1)
+        ind *= p.action_vars[i]
+        ind += action[p.action_indices[i]] - one(T)
+    end
+
+    return ind + one(T)
 end
 
 function showmarginal(io::IO, prefix, marginal::Marginal)

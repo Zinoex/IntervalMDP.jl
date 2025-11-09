@@ -334,7 +334,7 @@ source_shape(m::FactoredRMDP) = m.source_dims
 action_shape(m::FactoredRMDP) = m.action_vars
 num_source(m::FactoredRMDP) = prod(source_shape(m))
 
-function Base.getindex(mdp::FactoredRMDP, r)
+Base.@propagate_inbounds function Base.getindex(mdp::FactoredRMDP, r)
     return mdp.transition[r]
 end
 

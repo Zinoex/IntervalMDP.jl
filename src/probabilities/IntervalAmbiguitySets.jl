@@ -270,7 +270,7 @@ maxsupportsize(
 ) where {R, MR <: SparseArrays.AbstractSparseMatrixCSC{R}} =
     maxdiff(SparseArrays.getcolptr(p.gap))
 
-function Base.getindex(p::IntervalAmbiguitySets, j::Integer)
+Base.@propagate_inbounds function Base.getindex(p::IntervalAmbiguitySets, j::Integer)
     # Select by columns only! 
     l = @view p.lower[:, j]
     g = @view p.gap[:, j]
@@ -278,14 +278,14 @@ function Base.getindex(p::IntervalAmbiguitySets, j::Integer)
     return IntervalAmbiguitySet(l, g)
 end
 
-sub2ind(
+Base.@propagate_inbounds sub2ind(
     ::IntervalAmbiguitySets,
     jₐ::NTuple{M, T},
     jₛ::NTuple{N, T},
 ) where {N, M, T <: Integer} = T(jₛ[1])
-sub2ind(p::IntervalAmbiguitySets, jₐ::CartesianIndex, jₛ::CartesianIndex) =
+Base.@propagate_inbounds sub2ind(p::IntervalAmbiguitySets, jₐ::CartesianIndex, jₛ::CartesianIndex) =
     sub2ind(p, Tuple(jₐ), Tuple(jₛ))
-Base.getindex(p::IntervalAmbiguitySets, jₐ, jₛ) = p[sub2ind(p, jₐ, jₛ)]
+Base.@propagate_inbounds Base.getindex(p::IntervalAmbiguitySets, jₐ, jₛ) = p[sub2ind(p, jₐ, jₛ)]
 
 Base.iterate(p::IntervalAmbiguitySets) = (p[1], 2)
 function Base.iterate(p::IntervalAmbiguitySets, state)
@@ -357,7 +357,7 @@ num_target(p::IntervalAmbiguitySet) = length(p.lower)
 Return the lower bound transition probabilities of the ambiguity set to all target states.
 """
 lower(p::IntervalAmbiguitySet) = p.lower
-lower(p::IntervalAmbiguitySet, destination) = p.lower[destination]
+Base.@propagate_inbounds lower(p::IntervalAmbiguitySet, destination) = p.lower[destination]
 
 """
     upper(p::IntervalAmbiguitySet)
@@ -365,7 +365,7 @@ lower(p::IntervalAmbiguitySet, destination) = p.lower[destination]
 Return the upper bound transition probabilities of the ambiguity set to all target states.
 """
 upper(p::IntervalAmbiguitySet) = p.lower + p.gap
-upper(p::IntervalAmbiguitySet, destination) = p.lower[destination] + p.gap[destination]
+Base.@propagate_inbounds upper(p::IntervalAmbiguitySet, destination) = p.lower[destination] + p.gap[destination]
 
 """
     gap(p::IntervalAmbiguitySet)
@@ -373,7 +373,7 @@ upper(p::IntervalAmbiguitySet, destination) = p.lower[destination] + p.gap[desti
 Return the gap between upper and lower bound transition probabilities of the ambiguity set to all target states.
 """
 gap(p::IntervalAmbiguitySet) = p.gap
-gap(p::IntervalAmbiguitySet, destination) = p.gap[destination]
+Base.@propagate_inbounds gap(p::IntervalAmbiguitySet, destination) = p.gap[destination]
 
 const ColumnView{Tv} =
     SubArray{Tv, 1, <:AbstractMatrix{Tv}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}

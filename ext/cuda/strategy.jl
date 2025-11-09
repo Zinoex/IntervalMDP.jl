@@ -38,12 +38,11 @@ end
 Base.@propagate_inbounds Base.getindex(cache::GivenStrategyActiveCache, j) =
     cache.strategy[j]
 
-@inline function extract_strategy_warp!(
+Base.@propagate_inbounds function extract_strategy_warp!(
     ::NoStrategyActiveCache,
     values::AbstractVector{Tv},
     jₛ,
     action_reduce,
-    lane,
 ) where {Tv}
     assume(warpsize() == 32)
     action_min, action_neutral = action_reduce[1], action_reduce[3]
@@ -51,8 +50,8 @@ Base.@propagate_inbounds Base.getindex(cache::GivenStrategyActiveCache, j) =
     warp_aligned_length = kernel_nextwarp(length(values))
     opt_val = action_neutral
 
-    s = lane
-    @inbounds while s <= warp_aligned_length
+    s = laneid()
+    while s <= warp_aligned_length
         new_val = if s <= length(values)
             values[s]
         else
@@ -67,21 +66,20 @@ Base.@propagate_inbounds Base.getindex(cache::GivenStrategyActiveCache, j) =
     return opt_val
 end
 
-@inline function extract_strategy_warp!(
+Base.@propagate_inbounds function extract_strategy_warp!(
     cache::TimeVaryingStrategyActiveCache{1, <:AbstractVector{Tuple{Int32}}},
     values::AbstractVector{Tv},
     jₛ,
     action_reduce,
-    lane,
 ) where {Tv}
     assume(warpsize() == 32)
-    action_lt, action_neutral = action_reduce[2], action_reduce[3]
+    _, action_lt, action_neutral = action_reduce
 
     warp_aligned_length = kernel_nextwarp(length(values))
     opt_val, opt_idx = action_neutral, one(Int32)
 
-    s = lane
-    @inbounds while s <= warp_aligned_length
+    s = laneid()
+    while s <= warp_aligned_length
         new_val, new_idx = if s <= length(values)
             values[s], s
         else
@@ -94,33 +92,32 @@ end
 
     opt_val, opt_idx = argmin_warp(action_lt, opt_val, opt_idx)
 
-    if lane == 1
+    if laneid() == one(Int32)
         @inbounds cache.cur_strategy[jₛ] = (opt_idx,)
     end
 
     return opt_val
 end
 
-@inline function extract_strategy_warp!(
+Base.@propagate_inbounds function extract_strategy_warp!(
     cache::StationaryStrategyActiveCache{1, <:AbstractVector{Tuple{Int32}}},
     values::AbstractVector{Tv},
     jₛ,
     action_reduce,
-    lane,
 ) where {Tv}
     assume(warpsize() == 32)
-    action_lt, action_neutral = action_reduce[2], action_reduce[3]
+    _, action_lt, action_neutral = action_reduce
 
     warp_aligned_length = kernel_nextwarp(length(values))
-    opt_val, opt_idx = if iszero(cache.strategy[jₛ][1])
+    opt_val, opt_idx = if iszero(cache.strategy[jₛ][one(Int32)])
         action_neutral, one(Int32)
     else
         s = cache.strategy[jₛ][1]
         values[s], s
     end
 
-    s = lane
-    @inbounds while s <= warp_aligned_length
+    s = laneid()
+    while s <= warp_aligned_length
         new_val, new_idx = if s <= length(values)
             values[s], s
         else
