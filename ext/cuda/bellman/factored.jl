@@ -290,7 +290,7 @@ end
         v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], ambiguity_sets[one(Int32)], lane)
 
         warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], budgets[one(Int32)], lane)
+        v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], budgets[one(Int32)])
 
         if lane == one(Int32)
             value_ws[Int32(2)][isparse] = v
@@ -307,7 +307,7 @@ end
     value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_sets[end], lane)
 
     warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
-    value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], budgets[end], lane)
+    value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], budgets[end])
 
     return value
 end

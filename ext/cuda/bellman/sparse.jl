@@ -137,7 +137,7 @@ function try_small_sparse_bellman!(
     config = launch_configuration(kernel.fun; shmem = variable_shmem)
 
     max_threads = prevwarp(device(), config.threads)
-    if max_threads < 32
+    if max_threads < 32 * 4  # Need at least 4 warps to hide latency - it is better to use a full block (large_sparse_bellman!(Tv, Tv)) than a few warps
         return false
     end
 
@@ -735,14 +735,14 @@ Base.@propagate_inbounds function state_action_sparse_omaximization!(
     ambiguity_set,
     value_lt,
 ) where {Tv}
-    ff_sparse_initialize_sorting_shared_memory!(V, ambiguity_set, value_ws, gap_ws)
-
     value_ws = @view value_ws[1:IntervalMDP.supportsize(ambiguity_set)]
     gap_ws = @view gap_ws[1:IntervalMDP.supportsize(ambiguity_set)]
+
+    ff_sparse_initialize_sorting_shared_memory!(V, ambiguity_set, value_ws, gap_ws)
     block_bitonic_sort!(value_ws, gap_ws, value_lt)
 
     value, remaining = add_lower_mul_V_block(V, ambiguity_set)
-    value += ff_add_gap_mul_V_sparse(value_ws, gap_ws, remaining)
+    # value += ff_add_gap_mul_V_sparse(value_ws, gap_ws, remaining)
 
     return value
 end
@@ -767,15 +767,15 @@ Base.@propagate_inbounds function add_lower_mul_V_block(V::AbstractVector{R}, am
         s += blockDim().x
     end
 
-    used = CUDA.reduce_block(+, used, zero(R), Val(true))
-    lower_value = CUDA.reduce_block(+, lower_value, zero(R), Val(true))
+    used = reduce_block(+, used, zero(R), Val(true))
+    lower_value = reduce_block(+, lower_value, zero(R), Val(true))
 
     if threadIdx().x == one(Int32)
         share_ws[1] = used  # No need to share lower_value since it is only used by the first thread
     end
     sync_threads()
 
-    used = share_ws[1]
+    # used = share_ws[1]
     remaining = one(R) - used
 
     return lower_value, remaining
@@ -849,7 +849,7 @@ Base.@propagate_inbounds function ff_add_gap_mul_V_sparse(value, prob, remaining
         s += blockDim().x
     end
 
-    gap_value = CUDA.reduce_block(+, gap_value, zero(Tv), Val(true))
+    gap_value = reduce_block(+, gap_value, zero(Tv), Val(true))
 
     return gap_value
 end
@@ -899,7 +899,7 @@ Base.@propagate_inbounds function fi_add_gap_mul_V_sparse(
     wid = fld1(threadIdx().x, warpsize())
     reduction_ws = CuStaticSharedArray(Tv, 32)
 
-    loop_length = nextmult(blockDim().x, length(prob))
+    loop_length = nextmult(blockDim().x, IntervalMDP.supportsize(ambiguity_set))
     gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
@@ -945,7 +945,7 @@ Base.@propagate_inbounds function fi_add_gap_mul_V_sparse(
         s += blockDim().x
     end
 
-    gap_value = CUDA.reduce_block(+, gap_value, zero(Tv), Val(true))
+    gap_value = reduce_block(+, gap_value, zero(Tv), Val(true))
 
     return gap_value
 end
@@ -996,7 +996,7 @@ Base.@propagate_inbounds function ii_add_gap_mul_V_sparse(
     wid = fld1(threadIdx().x, warpsize())
     reduction_ws = CuStaticSharedArray(Tv, 32)
 
-    loop_length = nextmult(blockDim().x, length(prob))
+    loop_length = nextmult(blockDim().x, IntervalMDP.supportsize(ambiguity_set))
     gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
@@ -1042,7 +1042,7 @@ Base.@propagate_inbounds function ii_add_gap_mul_V_sparse(
         s += blockDim().x
     end
 
-    gap_value = CUDA.reduce_block(+, gap_value, zero(Tv), Val(true))
+    gap_value = reduce_block(+, gap_value, zero(Tv), Val(true))
 
     return gap_value
 end
@@ -1054,13 +1054,14 @@ Base.@propagate_inbounds function state_action_sparse_omaximization!(
     ambiguity_set,
     value_lt,
 )
-    i_sparse_initialize_sorting_shared_memory!(ambiguity_set, perm)
-
     perm = @view perm[1:IntervalMDP.supportsize(ambiguity_set)]
+
+    i_sparse_initialize_sorting_shared_memory!(ambiguity_set, perm)
     block_bitonic_sortperm!(V, perm, nothing, value_lt)
 
     value, remaining = add_lower_mul_V_block(V, ambiguity_set)
     value += i_add_gap_mul_V_sparse(V, perm, ambiguity_set, remaining)
+    value = zero(IntervalMDP.valuetype(V))
 
     return value
 end
@@ -1090,12 +1091,12 @@ Base.@propagate_inbounds function i_add_gap_mul_V_sparse(
     wid = fld1(threadIdx().x, warpsize())
     reduction_ws = CuStaticSharedArray(Tv, 32)
 
-    loop_length = nextmult(blockDim().x, length(perm))
+    loop_length = nextmult(blockDim().x, IntervalMDP.supportsize(ambiguity_set))
     gap_value = zero(Tv)
 
     # Block-strided loop and save into register `gap_value`
     s = threadIdx().x
-    @inbounds while s <= loop_length
+    while s <= loop_length
         # Find index of the permutation, and lookup the corresponding gap
         g = if s <= length(perm)
             gap(ambiguity_set, perm[s])
@@ -1135,7 +1136,7 @@ Base.@propagate_inbounds function i_add_gap_mul_V_sparse(
         s += blockDim().x
     end
 
-    gap_value = CUDA.reduce_block(+, gap_value, zero(Tv), Val(true))
+    gap_value = reduce_block(+, gap_value, zero(Tv), Val(true))
 
     return gap_value
 end

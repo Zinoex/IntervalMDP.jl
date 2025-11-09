@@ -160,7 +160,7 @@ end
         s += blockDim().x
     end
 
-    opt_val = CUDA.reduce_block(action_min, opt_val, action_neutral, Val(true))
+    opt_val = reduce_block(action_min, opt_val, action_neutral, Val(true))
     return opt_val
 end
 

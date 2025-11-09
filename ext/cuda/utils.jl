@@ -23,7 +23,7 @@ end
     return val
 end
 
-@inline function cumsum_block(val, workspace, wid)
+Base.@propagate_inbounds function cumsum_block(val, workspace, wid)
     # TODO: Use static shared mem
 
     # Warp-reduction
