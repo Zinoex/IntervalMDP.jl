@@ -1014,8 +1014,8 @@ end
         end
     end
 
-    # 4-D abstraction
-    @testset "4D abstraction" begin
+    # 4-D rand
+    @testset "4D rand" begin
         rng = MersenneTwister(995)
 
         prob_lower = [rand(rng, N, 3, 81) ./ N(3) for _ in 1:4]
