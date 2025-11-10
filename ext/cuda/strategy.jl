@@ -62,7 +62,7 @@ Base.@propagate_inbounds function extract_strategy_warp!(
         s += warpsize()
     end
 
-    opt_val = CUDA.reduce_warp(action_min, opt_val)
+    opt_val = reduce_warp(action_min, opt_val)
     return opt_val
 end
 

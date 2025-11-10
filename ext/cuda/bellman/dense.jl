@@ -282,7 +282,7 @@ Base.@propagate_inbounds function state_action_dense_omaximization!(
         end
         s += warpsize()
     end
-    used = CUDA.reduce_warp(+, used)
+    used = reduce_warp(+, used)
     used = shfl_sync(0xffffffff, used, one(Int32))
     remaining = one(R) - used
 
@@ -323,6 +323,6 @@ Base.@propagate_inbounds function state_action_dense_omaximization!(
     end
     sync_warp()
 
-    res_value = CUDA.reduce_warp(+, res_value)
+    res_value = reduce_warp(+, res_value)
     return res_value
 end

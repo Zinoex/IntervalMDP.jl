@@ -376,18 +376,21 @@ gap(p::IntervalAmbiguitySet) = p.gap
 Base.@propagate_inbounds gap(p::IntervalAmbiguitySet, destination) = p.gap[destination]
 
 const ColumnView{Tv} =
-    SubArray{Tv, 1, <:AbstractMatrix{Tv}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}}
+    SubArray{Tv, 1, <:AbstractMatrix{Tv}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}, true}
 support(p::IntervalAmbiguitySet{R, <:ColumnView{R}}) where {R} = eachindex(p.gap)
-supportsize(p::IntervalAmbiguitySet{R, <:ColumnView{R}}) where {R} = length(p.gap)
+support(::IntervalAmbiguitySet{R, <:ColumnView{R}}, s) where {R} = s
+supportsize(p::IntervalAmbiguitySet{R, <:ColumnView{R}}) where {R} = Int32(length(p.gap))
 
 const SparseColumnView{Tv, Ti} = SubArray{
     Tv,
     1,
     <:SparseArrays.AbstractSparseMatrixCSC{Tv, Ti},
     Tuple{Base.Slice{Base.OneTo{Int}}, Int},
+    false
 }
 Base.@propagate_inbounds support(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = rowvals(p.gap)
-Base.@propagate_inbounds supportsize(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = nnz(p.gap)
+Base.@propagate_inbounds support(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}, s) where {R} = support(p)[s]
+Base.@propagate_inbounds supportsize(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = Int32(nnz(p.gap))
 
 # Vertex iterator for IntervalAmbiguitySet
 struct IntervalAmbiguitySetVertexIterator{R, VR <: AbstractVector{R}} <: VertexIterator

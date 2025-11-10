@@ -411,11 +411,11 @@ Base.@propagate_inbounds function add_lower_mul_V_warp(V::AbstractVector{R}, amb
         end
         s += warpsize()
     end
-    used = CUDA.reduce_warp(+, used)
+    used = reduce_warp(+, used)
     used = shfl_sync(0xffffffff, used, one(Int32))
     remaining = one(R) - used
 
-    lower_value = CUDA.reduce_warp(+, lower_value)
+    lower_value = reduce_warp(+, lower_value)
 
     return lower_value, remaining
 end
@@ -461,7 +461,7 @@ Base.@propagate_inbounds function small_add_gap_mul_V_sparse(value, prob, remain
         s += warpsize()
     end
 
-    gap_value = CUDA.reduce_warp(+, gap_value)
+    gap_value = reduce_warp(+, gap_value)
     return gap_value
 end
 

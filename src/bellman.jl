@@ -809,12 +809,11 @@ Base.@propagate_inbounds function state_action_bellman(
     Vₑ = workspace.expectation_cache
     R = valuetype(model)
 
-    s = support.(ambiguity_sets)
     ssize = supportsize.(ambiguity_sets)
 
     # For each higher-level state in the product space
     for Isparse in CartesianIndices(ssize[2:end])
-        I = CartesianIndex(getindex.(s[2:end], Tuple(Isparse)))
+        I = CartesianIndex(support.(ambiguity_sets[2:end], Tuple(Isparse)))
 
         # For the first dimension, we need to copy the values from V
         v = orthogonal_inner_bellman!(
