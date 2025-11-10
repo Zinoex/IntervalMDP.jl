@@ -132,7 +132,7 @@ end
 
         n = 100000
         m = 10
-        nnz_per_column = 1500   # It has to be greater than 187 to fill shared memory with up to 32 states per block.
+        nnz_per_column = 800   # It has to be greater than 767 to fill shared memory, with 4 warps per block.
         prob, V, cuda_prob, cuda_V =
             sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
 
