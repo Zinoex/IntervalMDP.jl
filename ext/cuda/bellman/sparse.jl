@@ -748,7 +748,7 @@ Base.@propagate_inbounds function state_action_sparse_omaximization!(
 end
 
 Base.@propagate_inbounds function add_lower_mul_V_block(V::AbstractVector{R}, ambiguity_set) where {R}
-    share_ws = CuStaticSharedArray(R, 1)
+    reduction_ws = CuStaticSharedArray(R, 32)
 
     supportsize = IntervalMDP.supportsize(ambiguity_set)
 
@@ -767,15 +767,15 @@ Base.@propagate_inbounds function add_lower_mul_V_block(V::AbstractVector{R}, am
         s += blockDim().x
     end
 
-    used = reduce_block(+, used, zero(R), Val(true))
-    lower_value = reduce_block(+, lower_value, zero(R), Val(true))
+    used = reduce_block(reduction_ws, +, used, zero(R), Val(true))
+    lower_value = reduce_block(reduction_ws, +, lower_value, zero(R), Val(true))
 
     if threadIdx().x == one(Int32)
-        share_ws[1] = used  # No need to share lower_value since it is only used by the first thread
+        reduction_ws[1] = used  # No need to share lower_value since it is only used by the first thread
     end
     sync_threads()
 
-    used = share_ws[1]
+    used = reduction_ws[1]
     remaining = one(R) - used
 
     return lower_value, remaining
@@ -849,26 +849,26 @@ Base.@propagate_inbounds function ff_add_gap_mul_V_sparse(value, prob, remaining
         s += blockDim().x
     end
 
-    gap_value = reduce_block(+, gap_value, zero(Tv), Val(true))
+    gap_value = reduce_block(reduction_ws, +, gap_value, zero(Tv), Val(true))
 
     return gap_value
 end
 
 Base.@propagate_inbounds function state_action_sparse_omaximization!(
-    value::AbstractVector{Tv},
-    perm::AbstractVector{Int32},
+    value_ws::AbstractVector{Tv},
+    perm_ws::AbstractVector{Int32},
     V,
     ambiguity_set,
     value_lt,
 ) where {Tv}
-    value = @view value[1:IntervalMDP.supportsize(ambiguity_set)]
-    perm = @view perm[1:IntervalMDP.supportsize(ambiguity_set)]
+    value_ws = @view value_ws[1:IntervalMDP.supportsize(ambiguity_set)]
+    perm_ws = @view perm_ws[1:IntervalMDP.supportsize(ambiguity_set)]
 
-    fi_sparse_initialize_sorting_shared_memory!(V, ambiguity_set, value, perm)
-    block_bitonic_sort!(value, perm, value_lt)
+    fi_sparse_initialize_sorting_shared_memory!(V, ambiguity_set, value_ws, perm_ws)
+    block_bitonic_sort!(value_ws, perm_ws, value_lt)
 
     value, remaining = add_lower_mul_V_block(V, ambiguity_set)
-    value += fi_add_gap_mul_V_sparse(value, perm, ambiguity_set, remaining)
+    value += fi_add_gap_mul_V_sparse(value_ws, perm_ws, ambiguity_set, remaining)
 
     return value
 end
@@ -945,7 +945,7 @@ Base.@propagate_inbounds function fi_add_gap_mul_V_sparse(
         s += blockDim().x
     end
 
-    gap_value = reduce_block(+, gap_value, zero(Tv), Val(true))
+    gap_value = reduce_block(reduction_ws, +, gap_value, zero(Tv), Val(true))
 
     return gap_value
 end
@@ -1042,7 +1042,7 @@ Base.@propagate_inbounds function ii_add_gap_mul_V_sparse(
         s += blockDim().x
     end
 
-    gap_value = reduce_block(+, gap_value, zero(Tv), Val(true))
+    gap_value = reduce_block(reduction_ws, +, gap_value, zero(Tv), Val(true))
 
     return gap_value
 end
@@ -1135,7 +1135,7 @@ Base.@propagate_inbounds function i_add_gap_mul_V_sparse(
         s += blockDim().x
     end
 
-    gap_value = reduce_block(+, gap_value, zero(Tv), Val(true))
+    gap_value = reduce_block(reduction_ws, +, gap_value, zero(Tv), Val(true))
 
     return gap_value
 end

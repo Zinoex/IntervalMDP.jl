@@ -1,10 +1,14 @@
+@inline function reduce_block(op, val::T, neutral, shuffle::Val{true}) where T 
+    # shared mem for partial sums
+    shared = CuStaticSharedArray(T, 32)
+    return reduce_block(shared, op, val, neutral, shuffle)
+end
+
 
 # Reduce a value across a block, using shared memory for communication
-@inline function reduce_block(op, val::T, neutral, shuffle::Val{true}) where T
-    # shared mem for partial sums
+@inline function reduce_block(shared, op, val::T, neutral, shuffle::Val{true}) where T
     assume(warpsize() == 32)
     assume(threadIdx().x >= 1)
-    shared = CuStaticSharedArray(T, 32)
 
     wid = fld1(threadIdx().x, warpsize())
     lane = mod1(threadIdx().x, warpsize())
