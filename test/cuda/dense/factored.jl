@@ -300,7 +300,7 @@ end
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test Array(Vres) ≈ Vexpected atol=epsilon
+            @test IntervalMDP.cpu(Vres) ≈ Vexpected atol=epsilon
         end
 
         @testset "min/max" begin
@@ -331,7 +331,7 @@ end
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test Array(Vres) ≈ Vexpected atol=epsilon
+            @test IntervalMDP.cpu(Vres) ≈ Vexpected atol=epsilon
         end
 
         #### Minimization
@@ -363,7 +363,7 @@ end
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test Array(Vres) ≈ Vexpected atol=epsilon
+            @test IntervalMDP.cpu(Vres) ≈ Vexpected atol=epsilon
         end
 
         @testset "max/min" begin
@@ -394,7 +394,7 @@ end
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test Array(Vres) ≈ Vexpected atol=epsilon
+            @test IntervalMDP.cpu(Vres) ≈ Vexpected atol=epsilon
         end
     end
 
@@ -527,7 +527,7 @@ end
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test Array(Vres) ≈ Vexpected atol=epsilon
+            @test IntervalMDP.cpu(Vres) ≈ Vexpected atol=epsilon
         end
 
         #### Minimization
@@ -557,7 +557,7 @@ end
             )
 
             epsilon = N == Float32 ? 1e-5 : 1e-8
-            @test Array(Vres) ≈ Vexpected atol=epsilon
+            @test IntervalMDP.cpu(Vres) ≈ Vexpected atol=epsilon
         end
     end
 
@@ -708,9 +708,9 @@ end
             V, k, res = solve(prob, alg)
             V_implicit, k_implicit, res_implicit = solve(implicit_prob, alg)
 
-            @test V ≈ Array(V_implicit)
+            @test V ≈ IntervalMDP.cpu(V_implicit)
             @test k == k_implicit
-            @test res ≈ Array(res_implicit)
+            @test res ≈ IntervalMDP.cpu(res_implicit)
         end
 
         @testset "second dimension" begin
@@ -858,9 +858,9 @@ end
             V, k, res = solve(prob, alg)
             V_implicit, k_implicit, res_implicit = solve(implicit_prob, alg)
 
-            @test V ≈ Array(V_implicit)
+            @test V ≈ IntervalMDP.cpu(V_implicit)
             @test k == k_implicit
-            @test res ≈ Array(res_implicit)
+            @test res ≈ IntervalMDP.cpu(res_implicit)
         end
 
         @testset "last dimension" begin
@@ -1008,9 +1008,9 @@ end
             V, k, res = solve(prob, alg)
             V_implicit, k_implicit, res_implicit = solve(implicit_prob, alg)
 
-            @test V ≈ Array(V_implicit)
+            @test V ≈ IntervalMDP.cpu(V_implicit)
             @test k == k_implicit
-            @test res ≈ Array(res_implicit)
+            @test res ≈ IntervalMDP.cpu(res_implicit)
         end
     end
 
@@ -1043,9 +1043,9 @@ end
         V, it, res = solve(prob, alg)
         V_cuda, it_cuda, res_cuda = solve(cuda_prob, alg)
 
-        @test V ≈ Array(V_cuda) 
+        @test V ≈ IntervalMDP.cpu(V_cuda) 
         @test it == it_cuda
-        @test res ≈ Array(res_cuda)
+        @test res ≈ IntervalMDP.cpu(res_cuda)
     end
 
     # 5-D rand
@@ -1077,9 +1077,9 @@ end
         V, it, res = solve(prob, alg)
         V_cuda, it_cuda, res_cuda = solve(cuda_prob, alg)
 
-        @test V ≈ Array(V_cuda) 
+        @test V ≈ IntervalMDP.cpu(V_cuda)
         @test it == it_cuda
-        @test res ≈ Array(res_cuda)
+        @test res ≈ IntervalMDP.cpu(res_cuda)
     end
 
     @testset "synthesis" begin

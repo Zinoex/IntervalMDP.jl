@@ -340,10 +340,11 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
         
         isparse += div(blockDim().x, warpsize())  # nwarps
     end
+    sync_threads()
 
     # Final layer reduction
     value = zero(Tv)
-    if div(threadIdx().x, warpsize()) == one(Int32) # wid == 1
+    if fld1(threadIdx().x, warpsize()) == one(Int32) # wid == 1
         # Only one warp does the reduction, as it is typically so small (<32-64)
         # that block synchronization overhead is not worth it, compared to warp shuffles.
         ambiguity_set = model[Int32(2)][jₐ, jₛ]
@@ -421,10 +422,11 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
 
         isparse_last += div(blockDim().x, warpsize())  # nwarps
     end
+    sync_threads()
 
     # Final layer reduction
     value = zero(Tv)
-    if div(threadIdx().x, warpsize()) == one(Int32) # wid == 1
+    if fld1(threadIdx().x, warpsize()) == one(Int32) # wid == 1
         # Only one warp does the reduction, as it is typically so small (<32-64)
         # that block synchronization overhead is not worth it, compared to warp shuffles.
         ambiguity_set = model[Int32(3)][jₐ, jₛ]
@@ -519,10 +521,11 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
 
         isparse_last += div(blockDim().x, warpsize())  # nwarps
     end
+    sync_threads()
 
     # Final layer reduction
     value = zero(Tv)
-    if div(threadIdx().x, warpsize()) == one(Int32) # wid == 1
+    if fld1(threadIdx().x, warpsize()) == one(Int32) # wid == 1
         # Only one warp does the reduction, as it is typically so small (<32-64)
         # that block synchronization overhead is not worth it, compared to warp shuffles.
         ambiguity_set = model[Int32(4)][jₐ, jₛ]
@@ -633,10 +636,11 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
 
         isparse_last += div(blockDim().x, warpsize())  # nwarps
     end
+    sync_threads()
 
     # Final layer reduction
     value = zero(Tv)
-    if div(threadIdx().x, warpsize()) == one(Int32) # wid == 1
+    if fld1(threadIdx().x, warpsize()) == one(Int32) # wid == 1
         # Only one warp does the reduction, as it is typically so small (<32-64)
         # that block synchronization overhead is not worth it, compared to warp shuffles.
         ambiguity_set = model[Int32(5)][jₐ, jₛ]
