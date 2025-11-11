@@ -342,12 +342,18 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     end
 
     # Final layer reduction
-    ambiguity_set = model[Int32(2)][jₐ, jₛ]
-    factored_initialize_block_sorting_shared_memory!(ambiguity_set, gap_ws[end])
-    value = add_lower_mul_V_norem_block(value_ws[end], ambiguity_set)
+    value = zero(Tv)
+    if div(threadIdx().x, warpsize()) == one(Int32) # wid == 1
+        # Only one warp does the reduction, as it is typically so small (<32-64)
+        # that block synchronization overhead is not worth it, compared to warp shuffles.
+        ambiguity_set = model[Int32(2)][jₐ, jₛ]
+        factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[end])
+        value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_set)
 
-    block_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
-    value += ff_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
+        warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
+        value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
+    end
+    sync_threads()
 
     return value
 end
@@ -417,12 +423,18 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     end
 
     # Final layer reduction
-    ambiguity_set = model[Int32(3)][jₐ, jₛ]
-    factored_initialize_block_sorting_shared_memory!(ambiguity_set, gap_ws[end])
-    value = add_lower_mul_V_norem_block(value_ws[end], ambiguity_set)
+    value = zero(Tv)
+    if div(threadIdx().x, warpsize()) == one(Int32) # wid == 1
+        # Only one warp does the reduction, as it is typically so small (<32-64)
+        # that block synchronization overhead is not worth it, compared to warp shuffles.
+        ambiguity_set = model[Int32(3)][jₐ, jₛ]
+        factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[end])
+        value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_set)
 
-    block_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
-    value += ff_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
+        warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
+        value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
+    end
+    sync_threads()
 
     return value
 end
@@ -509,12 +521,18 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     end
 
     # Final layer reduction
-    ambiguity_set = model[Int32(4)][jₐ, jₛ]
-    factored_initialize_block_sorting_shared_memory!(ambiguity_set, gap_ws[end])
-    value = add_lower_mul_V_norem_block(value_ws[end], ambiguity_set)
+    value = zero(Tv)
+    if div(threadIdx().x, warpsize()) == one(Int32) # wid == 1
+        # Only one warp does the reduction, as it is typically so small (<32-64)
+        # that block synchronization overhead is not worth it, compared to warp shuffles.
+        ambiguity_set = model[Int32(4)][jₐ, jₛ]
+        factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[end])
+        value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_set)
 
-    block_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
-    value += ff_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
+        warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
+        value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
+    end
+    sync_threads()
 
     return value
 end
@@ -617,12 +635,18 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     end
 
     # Final layer reduction
-    ambiguity_set = model[Int32(5)][jₐ, jₛ]
-    factored_initialize_block_sorting_shared_memory!(ambiguity_set, gap_ws[end])
-    value = add_lower_mul_V_norem_block(value_ws[end], ambiguity_set)
+    value = zero(Tv)
+    if div(threadIdx().x, warpsize()) == one(Int32) # wid == 1
+        # Only one warp does the reduction, as it is typically so small (<32-64)
+        # that block synchronization overhead is not worth it, compared to warp shuffles.
+        ambiguity_set = model[Int32(5)][jₐ, jₛ]
+        factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[end])
+        value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_set)
 
-    block_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
-    value += ff_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
+        warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
+        value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
+    end
+    sync_threads()
 
     return value
 end
