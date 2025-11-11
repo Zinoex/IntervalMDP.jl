@@ -319,14 +319,16 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     value_ws = view_supportsizes(value_ws, ssz)
     gap_ws = view_supportsizes(gap_ws, ssz)
 
+    # Pre-compute the first ambiguity sets, as it is used by far the most
+    first_ambiguity_set = model[one(Int32)][jₐ, jₛ]
+
     isparse = fld1(threadIdx().x, warpsize())  # wid
     while isparse <= ssz[end]
         I = supports(model, jₐ, jₛ, isparse)
 
         # For the first dimension, we need to copy the values from V
-        ambiguity_set = model[one(Int32)][jₐ, jₛ]
-        factored_initialize_warp_sorting_shared_memory!(@view(V[:, I]), ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
-        v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], ambiguity_set)
+        factored_initialize_warp_sorting_shared_memory!(@view(V[:, I]), first_ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
+        v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], first_ambiguity_set)
 
         warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
         v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], bdgts[one(Int32)])
@@ -366,6 +368,10 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     value_ws = view_supportsizes(value_ws, ssz)
     gap_ws = view_supportsizes(gap_ws, ssz)
 
+    # Pre-compute the first two ambiguity sets, as they are used by far the most
+    first_ambiguity_set = model[one(Int32)][jₐ, jₛ]
+    second_ambiguity_set = model[Int32(2)][jₐ, jₛ]
+
     isparse_last = fld1(threadIdx().x, warpsize())  # wid
     while isparse_last <= ssz[end]
 
@@ -375,9 +381,8 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
             I = supports(model, jₐ, jₛ, Isparse)
 
             # For the first dimension, we need to copy the values from V
-            ambiguity_set = model[one(Int32)][jₐ, jₛ]
-            factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
-            v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], ambiguity_set)
+            factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), first_ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
+            v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], first_ambiguity_set)
 
             warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
             v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], bdgts[one(Int32)])
@@ -396,9 +401,8 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
                 continue
             end
 
-            ambiguity_set = model[Int32(2)][jₐ, jₛ]
-            factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(2)])
-            v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], ambiguity_set)
+            factored_initialize_warp_sorting_shared_memory!(second_ambiguity_set, gap_ws[Int32(2)])
+            v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], second_ambiguity_set)
 
             warp_bitonic_sort!(value_ws[Int32(2)], gap_ws[Int32(2)], value_lt)
             v += small_add_gap_mul_V_sparse(value_ws[Int32(2)], gap_ws[Int32(2)], bdgts[Int32(2)])
@@ -439,6 +443,10 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     value_ws = view_supportsizes(value_ws, ssz)
     gap_ws = view_supportsizes(gap_ws, ssz)
 
+    # Pre-compute the first two ambiguity sets, as they are used by far the most
+    first_ambiguity_set = model[one(Int32)][jₐ, jₛ]
+    second_ambiguity_set = model[Int32(2)][jₐ, jₛ]
+
     isparse_last = fld1(threadIdx().x, warpsize())  # wid
     while isparse_last <= ssz[end]
 
@@ -449,9 +457,8 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
             I = supports(model, jₐ, jₛ, Isparse)
 
             # For the first dimension, we need to copy the values from V
-            ambiguity_set = model[one(Int32)][jₐ, jₛ]
-            factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
-            v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], ambiguity_set)
+            factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), first_ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
+            v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], first_ambiguity_set)
 
             warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
             v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], bdgts[one(Int32)])
@@ -470,9 +477,8 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
                 continue
             end
 
-            ambiguity_set = model[Int32(2)][jₐ, jₛ]
-            factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(2)])
-            v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], ambiguity_set)
+            factored_initialize_warp_sorting_shared_memory!(second_ambiguity_set, gap_ws[Int32(2)])
+            v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], second_ambiguity_set)
 
             warp_bitonic_sort!(value_ws[Int32(2)], gap_ws[Int32(2)], value_lt)
             v += small_add_gap_mul_V_sparse(value_ws[Int32(2)], gap_ws[Int32(2)], bdgts[Int32(2)])
@@ -529,6 +535,10 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     value_ws = view_supportsizes(value_ws, ssz)
     gap_ws = view_supportsizes(gap_ws, ssz)
 
+    # Pre-compute the first two ambiguity sets, as they are used by far the most
+    first_ambiguity_set = model[one(Int32)][jₐ, jₛ]
+    second_ambiguity_set = model[Int32(2)][jₐ, jₛ]
+
     isparse_last = fld1(threadIdx().x, warpsize())  # wid
     while isparse_last <= ssz[end]
 
@@ -539,9 +549,8 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
             I = supports(model, jₐ, jₛ, Isparse)
 
             # For the first dimension, we need to copy the values from V
-            ambiguity_set = model[one(Int32)][jₐ, jₛ]
-            factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
-            v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], ambiguity_set)
+            factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), first_ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
+            v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], first_ambiguity_set)
 
             warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
             v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], bdgts[one(Int32)])
@@ -560,9 +569,8 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
                 continue
             end
 
-            ambiguity_set = model[Int32(2)][jₐ, jₛ]
-            factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(2)])
-            v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], ambiguity_set)
+            factored_initialize_warp_sorting_shared_memory!(second_ambiguity_set, gap_ws[Int32(2)])
+            v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], second_ambiguity_set)
 
             warp_bitonic_sort!(value_ws[Int32(2)], gap_ws[Int32(2)], value_lt)
             v += small_add_gap_mul_V_sparse(value_ws[Int32(2)], gap_ws[Int32(2)], bdgts[Int32(2)])
