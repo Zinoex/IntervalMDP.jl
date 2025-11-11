@@ -2,48 +2,63 @@
 Base.@propagate_inbounds function block_bitonic_sort!(value, aux, lt)
     #### Sort the shared memory with bitonic sort
     nextpow2_length = Base._nextpow2(length(value))
+    log_nextpow2_length = unsafe_trunc(Int32, trailing_zeros(nextpow2_length))
 
-    k = Int32(2)
-    while k <= nextpow2_length
-        block_bitonic_sort_major_step!(value, aux, lt, k)
+    logk = one(Int32)
+    while logk <= log_nextpow2_length
+        block_bitonic_sort_major_step!(value, aux, lt, logk)
 
-        k *= Int32(2)
+        logk += one(Int32)
     end
 end
 
-Base.@propagate_inbounds function block_bitonic_sort_major_step!(value, aux, lt, k)
-    j = k ÷ Int32(2)
-    block_bitonic_sort_minor_step!(value, aux, lt, merge_other_lane, j)
+Base.@propagate_inbounds function block_bitonic_sort_major_step!(value, aux, lt, logk)
+    logj = logk - one(Int32)
+    block_bitonic_sort_minor_step_merge!(value, aux, lt, logj)
 
-    j ÷= Int32(2)
-    while j >= Int32(1)
-        block_bitonic_sort_minor_step!(value, aux, lt, compare_and_swap_other_lane, j)
-        j ÷= Int32(2)
+    logj -= one(Int32)
+    while logj >= zero(Int32)
+        block_bitonic_sort_minor_step_cas!(value, aux, lt, logj)
+        logj -= one(Int32)
     end
 end
 
-Base.@propagate_inbounds function block_bitonic_sort_minor_step!(value, aux, lt, other_lane, j)
-    assume(j >= Int32(1))
+Base.@propagate_inbounds function block_bitonic_sort_minor_step_merge!(value, aux, lt, logj)
+    j = one(Int32) << logj
 
-    # TODO: Swap for bitwise logic
+    block_size = j * Int32(2)
+    mask = block_size - one(Int32)
+    
+    lane = threadIdx().x - one(Int32)
+    i = (lane & (j - one(Int32))) + ((lane >> logj) << (logj + one(Int32)))
+    while i < length(value)
+        l = i ⊻ mask
+        if l < length(value) && !lt(value[i + one(Int32)], value[l + one(Int32)])
+            swapelem(value, i + one(Int32), l + one(Int32))
+            swapelem(aux, i + one(Int32), l + one(Int32))
+        end
 
-    thread = threadIdx().x
-    block = fld1(thread, j)
-    lane = mod1(thread, j)
-    i = (block - one(Int32)) * j * Int32(2) + lane
-    l = (block - one(Int32)) * j * Int32(2) + other_lane(j, lane)
+        lane += blockDim().x
+        i = (lane & (j - one(Int32))) + ((lane >> logj) << (logj + one(Int32)))
+    end
 
+    sync_threads()
+end
+
+Base.@propagate_inbounds function block_bitonic_sort_minor_step_cas!(value, aux, lt, logj::Int32)
+    j = one(Int32) << logj
+
+    lane = threadIdx().x - one(Int32)
+    i = (lane & (j - one(Int32))) + ((lane >> logj) << (logj + one(Int32))) + one(Int32)
     while i <= length(value)
+        l = i + j
         if l <= length(value) && !lt(value[i], value[l])
             swapelem(value, i, l)
             swapelem(aux, i, l)
         end
 
-        thread += blockDim().x
-        block = fld1(thread, j)
-        lane = mod1(thread, j)
-        i = (block - one(Int32)) * j * Int32(2) + lane
-        l = (block - one(Int32)) * j * Int32(2) + other_lane(j, lane)
+        lane += blockDim().x
+        i = (lane & (j - one(Int32))) + ((lane >> logj) << (logj + one(Int32))) + one(Int32)
     end
 
     sync_threads()
@@ -66,7 +81,7 @@ Base.@propagate_inbounds function block_bitonic_sortperm_major_step!(value, perm
     block_bitonic_sortperm_minor_step!(value, perm, aux, lt, merge_other_lane, j)
 
     j ÷= Int32(2)
-    while j >= Int32(1)
+    while j >= one(Int32)
         block_bitonic_sortperm_minor_step!(
             value,
             perm,
@@ -80,7 +95,7 @@ Base.@propagate_inbounds function block_bitonic_sortperm_major_step!(value, perm
 end
 
 Base.@propagate_inbounds function block_bitonic_sortperm_minor_step!(value, perm, aux, lt, other_lane, j)
-    assume(j >= Int32(1))
+    assume(j >= one(Int32))
 
     thread = threadIdx().x
     block = fld1(thread, j)
@@ -119,29 +134,29 @@ Base.@propagate_inbounds function warp_bitonic_sort!(value, aux, lt)
     nextpow2_length = Base._nextpow2(length(value))
     log_nextpow2_length = unsafe_trunc(Int32, trailing_zeros(nextpow2_length))
 
-    logk = Int32(1)
+    logk = one(Int32)
     while logk <= log_nextpow2_length
         warp_bitonic_sort_major_step!(value, aux, lt, logk)
 
-        logk += Int32(1)
+        logk += one(Int32)
     end
 end
 
 Base.@propagate_inbounds function warp_bitonic_sort_major_step!(value, aux, lt, logk)
-    logj = logk - Int32(1)
+    logj = logk - one(Int32)
     warp_bitonic_sort_minor_step_merge!(value, aux, lt, logj)
 
-    logj -= Int32(1)
-    while logj >= Int32(0)
+    logj -= one(Int32)
+    while logj >= zero(Int32)
         warp_bitonic_sort_minor_step_cas!(value, aux, lt, logj)
-        logj -= Int32(1)
+        logj -= one(Int32)
     end
 end
 
 Base.@propagate_inbounds function warp_bitonic_sort_minor_step_merge!(value, aux, lt, logj::Int32)
     assume(warpsize() == Int32(32))
 
-    j = Int32(1) << logj
+    j = one(Int32) << logj
     block_size = j * Int32(2)
     mask = block_size - one(Int32)
 
@@ -154,7 +169,8 @@ Base.@propagate_inbounds function warp_bitonic_sort_minor_step_merge!(value, aux
             swapelem(aux, i + one(Int32), l + one(Int32))
         end
 
-        i = Int32(2) * warpsize()
+        lane += warpsize()
+        i = (lane & (j - one(Int32))) + ((lane >> logj) << (logj + one(Int32))) + one(Int32)
     end
 
     sync_warp()
@@ -174,7 +190,8 @@ Base.@propagate_inbounds function warp_bitonic_sort_minor_step_cas!(value, aux, 
             swapelem(aux, i, l)
         end
 
-        i += Int32(2) * warpsize()
+        lane += warpsize()
+        i = (lane & (j - one(Int32))) + ((lane >> logj) << (logj + one(Int32))) + one(Int32)
     end
 
     sync_warp()
