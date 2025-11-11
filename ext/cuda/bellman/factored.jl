@@ -19,10 +19,12 @@ function IntervalMDP._bellman_helper!(
 
     # Execution plan:
     # - 1 block per state
-    # - Use one warp each action.
-    # - The reduction in each warp follows the same pattern as the CPU implementation.
+    # - Use the whole block for each action (i.e., iterate over actions sequentially)
+    # - For each action, each warp computes the recursive O-maximization for each index in the last marginal's support
+    # - For the last marginal, use block-level reduction to compute the final value for the action
+    # - Store the action values in shared memory
+    # - Finally, use block-level reduction to find the optimal action and value
 
-    # TODO: Reason about divergence more carefully.
     # - The task divergence should be minimal as all warps operate on the same marginal synchronously (including sparsity patterns).
     # - The data divergence should also be minimal for the same reason, with the exception of the first level, which will 
     #   access different ranges of V (global mem). However, since the threads in a warp access contiguous elements of V, this will still be coalesced.
@@ -32,11 +34,13 @@ function IntervalMDP._bellman_helper!(
 
     function shmem_func(threads)
         warps = div(threads, 32)
-        expectation_cache_size = 2 * sum(workspace.max_support_per_marginal) *
+        expectation_cache_size = 2 * sum(workspace.max_support_per_marginal[1:end - 1]) *
             warps * sizeof(Tv)
+        last_expectation_cache_size = 2 * workspace.max_support_per_marginal[end] * sizeof(Tv)
         action_cache_size =
             n_actions * sizeof(Tv)
         return expectation_cache_size +
+            last_expectation_cache_size +
             action_cache_size
     end
 
@@ -54,7 +58,7 @@ function IntervalMDP._bellman_helper!(
     
     max_threads = prevwarp(device(), config.threads)
     warps = div(max_threads, 32)
-    warps = min(warps, n_actions)
+    warps = min(warps, workspace.max_support_per_marginal[end])
     threads = warps * 32
     n_states = IntervalMDP.num_source(model)
     blocks = min(2^16 - 1, n_states)
@@ -141,13 +145,17 @@ Base.@propagate_inbounds function initialize_factored_value_and_gap(
 
     Tv = IntervalMDP.valuetype(model)
 
-    size = sum(workspace.max_support_per_marginal)
-    ws = CuDynamicSharedArray(Tv, (size, Int32(2) * nwarps), num_actions(model) * sizeof(Tv))
+    size = sum(workspace.max_support_per_marginal[1:end - 1])
+    ws = CuDynamicSharedArray(Tv, (size, Int32(2), nwarps), num_actions(model) * sizeof(Tv))
+    final_ws = CuDynamicSharedArray(Tv, (workspace.max_support_per_marginal[end], Int32(2)), num_actions(model) * sizeof(Tv) + size * Int32(2) * nwarps * sizeof(Tv))
 
-    value_ws = @view(ws[:, Int32(2) * wid - one(Int32)])
-    gap_ws = @view(ws[:, Int32(2) * wid])
+    value_ws = @view(ws[:, Int32(1), wid])
+    gap_ws = @view(ws[:, Int32(2), wid])
 
-    return value_ws, gap_ws
+    final_value_ws = @view(final_ws[:, Int32(1)])
+    final_gap_ws = @view(final_ws[:, Int32(2)])
+
+    return (value_ws, final_value_ws), (gap_ws, final_gap_ws)
 end
 
 Base.@propagate_inbounds function initialize_factored_value_and_gap(
@@ -163,12 +171,16 @@ Base.@propagate_inbounds function initialize_factored_value_and_gap(
     Tv = IntervalMDP.valuetype(model)
 
     size = sum(workspace.max_support_per_marginal)
-    ws = CuDynamicSharedArray(Tv, (size, Int32(2) * nwarps))
+    ws = CuDynamicSharedArray(Tv, (size, Int32(2), nwarps))
+    final_ws = CuDynamicSharedArray(Tv, (workspace.max_support_per_marginal[end], Int32(2)), size * Int32(2) * nwarps * sizeof(Tv))
 
-    value_ws = @view(ws[:, Int32(2) * wid - one(Int32)])
-    gap_ws = @view(ws[:, Int32(2) * wid])
+    value_ws = @view(ws[:, Int32(1), wid])
+    gap_ws = @view(ws[:, Int32(2), wid])
 
-    return value_ws, gap_ws
+    final_value_ws = @view(final_ws[:, Int32(1)])
+    final_gap_ws = @view(final_ws[:, Int32(2)])
+
+    return (value_ws, final_value_ws), (gap_ws, final_gap_ws)
 end
 
 Base.@propagate_inbounds function factored_omaximization!(
@@ -220,10 +232,9 @@ Base.@propagate_inbounds function state_factored_bellman!(
     value_lt,
     action_reduce,
 ) where {N, M}
-    assume(warpsize() == 32)
     n_actions = num_actions(model)
 
-    jₐ = fld1(threadIdx().x, warpsize())
+    jₐ = one(Int32)
     while jₐ <= n_actions
         I = ind2sub_gpu(action_shape(model), jₐ)
 
@@ -239,15 +250,49 @@ Base.@propagate_inbounds function state_factored_bellman!(
             value_lt,
         )
 
-        if laneid() == one(Int32)
+        if threadIdx().x == one(Int32)
             action_workspace[jₐ] = v
         end
 
-        jₐ += div(blockDim().x, warpsize())  # nwarps
+        jₐ += one(Int32)
     end
 
     sync_threads()
     v = extract_strategy_block!(strategy_cache, action_workspace, jₛ, action_reduce)
+    
+    if threadIdx().x == one(Int32)
+        Vres[jₛ...] = v
+    end
+
+    return nothing
+end
+
+Base.@propagate_inbounds function state_factored_bellman!(
+    workspace::CuFactoredOMaxWorkspace,
+    strategy_cache::NonOptimizingActiveCache,
+    Vres,
+    V,
+    model::IntervalMDP.FactoredRMDP{N, M},
+    action_workspace,
+    value_ws,
+    gap_ws,
+    jₛ,
+    value_lt,
+    action_reduce,
+) where {N, M}
+    jₐ = strategy_cache[jₛ...]
+
+    # Use O-maxmization to find the value for the action
+    v = state_action_factored_bellman!(
+        workspace,
+        V,
+        model,
+        value_ws,
+        gap_ws,
+        jₛ,
+        jₐ,
+        value_lt,
+    )
     
     if threadIdx().x == one(Int32)
         Vres[jₛ...] = v
@@ -266,13 +311,15 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     jₐ,
     value_lt,
 ) where {M, Tv}
+    assume(warpsize() == 32)
+
     bdgts = budgets(model, jₐ, jₛ)
     ssz = supportsizes(model, jₐ, jₛ)
 
     value_ws = view_supportsizes(value_ws, ssz)
     gap_ws = view_supportsizes(gap_ws, ssz)
 
-    isparse = one(Int32)
+    isparse = fld1(threadIdx().x, warpsize())  # wid
     while isparse <= ssz[end]
         I = supports(model, jₐ, jₛ, isparse)
 
@@ -287,18 +334,18 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
         if laneid() == one(Int32)
             value_ws[Int32(2)][isparse] = v
         end
-
         sync_warp()
-        isparse += one(Int32)
+        
+        isparse += div(blockDim().x, warpsize())  # nwarps
     end
 
     # Final layer reduction
     ambiguity_set = model[Int32(2)][jₐ, jₛ]
-    factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[end])
-    value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_set)
+    factored_initialize_block_sorting_shared_memory!(ambiguity_set, gap_ws[end])
+    value = add_lower_mul_V_norem_block(value_ws[end], ambiguity_set)
 
-    warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
-    value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
+    block_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
+    value += ff_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
 
     return value
 end
@@ -319,56 +366,59 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     value_ws = view_supportsizes(value_ws, ssz)
     gap_ws = view_supportsizes(gap_ws, ssz)
 
-    Isparse = (one(Int32), one(Int32))
-    done = false
-    while !done
-        I = supports(model, jₐ, jₛ, Isparse)
+    isparse_last = fld1(threadIdx().x, warpsize())  # wid
+    while isparse_last <= ssz[end]
 
-        # For the first dimension, we need to copy the values from V
-        ambiguity_set = model[one(Int32)][jₐ, jₛ]
-        factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
-        v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], ambiguity_set)
+        isparse_inner = one(Int32)
+        while isparse_inner <= ssz[Int32(2)]
+            Isparse = (isparse_inner, isparse_last)
+            I = supports(model, jₐ, jₛ, Isparse)
 
-        warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], bdgts[one(Int32)])
+            # For the first dimension, we need to copy the values from V
+            ambiguity_set = model[one(Int32)][jₐ, jₛ]
+            factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
+            v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], ambiguity_set)
 
-        if laneid() == one(Int32)
-            value_ws[Int32(2)][Isparse[Int32(1)]] = v
+            warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
+            v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], bdgts[one(Int32)])
+
+            if laneid() == one(Int32)
+                value_ws[Int32(2)][Isparse[Int32(1)]] = v
+            end
+            sync_warp()
+
+            isparse_inner += one(Int32)
+
+            # For the remaining dimensions, if "full", compute expectation and store in the next level
+            # The loop over dimensions is unrolled for performance, as N is known at compile time and
+            # GPU compiler fails at compiling the loop if N > 3.
+            if Isparse[Int32(1)] < ssz[Int32(2)]
+                continue
+            end
+
+            ambiguity_set = model[Int32(2)][jₐ, jₛ]
+            factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(2)])
+            v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], ambiguity_set)
+
+            warp_bitonic_sort!(value_ws[Int32(2)], gap_ws[Int32(2)], value_lt)
+            v += small_add_gap_mul_V_sparse(value_ws[Int32(2)], gap_ws[Int32(2)], bdgts[Int32(2)])
+
+            if laneid() == one(Int32)
+                value_ws[Int(3)][Isparse[Int32(2)]] = v
+            end
+            sync_warp()
         end
-        sync_warp()
-        
-        Isparse_new, done = gpu_nextind(ssz[Int32(2):end], Isparse)
 
-        # For the remaining dimensions, if "full", compute expectation and store in the next level
-        # The loop over dimensions is unrolled for performance, as N is known at compile time and
-        # GPU compiler fails at compiling the loop if N > 3.
-        if Isparse[Int32(1)] < ssz[Int32(2)]
-            Isparse = Isparse_new
-            continue
-        end
-
-        ambiguity_set = model[Int32(2)][jₐ, jₛ]
-        factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(2)])
-        v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], ambiguity_set)
-
-        warp_bitonic_sort!(value_ws[Int32(2)], gap_ws[Int32(2)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[Int32(2)], gap_ws[Int32(2)], bdgts[Int32(2)])
-
-        if laneid() == one(Int32)
-            value_ws[Int(3)][Isparse[Int32(2)]] = v
-        end
-        sync_warp()
-
-        Isparse = Isparse_new
+        isparse_last += div(blockDim().x, warpsize())  # nwarps
     end
 
     # Final layer reduction
     ambiguity_set = model[Int32(3)][jₐ, jₛ]
-    factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[end])
-    value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_set)
+    factored_initialize_block_sorting_shared_memory!(ambiguity_set, gap_ws[end])
+    value = add_lower_mul_V_norem_block(value_ws[end], ambiguity_set)
 
-    warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
-    value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
+    block_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
+    value += ff_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
 
     return value
 end
@@ -389,73 +439,76 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     value_ws = view_supportsizes(value_ws, ssz)
     gap_ws = view_supportsizes(gap_ws, ssz)
 
-    Isparse = (one(Int32), one(Int32), one(Int32))
-    done = false
-    while !done
-        I = supports(model, jₐ, jₛ, Isparse)
+    isparse_last = fld1(threadIdx().x, warpsize())  # wid
+    while isparse_last <= ssz[end]
 
-        # For the first dimension, we need to copy the values from V
-        ambiguity_set = model[one(Int32)][jₐ, jₛ]
-        factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
-        v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], ambiguity_set)
+        isparse_inner = (one(Int32), one(Int32))
+        done = false
+        while !done
+            Isparse = (isparse_inner..., isparse_last)
+            I = supports(model, jₐ, jₛ, Isparse)
 
-        warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], bdgts[one(Int32)])
+            # For the first dimension, we need to copy the values from V
+            ambiguity_set = model[one(Int32)][jₐ, jₛ]
+            factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
+            v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], ambiguity_set)
 
-        if laneid() == one(Int32)
-            value_ws[Int32(2)][Isparse[Int32(1)]] = v
+            warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
+            v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], bdgts[one(Int32)])
+
+            if laneid() == one(Int32)
+                value_ws[Int32(2)][Isparse[Int32(1)]] = v
+            end
+            sync_warp()
+            
+            isparse_inner, done = gpu_nextind(ssz[Int32(2):end - one(Int32)], isparse_inner)
+
+            # For the remaining dimensions, if "full", compute expectation and store in the next level
+            # The loop over dimensions is unrolled for performance, as N is known at compile time and
+            # GPU compiler fails at compiling the loop if N > 3.
+            if Isparse[Int32(1)] < ssz[Int32(2)]
+                continue
+            end
+
+            ambiguity_set = model[Int32(2)][jₐ, jₛ]
+            factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(2)])
+            v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], ambiguity_set)
+
+            warp_bitonic_sort!(value_ws[Int32(2)], gap_ws[Int32(2)], value_lt)
+            v += small_add_gap_mul_V_sparse(value_ws[Int32(2)], gap_ws[Int32(2)], bdgts[Int32(2)])
+
+            if laneid() == one(Int32)
+                value_ws[Int(3)][Isparse[Int32(2)]] = v
+            end
+            sync_warp()
+
+            if Isparse[Int32(2)] < ssz[Int32(3)]
+                continue
+            end
+
+            ambiguity_set = model[Int32(3)][jₐ, jₛ]
+            factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(3)])
+            v = add_lower_mul_V_norem_warp(value_ws[Int32(3)], ambiguity_set)
+
+            warp_bitonic_sort!(value_ws[Int32(3)], gap_ws[Int32(3)], value_lt)
+            v += small_add_gap_mul_V_sparse(value_ws[Int32(3)], gap_ws[Int32(3)], bdgts[Int32(3)])
+
+            if laneid() == one(Int32)
+                value_ws[Int(4)][Isparse[Int32(3)]] = v
+            end
+            sync_warp()
         end
-        sync_warp()
-        
-        Isparse_new, done = gpu_nextind(ssz[Int32(2):end], Isparse)
 
-        # For the remaining dimensions, if "full", compute expectation and store in the next level
-        # The loop over dimensions is unrolled for performance, as N is known at compile time and
-        # GPU compiler fails at compiling the loop if N > 3.
-        if Isparse[Int32(1)] < ssz[Int32(2)]
-            Isparse = Isparse_new
-            continue
-        end
-
-        ambiguity_set = model[Int32(2)][jₐ, jₛ]
-        factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(2)])
-        v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], ambiguity_set)
-
-        warp_bitonic_sort!(value_ws[Int32(2)], gap_ws[Int32(2)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[Int32(2)], gap_ws[Int32(2)], bdgts[Int32(2)])
-
-        if laneid() == one(Int32)
-            value_ws[Int(3)][Isparse[Int32(2)]] = v
-        end
-        sync_warp()
-
-        if Isparse[Int32(2)] < ssz[Int32(3)]
-            Isparse = Isparse_new
-            continue
-        end
-
-        ambiguity_set = model[Int32(3)][jₐ, jₛ]
-        factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(3)])
-        v = add_lower_mul_V_norem_warp(value_ws[Int32(3)], ambiguity_set)
-
-        warp_bitonic_sort!(value_ws[Int32(3)], gap_ws[Int32(3)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[Int32(3)], gap_ws[Int32(3)], bdgts[Int32(3)])
-
-        if laneid() == one(Int32)
-            value_ws[Int(4)][Isparse[Int32(3)]] = v
-        end
-        sync_warp()
-
-        Isparse = Isparse_new
+        isparse_last += div(blockDim().x, warpsize())  # nwarps
     end
 
     # Final layer reduction
     ambiguity_set = model[Int32(4)][jₐ, jₛ]
-    factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[end])
-    value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_set)
+    factored_initialize_block_sorting_shared_memory!(ambiguity_set, gap_ws[end])
+    value = add_lower_mul_V_norem_block(value_ws[end], ambiguity_set)
 
-    warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
-    value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
+    block_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
+    value += ff_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
 
     return value
 end
@@ -476,90 +529,92 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     value_ws = view_supportsizes(value_ws, ssz)
     gap_ws = view_supportsizes(gap_ws, ssz)
 
-    Isparse = (one(Int32), one(Int32), one(Int32), one(Int32))
-    done = false
-    while !done
-        I = supports(model, jₐ, jₛ, Isparse)
+    isparse_last = fld1(threadIdx().x, warpsize())  # wid
+    while isparse_last <= ssz[end]
 
-        # For the first dimension, we need to copy the values from V
-        ambiguity_set = model[one(Int32)][jₐ, jₛ]
-        factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
-        v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], ambiguity_set)
+        isparse_inner = (one(Int32), one(Int32), one(Int32))
+        done = false
+        while !done
+            Isparse = (isparse_inner..., isparse_last)
+            I = supports(model, jₐ, jₛ, Isparse)
 
-        warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], bdgts[one(Int32)])
+            # For the first dimension, we need to copy the values from V
+            ambiguity_set = model[one(Int32)][jₐ, jₛ]
+            factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
+            v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], ambiguity_set)
 
-        if laneid() == one(Int32)
-            value_ws[Int32(2)][Isparse[Int32(1)]] = v
+            warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
+            v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], bdgts[one(Int32)])
+
+            if laneid() == one(Int32)
+                value_ws[Int32(2)][Isparse[Int32(1)]] = v
+            end
+            sync_warp()
+            
+            isparse_inner, done = gpu_nextind(ssz[Int32(2):end - one(Int32)], isparse_inner)
+
+            # For the remaining dimensions, if "full", compute expectation and store in the next level
+            # The loop over dimensions is unrolled for performance, as N is known at compile time and
+            # GPU compiler fails at compiling the loop if N > 3.
+            if Isparse[Int32(1)] < ssz[Int32(2)]
+                continue
+            end
+
+            ambiguity_set = model[Int32(2)][jₐ, jₛ]
+            factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(2)])
+            v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], ambiguity_set)
+
+            warp_bitonic_sort!(value_ws[Int32(2)], gap_ws[Int32(2)], value_lt)
+            v += small_add_gap_mul_V_sparse(value_ws[Int32(2)], gap_ws[Int32(2)], bdgts[Int32(2)])
+
+            if laneid() == one(Int32)
+                value_ws[Int(3)][Isparse[Int32(2)]] = v
+            end
+            sync_warp()
+
+            if Isparse[Int32(2)] < ssz[Int32(3)]
+                continue
+            end
+
+            ambiguity_set = model[Int32(3)][jₐ, jₛ]
+            factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(3)])
+            v = add_lower_mul_V_norem_warp(value_ws[Int32(3)], ambiguity_set)
+
+            warp_bitonic_sort!(value_ws[Int32(3)], gap_ws[Int32(3)], value_lt)
+            v += small_add_gap_mul_V_sparse(value_ws[Int32(3)], gap_ws[Int32(3)], bdgts[Int32(3)])
+
+            if laneid() == one(Int32)
+                value_ws[Int(4)][Isparse[Int32(3)]] = v
+            end
+            sync_warp()
+
+            if Isparse[Int32(3)] < ssz[Int32(4)]
+                continue
+            end
+
+            ambiguity_set = model[Int32(4)][jₐ, jₛ]
+            factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(4)])
+            v = add_lower_mul_V_norem_warp(value_ws[Int32(4)], ambiguity_set)
+
+            warp_bitonic_sort!(value_ws[Int32(4)], gap_ws[Int32(4)], value_lt)
+            v += small_add_gap_mul_V_sparse(value_ws[Int32(4)], gap_ws[Int32(4)], bdgts[Int32(4)])
+
+            if laneid() == one(Int32)
+                value_ws[Int(5)][Isparse[Int32(4)]] = v
+            end
+            sync_warp()
         end
-        sync_warp()
-        
-        Isparse_new, done = gpu_nextind(ssz[Int32(2):end], Isparse)
 
-        # For the remaining dimensions, if "full", compute expectation and store in the next level
-        # The loop over dimensions is unrolled for performance, as N is known at compile time and
-        # GPU compiler fails at compiling the loop if N > 3.
-        if Isparse[Int32(1)] < ssz[Int32(2)]
-            Isparse = Isparse_new
-            continue
-        end
-
-        ambiguity_set = model[Int32(2)][jₐ, jₛ]
-        factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(2)])
-        v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], ambiguity_set)
-
-        warp_bitonic_sort!(value_ws[Int32(2)], gap_ws[Int32(2)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[Int32(2)], gap_ws[Int32(2)], bdgts[Int32(2)])
-
-        if laneid() == one(Int32)
-            value_ws[Int(3)][Isparse[Int32(2)]] = v
-        end
-        sync_warp()
-
-        if Isparse[Int32(2)] < ssz[Int32(3)]
-            Isparse = Isparse_new
-            continue
-        end
-
-        ambiguity_set = model[Int32(3)][jₐ, jₛ]
-        factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(3)])
-        v = add_lower_mul_V_norem_warp(value_ws[Int32(3)], ambiguity_set)
-
-        warp_bitonic_sort!(value_ws[Int32(3)], gap_ws[Int32(3)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[Int32(3)], gap_ws[Int32(3)], bdgts[Int32(3)])
-
-        if laneid() == one(Int32)
-            value_ws[Int(4)][Isparse[Int32(3)]] = v
-        end
-        sync_warp()
-
-        if Isparse[Int32(3)] < ssz[Int32(4)]
-            Isparse = Isparse_new
-            continue
-        end
-
-        ambiguity_set = model[Int32(4)][jₐ, jₛ]
-        factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[Int32(4)])
-        v = add_lower_mul_V_norem_warp(value_ws[Int32(4)], ambiguity_set)
-
-        warp_bitonic_sort!(value_ws[Int32(4)], gap_ws[Int32(4)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[Int32(4)], gap_ws[Int32(4)], bdgts[Int32(4)])
-
-        if laneid() == one(Int32)
-            value_ws[Int(5)][Isparse[Int32(4)]] = v
-        end
-        sync_warp()
-
-        Isparse = Isparse_new
+        isparse_last += div(blockDim().x, warpsize())  # nwarps
     end
 
     # Final layer reduction
     ambiguity_set = model[Int32(5)][jₐ, jₛ]
-    factored_initialize_warp_sorting_shared_memory!(ambiguity_set, gap_ws[end])
-    value = add_lower_mul_V_norem_warp(value_ws[end], ambiguity_set)
+    factored_initialize_block_sorting_shared_memory!(ambiguity_set, gap_ws[end])
+    value = add_lower_mul_V_norem_block(value_ws[end], ambiguity_set)
 
-    warp_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
-    value += small_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
+    block_bitonic_sort!(value_ws[end], gap_ws[end], value_lt)
+    value += ff_add_gap_mul_V_sparse(value_ws[end], gap_ws[end], bdgts[end])
 
     return value
 end
@@ -767,47 +822,65 @@ Base.@propagate_inbounds function supportsizes(
     return ssz
 end
 
-Base.@propagate_inbounds function view_supportsizes(ws::AbstractVector, ssz::NTuple{2, <:Int32})
-    inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2])
+Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{2, <:Int32})
+    ws, final_ws = ws
+    inds = (one(Int32), one(Int32) + ssz[1])
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
-           @view(ws[inds[2]:(inds[3] - one(Int32))])
+           @view(final_ws[1:ssz[end]])
 end
 
-Base.@propagate_inbounds function view_supportsizes(ws::AbstractVector, ssz::NTuple{3, <:Int32})
+Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{3, <:Int32})
+    ws, final_ws = ws
+    inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2])
+    return @view(ws[inds[1]:(inds[2] - one(Int32))]),
+           @view(ws[inds[2]:(inds[3] - one(Int32))]),
+           @view(final_ws[1:ssz[end]])
+end
+
+Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{4, <:Int32})
+    ws, final_ws = ws
     inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3])
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
            @view(ws[inds[2]:(inds[3] - one(Int32))]),
-           @view(ws[inds[3]:(inds[4] - one(Int32))])
+           @view(ws[inds[3]:(inds[4] - one(Int32))]),
+           @view(final_ws[1:ssz[end]])
 end
 
-Base.@propagate_inbounds function view_supportsizes(ws::AbstractVector, ssz::NTuple{4, <:Int32})
+Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{5, <:Int32})
+    ws, final_ws = ws
     inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4])
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
            @view(ws[inds[2]:(inds[3] - one(Int32))]),
            @view(ws[inds[3]:(inds[4] - one(Int32))]),
-           @view(ws[inds[4]:(inds[5] - one(Int32))])
+           @view(ws[inds[4]:(inds[5] - one(Int32))]),
+           @view(final_ws[1:ssz[end]])
 end
 
-Base.@propagate_inbounds function view_supportsizes(ws::AbstractVector, ssz::NTuple{5, <:Int32})
+Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{6, <:Int32})
+    ws, final_ws = ws
     inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5])
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
            @view(ws[inds[2]:(inds[3] - one(Int32))]),
            @view(ws[inds[3]:(inds[4] - one(Int32))]),
            @view(ws[inds[4]:(inds[5] - one(Int32))]),
-           @view(ws[inds[5]:(inds[6] - one(Int32))])
+           @view(ws[inds[5]:(inds[6] - one(Int32))]),
+           @view(final_ws[1:ssz[end]])
 end
 
-Base.@propagate_inbounds function view_supportsizes(ws::AbstractVector, ssz::NTuple{6, <:Int32})
+Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{7, <:Int32})
+    ws, final_ws = ws
     inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6])
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
            @view(ws[inds[2]:(inds[3] - one(Int32))]),
            @view(ws[inds[3]:(inds[4] - one(Int32))]),
            @view(ws[inds[4]:(inds[5] - one(Int32))]),
            @view(ws[inds[5]:(inds[6] - one(Int32))]),
-           @view(ws[inds[6]:(inds[7] - one(Int32))])
+           @view(ws[inds[6]:(inds[7] - one(Int32))]),
+           @view(final_ws[1:ssz[end]])
 end
 
-Base.@propagate_inbounds function view_supportsizes(ws::AbstractVector, ssz::NTuple{7, <:Int32})
+Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{8, <:Int32})
+    ws, final_ws = ws
     inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7])
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
            @view(ws[inds[2]:(inds[3] - one(Int32))]),
@@ -815,10 +888,12 @@ Base.@propagate_inbounds function view_supportsizes(ws::AbstractVector, ssz::NTu
            @view(ws[inds[4]:(inds[5] - one(Int32))]),
            @view(ws[inds[5]:(inds[6] - one(Int32))]),
            @view(ws[inds[6]:(inds[7] - one(Int32))]),
-           @view(ws[inds[7]:(inds[8] - one(Int32))])
+           @view(ws[inds[7]:(inds[8] - one(Int32))]),
+           @view(final_ws[1:ssz[end]])
 end
 
-Base.@propagate_inbounds function view_supportsizes(ws::AbstractVector, ssz::NTuple{8, <:Int32})
+Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{9, <:Int32})
+    ws, final_ws = ws
     inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8])
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
            @view(ws[inds[2]:(inds[3] - one(Int32))]),
@@ -827,10 +902,12 @@ Base.@propagate_inbounds function view_supportsizes(ws::AbstractVector, ssz::NTu
            @view(ws[inds[5]:(inds[6] - one(Int32))]),
            @view(ws[inds[6]:(inds[7] - one(Int32))]),
            @view(ws[inds[7]:(inds[8] - one(Int32))]),
-           @view(ws[inds[8]:(inds[9] - one(Int32))])
+           @view(ws[inds[8]:(inds[9] - one(Int32))]),
+           @view(final_ws[1:ssz[end]])
 end
 
-Base.@propagate_inbounds function view_supportsizes(ws::AbstractVector, ssz::NTuple{9, <:Int32})
+Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{10, <:Int32})
+    ws, final_ws = ws
     inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8] + ssz[9])
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
            @view(ws[inds[2]:(inds[3] - one(Int32))]),
@@ -840,21 +917,8 @@ Base.@propagate_inbounds function view_supportsizes(ws::AbstractVector, ssz::NTu
            @view(ws[inds[6]:(inds[7] - one(Int32))]),
            @view(ws[inds[7]:(inds[8] - one(Int32))]),
            @view(ws[inds[8]:(inds[9] - one(Int32))]),
-           @view(ws[inds[9]:(inds[10] - one(Int32))])
-end
-
-Base.@propagate_inbounds function view_supportsizes(ws::AbstractVector, ssz::NTuple{10, <:Int32})
-    inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8] + ssz[9], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8] + ssz[9] + ssz[10])
-    return @view(ws[inds[1]:(inds[2] - one(Int32))]),
-           @view(ws[inds[2]:(inds[3] - one(Int32))]),
-           @view(ws[inds[3]:(inds[4] - one(Int32))]),
-           @view(ws[inds[4]:(inds[5] - one(Int32))]),
-           @view(ws[inds[5]:(inds[6] - one(Int32))]),
-           @view(ws[inds[6]:(inds[7] - one(Int32))]),
-           @view(ws[inds[7]:(inds[8] - one(Int32))]),
-           @view(ws[inds[8]:(inds[9] - one(Int32))]),
            @view(ws[inds[9]:(inds[10] - one(Int32))]),
-           @view(ws[inds[10]:(inds[11] - one(Int32))])
+           @view(final_ws[1:ssz[end]])
 end
 
 Base.@propagate_inbounds function supports(
@@ -933,6 +997,47 @@ Base.@propagate_inbounds function add_lower_mul_V_norem_warp(V::AbstractVector{T
     return lower_value
 end
 
+Base.@propagate_inbounds function add_lower_mul_V_norem_block(V::AbstractVector{Tv}, ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CuDeviceMatrix}}) where {Tv}
+    supportsize = IntervalMDP.supportsize(ambiguity_set)
+
+    lower_value = zero(Tv)
+
+    # Add the lower bound multiplied by the value
+    s = threadIdx().x
+    while s <= supportsize
+        # Find index of the permutation, and lookup the corresponding lower bound and multipy by the value
+        lower_value += lower(ambiguity_set, s) * V[s]
+        s += blockDim().x
+    end
+
+    lower_value = reduce_block(+, lower_value, zero(Tv), Val(true))
+    sync_threads()
+
+    return lower_value
+end
+
+Base.@propagate_inbounds function add_lower_mul_V_norem_block(V::AbstractVector{Tv}, ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC}}) where {Tv}
+    supportsize = IntervalMDP.supportsize(ambiguity_set)
+
+    lower_value = zero(Tv)
+    support = IntervalMDP.support(ambiguity_set)
+
+    # Add the lower bound multiplied by the value
+    lower_nonzeros = nonzeros(lower(ambiguity_set))
+    s = threadIdx().x
+    while s <= supportsize
+        # Find index of the permutation, and lookup the corresponding lower bound and multipy by the value
+        l = lower_nonzeros[s]
+        lower_value += l * V[support[s]]
+        s += blockDim().x
+    end
+
+    lower_value = reduce_block(+, lower_value, zero(Tv), Val(true))
+    sync_threads()
+
+    return lower_value
+end
+
 Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory!(
     ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CuDeviceMatrix}},
     prob,
@@ -968,6 +1073,39 @@ Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory
 
     # Need to synchronize to make sure all agree on the shared memory
     sync_warp()
+end
+
+Base.@propagate_inbounds function factored_initialize_block_sorting_shared_memory!(
+    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CuDeviceMatrix}},
+    prob,
+) where {Tv}
+    ssz = IntervalMDP.supportsize(ambiguity_set)
+
+    # Copy into shared memory
+    s = threadIdx().x
+    while s <= ssz
+        prob[s] = gap(ambiguity_set, s)
+        s += blockDim().x
+    end
+
+    # Need to synchronize to make sure all agree on the shared memory
+    sync_threads()
+end
+
+Base.@propagate_inbounds function factored_initialize_block_sorting_shared_memory!(
+    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC}},
+    prob,
+) where {Tv}
+    # Copy into shared memory
+    gap_nonzeros = nonzeros(gap(ambiguity_set))
+    s = threadIdx().x
+    while s <= length(gap_nonzeros)
+        prob[s] = gap_nonzeros[s]
+        s += blockDim().x
+    end
+
+    # Need to synchronize to make sure all agree on the shared memory
+    sync_threads()
 end
 
 Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory!(

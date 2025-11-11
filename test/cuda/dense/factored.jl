@@ -1048,60 +1048,97 @@ end
         @test res ≈ Array(res_cuda)
     end
 
-    # @testset "synthesis" begin
-    #     rng = MersenneTwister(3286)
+    # 5-D rand
+    @testset "5D rand" begin
+        rng = MersenneTwister(995)
 
-    #     num_states_per_axis = 3
-    #     num_axis = 3
-    #     num_states = num_states_per_axis^num_axis
-    #     num_actions = 2
-    #     num_choices = num_states * num_actions
-    #     state_indices = (1, 2, 3)
-    #     action_indices = (1,)
-    #     state_vars = ntuple(_ -> num_states_per_axis, num_axis)
-    #     action_vars = (num_actions,)
+        prob_lower = [rand(rng, N, 5, 3125) ./ N(5) for _ in 1:5]
+        prob_upper = [(rand(rng, N, 5, 3125) .+ N(1)) ./ N(5) for _ in 1:5]
 
-    #     prob_lower = [
-    #         rand(rng, N, num_states_per_axis, num_choices) ./ num_states_per_axis
-    #         for _ in 1:num_axis
-    #     ]
-    #     prob_upper = [
-    #         (rand(rng, N, num_states_per_axis, num_choices) .+ N(1)) ./
-    #         num_states_per_axis for _ in 1:num_axis
-    #     ]
+        ambs = ntuple(
+            i -> IntervalAmbiguitySets(; lower = prob_lower[i], upper = prob_upper[i]),
+            5,
+        )
 
-    #     ambiguity_sets = ntuple(
-    #         i -> IntervalAmbiguitySets(; lower = prob_lower[i], upper = prob_upper[i]),
-    #         num_axis,
-    #     )
+        margs = ntuple(
+            i ->
+                Marginal(ambs[i], (1, 2, 3, 4, 5), (1,), (5, 5, 5, 5, 5), (1,)),
+            5,
+        )
 
-    #     marginals = ntuple(
-    #         i -> Marginal(
-    #             ambiguity_sets[i],
-    #             state_indices,
-    #             action_indices,
-    #             state_vars,
-    #             action_vars,
-    #         ),
-    #         num_axis,
-    #     )
+        mdp = FactoredRobustMarkovDecisionProcess((5, 5, 5, 5, 5), (1,), margs)
+        cuda_mdp = IntervalMDP.cu(mdp)
 
-    #     mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, marginals)
+        prop = FiniteTimeReachability([(5, 5, 5, 5, 5)], 10)
+        spec = Specification(prop, Pessimistic, Maximize)
+        prob = VerificationProblem(mdp, spec)
+        cuda_prob = VerificationProblem(cuda_mdp, spec)
 
-    #     prop = FiniteTimeReachability(
-    #         [(num_states_per_axis, num_states_per_axis, num_states_per_axis)],
-    #         10,
-    #     )
-    #     spec = Specification(prop, Pessimistic, Maximize)
-    #     prob = ControlSynthesisProblem(mdp, spec)
+        V, it, res = solve(prob, alg)
+        V_cuda, it_cuda, res_cuda = solve(cuda_prob, alg)
 
-    #     policy, V, it, res = solve(prob, alg)
-    #     @test it == 10
-    #     @test all(V .≥ 0.0)
+        @test V ≈ Array(V_cuda) 
+        @test it == it_cuda
+        @test res ≈ Array(res_cuda)
+    end
 
-    #     # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
-    #     prob = VerificationProblem(mdp, spec, policy)
-    #     V_mc, k, res = solve(prob, alg)
-    #     @test V ≈ V_mc
-    # end
+    @testset "synthesis" begin
+        rng = MersenneTwister(3286)
+
+        num_states_per_axis = 3
+        num_axis = 3
+        num_states = num_states_per_axis^num_axis
+        num_actions = 2
+        num_choices = num_states * num_actions
+        state_indices = (1, 2, 3)
+        action_indices = (1,)
+        state_vars = ntuple(_ -> num_states_per_axis, num_axis)
+        action_vars = (num_actions,)
+
+        prob_lower = [
+            rand(rng, N, num_states_per_axis, num_choices) ./ num_states_per_axis
+            for _ in 1:num_axis
+        ]
+        prob_upper = [
+            (rand(rng, N, num_states_per_axis, num_choices) .+ N(1)) ./
+            num_states_per_axis for _ in 1:num_axis
+        ]
+
+        ambiguity_sets = ntuple(
+            i -> IntervalAmbiguitySets(; lower = prob_lower[i], upper = prob_upper[i]),
+            num_axis,
+        )
+
+        marginals = ntuple(
+            i -> Marginal(
+                ambiguity_sets[i],
+                state_indices,
+                action_indices,
+                state_vars,
+                action_vars,
+            ),
+            num_axis,
+        )
+
+        mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, marginals)
+        cuda_mdp = IntervalMDP.cu(mdp)
+
+        prop = FiniteTimeReachability(
+            [(num_states_per_axis, num_states_per_axis, num_states_per_axis)],
+            10,
+        )
+        spec = Specification(prop, Pessimistic, Maximize)
+        prob = ControlSynthesisProblem(mdp, spec)
+        cuda_prob = ControlSynthesisProblem(cuda_mdp, spec)
+
+        policy, V, it, res = solve(prob, alg)
+        cuda_policy, V_cuda, it_cuda, res_cuda = solve(cuda_prob, alg)
+        @test all(p -> all(splat(isequal), zip(p...)), zip(policy.strategy, IntervalMDP.cpu(cuda_policy).strategy))
+        @test V ≈ IntervalMDP.cpu(V_cuda)
+
+        # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
+        cuda_prob = VerificationProblem(cuda_mdp, spec, cuda_policy)
+        V_mc, k, res = solve(cuda_prob, alg)
+        @test V_cuda ≈ V_mc
+    end
 end

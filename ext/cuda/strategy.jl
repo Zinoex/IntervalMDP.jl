@@ -7,7 +7,7 @@ Adapt.@adapt_structure NoStrategyActiveCache
     return NoStrategyActiveCache()
 end
 
-struct TimeVaryingStrategyActiveCache{N, V <: AbstractVector{NTuple{N, Int32}}} <:
+struct TimeVaryingStrategyActiveCache{N, V <: AbstractArray{NTuple{N, Int32}}} <:
        OptimizingActiveCache
     cur_strategy::V
 end
@@ -16,7 +16,7 @@ Adapt.@adapt_structure TimeVaryingStrategyActiveCache
     return TimeVaryingStrategyActiveCache(strategy_cache.cur_strategy)
 end
 
-struct StationaryStrategyActiveCache{N, V <: AbstractVector{NTuple{N, Int32}}} <:
+struct StationaryStrategyActiveCache{N, V <: AbstractArray{NTuple{N, Int32}}} <:
        OptimizingActiveCache
     strategy::V
 end
@@ -27,7 +27,7 @@ end
 
 abstract type NonOptimizingActiveCache <: ActiveCache end
 
-struct GivenStrategyActiveCache{N, V <: AbstractVector{NTuple{N, Int32}}} <:
+struct GivenStrategyActiveCache{N, V <: AbstractArray{NTuple{N, Int32}}} <:
        NonOptimizingActiveCache
     strategy::V
 end
@@ -35,8 +35,8 @@ Adapt.@adapt_structure GivenStrategyActiveCache
 @inline function active_cache(strategy_cache::IntervalMDP.ActiveGivenStrategyCache)
     return GivenStrategyActiveCache(strategy_cache.strategy)
 end
-Base.@propagate_inbounds Base.getindex(cache::GivenStrategyActiveCache, j) =
-    cache.strategy[j]
+Base.@propagate_inbounds Base.getindex(cache::GivenStrategyActiveCache, j...) =
+    cache.strategy[j...]
 
 Base.@propagate_inbounds function extract_strategy_warp!(
     ::NoStrategyActiveCache,
@@ -93,7 +93,7 @@ Base.@propagate_inbounds function extract_strategy_warp!(
     opt_val, opt_idx = argmin_warp(action_lt, opt_val, opt_idx)
 
     if laneid() == one(Int32)
-        @inbounds cache.cur_strategy[jₛ] = (opt_idx,)
+        cache.cur_strategy[jₛ] = (opt_idx,)
     end
 
     return opt_val
@@ -131,25 +131,25 @@ Base.@propagate_inbounds function extract_strategy_warp!(
     opt_val, opt_idx = argmin_warp(action_lt, opt_val, opt_idx)
 
     if laneid() == 1
-        @inbounds cache.strategy[jₛ] = (opt_idx,)
+        cache.strategy[jₛ] = (opt_idx,)
     end
 
     return opt_val
 end
 
-@inline function extract_strategy_block!(
+Base.@propagate_inbounds function extract_strategy_block!(
     ::NoStrategyActiveCache,
     values::AbstractArray{Tv},
     jₛ,
     action_reduce
 ) where {Tv}
-    action_min, action_neutral = action_reduce[1], action_reduce[3]
+    action_min, _, action_neutral = action_reduce
 
     loop_length = nextmult(blockDim().x, length(values))
     opt_val = action_neutral
 
     s = threadIdx().x
-    @inbounds while s <= loop_length
+    while s <= loop_length
         new_val = if s <= length(values)
             values[s]
         else
@@ -164,19 +164,19 @@ end
     return opt_val
 end
 
-@inline function extract_strategy_block!(
+Base.@propagate_inbounds function extract_strategy_block!(
     cache::TimeVaryingStrategyActiveCache{1, <:AbstractArray},
     values::AbstractArray{Tv},
     jₛ,
     action_reduce
 ) where {Tv}
-    action_lt, action_neutral = action_reduce[2], action_reduce[3]
+    _, action_lt, action_neutral = action_reduce
 
     loop_length = nextmult(blockDim().x, length(values))
     opt_val, opt_idx = action_neutral, one(Int32)
 
     s = threadIdx().x
-    @inbounds while s <= loop_length
+    while s <= loop_length
         new_val, new_idx = if s <= length(values)
             values[s], s
         else
@@ -189,32 +189,32 @@ end
 
     opt_val, opt_idx = argmin_block(action_lt, opt_val, opt_idx, action_neutral, one(Int32), Val(true))
 
-    if lane == 1
+    if threadIdx().x == one(Int32)
         action_shape = CartesianIndices(size(values))
-        @inbounds cache.cur_strategy[jₛ] = Tuple(action_shape[opt_idx])
+        cache.cur_strategy[jₛ...] = Tuple(action_shape[opt_idx])
     end
 
     return opt_val
 end
 
-@inline function extract_strategy_block!(
+Base.@propagate_inbounds function extract_strategy_block!(
     cache::StationaryStrategyActiveCache{1, <:AbstractArray},
     values::AbstractArray{Tv},
     jₛ,
     action_reduce
 ) where {Tv}
-    action_lt, action_neutral = action_reduce[2], action_reduce[3]
+    _, action_lt, action_neutral = action_reduce
 
     loop_length = nextmult(blockDim().x, length(values))
-    opt_val, opt_idx = if iszero(cache.strategy[jₛ][1])
+    opt_val, opt_idx = if iszero(cache.strategy[jₛ...][1])
         action_neutral, one(Int32)
     else
-        s = cache.strategy[jₛ]
+        s = cache.strategy[jₛ...]
         values[s...], s
     end
 
     s = threadIdx().x
-    @inbounds while s <= loop_length
+    while s <= loop_length
         new_val, new_idx = if s <= length(values)
             values[s], s
         else
@@ -227,9 +227,9 @@ end
 
     opt_val, opt_idx = argmin_block(action_lt, opt_val, opt_idx, action_neutral, one(Int32), Val(true))
 
-    if lane == 1
+    if threadIdx().x == one(Int32)
         action_shape = CartesianIndices(size(values))
-        @inbounds cache.cur_strategy[jₛ] = Tuple(action_shape[opt_idx])
+        cache.cur_strategy[jₛ...] = Tuple(action_shape[opt_idx])
     end
 
     return opt_val
