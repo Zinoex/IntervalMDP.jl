@@ -12,7 +12,7 @@ the underlying ambiguity sets.
     Add example
 
 """
-struct Marginal{A <: AbstractAmbiguitySets, N, M, I <: LinearIndices}
+struct Marginal{A <: AbstractAmbiguitySets, N, M}
     ambiguity_sets::A
 
     state_indices::NTuple{N, Int32}
@@ -20,7 +20,42 @@ struct Marginal{A <: AbstractAmbiguitySets, N, M, I <: LinearIndices}
 
     source_dims::NTuple{N, Int32}
     action_vars::NTuple{M, Int32}
-    linear_index::I
+
+    function Marginal(
+        ambiguity_sets::A,
+        state_indices::NTuple{N, Int32},
+        action_indices::NTuple{M, Int32},
+        source_dims::NTuple{N, Int32},
+        action_vars::NTuple{M, Int32},
+        check::Val{false}
+    ) where {A <: AbstractAmbiguitySets, N, M}
+        new{A, N, M}(
+            ambiguity_sets,
+            state_indices,
+            action_indices,
+            source_dims,
+            action_vars,
+        )
+    end
+
+    function Marginal(
+        ambiguity_sets::A,
+        state_indices::NTuple{N, Int32},
+        action_indices::NTuple{M, Int32},
+        source_dims::NTuple{N, Int32},
+        action_vars::NTuple{M, Int32},
+        check::Val{true},
+    ) where {A <: AbstractAmbiguitySets, N, M}
+        checkindices(ambiguity_sets, state_indices, action_indices, source_dims, action_vars)
+
+        return new{A, N, M}(
+            ambiguity_sets,
+            state_indices,
+            action_indices,
+            source_dims,
+            action_vars,
+        )
+    end
 end
 
 function Marginal(
@@ -30,16 +65,13 @@ function Marginal(
     source_dims::NTuple{N, Int32},
     action_vars::NTuple{M, Int32},
 ) where {A <: AbstractAmbiguitySets, N, M}
-    checkindices(ambiguity_sets, state_indices, action_indices, source_dims, action_vars)
-
-    linear_index = LinearIndices((action_vars..., source_dims...))
     return Marginal(
         ambiguity_sets,
         state_indices,
         action_indices,
         source_dims,
         action_vars,
-        linear_index,
+        Val(true),
     )
 end
 

@@ -12,7 +12,6 @@ using IntervalMDP, LinearAlgebra
 IntervalMDP.cu(obj) = adapt(IntervalMDP.CuModelAdaptor{IntervalMDP.valuetype(obj)}, obj)
 IntervalMDP.cpu(obj) = adapt(IntervalMDP.CpuModelAdaptor{IntervalMDP.valuetype(obj)}, obj)
 
-Adapt.@adapt_structure Marginal
 Adapt.@adapt_structure StationaryStrategy
 Adapt.adapt_structure(to, strategy::TimeVaryingStrategy) =
     TimeVaryingStrategy([adapt(to, s) for s in strategy.strategy])
@@ -55,6 +54,20 @@ function Adapt.adapt_structure(
         IntervalMDP.source_shape(mdp),
         adapt(to, marginals(mdp)),
         adapt(to, initial_states(mdp)),
+        Val(false), # check = false
+    )
+end
+
+function Adapt.adapt_structure(
+    to,
+    m::Marginal{A, N, M},
+) where {A <: IntervalMDP.AbstractAmbiguitySets, N, M}
+    return Marginal(
+        adapt(to, m.ambiguity_sets),
+        m.state_indices,
+        m.action_indices,
+        m.source_dims,
+        m.action_vars,
         Val(false), # check = false
     )
 end
