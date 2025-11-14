@@ -3,16 +3,14 @@ function IntervalMDP._bellman_helper!(
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres::AbstractArray{Tv},
     V::AbstractArray{Tv},
-    model;
+    model::IntervalMDP.FactoredRMDP{N, M};
     upper_bound = false,
     maximize = true,
-) where {Tv}
-    marginal = marginals(model)[1]
-
-    if IntervalMDP.valuetype(marginal) != Tv
+) where {Tv, N, M}
+    if IntervalMDP.valuetype(model) != Tv
         throw(
             ArgumentError(
-                "Value type of the model ($(IntervalMDP.valuetype(marginal))) does not match the value type of the input vector ($Tv).",
+                "Value type of the model ($(IntervalMDP.valuetype(model))) does not match the value type of the input vector ($Tv).",
             ),
         )
     end
@@ -34,12 +32,14 @@ function IntervalMDP._bellman_helper!(
 
     function shmem_func(threads)
         warps = div(threads, 32)
+        prealloc_cache_size = sum(workspace.max_support_per_marginal[1:min(2, N - 1)]) * 2 * sizeof(Tv)
         expectation_cache_size = 2 * sum(workspace.max_support_per_marginal[1:end - 1]) *
             warps * sizeof(Tv)
         last_expectation_cache_size = 2 * workspace.max_support_per_marginal[end] * sizeof(Tv)
         action_cache_size =
             n_actions * sizeof(Tv)
-        return expectation_cache_size +
+        return prealloc_cache_size +
+            expectation_cache_size +
             last_expectation_cache_size +
             action_cache_size
     end
@@ -91,10 +91,13 @@ function factored_bellman_kernel!(
 ) where {N, M, Tv}
     
     # Prepare action workspace shared memory
-    @inbounds action_workspace = initialize_factored_action_workspace(workspace, strategy_cache, model)
+    @inbounds action_workspace, offset = initialize_factored_action_workspace(workspace, strategy_cache, model)
 
     # Prepare sorting shared memory
-    @inbounds value_ws, gap_ws = initialize_factored_value_and_gap(workspace, strategy_cache, model)
+    @inbounds value_ws, gap_ws, offset = initialize_factored_value_and_gap(workspace, model, offset)
+
+    # Prepare preallocated workspace for ambiguity sets
+    @inbounds prealloc_ws, offset = initialize_prealloc_workspace(workspace, model, offset)
 
     @inbounds factored_omaximization!(
         workspace,
@@ -105,6 +108,7 @@ function factored_bellman_kernel!(
         action_workspace,
         value_ws,
         gap_ws,
+        prealloc_ws,
         value_lt,
         action_reduce,
     )
@@ -122,7 +126,7 @@ Base.@propagate_inbounds function initialize_factored_action_workspace(
         action_shape(model),
     )
 
-    return action_workspace
+    return action_workspace, unsafe_trunc(Int32, sizeof(IntervalMDP.valuetype(model)) * num_actions(model))
 end
 
 Base.@propagate_inbounds function initialize_factored_action_workspace(
@@ -130,13 +134,13 @@ Base.@propagate_inbounds function initialize_factored_action_workspace(
     ::NonOptimizingActiveCache,
     model,
 )
-    return nothing
+    return nothing, zero(Int32)
 end
 
 Base.@propagate_inbounds function initialize_factored_value_and_gap(
     workspace,
-    ::OptimizingActiveCache,
     model::IntervalMDP.FactoredRMDP{N, M},
+    offset
 ) where {N, M}
     assume(warpsize() == 32)
 
@@ -146,8 +150,10 @@ Base.@propagate_inbounds function initialize_factored_value_and_gap(
     Tv = IntervalMDP.valuetype(model)
 
     size = sum(workspace.max_support_per_marginal[1:end - 1])
-    ws = CuDynamicSharedArray(Tv, (size, Int32(2), nwarps), num_actions(model) * sizeof(Tv))
-    final_ws = CuDynamicSharedArray(Tv, (workspace.max_support_per_marginal[end], Int32(2)), num_actions(model) * sizeof(Tv) + size * Int32(2) * nwarps * sizeof(Tv))
+    ws = CuDynamicSharedArray(Tv, (size, Int32(2), nwarps), offset)
+    offset += sizeof(Tv) * size * 2 * nwarps
+    final_ws = CuDynamicSharedArray(Tv, (workspace.max_support_per_marginal[end], Int32(2)), offset)
+    offset += sizeof(Tv) * workspace.max_support_per_marginal[end] * 2
 
     value_ws = @view(ws[:, Int32(1), wid])
     gap_ws = @view(ws[:, Int32(2), wid])
@@ -155,32 +161,70 @@ Base.@propagate_inbounds function initialize_factored_value_and_gap(
     final_value_ws = @view(final_ws[:, Int32(1)])
     final_gap_ws = @view(final_ws[:, Int32(2)])
 
-    return (value_ws, final_value_ws), (gap_ws, final_gap_ws)
+    return (value_ws, final_value_ws), (gap_ws, final_gap_ws), offset
 end
 
-Base.@propagate_inbounds function initialize_factored_value_and_gap(
+Base.@propagate_inbounds function initialize_prealloc_workspace(
     workspace,
-    ::NonOptimizingActiveCache,
+    model::IntervalMDP.FactoredRMDP{2, M},
+    offset
+) where {M}
+    ws, offset = initialize_prealloc_workspace(
+        workspace.max_support_per_marginal[1],
+        marginals(model)[1],
+        offset,
+    )
+    return (ws,), offset
+end
+
+Base.@propagate_inbounds function initialize_prealloc_workspace(
+    workspace,
     model::IntervalMDP.FactoredRMDP{N, M},
+    offset
 ) where {N, M}
-    assume(warpsize() == 32)
+    ws1, offset = initialize_prealloc_workspace(
+        workspace.max_support_per_marginal[1],
+        marginals(model)[1],
+        offset,
+    )
+    ws2, offset = initialize_prealloc_workspace(
+        workspace.max_support_per_marginal[2],
+        marginals(model)[2],
+        offset,
+    )
+    return (ws1, ws2), offset
+end
 
-    nwarps = div(blockDim().x, warpsize())
-    wid = fld1(threadIdx().x, warpsize())
+Base.@propagate_inbounds function initialize_prealloc_workspace(
+    marginal_size,
+    marginal::Marginal{<:IntervalAmbiguitySets{Tv, <:CuDeviceMatrix}},
+    offset
+) where {Tv}
+    ws = CuDynamicSharedArray(
+        IntervalMDP.valuetype(marginal),
+        (marginal_size, Int32(2)),
+        offset,
+    )
+    return ws, offset + sizeof(IntervalMDP.valuetype(marginal)) * marginal_size * Int32(2)
+end
 
-    Tv = IntervalMDP.valuetype(model)
-
-    size = sum(workspace.max_support_per_marginal)
-    ws = CuDynamicSharedArray(Tv, (size, Int32(2), nwarps))
-    final_ws = CuDynamicSharedArray(Tv, (workspace.max_support_per_marginal[end], Int32(2)), size * Int32(2) * nwarps * sizeof(Tv))
-
-    value_ws = @view(ws[:, Int32(1), wid])
-    gap_ws = @view(ws[:, Int32(2), wid])
-
-    final_value_ws = @view(final_ws[:, Int32(1)])
-    final_gap_ws = @view(final_ws[:, Int32(2)])
-
-    return (value_ws, final_value_ws), (gap_ws, final_gap_ws)
+Base.@propagate_inbounds function initialize_prealloc_workspace(
+    marginal_size,
+    marginal::Marginal{<:IntervalAmbiguitySets{Tv, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC}},
+    offset
+) where {Tv}
+    value_ws = CuDynamicSharedArray(
+        IntervalMDP.valuetype(marginal),
+        (marginal_size, Int32(2)),
+        offset,
+    )
+    offset += sizeof(IntervalMDP.valuetype(marginal)) * marginal_size * Int32(2)
+    index_ws = CuDynamicSharedArray(
+        Int32,
+        marginal_size,
+        offset,
+    )
+    return (value_ws, index_ws), offset + sizeof(Int32) * marginal_size
 end
 
 Base.@propagate_inbounds function factored_omaximization!(
@@ -192,6 +236,7 @@ Base.@propagate_inbounds function factored_omaximization!(
     action_workspace,
     value_ws,
     gap_ws,
+    prealloc_ws,
     value_lt,
     action_reduce,
 ) where {N, M}
@@ -209,6 +254,7 @@ Base.@propagate_inbounds function factored_omaximization!(
             action_workspace,
             value_ws,
             gap_ws,
+            prealloc_ws,
             I,
             value_lt,
             action_reduce,
@@ -228,6 +274,7 @@ Base.@propagate_inbounds function state_factored_bellman!(
     action_workspace,
     value_ws,
     gap_ws,
+    prealloc_ws,
     jₛ,
     value_lt,
     action_reduce,
@@ -245,6 +292,7 @@ Base.@propagate_inbounds function state_factored_bellman!(
             model,
             value_ws,
             gap_ws,
+            prealloc_ws,
             jₛ,
             I,
             value_lt,
@@ -276,6 +324,7 @@ Base.@propagate_inbounds function state_factored_bellman!(
     action_workspace,
     value_ws,
     gap_ws,
+    prealloc_ws,
     jₛ,
     value_lt,
     action_reduce,
@@ -289,6 +338,7 @@ Base.@propagate_inbounds function state_factored_bellman!(
         model,
         value_ws,
         gap_ws,
+        prealloc_ws,
         jₛ,
         jₐ,
         value_lt,
@@ -307,6 +357,7 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     model::IntervalMDP.FactoredRMDP{2, M},
     value_ws,
     gap_ws,
+    prealloc_ws,
     jₛ,
     jₐ,
     value_lt,
@@ -320,7 +371,7 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     gap_ws = view_supportsizes(gap_ws, ssz)
 
     # Pre-compute the first ambiguity sets, as it is used by far the most
-    first_ambiguity_set = model[one(Int32)][jₐ, jₛ]
+    first_ambiguity_set = preallocate_ambiguity_set(model[one(Int32)][jₐ, jₛ], prealloc_ws[one(Int32)])
 
     isparse = fld1(threadIdx().x, warpsize())  # wid
     while isparse <= ssz[end]
@@ -365,6 +416,7 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     model::IntervalMDP.FactoredRMDP{3, M},
     value_ws,
     gap_ws,
+    prealloc_ws,
     jₛ,
     jₐ,
     value_lt,
@@ -376,8 +428,8 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     gap_ws = view_supportsizes(gap_ws, ssz)
 
     # Pre-compute the first two ambiguity sets, as they are used by far the most
-    first_ambiguity_set = model[one(Int32)][jₐ, jₛ]
-    second_ambiguity_set = model[Int32(2)][jₐ, jₛ]
+    first_ambiguity_set = preallocate_ambiguity_set(model[one(Int32)][jₐ, jₛ], prealloc_ws[one(Int32)])
+    second_ambiguity_set = preallocate_ambiguity_set(model[Int32(2)][jₐ, jₛ], prealloc_ws[Int32(2)])
 
     isparse_last = fld1(threadIdx().x, warpsize())  # wid
     while isparse_last <= ssz[end]
@@ -447,6 +499,7 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     model::IntervalMDP.FactoredRMDP{4, M},
     value_ws,
     gap_ws,
+    prealloc_ws,
     jₛ,
     jₐ,
     value_lt,
@@ -458,8 +511,8 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     gap_ws = view_supportsizes(gap_ws, ssz)
 
     # Pre-compute the first two ambiguity sets, as they are used by far the most
-    first_ambiguity_set = model[one(Int32)][jₐ, jₛ]
-    second_ambiguity_set = model[Int32(2)][jₐ, jₛ]
+    first_ambiguity_set = preallocate_ambiguity_set(model[one(Int32)][jₐ, jₛ], prealloc_ws[one(Int32)])
+    second_ambiguity_set = preallocate_ambiguity_set(model[Int32(2)][jₐ, jₛ], prealloc_ws[Int32(2)])
 
     isparse_last = fld1(threadIdx().x, warpsize())  # wid
     while isparse_last <= ssz[end]
@@ -546,6 +599,7 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     model::IntervalMDP.FactoredRMDP{5, M},
     value_ws,
     gap_ws,
+    prealloc_ws,
     jₛ,
     jₐ,
     value_lt,
@@ -557,8 +611,8 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     gap_ws = view_supportsizes(gap_ws, ssz)
 
     # Pre-compute the first two ambiguity sets, as they are used by far the most
-    first_ambiguity_set = model[one(Int32)][jₐ, jₛ]
-    second_ambiguity_set = model[Int32(2)][jₐ, jₛ]
+    first_ambiguity_set = preallocate_ambiguity_set(model[one(Int32)][jₐ, jₛ], prealloc_ws[one(Int32)])
+    second_ambiguity_set = preallocate_ambiguity_set(model[Int32(2)][jₐ, jₛ], prealloc_ws[Int32(2)])
 
     isparse_last = fld1(threadIdx().x, warpsize())  # wid
     while isparse_last <= ssz[end]
@@ -997,6 +1051,31 @@ Base.@propagate_inbounds function supports(
     return supports
 end
 
+Base.@propagate_inbounds function preallocate_ambiguity_set(
+    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CuDeviceMatrix}},
+    ws,
+) where {Tv}
+    assume(warpsize() == 32)
+
+    wid = fld1(threadIdx().x, warpsize())
+    lower_ws, gap_ws = @view(ws[:, 1]), @view(ws[:, 2])
+
+    if wid == one(Int32)
+        ssz = IntervalMDP.supportsize(ambiguity_set)
+
+        # Add the lower bound multiplied by the value
+        s = laneid()
+        while s <= ssz
+            lower_ws[s] = lower(ambiguity_set, s)
+            gap_ws[s] = gap(ambiguity_set, s)
+            s += warpsize()
+        end
+    end
+    sync_threads()
+
+    return IntervalMDP.IntervalAmbiguitySet(lower_ws, gap_ws)
+end
+
 Base.@propagate_inbounds function add_lower_mul_V_norem_warp(V::AbstractVector{Tv}, ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CuDeviceMatrix}}) where {Tv}
     assume(warpsize() == 32)
 
@@ -1033,47 +1112,6 @@ Base.@propagate_inbounds function add_lower_mul_V_norem_warp(V::AbstractVector{T
     return lower_value
 end
 
-Base.@propagate_inbounds function add_lower_mul_V_norem_block(V::AbstractVector{Tv}, ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CuDeviceMatrix}}) where {Tv}
-    supportsize = IntervalMDP.supportsize(ambiguity_set)
-
-    lower_value = zero(Tv)
-
-    # Add the lower bound multiplied by the value
-    s = threadIdx().x
-    while s <= supportsize
-        # Find index of the permutation, and lookup the corresponding lower bound and multipy by the value
-        lower_value += lower(ambiguity_set, s) * V[s]
-        s += blockDim().x
-    end
-
-    lower_value = reduce_block(+, lower_value, zero(Tv), Val(true))
-    sync_threads()
-
-    return lower_value
-end
-
-Base.@propagate_inbounds function add_lower_mul_V_norem_block(V::AbstractVector{Tv}, ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC}}) where {Tv}
-    supportsize = IntervalMDP.supportsize(ambiguity_set)
-
-    lower_value = zero(Tv)
-    support = IntervalMDP.support(ambiguity_set)
-
-    # Add the lower bound multiplied by the value
-    lower_nonzeros = nonzeros(lower(ambiguity_set))
-    s = threadIdx().x
-    while s <= supportsize
-        # Find index of the permutation, and lookup the corresponding lower bound and multipy by the value
-        l = lower_nonzeros[s]
-        lower_value += l * V[support[s]]
-        s += blockDim().x
-    end
-
-    lower_value = reduce_block(+, lower_value, zero(Tv), Val(true))
-    sync_threads()
-
-    return lower_value
-end
-
 Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory!(
     ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CuDeviceMatrix}},
     prob,
@@ -1109,39 +1147,6 @@ Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory
 
     # Need to synchronize to make sure all agree on the shared memory
     sync_warp()
-end
-
-Base.@propagate_inbounds function factored_initialize_block_sorting_shared_memory!(
-    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CuDeviceMatrix}},
-    prob,
-) where {Tv}
-    ssz = IntervalMDP.supportsize(ambiguity_set)
-
-    # Copy into shared memory
-    s = threadIdx().x
-    while s <= ssz
-        prob[s] = gap(ambiguity_set, s)
-        s += blockDim().x
-    end
-
-    # Need to synchronize to make sure all agree on the shared memory
-    sync_threads()
-end
-
-Base.@propagate_inbounds function factored_initialize_block_sorting_shared_memory!(
-    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC}},
-    prob,
-) where {Tv}
-    # Copy into shared memory
-    gap_nonzeros = nonzeros(gap(ambiguity_set))
-    s = threadIdx().x
-    while s <= length(gap_nonzeros)
-        prob[s] = gap_nonzeros[s]
-        s += blockDim().x
-    end
-
-    # Need to synchronize to make sure all agree on the shared memory
-    sync_threads()
 end
 
 Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory!(
