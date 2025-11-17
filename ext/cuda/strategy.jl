@@ -45,7 +45,7 @@ Base.@propagate_inbounds function extract_strategy_warp!(
     action_reduce,
 ) where {Tv}
     assume(warpsize() == 32)
-    action_min, action_neutral = action_reduce[1], action_reduce[3]
+    action_min, _, action_neutral = action_reduce
 
     warp_aligned_length = kernel_nextwarp(length(values))
     opt_val = action_neutral
@@ -130,14 +130,14 @@ Base.@propagate_inbounds function extract_strategy_warp!(
 
     opt_val, opt_idx = argmin_warp(action_lt, opt_val, opt_idx)
 
-    if laneid() == 1
+    if laneid() == one(Int32)
         cache.strategy[jₛ] = (opt_idx,)
     end
 
     return opt_val
 end
 
-Base.@propagate_inbounds function extract_strategy_block!(
+Base.@propagate_inbounds function extract_strategy_warp!(
     ::NoStrategyActiveCache,
     values::AbstractArray{Tv},
     jₛ,
@@ -145,11 +145,11 @@ Base.@propagate_inbounds function extract_strategy_block!(
 ) where {Tv}
     action_min, _, action_neutral = action_reduce
 
-    loop_length = nextmult(blockDim().x, length(values))
+    warp_aligned_length = kernel_nextwarp(length(values))
     opt_val = action_neutral
 
-    s = threadIdx().x
-    while s <= loop_length
+    s = laneid()
+    while s <= warp_aligned_length
         new_val = if s <= length(values)
             values[s]
         else
@@ -157,26 +157,26 @@ Base.@propagate_inbounds function extract_strategy_block!(
         end
         opt_val = action_min(new_val, opt_val)
 
-        s += blockDim().x
+        s += warpsize()
     end
 
-    opt_val = reduce_block(action_min, opt_val, action_neutral, Val(true))
+    opt_val = reduce_warp(action_min, opt_val)
     return opt_val
 end
 
-Base.@propagate_inbounds function extract_strategy_block!(
-    cache::TimeVaryingStrategyActiveCache{1, <:AbstractArray},
+Base.@propagate_inbounds function extract_strategy_warp!(
+    cache::TimeVaryingStrategyActiveCache{N, <:AbstractArray},
     values::AbstractArray{Tv},
     jₛ,
     action_reduce
-) where {Tv}
+) where {N, Tv}
     _, action_lt, action_neutral = action_reduce
 
-    loop_length = nextmult(blockDim().x, length(values))
+    warp_aligned_length = kernel_nextwarp(length(values))
     opt_val, opt_idx = action_neutral, one(Int32)
 
-    s = threadIdx().x
-    while s <= loop_length
+    s = laneid()
+    while s <= warp_aligned_length
         new_val, new_idx = if s <= length(values)
             values[s], s
         else
@@ -184,12 +184,12 @@ Base.@propagate_inbounds function extract_strategy_block!(
         end
         opt_val, opt_idx = argop(action_lt, opt_val, opt_idx, new_val, new_idx)
 
-        s += blockDim().x
+        s += warpsize()
     end
 
-    opt_val, opt_idx = argmin_block(action_lt, opt_val, opt_idx, action_neutral, one(Int32), Val(true))
+    opt_val, opt_idx = argmin_warp(action_lt, opt_val, opt_idx)
 
-    if threadIdx().x == one(Int32)
+    if laneid() == one(Int32)
         action_shape = CartesianIndices(size(values))
         cache.cur_strategy[jₛ...] = Tuple(action_shape[opt_idx])
     end
@@ -197,15 +197,15 @@ Base.@propagate_inbounds function extract_strategy_block!(
     return opt_val
 end
 
-Base.@propagate_inbounds function extract_strategy_block!(
-    cache::StationaryStrategyActiveCache{1, <:AbstractArray},
+Base.@propagate_inbounds function extract_strategy_warp!(
+    cache::StationaryStrategyActiveCache{N, <:AbstractArray},
     values::AbstractArray{Tv},
     jₛ,
     action_reduce
-) where {Tv}
+) where {N, Tv}
     _, action_lt, action_neutral = action_reduce
 
-    loop_length = nextmult(blockDim().x, length(values))
+    warp_aligned_length = kernel_nextwarp(length(values))
     opt_val, opt_idx = if iszero(cache.strategy[jₛ...][1])
         action_neutral, one(Int32)
     else
@@ -213,8 +213,8 @@ Base.@propagate_inbounds function extract_strategy_block!(
         values[s...], s
     end
 
-    s = threadIdx().x
-    while s <= loop_length
+    s = laneid()
+    while s <= warp_aligned_length
         new_val, new_idx = if s <= length(values)
             values[s], s
         else
@@ -222,12 +222,12 @@ Base.@propagate_inbounds function extract_strategy_block!(
         end
         opt_val, opt_idx = argop(action_lt, opt_val, opt_idx, new_val, new_idx)
 
-        s += blockDim().x
+        s += warpsize()
     end
 
-    opt_val, opt_idx = argmin_block(action_lt, opt_val, opt_idx, action_neutral, one(Int32), Val(true))
+    opt_val, opt_idx = argmin_warp(action_lt, opt_val, opt_idx)
 
-    if threadIdx().x == one(Int32)
+    if laneid() == one(Int32)
         action_shape = CartesianIndices(size(values))
         cache.cur_strategy[jₛ...] = Tuple(action_shape[opt_idx])
     end
