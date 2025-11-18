@@ -753,9 +753,10 @@ Base.@propagate_inbounds function state_bellman!(
     maximize,
 ) where {N}
     for jₐ in CartesianIndices(action_shape(model))
-        ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
-        budgets =
-            ntuple(r -> workspace.budgets[r][sub2ind(marginals(model)[r], jₐ, jₛ)], N)
+        ambiguity_sets = map(marginal -> marginal[jₐ, jₛ], marginals(model))
+        inds = map(marginal -> sub2ind(marginal, jₐ, jₛ), marginals(model))
+        budgets = getindex.(workspace.budgets, inds)
+
         workspace.actions[jₐ] = state_action_bellman(
             workspace,
             V,
@@ -780,8 +781,9 @@ Base.@propagate_inbounds function state_bellman!(
     maximize,
 ) where {N}
     jₐ = CartesianIndex(strategy_cache[jₛ])
-    ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
-    budgets = ntuple(r -> workspace.budgets[r][sub2ind(marginals(model)[r], jₐ, jₛ)], N)
+    ambiguity_sets = map(marginal -> marginal[jₐ, jₛ], marginals(model))
+    inds = map(marginal -> sub2ind(marginal, jₐ, jₛ), marginals(model))
+    budgets = getindex.(workspace.budgets, inds)
     Vres[jₛ] =
         state_action_bellman(workspace, V, model, ambiguity_sets, budgets, upper_bound)
 end
