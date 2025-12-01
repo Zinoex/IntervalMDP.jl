@@ -5,7 +5,7 @@ export AllStates
 export num_states, num_actions, initial_states
 
 include("FactoredRobustMarkovDecisionProcess.jl")
-export FactoredRobustMarkovDecisionProcess, state_values, action_values, marginals
+export FactoredRobustMarkovDecisionProcess, state_values, action_values, marginals, available_actions
 
 # Convenience model constructors - they all return a FactoredRobustMarkovDecisionProcess
 include("IntervalMarkovChain.jl")

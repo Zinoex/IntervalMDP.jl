@@ -123,6 +123,7 @@ struct FactoredRobustMarkovDecisionProcess{
     N,
     M,
     P <: NTuple{N, Marginal},
+    AA <: AbstractAvailableActions,
     VI <: InitialStates,
 } <: IntervalMarkovProcess
     state_vars::NTuple{N, Int32}   # N is the number of state variables and state_vars[n] is the number of states for state variable n
@@ -131,6 +132,7 @@ struct FactoredRobustMarkovDecisionProcess{
     source_dims::NTuple{N, Int32}
 
     transition::P
+    available_actions::AA
     initial_states::VI
 
     function FactoredRobustMarkovDecisionProcess(
@@ -138,16 +140,18 @@ struct FactoredRobustMarkovDecisionProcess{
         action_vars::NTuple{M, Int32},
         source_dims::NTuple{N, Int32},
         transition::P,
+        available_actions::AA,
         initial_states::VI,
         check::Val{true},
-    ) where {N, M, P <: NTuple{N, Marginal}, VI <: InitialStates}
-        check_rmdp(state_vars, action_vars, source_dims, transition, initial_states)
+    ) where {N, M, P <: NTuple{N, Marginal}, AA <: AbstractAvailableActions, VI <: InitialStates}
+        check_rmdp(state_vars, action_vars, source_dims, transition, available_actions, initial_states)
 
-        return new{N, M, P, VI}(
+        return new{N, M, P, AA, VI}(
             state_vars,
             action_vars,
             source_dims,
             transition,
+            available_actions,
             initial_states,
         )
     end
@@ -157,14 +161,16 @@ struct FactoredRobustMarkovDecisionProcess{
         action_vars::NTuple{M, Int32},
         source_dims::NTuple{N, Int32},
         transition::P,
+        available_actions::AA,
         initial_states::VI,
         check::Val{false},
-    ) where {N, M, P <: NTuple{N, Marginal}, VI <: InitialStates}
-        return new{N, M, P, VI}(
+    ) where {N, M, P <: NTuple{N, Marginal}, AA <: AbstractAvailableActions, VI <: InitialStates}
+        return new{N, M, P, AA, VI}(
             state_vars,
             action_vars,
             source_dims,
             transition,
+            available_actions,
             initial_states,
         )
     end
@@ -176,13 +182,15 @@ function FactoredRMDP(
     action_vars::NTuple{M, Int32},
     source_dims::NTuple{N, Int32},
     transition::P,
-    initial_states::VI = AllStates(),
-) where {N, M, P <: NTuple{N, Marginal}, VI <: InitialStates}
+    available_actions::AA,
+    initial_states::VI,
+) where {N, M, P <: NTuple{N, Marginal}, AA <: AbstractAvailableActions, VI <: InitialStates}
     return FactoredRobustMarkovDecisionProcess(
         state_vars,
         action_vars,
         source_dims,
         transition,
+        available_actions,
         initial_states,
         Val(true),
     )
@@ -193,8 +201,9 @@ function FactoredRMDP(
     action_vars::NTuple{M, <:Integer},
     source_dims::NTuple{N, <:Integer},
     transition::NTuple{N, Marginal},
+    available_actions::AA = AllAvailableActions(action_vars),
     initial_states::VI = AllStates(),
-) where {N, M, VI <: InitialStates}
+) where {N, M, AA <: AbstractAvailableActions, VI <: InitialStates}
     state_vars_32 = Int32.(state_vars)
     action_vars_32 = Int32.(action_vars)
     source_dims_32 = Int32.(source_dims)
@@ -204,6 +213,24 @@ function FactoredRMDP(
         action_vars_32,
         source_dims_32,
         transition,
+        available_actions,
+        initial_states,
+    )
+end
+
+function FactoredRMDP(
+    state_vars::NTuple{N, <:Integer},
+    action_vars::NTuple{M, <:Integer},
+    source_dims::NTuple{N, <:Integer},
+    transition::NTuple{N, Marginal},
+    initial_states::VI,
+) where {N, M, VI <: InitialStates}
+    return FactoredRobustMarkovDecisionProcess(
+        state_vars,
+        action_vars,
+        source_dims,
+        transition,
+        AllAvailableActions(action_vars),
         initial_states,
     )
 end
@@ -212,21 +239,39 @@ function FactoredRMDP(
     state_vars::NTuple{N, <:Integer},
     action_vars::NTuple{M, <:Integer},
     transition::NTuple{N, Marginal},
+    available_actions::AA = AllAvailableActions(action_vars),
     initial_states::VI = AllStates(),
-) where {N, M, VI <: InitialStates}
+) where {N, M, AA <: AbstractAvailableActions, VI <: InitialStates}
     return FactoredRobustMarkovDecisionProcess(
         state_vars,
         action_vars,
         state_vars,
         transition,
+        available_actions,
         initial_states,
     )
 end
 
-function check_rmdp(state_vars, action_vars, source_dims, transition, initial_states)
+function FactoredRMDP(
+    state_vars::NTuple{N, <:Integer},
+    action_vars::NTuple{M, <:Integer},
+    transition::NTuple{N, Marginal},
+    initial_states::VI,
+) where {N, M, VI <: InitialStates}
+    return FactoredRobustMarkovDecisionProcess(
+        state_vars,
+        action_vars,
+        transition,
+        AllAvailableActions(action_vars),
+        initial_states,
+    )
+end
+
+function check_rmdp(state_vars, action_vars, source_dims, transition, available_actions, initial_states)
     check_state_values(state_vars, source_dims)
     check_action_values(action_vars)
     check_transition(state_vars, action_vars, source_dims, transition)
+    check_available_actions(available_actions, source_dims, state_vars, action_vars)
     check_initial_states(state_vars, initial_states)
 end
 
@@ -326,6 +371,12 @@ Return the marginals of the fRMDP.
 """
 marginals(mdp::FactoredRMDP) = mdp.transition
 
+"""
+    available_actions(mdp::FactoredRMDP)
+Return the available actions object of the fRMDP.
+"""
+available_actions(mdp::FactoredRMDP) = mdp.available_actions
+
 num_states(mdp::FactoredRMDP) = prod(state_values(mdp))
 num_actions(mdp::FactoredRMDP) = prod(action_values(mdp))
 initial_states(mdp::FactoredRMDP) = mdp.initial_states
@@ -398,6 +449,8 @@ function showsystem(io::IO, first_prefix, prefix, mdp::FactoredRMDP{N, M}) where
     end
     println(io, marginal_prefix, "└─ Marginal $(length(mdp.transition)): ")
     showmarginal(io, marginal_prefix * "   ", mdp.transition[end])
+
+    # TODO: available actions
 
     showinferred(io, prefix, mdp)
 end

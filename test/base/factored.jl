@@ -568,6 +568,7 @@ end
             Int32.(action_vars),
             Int32.(state_vars),
             (marginal1, marginal2),
+            AllAvailableActions(Int32.(action_vars)),
             AllStates(),
             Val(false),
         )

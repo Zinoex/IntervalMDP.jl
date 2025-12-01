@@ -16,6 +16,18 @@ Adapt.@adapt_structure StationaryStrategy
 Adapt.adapt_structure(to, strategy::TimeVaryingStrategy) =
     TimeVaryingStrategy([adapt(to, s) for s in strategy.strategy])
 
+Adapt.@adapt_structure AllAvailableActions
+Adapt.@adapt_structure TimeVaryingAvailableActions
+
+function Adapt.adapt_structure(
+    to,
+    aa::ListAvailableActions,
+)
+    throw(ArgumentError("ListAvailableActions is not compatible with CUDA."))
+end
+
+# TODO: Update bellman algorithms to obey available actions on GPU
+
 function Adapt.adapt_structure(
     T::Type{<:IntervalMDP.CuModelAdaptor},
     mdp::IntervalMDP.FactoredRMDP,
@@ -25,6 +37,7 @@ function Adapt.adapt_structure(
         action_values(mdp),
         IntervalMDP.source_shape(mdp),
         adapt(T, marginals(mdp)),
+        adapt(T, available_actions(mdp)),
         adapt(CuArray{eltype(initial_states(mdp))}, initial_states(mdp)),
         Val(false), # check = false
     )
@@ -39,6 +52,7 @@ function Adapt.adapt_structure(
         action_values(mdp),
         IntervalMDP.source_shape(mdp),
         adapt(T, marginals(mdp)),
+        adapt(T, available_actions(mdp)),
         adapt(Array{eltype(initial_states(mdp))}, initial_states(mdp)),
         Val(false), # check = false
     )
@@ -53,6 +67,7 @@ function Adapt.adapt_structure(
         action_values(mdp),
         IntervalMDP.source_shape(mdp),
         adapt(to, marginals(mdp)),
+        adapt(to, available_actions(mdp)),
         adapt(to, initial_states(mdp)),
         Val(false), # check = false
     )

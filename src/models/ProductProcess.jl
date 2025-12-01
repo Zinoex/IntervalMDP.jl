@@ -94,6 +94,8 @@ Return the labelling function of the product
 """
 labelling_function(proc::ProductProcess) = proc.labelling_func
 
+available_actions(proc::ProductProcess) = available_actions(markov_process(proc))
+
 state_values(proc::ProductProcess) =
     (state_values(markov_process(proc))..., num_states(automaton(proc)))
 source_shape(proc::ProductProcess) =

@@ -257,7 +257,7 @@ end
 
 function step!(
     workspace,
-    strategy_cache::OptimizingStrategyCache,
+    strategy_cache,
     value_function,
     k,
     mp;
@@ -266,31 +266,30 @@ function step!(
 )
     bellman!(
         workspace,
-        strategy_cache,
+        select_strategy_cache(strategy_cache, k),
         value_function.current,
         value_function.previous,
-        mp;
+        mp,
+        select_available_actions(available_actions(mp), k);
         upper_bound = upper_bound,
         maximize = maximize,
     )
 end
 
-function step!(
-    workspace,
-    strategy_cache::NonOptimizingStrategyCache,
-    value_function,
+select_strategy_cache(
+    strategy_cache::OptimizingStrategyCache,
     k,
-    mp;
-    upper_bound,
-    maximize,
-)
-    bellman!(
-        workspace,
-        strategy_cache[time_length(strategy_cache) - k],
-        value_function.current,
-        value_function.previous,
-        mp;
-        upper_bound = upper_bound,
-        maximize = maximize,
-    )
-end
+) = strategy_cache
+select_strategy_cache(
+    strategy_cache::NonOptimizingStrategyCache,
+    k,
+) = strategy_cache[time_length(strategy_cache) - k]
+
+select_available_actions(
+    aa::SingleTimeStepAvailableActions,
+    k,
+) = aa
+select_available_actions(
+    aa::TimeVaryingAvailableActions,
+    k,
+) = aa.actions[time_length(aa) - k]

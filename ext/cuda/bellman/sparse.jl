@@ -3,7 +3,8 @@ function IntervalMDP._bellman_helper!(
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres::AbstractVector{Tv},
     V::AbstractVector{Tv},
-    model;
+    model,
+    avail_act;
     upper_bound = false,
     maximize = true,
 ) where {Tv}

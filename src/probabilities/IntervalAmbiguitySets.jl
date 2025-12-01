@@ -262,6 +262,7 @@ num_sets(p::IntervalAmbiguitySets) = size(p.lower, 2)
 source_shape(p::IntervalAmbiguitySets) = (num_sets(p),)
 action_shape(::IntervalAmbiguitySets) = (1,)
 marginals(p::IntervalAmbiguitySets) = (p,)
+available_actions(::IntervalAmbiguitySets) = AllAvailableActions((1,))
 
 maxsupportsize(p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractMatrix{R}} =
     size(p.gap, 1)

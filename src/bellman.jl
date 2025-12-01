@@ -74,13 +74,14 @@ Vcur = IntervalMDP.bellman(Vprev, model; upper_bound = false)
 function bellman(
     V,
     model,
-    alg = default_bellman_algorithm(model);
+    avail_act::AbstractAvailableActions = available_actions(model),
+    alg::BellmanAlgorithm = default_bellman_algorithm(model);
     upper_bound = false,
     maximize = true,
 )
     Vres = similar(V, source_shape(model))
 
-    return bellman!(Vres, V, model, alg; upper_bound = upper_bound, maximize = maximize)
+    return bellman!(Vres, V, model, avail_act, alg; upper_bound = upper_bound, maximize = maximize)
 end
 
 """
@@ -163,10 +164,11 @@ IntervalMDP.bellman!(workspace, strategy_cache, Vcur, Vprev, model; upper_bound 
 function bellman! end
 
 function bellman!(
-    Vres,
-    V,
+    Vres::AbstractArray,
+    V::AbstractArray,
     model,
-    alg = default_bellman_algorithm(model);
+    avail_act::AbstractAvailableActions = available_actions(model),
+    alg::BellmanAlgorithm = default_bellman_algorithm(model);
     upper_bound = false,
     maximize = true,
 )
@@ -178,7 +180,8 @@ function bellman!(
         strategy_cache,
         Vres,
         V,
-        model;
+        model,
+        avail_act;
         upper_bound = upper_bound,
         maximize = maximize,
     )
@@ -187,9 +190,10 @@ end
 function bellman!(
     workspace,
     strategy_cache,
-    Vres,
-    V,
-    model::IntervalMarkovProcess;
+    Vres::AbstractArray,
+    V::AbstractArray,
+    model::IntervalMarkovProcess,
+    avail_act::AbstractAvailableActions = available_actions(model);
     upper_bound = false,
     maximize = true,
 )
@@ -198,7 +202,8 @@ function bellman!(
         strategy_cache,
         Vres,
         V,
-        model;
+        model,
+        avail_act;
         upper_bound = upper_bound,
         maximize = maximize,
     )
@@ -207,9 +212,10 @@ end
 function bellman!(
     workspace::ProductWorkspace,
     strategy_cache,
-    Vres,
-    V,
-    model::ProductProcess;
+    Vres::AbstractArray,
+    V::AbstractArray,
+    model::ProductProcess,
+    avail_act::AbstractAvailableActions = available_actions(model);
     upper_bound = false,
     maximize = true,
 )
@@ -223,10 +229,11 @@ function bellman!(
         Vres,
         V,
         dfa,
-        mp,
         lf,
-        upper_bound,
-        maximize,
+        mp,
+        avail_act;
+        upper_bound = upper_bound,
+        maximize = maximize,
     )
 end
 
@@ -236,8 +243,9 @@ function _bellman_helper!(
     Vres,
     V,
     dfa::DFA,
-    mp::IntervalMarkovProcess,
     lf::DeterministicLabelling,
+    mp::IntervalMarkovProcess,
+    avail_act;
     upper_bound = false,
     maximize = true,
 )
@@ -259,7 +267,8 @@ function _bellman_helper!(
             local_strategy_cache,
             selectdim(Vres, ndims(Vres), state),
             W,
-            mp;
+            mp,
+            avail_act;
             upper_bound = upper_bound,
             maximize = maximize,
         )
@@ -274,8 +283,9 @@ function _bellman_helper!(
     Vres,
     V::AbstractArray{R},
     dfa::DFA,
-    mp::IntervalMarkovProcess,
     lf::ProbabilisticLabelling,
+    mp::IntervalMarkovProcess,
+    avail_act;
     upper_bound = false,
     maximize = true,
 ) where {R}
@@ -304,7 +314,8 @@ function _bellman_helper!(
             local_strategy_cache,
             selectdim(Vres, ndims(Vres), state),
             W,
-            mp;
+            mp,
+            avail_act;
             upper_bound = upper_bound,
             maximize = maximize,
         )
@@ -349,7 +360,8 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    avail_act;
     upper_bound = false,
     maximize = true,
 )
@@ -364,6 +376,7 @@ function _bellman_helper!(
             Vres,
             V,
             marginal,
+            avail_act,
             jₛ,
             upper_bound,
             maximize,
@@ -382,7 +395,8 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    avail_act;
     upper_bound = false,
     maximize = true,
 )
@@ -392,7 +406,7 @@ function _bellman_helper!(
 
     @threadstid tid for jₛ in CartesianIndices(source_shape(marginal))
         @inbounds ws = workspace[tid]
-        @inbounds state_bellman!(ws, strategy_cache, Vres, V, marginal, jₛ, upper_bound, maximize)
+        @inbounds state_bellman!(ws, strategy_cache, Vres, V, marginal, avail_act, jₛ, upper_bound, maximize)
     end
 
     return Vres
@@ -419,11 +433,12 @@ Base.@propagate_inbounds function state_bellman!(
     Vres,
     V,
     marginal,
+    avail_act,
     jₛ,
     upper_bound,
     maximize,
 )
-    for jₐ in CartesianIndices(action_shape(marginal))
+    for jₐ in available(avail_act, jₛ)
         ambiguity_set = marginal[jₐ, jₛ]
         budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
         workspace.actions[jₐ] =
@@ -439,6 +454,7 @@ Base.@propagate_inbounds function state_bellman!(
     Vres,
     V,
     marginal,
+    avail_act,
     jₛ,
     upper_bound,
     maximize,
@@ -529,12 +545,13 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    avail_act;
     upper_bound = false,
     maximize = true,
 )
     @inbounds for jₛ in CartesianIndices(source_shape(model))
-        state_bellman!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
+        state_bellman!(workspace, strategy_cache, Vres, V, model, avail_act, jₛ, upper_bound, maximize)
     end
 
     return Vres
@@ -546,13 +563,14 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    avail_act;
     upper_bound = false,
     maximize = true,
 )
     @threadstid tid for jₛ in CartesianIndices(source_shape(model))
         @inbounds ws = workspace[tid]
-        @inbounds state_bellman!(ws, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
+        @inbounds state_bellman!(ws, strategy_cache, Vres, V, model, avail_act, jₛ, upper_bound, maximize)
     end
 
     return Vres
@@ -564,11 +582,12 @@ Base.@propagate_inbounds function state_bellman!(
     Vres,
     V,
     model,
+    avail_act,
     jₛ,
     upper_bound,
     maximize,
 )
-    for jₐ in CartesianIndices(action_shape(model))
+    for jₐ in available(avail_act, jₛ)
         ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
         workspace.actions[jₐ] =
             state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
@@ -583,6 +602,7 @@ Base.@propagate_inbounds function state_bellman!(
     Vres,
     V,
     model,
+    avail_act,
     jₛ,
     upper_bound,
     maximize,
@@ -693,7 +713,8 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    avail_act;
     upper_bound = false,
     maximize = true,
 )
@@ -705,6 +726,7 @@ function _bellman_helper!(
             Vres,
             V,
             model,
+            avail_act,
             jₛ;
             upper_bound = upper_bound,
             maximize = maximize,
@@ -719,7 +741,8 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    avail_act;
     upper_bound = false,
     maximize = true,
 )
@@ -733,6 +756,7 @@ function _bellman_helper!(
             Vres,
             V,
             model,
+            avail_act,
             jₛ;
             upper_bound = upper_bound,
             maximize = maximize,
@@ -748,11 +772,12 @@ Base.@propagate_inbounds function state_bellman!(
     Vres,
     V,
     model::FactoredRMDP{N},
+    avail_act,
     jₛ;
     upper_bound,
     maximize,
 ) where {N}
-    for jₐ in CartesianIndices(action_shape(model))
+    for jₐ in available(avail_act, jₛ)
         ambiguity_sets = map(marginal -> marginal[jₐ, jₛ], marginals(model))
         inds = map(marginal -> sub2ind(marginal, jₐ, jₛ), marginals(model))
         budgets = getindex.(workspace.budgets, inds)
@@ -776,6 +801,7 @@ Base.@propagate_inbounds function state_bellman!(
     Vres,
     V,
     model::FactoredRMDP{N},
+    avail_act,
     jₛ;
     upper_bound,
     maximize,
@@ -874,12 +900,13 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    avail_act;
     upper_bound = false,
     maximize = true,
 )
     @inbounds for jₛ in CartesianIndices(source_shape(model))
-        state_bellman!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
+        state_bellman!(workspace, strategy_cache, Vres, V, model, avail_act, jₛ, upper_bound, maximize)
     end
 
     return Vres
@@ -891,13 +918,14 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    avail_act;
     upper_bound = false,
     maximize = true,
 )
     @threadstid tid for jₛ in CartesianIndices(source_shape(model))
         @inbounds ws = workspace[tid]
-        @inbounds state_bellman!(ws, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
+        @inbounds state_bellman!(ws, strategy_cache, Vres, V, model, avail_act, jₛ, upper_bound, maximize)
     end
 
     return Vres
@@ -909,11 +937,12 @@ Base.@propagate_inbounds function state_bellman!(
     Vres,
     V,
     model,
+    avail_act,
     jₛ,
     upper_bound,
     maximize,
 )
-    for jₐ in CartesianIndices(action_shape(model))
+    for jₐ in available(avail_act, jₛ)
         ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
         workspace.actions[jₐ] =
             state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
@@ -928,6 +957,7 @@ Base.@propagate_inbounds function state_bellman!(
     Vres,
     V,
     model,
+    avail_act,
     jₛ,
     upper_bound,
     maximize,
