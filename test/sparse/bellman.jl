@@ -25,8 +25,7 @@ using IntervalMDP, SparseArrays
             strategy_cache,
             Vres,
             V,
-            prob,
-            IntervalMDP.available_actions(prob);
+            prob;
             upper_bound = true,
         )
         @test Vres ≈ N[82 // 10, 57 // 10]  # [0.3 * 4 + 0.7 * 10, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
@@ -39,8 +38,7 @@ using IntervalMDP, SparseArrays
             strategy_cache,
             Vres,
             V,
-            prob,
-            IntervalMDP.available_actions(prob);
+            prob;
             upper_bound = true,
         )
         @test Vres ≈ N[82 // 10, 57 // 10]  # [0.3 * 4 + 0.7 * 10, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
@@ -53,8 +51,7 @@ using IntervalMDP, SparseArrays
             strategy_cache,
             Vres,
             V,
-            prob,
-            IntervalMDP.available_actions(prob);
+            prob;
             upper_bound = true,
         )
         @test Vres ≈ N[82 // 10, 57 // 10]  # [0.3 * 4 + 0.7 * 10, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
@@ -70,8 +67,7 @@ using IntervalMDP, SparseArrays
             strategy_cache,
             Vres,
             V,
-            prob,
-            IntervalMDP.available_actions(prob);
+            prob;
             upper_bound = false,
         )
         @test Vres ≈ N[37 // 10, 55 // 10]  # [0.5 * 1 + 0.3 * 4 + 0.2 * 10, 0.6 * 5 + 0.3 * 6 + 0.1 * 7]
@@ -84,8 +80,7 @@ using IntervalMDP, SparseArrays
             strategy_cache,
             Vres,
             V,
-            prob,
-            IntervalMDP.available_actions(prob);
+            prob;
             upper_bound = false,
         )
         @test Vres ≈ N[37 // 10, 55 // 10]  # [0.5 * 1 + 0.3 * 4 + 0.2 * 10, 0.6 * 5 + 0.3 * 6 + 0.1 * 7]
@@ -98,8 +93,7 @@ using IntervalMDP, SparseArrays
             strategy_cache,
             Vres,
             V,
-            prob,
-            IntervalMDP.available_actions(prob);
+            prob;
             upper_bound = false,
         )
         @test Vres ≈ N[37 // 10, 55 // 10]  # [0.5 * 1 + 0.3 * 4 + 0.2 * 10, 0.6 * 5 + 0.3 * 6 + 0.1 * 7]

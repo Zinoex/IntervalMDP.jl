@@ -19,7 +19,7 @@ The choice to have labels on the rows is due to the column-major storage of matr
 in the Bellman operator `bellman!`.
 
 """
-struct ProbabilisticLabelling{R <: Real, MR <: AbstractMatrix{R}} <: AbstractLabelling
+struct ProbabilisticLabelling{R <: Real, MR <: AbstractMatrix{R}} <: AbstractSingleStepLabelling
     map::MR
 
     function ProbabilisticLabelling(map::MR) where {R <: Real, MR <: AbstractMatrix{R}}
@@ -82,3 +82,25 @@ state_values(pl::ProbabilisticLabelling) = Base.tail(size(pl.map))
 Return the number of states of the labeling function ``L : S \\to 2^{AP}``
 """
 num_states(pl::ProbabilisticLabelling) = prod(state_values(pl))
+
+function check_labelling_function(
+    labelling_func::ProbabilisticLabelling,
+    state_vars,
+    expected_labels,
+)
+    if state_values(labelling_func) != state_vars
+        throw(
+            DimensionMismatch(
+                "The size of the labelling function must match the number of states in the MDP. Got $(state_values(labelling_func)) vs $state_vars.",
+            ),
+        )
+    end
+
+    if num_labels(labelling_func) > expected_labels
+        throw(
+            DimensionMismatch(
+                "The number of labels in the labelling function must match the number of labels in the DFA. Got $(num_labels(labelling_func)) vs $expected_labels.",
+            ),
+        )
+    end
+end

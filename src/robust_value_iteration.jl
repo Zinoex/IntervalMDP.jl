@@ -171,8 +171,6 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     mp = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(spec)
-    upper_bound = isoptimistic(spec)
-    maximize = ismaximize(spec)
 
     # It is more efficient to use allocate first and reuse across iterations
     workspace = construct_workspace(mp, bellman_algorithm(alg))
@@ -187,13 +185,9 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
         strategy_cache,
         value_function,
         0,
-        mp;
-        upper_bound = upper_bound,
-        maximize = maximize,
-        prop = system_property(spec),
+        mp,
+        spec
     )
-    step_postprocess_value_function!(value_function, spec)
-    step_postprocess_strategy_cache!(strategy_cache)
     k = 1
 
     if !isnothing(callback)
@@ -208,13 +202,9 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
             strategy_cache,
             value_function,
             k,
-            mp;
-            upper_bound = upper_bound,
-            maximize = maximize,
-            prop = system_property(spec),
+            mp,
+            spec
         )
-        step_postprocess_value_function!(value_function, spec)
-        step_postprocess_strategy_cache!(strategy_cache)
         k += 1
 
         if !isnothing(callback)
@@ -262,28 +252,47 @@ function step!(
     strategy_cache,
     value_function,
     k,
-    mp;
-    upper_bound,
-    maximize,
-    prop,
+    mp,
+    spec,
 )
     bellman!(
         workspace,
         select_strategy_cache(strategy_cache, k),
         value_function.current,
         value_function.previous,
-        mp,
-        select_available_actions(available_actions(mp), k);
-        upper_bound = upper_bound,
-        maximize = maximize,
-        prop = prop,
+        select_model(mp, k);  # For time-varying available and labelling functions
+        upper_bound = isoptimistic(spec),
+        maximize = ismaximize(spec),
+        prop = system_property(spec),
     )
+    step_postprocess_value_function!(value_function, spec)
+    step_postprocess_strategy_cache!(strategy_cache)
 end
 
 select_strategy_cache(strategy_cache::OptimizingStrategyCache, k) = strategy_cache
 select_strategy_cache(strategy_cache::NonOptimizingStrategyCache, k) =
     strategy_cache[time_length(strategy_cache) - k]
 
+select_model(mp::IntervalMarkovProcess, k) = FactoredRMDP(
+    state_values(mp),
+    action_values(mp),
+    source_shape(mp),
+    marginals(mp),
+    select_available_actions(available_actions(mp), k),
+    initial_states(mp),
+    Val(false)
+)
+
 select_available_actions(aa::SingleTimeStepAvailableActions, k) = aa
 select_available_actions(aa::TimeVaryingAvailableActions, k) =
     aa.actions[time_length(aa) - k]
+
+select_model(mp::ProductProcess, k) = ProductProcess(
+    select_model(markov_process(mp), k),
+    automaton(mp),
+    select_labelling_function(labelling_function(mp), k)
+)
+
+select_labelling_function(lf::AbstractSingleStepLabelling, k) = lf
+select_labelling_function(lf::TimeVaryingLabelling, k) =
+    lf.maps[time_length(lf) - k]

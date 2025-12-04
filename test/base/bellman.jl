@@ -19,8 +19,7 @@ using IntervalMDP
             strategy_cache,
             Vres,
             V,
-            prob,
-            IntervalMDP.available_actions(prob);
+            prob;
             upper_bound = true,
         )
         @test Vres ≈ N[27 // 10, 17 // 10] # [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
@@ -33,8 +32,7 @@ using IntervalMDP
             strategy_cache,
             Vres,
             V,
-            prob,
-            IntervalMDP.available_actions(prob);
+            prob;
             upper_bound = true,
         )
         @test Vres ≈ N[27 // 10, 17 // 10]
@@ -47,8 +45,7 @@ using IntervalMDP
             strategy_cache,
             Vres,
             V,
-            prob,
-            IntervalMDP.available_actions(prob);
+            prob;
             upper_bound = true,
         )
         @test Vres ≈ N[27 // 10, 17 // 10]
@@ -64,8 +61,7 @@ using IntervalMDP
             strategy_cache,
             Vres,
             V,
-            prob,
-            IntervalMDP.available_actions(prob);
+            prob;
             upper_bound = false,
         )
         @test Vres ≈ N[17 // 10, 15 // 10]  # [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
@@ -78,8 +74,7 @@ using IntervalMDP
             strategy_cache,
             Vres,
             V,
-            prob,
-            IntervalMDP.available_actions(prob);
+            prob;
             upper_bound = false,
         )
         @test Vres ≈ N[17 // 10, 15 // 10]
@@ -92,8 +87,7 @@ using IntervalMDP
             strategy_cache,
             Vres,
             V,
-            prob,
-            IntervalMDP.available_actions(prob);
+            prob;
             upper_bound = false,
         )
         @test Vres ≈ N[17 // 10, 15 // 10]

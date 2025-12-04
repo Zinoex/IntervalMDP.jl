@@ -408,6 +408,8 @@ marginals(mdp::FactoredRMDP) = mdp.transition
 Return the available actions object of the fRMDP.
 """
 available_actions(mdp::FactoredRMDP) = mdp.available_actions
+isavailable(mdp::FactoredRMDP, jₛ, jₐ) = isavailable(available_actions(mdp), jₛ, jₐ)
+available(mdp::FactoredRMDP, jₛ) = available(available_actions(mdp), jₛ)
 
 num_states(mdp::FactoredRMDP) = prod(state_values(mdp))
 num_actions(mdp::FactoredRMDP) = prod(action_values(mdp))

@@ -28,8 +28,7 @@ using IntervalMDP, CUDA
             strategy_cache,
             Vres,
             V,
-            prob,
-            IntervalMDP.available_actions(prob);
+            prob;
             upper_bound = true,
         )
         Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
@@ -46,8 +45,7 @@ using IntervalMDP, CUDA
             strategy_cache,
             Vres,
             V,
-            prob,
-            IntervalMDP.available_actions(prob);
+            prob;
             upper_bound = false,
         )
         Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing

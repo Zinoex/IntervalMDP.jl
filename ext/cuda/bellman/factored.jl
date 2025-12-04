@@ -3,8 +3,7 @@ function IntervalMDP._bellman_helper!(
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres::AbstractArray{Tv},
     V::AbstractArray{Tv},
-    model::IntervalMDP.FactoredRMDP{N, M},
-    avail_act;
+    model::IntervalMDP.FactoredRMDP{N, M};
     upper_bound = false,
     maximize = true,
 ) where {Tv, N, M}
@@ -12,6 +11,14 @@ function IntervalMDP._bellman_helper!(
         throw(
             ArgumentError(
                 "Value type of the model ($(IntervalMDP.valuetype(model))) does not match the value type of the input vector ($Tv).",
+            ),
+        )
+    end
+
+    if !(IntervalMDP.available_actions(model) isa AllAvailableActions)
+        throw(
+            ArgumentError(
+                "CUDA factored Bellman operator only supports all available actions.",
             ),
         )
     end

@@ -50,6 +50,7 @@ include("TransitionFunction.jl")
 export TransitionFunction, transition
 
 include("Labelling.jl")
+export TimeVaryingLabelling
 
 include("DeterministicLabelling.jl")
 export DeterministicLabelling, mapping, num_labels, state_values, num_states
