@@ -1,7 +1,7 @@
 abstract type AbstractStrategy end
 
 struct NoStrategy <: AbstractStrategy end
-checkstrategy(::NoStrategy, system) = nothing
+checkstrategy(::NoStrategy, system, prop=nothing) = nothing
 
 """
     StationaryStrategy
@@ -14,20 +14,25 @@ end
 Base.getindex(strategy::StationaryStrategy, k) = strategy.strategy
 time_length(::StationaryStrategy) = typemax(Int64)
 
-function checkstrategy(strategy::StationaryStrategy, system)
-    checkstrategy(strategy.strategy, system)
+function checkstrategy(strategy::StationaryStrategy, system, prop=nothing)
+    checkstrategy(strategy.strategy, system, prop)
 end
 
-function checkstrategy(strategy::AbstractArray, system::ProductProcess)
+function checkstrategy(strategy::AbstractArray, system::ProductProcess, prop=nothing)
     mp = markov_process(system)
     dfa = automaton(system)
 
     for state in dfa
-        checkstrategy(selectdim(strategy, ndims(strategy), state), mp)
+        # If a DFA property is given, skip terminal states
+        if !isnothing(prop) && state ∈ terminal(prop)
+            continue
+        end
+
+        checkstrategy(selectdim(strategy, ndims(strategy), state), mp, prop)
     end
 end
 
-function checkstrategy(strategy::AbstractArray, system::FactoredRMDP)
+function checkstrategy(strategy::AbstractArray, system::FactoredRMDP, prop=nothing)
     if size(strategy) != source_shape(system)
         throw(
             DimensionMismatch(
@@ -77,9 +82,9 @@ end
 Base.getindex(strategy::TimeVaryingStrategy, k) = strategy.strategy[k]
 time_length(strategy::TimeVaryingStrategy) = length(strategy.strategy)
 
-function checkstrategy(strategy::TimeVaryingStrategy, system)
+function checkstrategy(strategy::TimeVaryingStrategy, system, prop=nothing)
     for strategy_step in strategy.strategy
-        checkstrategy(strategy_step, system)
+        checkstrategy(strategy_step, system, prop)
     end
 end
 
