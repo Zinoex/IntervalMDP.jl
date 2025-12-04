@@ -180,14 +180,7 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     initialize!(value_function, spec)
     nextiteration!(value_function)
 
-    step!(
-        workspace,
-        strategy_cache,
-        value_function,
-        0,
-        mp,
-        spec
-    )
+    step!(workspace, strategy_cache, value_function, 0, mp, spec)
     k = 1
 
     if !isnothing(callback)
@@ -197,14 +190,7 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
 
-        step!(
-            workspace,
-            strategy_cache,
-            value_function,
-            k,
-            mp,
-            spec
-        )
+        step!(workspace, strategy_cache, value_function, k, mp, spec)
         k += 1
 
         if !isnothing(callback)
@@ -247,14 +233,7 @@ function nextiteration!(V)
     return V
 end
 
-function step!(
-    workspace,
-    strategy_cache,
-    value_function,
-    k,
-    mp,
-    spec,
-)
+function step!(workspace, strategy_cache, value_function, k, mp, spec)
     bellman!(
         workspace,
         select_strategy_cache(strategy_cache, k),
@@ -280,7 +259,7 @@ select_model(mp::IntervalMarkovProcess, k) = FactoredRMDP(
     marginals(mp),
     select_available_actions(available_actions(mp), k),
     initial_states(mp),
-    Val(false)
+    Val(false),
 )
 
 select_available_actions(aa::SingleTimeStepAvailableActions, k) = aa
@@ -290,9 +269,8 @@ select_available_actions(aa::TimeVaryingAvailableActions, k) =
 select_model(mp::ProductProcess, k) = ProductProcess(
     select_model(markov_process(mp), k),
     automaton(mp),
-    select_labelling_function(labelling_function(mp), k)
+    select_labelling_function(labelling_function(mp), k),
 )
 
 select_labelling_function(lf::AbstractSingleStepLabelling, k) = lf
-select_labelling_function(lf::TimeVaryingLabelling, k) =
-    lf.maps[time_length(lf) - k]
+select_labelling_function(lf::TimeVaryingLabelling, k) = lf.maps[time_length(lf) - k]

@@ -17,7 +17,8 @@ Then the ```DeterministicLabelling``` type is defined as vector which stores the
 - `num_outputs::Int32`: number of labels accounted for in mapping.
 
 """
-struct DeterministicLabelling{T <: Integer, AT <: AbstractArray{T}} <: AbstractSingleStepLabelling
+struct DeterministicLabelling{T <: Integer, AT <: AbstractArray{T}} <:
+       AbstractSingleStepLabelling
     map::AT
     num_outputs::Int32
 

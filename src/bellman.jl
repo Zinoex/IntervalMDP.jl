@@ -382,16 +382,7 @@ function _bellman_helper!(
     bellman_precomputation!(workspace, V, upper_bound)
 
     for jₛ in CartesianIndices(source_shape(model))
-        state_bellman!(
-            workspace,
-            strategy_cache,
-            Vres,
-            V,
-            model,
-            jₛ,
-            upper_bound,
-            maximize,
-        )
+        state_bellman!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
 
     return Vres
@@ -575,16 +566,7 @@ function _bellman_helper!(
     maximize = true,
 )
     @inbounds for jₛ in CartesianIndices(source_shape(model))
-        state_bellman!(
-            workspace,
-            strategy_cache,
-            Vres,
-            V,
-            model,
-            jₛ,
-            upper_bound,
-            maximize,
-        )
+        state_bellman!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
 
     return Vres
@@ -947,16 +929,7 @@ function _bellman_helper!(
     maximize = true,
 )
     @inbounds for jₛ in CartesianIndices(source_shape(model))
-        state_bellman!(
-            workspace,
-            strategy_cache,
-            Vres,
-            V,
-            model,
-            jₛ,
-            upper_bound,
-            maximize,
-        )
+        state_bellman!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
 
     return Vres

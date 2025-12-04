@@ -19,7 +19,8 @@ The choice to have labels on the rows is due to the column-major storage of matr
 in the Bellman operator `bellman!`.
 
 """
-struct ProbabilisticLabelling{R <: Real, MR <: AbstractMatrix{R}} <: AbstractSingleStepLabelling
+struct ProbabilisticLabelling{R <: Real, MR <: AbstractMatrix{R}} <:
+       AbstractSingleStepLabelling
     map::MR
 
     function ProbabilisticLabelling(map::MR) where {R <: Real, MR <: AbstractMatrix{R}}
