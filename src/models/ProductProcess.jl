@@ -53,24 +53,7 @@ function checkproduct(
     dfa::DeterministicAutomaton,
     labelling_func::AbstractLabelling,
 )
-
-    # check labelling states (input) match MDP states
-    if state_values(labelling_func) != state_values(mdp)
-        throw(
-            DimensionMismatch(
-                "The mapped states $(size(labelling_func)) in the labelling function is not equal the fRMDP state variables $(state_values(mdp)).",
-            ),
-        )
-    end
-
-    # check state labels (output) match DFA alphabet
-    if num_labels(labelling_func) > num_labels(dfa) # not all actions needed to be mapped so can be less but certainly not more
-        throw(
-            DimensionMismatch(
-                "The number of DFA inputs ($(num_labels(dfa))) is less than to number of labels $(num_labels(labelling_func)) in the labelling function.",
-            ),
-        )
-    end
+    check_labelling_function(labelling_func, state_values(mdp), num_labels(dfa))
 end
 
 """

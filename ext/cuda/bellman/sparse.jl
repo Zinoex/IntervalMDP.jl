@@ -3,11 +3,17 @@ function IntervalMDP._bellman_helper!(
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres::AbstractVector{Tv},
     V::AbstractVector{Tv},
-    model,
-    avail_act;
+    model;
     upper_bound = false,
     maximize = true,
 ) where {Tv}
+    if !(IntervalMDP.available_actions(model) isa AllAvailableActions)
+        throw(
+            ArgumentError(
+                "CUDA sparse Bellman operator only supports all available actions.",
+            ),
+        )
+    end
 
     # Try to find the best kernel for the problem.
 

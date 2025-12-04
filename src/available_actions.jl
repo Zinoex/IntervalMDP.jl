@@ -11,7 +11,7 @@ function AllAvailableActions(action_vars::NTuple{M, <:Integer}) where {M}
 end
 
 available(aa::AllAvailableActions, jₛ) = CartesianIndices(aa.action_vars)
-isavailable(::AllAvailableActions, jₛ, a) = true
+isavailable(::AllAvailableActions, jₛ, jₐ) = true
 
 function check_available_actions(
     aa::AllAvailableActions,
@@ -67,7 +67,7 @@ function check_available_actions(
     end
 end
 available(aa::ListAvailableActions, jₛ) = aa.states[jₛ]
-isavailable(aa::ListAvailableActions, jₛ, a) = a in aa.states[jₛ]
+isavailable(aa::ListAvailableActions, jₛ, jₐ) = jₐ in aa.states[jₛ]
 
 # Time-varying available actions
 struct TimeVaryingAvailableActions{A <: SingleTimeStepAvailableActions} <:

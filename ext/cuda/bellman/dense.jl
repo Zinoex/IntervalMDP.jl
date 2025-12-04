@@ -3,8 +3,7 @@ function IntervalMDP._bellman_helper!(
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres::AbstractVector{Tv},
     V::AbstractVector{Tv},
-    model,
-    avail_act;
+    model;
     upper_bound = false,
     maximize = true,
 ) where {Tv}
@@ -17,6 +16,14 @@ function IntervalMDP._bellman_helper!(
         throw(
             ArgumentError(
                 "Value type of the model ($(IntervalMDP.valuetype(marginal))) does not match the value type of the input vector ($Tv).",
+            ),
+        )
+    end
+
+    if !(IntervalMDP.available_actions(model) isa AllAvailableActions)
+        throw(
+            ArgumentError(
+                "CUDA dense Bellman operator only supports all available actions.",
             ),
         )
     end

@@ -17,7 +17,8 @@ Then the ```DeterministicLabelling``` type is defined as vector which stores the
 - `num_outputs::Int32`: number of labels accounted for in mapping.
 
 """
-struct DeterministicLabelling{T <: Integer, AT <: AbstractArray{T}} <: AbstractLabelling
+struct DeterministicLabelling{T <: Integer, AT <: AbstractArray{T}} <:
+       AbstractSingleStepLabelling
     map::AT
     num_outputs::Int32
 
@@ -42,6 +43,28 @@ function checklabelling(map::AbstractArray{<:Integer})
     end
 
     return last(labels)
+end
+
+function check_labelling_function(
+    labelling_func::DeterministicLabelling,
+    state_vars,
+    expected_labels,
+)
+    if state_values(labelling_func) != state_vars
+        throw(
+            DimensionMismatch(
+                "The size of the labelling function must match the number of states in the MDP. Got $(state_values(labelling_func)) vs $state_vars.",
+            ),
+        )
+    end
+
+    if num_labels(labelling_func) > expected_labels
+        throw(
+            DimensionMismatch(
+                "The number of labels in the labelling function must match the number of labels in the DFA. Got $(num_labels(labelling_func)) vs $expected_labels.",
+            ),
+        )
+    end
 end
 
 """

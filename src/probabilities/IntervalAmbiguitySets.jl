@@ -263,6 +263,8 @@ source_shape(p::IntervalAmbiguitySets) = (num_sets(p),)
 action_shape(::IntervalAmbiguitySets) = (1,)
 marginals(p::IntervalAmbiguitySets) = (p,)
 available_actions(::IntervalAmbiguitySets) = AllAvailableActions((1,))
+isavailable(p::IntervalAmbiguitySets, jₛ, jₐ) = isavailable(available_actions(p), jₛ, jₐ)
+available(p::IntervalAmbiguitySets, jₛ) = available(available_actions(p), jₛ)
 
 maxsupportsize(p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractMatrix{R}} =
     size(p.gap, 1)
