@@ -42,7 +42,7 @@ for N in [Float32, Float64]
                 Vres,
                 V,
                 prob,
-                available_actions(prob);
+                IntervalMDP.available_actions(prob);
                 upper_bound = true,
             )
             Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
@@ -61,7 +61,7 @@ for N in [Float32, Float64]
                 Vres,
                 V,
                 prob,
-                available_actions(prob);
+                IntervalMDP.available_actions(prob);
                 upper_bound = false,
             )
             Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
@@ -121,7 +121,7 @@ end
             V_cpu,
             V,
             prob,
-            available_actions(prob);
+            IntervalMDP.available_actions(prob);
             upper_bound = false,
         )
 
@@ -134,7 +134,7 @@ end
             V_gpu,
             cuda_V,
             cuda_prob,
-            available_actions(cuda_prob);
+            IntervalMDP.available_actions(cuda_prob);
             upper_bound = false,
         )
         V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
@@ -161,7 +161,7 @@ end
             V_cpu,
             V,
             prob,
-            available_actions(prob);
+            IntervalMDP.available_actions(prob);
             upper_bound = false,
         )
 
@@ -174,7 +174,7 @@ end
             V_gpu,
             cuda_V,
             cuda_prob,
-            available_actions(cuda_prob);
+            IntervalMDP.available_actions(cuda_prob);
             upper_bound = false,
         )
         V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
@@ -201,7 +201,7 @@ end
             V_cpu,
             V,
             prob,
-            available_actions(prob);
+            IntervalMDP.available_actions(prob);
             upper_bound = false,
         )
 
@@ -214,7 +214,7 @@ end
             V_gpu,
             cuda_V,
             cuda_prob,
-            available_actions(cuda_prob);
+            IntervalMDP.available_actions(cuda_prob);
             upper_bound = false,
         )
         V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
@@ -241,7 +241,7 @@ end
             V_cpu,
             V,
             prob,
-            available_actions(prob);
+            IntervalMDP.available_actions(prob);
             upper_bound = false,
         )
 
@@ -254,7 +254,7 @@ end
             V_gpu,
             cuda_V,
             cuda_prob,
-            available_actions(cuda_prob);
+            IntervalMDP.available_actions(cuda_prob);
             upper_bound = false,
         )
         V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
@@ -293,7 +293,7 @@ end
             V_gpu,
             cuda_V,
             cuda_prob,
-            available_actions(cuda_prob);
+            IntervalMDP.available_actions(cuda_prob);
             upper_bound = false,
         )
         V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
