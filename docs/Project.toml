@@ -6,3 +6,6 @@ HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 IntervalMDP = "051c988a-e73c-45a4-90ec-875cac0402c7"
 Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[sources]
+IntervalMDP = {path = ".."}

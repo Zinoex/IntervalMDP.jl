@@ -37,7 +37,7 @@ function Adapt.adapt_structure(
         action_values(mdp),
         IntervalMDP.source_shape(mdp),
         adapt(T, marginals(mdp)),
-        adapt(T, available_actions(mdp)),
+        adapt(T, IntervalMDP.available_actions(mdp)),
         adapt(CuArray{eltype(initial_states(mdp))}, initial_states(mdp)),
         Val(false), # check = false
     )
@@ -52,7 +52,7 @@ function Adapt.adapt_structure(
         action_values(mdp),
         IntervalMDP.source_shape(mdp),
         adapt(T, marginals(mdp)),
-        adapt(T, available_actions(mdp)),
+        adapt(T, IntervalMDP.available_actions(mdp)),
         adapt(Array{eltype(initial_states(mdp))}, initial_states(mdp)),
         Val(false), # check = false
     )
@@ -67,7 +67,7 @@ function Adapt.adapt_structure(
         action_values(mdp),
         IntervalMDP.source_shape(mdp),
         adapt(to, marginals(mdp)),
-        adapt(to, available_actions(mdp)),
+        adapt(to, IntervalMDP.available_actions(mdp)),
         adapt(to, initial_states(mdp)),
         Val(false), # check = false
     )

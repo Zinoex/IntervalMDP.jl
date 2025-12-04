@@ -116,7 +116,7 @@ FactoredRobustMarkovDecisionProcess
    ├─Number of states: 6
    ├─Number of actions: 2
    ├─Default model checking algorithm: Robust Value Iteration
-   └─Default Bellman operator algorithm: Binary tree LP McCormick Relaxation
+   └─Default Bellman operator algorithm: Recursive O-Maximization
 ```
 """
 struct FactoredRobustMarkovDecisionProcess{
