@@ -190,6 +190,7 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
         mp;
         upper_bound = upper_bound,
         maximize = maximize,
+        prop = system_property(spec),
     )
     step_postprocess_value_function!(value_function, spec)
     step_postprocess_strategy_cache!(strategy_cache)
@@ -210,6 +211,7 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
             mp;
             upper_bound = upper_bound,
             maximize = maximize,
+            prop = system_property(spec),
         )
         step_postprocess_value_function!(value_function, spec)
         step_postprocess_strategy_cache!(strategy_cache)
@@ -255,7 +257,16 @@ function nextiteration!(V)
     return V
 end
 
-function step!(workspace, strategy_cache, value_function, k, mp; upper_bound, maximize)
+function step!(
+    workspace,
+    strategy_cache,
+    value_function,
+    k,
+    mp;
+    upper_bound,
+    maximize,
+    prop,
+)
     bellman!(
         workspace,
         select_strategy_cache(strategy_cache, k),
@@ -265,6 +276,7 @@ function step!(workspace, strategy_cache, value_function, k, mp; upper_bound, ma
         select_available_actions(available_actions(mp), k);
         upper_bound = upper_bound,
         maximize = maximize,
+        prop = prop,
     )
 end
 

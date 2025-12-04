@@ -31,7 +31,7 @@ struct VerificationProblem{
         strategy::C,
     ) where {S <: StochasticProcess, F <: Specification, C <: AbstractStrategy}
         checkspecification(spec, system, strategy)
-        checkstrategy(strategy, system)
+        checkstrategy(strategy, system, system_property(spec))
         return new{S, F, C}(system, spec, strategy)
     end
 end

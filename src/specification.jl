@@ -144,6 +144,7 @@ time_horizon(prop::FiniteTimeDFAReachability) = prop.time_horizon
 Return the set of DFA states with respect to which to compute reachbility for a finite time DFA reachability property.
 """
 reach(prop::FiniteTimeDFAReachability) = prop.reach
+terminal(prop::FiniteTimeDFAReachability) = reach(prop)
 
 function showproperty(io::IO, first_prefix, prefix, prop::FiniteTimeDFAReachability)
     println(io, first_prefix, styled"{code:FiniteTimeDFAReachability}")
@@ -193,6 +194,7 @@ convergence_eps(prop::InfiniteTimeDFAReachability) = prop.convergence_eps
 Return the set of DFA states with respect to which to compute reachbility for a infinite time DFA reachability property.
 """
 reach(prop::InfiniteTimeDFAReachability) = prop.reach
+terminal(prop::InfiniteTimeDFAReachability) = reach(prop)
 
 function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeDFAReachability)
     println(io, first_prefix, styled"{code:InfiniteTimeDFAReachability}")
@@ -277,6 +279,7 @@ time_horizon(prop::FiniteTimeDFASafety) = prop.time_horizon
 Return the set of DFA states with respect to which to compute safety for a finite time DFA safety property.
 """
 avoid(prop::FiniteTimeDFASafety) = prop.avoid
+terminal(prop::FiniteTimeDFASafety) = avoid(prop)
 
 function showproperty(io::IO, first_prefix, prefix, prop::FiniteTimeDFASafety)
     println(io, first_prefix, styled"{code:FiniteTimeDFASafety}")
@@ -325,6 +328,7 @@ convergence_eps(prop::InfiniteTimeDFASafety) = prop.convergence_eps
 Return the set of DFA states with respect to which to compute safety for a infinite time DFA safety property.
 """
 avoid(prop::InfiniteTimeDFASafety) = prop.avoid
+terminal(prop::InfiniteTimeDFASafety) = avoid(prop)
 
 function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeDFASafety)
     println(io, first_prefix, styled"{code:InfiniteTimeDFASafety}")

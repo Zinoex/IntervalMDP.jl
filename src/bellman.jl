@@ -78,6 +78,7 @@ function bellman(
     alg::BellmanAlgorithm = default_bellman_algorithm(model);
     upper_bound = false,
     maximize = true,
+    prop = nothing,
 )
     Vres = similar(V, source_shape(model))
 
@@ -89,6 +90,7 @@ function bellman(
         alg;
         upper_bound = upper_bound,
         maximize = maximize,
+        prop = prop,
     )
 end
 
@@ -179,6 +181,7 @@ function bellman!(
     alg::BellmanAlgorithm = default_bellman_algorithm(model);
     upper_bound = false,
     maximize = true,
+    prop = nothing,
 )
     workspace = construct_workspace(model, alg)
     strategy_cache = construct_strategy_cache(model)
@@ -192,6 +195,7 @@ function bellman!(
         avail_act;
         upper_bound = upper_bound,
         maximize = maximize,
+        prop = prop,
     )
 end
 
@@ -204,6 +208,7 @@ function bellman!(
     avail_act::AbstractAvailableActions = available_actions(model);
     upper_bound = false,
     maximize = true,
+    prop = nothing,
 )
     return _bellman_helper!(
         workspace,
@@ -226,6 +231,7 @@ function bellman!(
     avail_act::AbstractAvailableActions = available_actions(model);
     upper_bound = false,
     maximize = true,
+    prop = nothing,
 )
     mp = markov_process(model)
     lf = labelling_function(model)
@@ -242,6 +248,7 @@ function bellman!(
         avail_act;
         upper_bound = upper_bound,
         maximize = maximize,
+        prop = prop,
     )
 end
 
@@ -256,10 +263,16 @@ function _bellman_helper!(
     avail_act;
     upper_bound = false,
     maximize = true,
+    prop = nothing,
 )
     W = workspace.intermediate_values
 
     @inbounds for state in dfa
+        # If a DFA property is given, skip terminal states
+        if !isnothing(prop) && state ∈ terminal(prop)
+            continue
+        end
+
         local_strategy_cache = localize_strategy_cache(strategy_cache, state)
 
         # Select the value function for the current DFA state
@@ -296,10 +309,16 @@ function _bellman_helper!(
     avail_act;
     upper_bound = false,
     maximize = true,
+    prop = nothing,
 ) where {R}
     W = workspace.intermediate_values
 
     @inbounds for state in dfa
+        # If a DFA property is given, skip terminal states
+        if !isnothing(prop) && state ∈ terminal(prop)
+            continue
+        end
+
         local_strategy_cache = localize_strategy_cache(strategy_cache, state)
 
         # Select the value function for the current DFA state
