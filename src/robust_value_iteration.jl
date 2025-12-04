@@ -257,7 +257,16 @@ function nextiteration!(V)
     return V
 end
 
-function step!(workspace, strategy_cache, value_function, k, mp; upper_bound, maximize, prop)
+function step!(
+    workspace,
+    strategy_cache,
+    value_function,
+    k,
+    mp;
+    upper_bound,
+    maximize,
+    prop,
+)
     bellman!(
         workspace,
         select_strategy_cache(strategy_cache, k),
