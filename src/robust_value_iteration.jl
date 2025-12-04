@@ -273,4 +273,5 @@ select_model(mp::ProductProcess, k) = ProductProcess(
 )
 
 select_labelling_function(lf::AbstractSingleStepLabelling, k) = lf
-select_labelling_function(lf::TimeVaryingLabelling, k) = lf.labelling_functions[time_length(lf) - k]
+select_labelling_function(lf::TimeVaryingLabelling, k) =
+    lf.labelling_functions[time_length(lf) - k]
