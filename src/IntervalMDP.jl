@@ -18,6 +18,8 @@ export InvalidStateError, StateDimensionMismatch
 
 ### Modelling
 include("probabilities/probabilities.jl")
+include("available_actions.jl")
+export AllAvailableActions, ListAvailableActions, TimeVaryingAvailableActions
 include("models/models.jl")
 
 include("strategy.jl")

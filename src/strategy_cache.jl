@@ -20,7 +20,8 @@ end
 construct_strategy_cache(::VerificationProblem{S, F, <:NoStrategy}) where {S, F} =
     NoStrategyCache()
 
-function extract_strategy!(::NoStrategyCache, values, j, maximize)
+function extract_strategy!(::NoStrategyCache, values, available_actions, j, maximize)
+    values = @view values[available_actions]
     return maximize ? maximum(values) : minimum(values)
 end
 step_postprocess_strategy_cache!(::NoStrategyCache) = nothing
@@ -75,14 +76,22 @@ cachetostrategy(strategy_cache::TimeVaryingStrategyCache) =
 function extract_strategy!(
     strategy_cache::TimeVaryingStrategyCache,
     values::AbstractArray{R},
+    available_actions,
     jₛ,
     maximize,
 ) where {R <: Real}
     opt_val = maximize ? typemin(R) : typemax(R)
-    opt_index = ntuple(_ -> 1, ndims(values))
+    opt_index = Tuple(first(available_actions))
     neutral = (opt_val, opt_index)
 
-    return _extract_strategy!(strategy_cache.cur_strategy, values, neutral, jₛ, maximize)
+    return _extract_strategy!(
+        strategy_cache.cur_strategy,
+        values,
+        available_actions,
+        neutral,
+        jₛ,
+        maximize,
+    )
 end
 function step_postprocess_strategy_cache!(strategy_cache::TimeVaryingStrategyCache)
     push!(strategy_cache.strategy, copy(strategy_cache.cur_strategy))
@@ -111,27 +120,35 @@ cachetostrategy(strategy_cache::StationaryStrategyCache) =
 function extract_strategy!(
     strategy_cache::StationaryStrategyCache,
     values::AbstractArray{R},
+    available_actions,
     jₛ,
     maximize,
 ) where {R <: Real}
-    neutral = if all(iszero.(strategy_cache.strategy[jₛ]))
-        maximize ? typemin(R) : typemax(R), 1
+    neutral = if all(iszero.(strategy_cache.strategy[jₛ])) || jₛ ∉ available_actions
+        maximize ? typemin(R) : typemax(R), Tuple(first(available_actions))
     else
         s = strategy_cache.strategy[jₛ]
         values[CartesianIndex(s)], s
     end
 
-    return _extract_strategy!(strategy_cache.strategy, values, neutral, jₛ, maximize)
+    return _extract_strategy!(
+        strategy_cache.strategy,
+        values,
+        available_actions,
+        neutral,
+        jₛ,
+        maximize,
+    )
 end
 step_postprocess_strategy_cache!(::StationaryStrategyCache) = nothing
 
 # Shared between stationary and time-varying strategies
-function _extract_strategy!(cur_strategy, values, neutral, jₛ, maximize)
+function _extract_strategy!(cur_strategy, values, available_actions, neutral, jₛ, maximize)
     gt = maximize ? (>) : (<)
 
     opt_val, opt_index = neutral
 
-    for jₐ in CartesianIndices(values)
+    for jₐ in available_actions
         v = values[jₐ]
         if gt(v, opt_val)
             opt_val = v

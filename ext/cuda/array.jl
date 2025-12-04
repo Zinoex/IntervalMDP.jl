@@ -28,7 +28,7 @@ function reducediff_kernel!(op, colptr, neutral, retarr)
     end
 
     shuffle = Val(true)
-    diff = CUDA.reduce_block(op, diff, neutral, shuffle)
+    diff = reduce_block(op, diff, neutral, shuffle)
 
     if threadIdx().x == 1
         @inbounds retarr[1] = diff

@@ -11,7 +11,7 @@ default_bellman_algorithm(pp::ProductProcess) =
 default_bellman_algorithm(mdp::FactoredRMDP) =
     default_bellman_algorithm(mdp, modeltype(mdp))
 default_bellman_algorithm(::FactoredRMDP, ::IsIMDP) = OMaximization()
-default_bellman_algorithm(::FactoredRMDP, ::IsFIMDP) = LPMcCormickRelaxation()
+default_bellman_algorithm(::FactoredRMDP, ::IsFIMDP) = OMaximization()
 default_bellman_algorithm(::IntervalAmbiguitySets) = OMaximization()
 default_bellman_algorithm(_, ::Union{IsRMDP, IsFRMDP}) = UnknownBellmanAlgorithm()
 

@@ -9,18 +9,36 @@ function IntervalMDP.compute_gap(lower::M, upper::M) where {Tv, M <: CuSparseMat
     adapt(IntervalMDP.CuModelAdaptor{Tv}, gap)
 end
 
+const CuDeviceColumnView{Tv} =
+    SubArray{Tv, 1, <:CuDeviceMatrix{Tv}, Tuple{Base.Slice{Base.OneTo{Int}}, Int32}, true}
+IntervalMDP.support(
+    p::IntervalMDP.IntervalAmbiguitySet{R, <:CuDeviceColumnView{R}},
+) where {R} = eachindex(p.gap)
+IntervalMDP.support(
+    ::IntervalMDP.IntervalAmbiguitySet{R, <:CuDeviceColumnView{R}},
+    s,
+) where {R} = s
+IntervalMDP.supportsize(
+    p::IntervalMDP.IntervalAmbiguitySet{R, <:CuDeviceColumnView{R}},
+) where {R} = unsafe_trunc(Int32, length(p.gap))
+
 const CuSparseDeviceColumnView{Tv, Ti} = SubArray{
     Tv,
     1,
     <:CuSparseDeviceMatrixCSC{Tv, Ti},
-    Tuple{Base.Slice{Base.OneTo{Int}}, Int},
+    Tuple{Base.Slice{Base.OneTo{Int}}, Int32},
+    false,
 }
-IntervalMDP.support(
+Base.@propagate_inbounds IntervalMDP.support(
     p::IntervalMDP.IntervalAmbiguitySet{R, <:CuSparseDeviceColumnView{R}},
 ) where {R} = rowvals(p.gap)
-IntervalMDP.supportsize(
+Base.@propagate_inbounds IntervalMDP.support(
     p::IntervalMDP.IntervalAmbiguitySet{R, <:CuSparseDeviceColumnView{R}},
-) where {R} = nnz(p.gap)
+    s,
+) where {R} = support(p)[s]
+Base.@propagate_inbounds IntervalMDP.supportsize(
+    p::IntervalMDP.IntervalAmbiguitySet{R, <:CuSparseDeviceColumnView{R}},
+) where {R} = unsafe_trunc(Int32, nnz(p.gap))
 
 IntervalMDP.maxsupportsize(
     p::IntervalMDP.IntervalAmbiguitySets{R, <:CuSparseMatrixCSC{R}},

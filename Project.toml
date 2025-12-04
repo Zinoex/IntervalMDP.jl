@@ -24,7 +24,7 @@ IntervalMDPCudaExt = ["Adapt", "CUDA", "GPUArrays", "LLVM"]
 
 [compat]
 Adapt = "4"
-CUDA = "5.9.1"
+CUDA = "5.9.4"
 CommonSolve = "0.2.4"
 GPUArrays = "10, 11"
 HiGHS = "1.19.0"

@@ -12,7 +12,7 @@ the underlying ambiguity sets.
     Add example
 
 """
-struct Marginal{A <: AbstractAmbiguitySets, N, M, I <: LinearIndices}
+struct Marginal{A <: AbstractAmbiguitySets, N, M}
     ambiguity_sets::A
 
     state_indices::NTuple{N, Int32}
@@ -20,7 +20,48 @@ struct Marginal{A <: AbstractAmbiguitySets, N, M, I <: LinearIndices}
 
     source_dims::NTuple{N, Int32}
     action_vars::NTuple{M, Int32}
-    linear_index::I
+
+    function Marginal(
+        ambiguity_sets::A,
+        state_indices::NTuple{N, Int32},
+        action_indices::NTuple{M, Int32},
+        source_dims::NTuple{N, Int32},
+        action_vars::NTuple{M, Int32},
+        check::Val{false},
+    ) where {A <: AbstractAmbiguitySets, N, M}
+        new{A, N, M}(
+            ambiguity_sets,
+            state_indices,
+            action_indices,
+            source_dims,
+            action_vars,
+        )
+    end
+
+    function Marginal(
+        ambiguity_sets::A,
+        state_indices::NTuple{N, Int32},
+        action_indices::NTuple{M, Int32},
+        source_dims::NTuple{N, Int32},
+        action_vars::NTuple{M, Int32},
+        check::Val{true},
+    ) where {A <: AbstractAmbiguitySets, N, M}
+        checkindices(
+            ambiguity_sets,
+            state_indices,
+            action_indices,
+            source_dims,
+            action_vars,
+        )
+
+        return new{A, N, M}(
+            ambiguity_sets,
+            state_indices,
+            action_indices,
+            source_dims,
+            action_vars,
+        )
+    end
 end
 
 function Marginal(
@@ -30,16 +71,13 @@ function Marginal(
     source_dims::NTuple{N, Int32},
     action_vars::NTuple{M, Int32},
 ) where {A <: AbstractAmbiguitySets, N, M}
-    checkindices(ambiguity_sets, state_indices, action_indices, source_dims, action_vars)
-
-    linear_index = LinearIndices((action_vars..., source_dims...))
     return Marginal(
         ambiguity_sets,
         state_indices,
         action_indices,
         source_dims,
         action_vars,
-        linear_index,
+        Val(true),
     )
 end
 
@@ -156,20 +194,32 @@ Get the ambiguity set corresponding to the given `source` (state) and `action`, 
 the relevant indices of `source` and `action` are selected by `p.action_indices` and `p.state_indices` respectively.
 The selected index is then converted to a linear index for the underlying ambiguity sets.
 """
-Base.getindex(p::Marginal, action, source) = ambiguity_sets(p)[sub2ind(p, action, source)]
+Base.@propagate_inbounds Base.getindex(p::Marginal, action, source) =
+    ambiguity_sets(p)[sub2ind(p, action, source)]
 
-sub2ind(p::Marginal, action::CartesianIndex, source::CartesianIndex) =
-    sub2ind(p, Tuple(action), Tuple(source))
-function sub2ind(
+Base.@propagate_inbounds sub2ind(
     p::Marginal,
-    action::NTuple{M, T},
-    source::NTuple{N, T},
-) where {N, M, T <: Integer}
-    action = getindex.((action,), p.action_indices)
-    source = getindex.((source,), p.state_indices)
-    j = p.linear_index[action..., source...]
+    action::CartesianIndex,
+    source::CartesianIndex,
+) = sub2ind(p, Tuple(action), Tuple(source))
+Base.@propagate_inbounds function sub2ind(
+    p::Marginal{A, N1, M1},
+    action::NTuple{M2, T},
+    source::NTuple{N2, T},
+) where {A, N1, M1, N2, M2, T <: Integer}
+    ind = zero(T)
 
-    return T(j)
+    for i in StepRange(N1, -1, 1)
+        ind *= p.source_dims[i]
+        ind += source[p.state_indices[i]] - one(T)
+    end
+
+    for i in StepRange(M1, -1, 1)
+        ind *= p.action_vars[i]
+        ind += action[p.action_indices[i]] - one(T)
+    end
+
+    return ind + one(T)
 end
 
 function showmarginal(io::IO, prefix, marginal::Marginal)

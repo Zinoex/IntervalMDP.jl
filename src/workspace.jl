@@ -258,13 +258,27 @@ function ThreadedFactoredIntervalOMaxWorkspace(sys::FactoredRMDP)
 end
 Base.getindex(ws::ThreadedFactoredIntervalOMaxWorkspace, i) = ws.thread_workspaces[i]
 
+function construct_workspace(sys::FactoredRMDP, ::IsFIMDP, ::OMaximization; kwargs...)
+    return construct_workspace(
+        sys,
+        first(marginals(sys)),
+        IsFIMDP(),
+        OMaximization();
+        kwargs...,
+    )
+end
+
 function construct_workspace(
     sys::FactoredRMDP,
+    marginal::Marginal{<:IntervalAmbiguitySets{R, MR}},
     ::IsFIMDP,
     ::OMaximization;
     threshold = 10,
     kwargs...,
-)
+) where {
+    R,
+    MR <: Union{<:Matrix{R}, <:SparseMatrixCSC{R}, <:SparseArrays.FixedSparseCSC{R}},
+}
     if Threads.nthreads() == 1 || num_states(sys) <= threshold
         return FactoredIntervalOMaxWorkspace(sys)
     else

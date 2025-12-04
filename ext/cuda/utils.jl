@@ -5,40 +5,44 @@
     return threads + (ws - threads % ws) % ws
 end
 
-@inline function cumsum_warp(val, lane)
+@inline function nextmult(mult, value)
+    return value + (mult - value % mult) % mult
+end
+
+@inline function cumsum_warp(val)
     assume(warpsize() == 32)
     offset = 0x00000001
     while offset < warpsize()
         up_val = shfl_up_sync(0xffffffff, val, offset)
-        if lane > offset
+        if laneid() > offset
             val += up_val
         end
-        offset <<= 1
+        offset <<= one(Int32)
     end
 
     return val
 end
 
-@inline function cumsum_block(val, workspace, wid, lane)
+Base.@propagate_inbounds function cumsum_block(val, workspace, wid)
     # Warp-reduction
-    val = cumsum_warp(val, lane)
+    val = cumsum_warp(val)
 
     # Block-reduction
-    if lane == 32
+    if laneid() == Int32(32)
         workspace[wid] = val
     end
     sync_threads()
 
-    if wid == 1
-        wid_val = workspace[lane]
-        wid_val = cumsum_warp(wid_val, lane)
-        workspace[lane] = wid_val
+    if wid == one(Int32)
+        wid_val = workspace[laneid()]
+        wid_val = cumsum_warp(wid_val)
+        workspace[laneid()] = wid_val
     end
     sync_threads()
 
     # Warp-correction
-    if wid > 1
-        val += workspace[wid - 1]
+    if wid > one(Int32)
+        val += workspace[wid - one(Int32)]
     end
 
     return val
@@ -52,7 +56,49 @@ end
         up_idx = shfl_down_sync(0xffffffff, idx, offset)
         val, idx = argop(lt, val, idx, up_val, up_idx)
 
-        offset >>= 1
+        offset >>= one(Int32)
+    end
+
+    return val, idx
+end
+
+@inline function argmin_block(
+    lt,
+    val::T,
+    idx,
+    neutral_val,
+    neutral_idx,
+    shuffle::Val{true},
+) where {T}
+    # shared mem for partial sums
+    assume(warpsize() == 32)
+    shared_val = CuStaticSharedArray(T, Int32(32))
+    shared_idx = CuStaticSharedArray(Int32, Int32(32))
+
+    wid, lane = fldmod1(threadIdx().x, warpsize())
+
+    # each warp performs partial reduction
+    val, idx = argmin_warp(lt, val, idx)
+
+    # write reduced value to shared memory
+    if lane == one(Int32)
+        @inbounds shared_val[wid] = val
+        @inbounds shared_idx[wid] = idx
+    end
+
+    # wait for all partial reductions
+    sync_threads()
+
+    # read from shared memory only if that warp existed
+    val, idx = if threadIdx().x <= fld1(blockDim().x, warpsize())
+        @inbounds shared_val[lane], @inbounds shared_idx[lane]
+    else
+        neutral_val, neutral_idx
+    end
+
+    # final reduce within first warp
+    if wid == one(Int32)
+        val, idx = argmin_warp(lt, val, idx)
     end
 
     return val, idx
@@ -66,16 +112,10 @@ end
     end
 end
 
-@inline function swapelem(A::AbstractArray, i, j)
+Base.@propagate_inbounds function swapelem(A::AbstractArray, i, j)
     @inbounds A[i], A[j] = A[j], A[i]
 end
 
-@inline function swapelem(A::Nothing, i, j)
+Base.@propagate_inbounds function swapelem(A::Nothing, i, j)
     # Do nothing
-end
-
-@inline function selectotherdims(A::AbstractArray, dim, idxs)
-    head, tail = idxs[1:(dim - 1)], idxs[dim:end]
-
-    return view(A, head..., Colon(), tail...)
 end
