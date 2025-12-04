@@ -1164,7 +1164,7 @@ Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory
 
     # Copy into shared memory
     gap_nonzeros = gap(ambiguity_set)
-    s = lane
+    s = laneid()
     while s <= length(gap_nonzeros)
         value[s] = V[support[s]]
         prob[s] = gap_nonzeros[s]

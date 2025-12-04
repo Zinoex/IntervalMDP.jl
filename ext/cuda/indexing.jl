@@ -14,14 +14,14 @@ Base.@propagate_inbounds function gpu_nextind(sizes::NTuple{N, Int32}, inds::NTu
 end
 
 Base.@propagate_inbounds function sub2ind_gpu(sizes::NTuple{N, Int32}, inds::NTuple{N, Int32}) where {N}
-    ind = zero(T)
+    ind = zero(Int32)
 
     for i in StepRange(N, -1, 1)
         ind *= sizes[i]
-        ind += inds[i] - one(T)
+        ind += inds[i] - one(Int32)
     end
 
-    return ind + one(T)
+    return ind + one(Int32)
 end
 
 Base.@propagate_inbounds function ind2sub_gpu(sizes::NTuple{N, Int32}, ind::Int32) where {N}
