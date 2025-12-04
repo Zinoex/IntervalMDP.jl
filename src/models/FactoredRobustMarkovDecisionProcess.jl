@@ -143,8 +143,21 @@ struct FactoredRobustMarkovDecisionProcess{
         available_actions::AA,
         initial_states::VI,
         check::Val{true},
-    ) where {N, M, P <: NTuple{N, Marginal}, AA <: AbstractAvailableActions, VI <: InitialStates}
-        check_rmdp(state_vars, action_vars, source_dims, transition, available_actions, initial_states)
+    ) where {
+        N,
+        M,
+        P <: NTuple{N, Marginal},
+        AA <: AbstractAvailableActions,
+        VI <: InitialStates,
+    }
+        check_rmdp(
+            state_vars,
+            action_vars,
+            source_dims,
+            transition,
+            available_actions,
+            initial_states,
+        )
 
         return new{N, M, P, AA, VI}(
             state_vars,
@@ -164,7 +177,13 @@ struct FactoredRobustMarkovDecisionProcess{
         available_actions::AA,
         initial_states::VI,
         check::Val{false},
-    ) where {N, M, P <: NTuple{N, Marginal}, AA <: AbstractAvailableActions, VI <: InitialStates}
+    ) where {
+        N,
+        M,
+        P <: NTuple{N, Marginal},
+        AA <: AbstractAvailableActions,
+        VI <: InitialStates,
+    }
         return new{N, M, P, AA, VI}(
             state_vars,
             action_vars,
@@ -184,7 +203,13 @@ function FactoredRMDP(
     transition::P,
     available_actions::AA,
     initial_states::VI,
-) where {N, M, P <: NTuple{N, Marginal}, AA <: AbstractAvailableActions, VI <: InitialStates}
+) where {
+    N,
+    M,
+    P <: NTuple{N, Marginal},
+    AA <: AbstractAvailableActions,
+    VI <: InitialStates,
+}
     return FactoredRobustMarkovDecisionProcess(
         state_vars,
         action_vars,
@@ -267,7 +292,14 @@ function FactoredRMDP(
     )
 end
 
-function check_rmdp(state_vars, action_vars, source_dims, transition, available_actions, initial_states)
+function check_rmdp(
+    state_vars,
+    action_vars,
+    source_dims,
+    transition,
+    available_actions,
+    initial_states,
+)
     check_state_values(state_vars, source_dims)
     check_action_values(action_vars)
     check_transition(state_vars, action_vars, source_dims, transition)

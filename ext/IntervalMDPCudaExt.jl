@@ -19,10 +19,7 @@ Adapt.adapt_structure(to, strategy::TimeVaryingStrategy) =
 Adapt.@adapt_structure AllAvailableActions
 Adapt.@adapt_structure TimeVaryingAvailableActions
 
-function Adapt.adapt_structure(
-    to,
-    aa::ListAvailableActions,
-)
+function Adapt.adapt_structure(to, aa::ListAvailableActions)
     throw(ArgumentError("ListAvailableActions is not compatible with CUDA."))
 end
 
@@ -58,10 +55,7 @@ function Adapt.adapt_structure(
     )
 end
 
-function Adapt.adapt_structure(
-    to,
-    mdp::IntervalMDP.FactoredRMDP,
-)
+function Adapt.adapt_structure(to, mdp::IntervalMDP.FactoredRMDP)
     return IntervalMDP.FactoredRMDP(
         state_values(mdp),
         action_values(mdp),

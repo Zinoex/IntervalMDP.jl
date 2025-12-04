@@ -2,7 +2,6 @@ using Revise, Test
 using IntervalMDP, CUDA
 using Random: MersenneTwister
 
-
 @testset "show 1d" begin
     N = Float64
     ambiguity_sets = IntervalAmbiguitySets(;
@@ -28,7 +27,10 @@ using Random: MersenneTwister
     @test occursin("1 action variables with cardinality: (1,)", str)
     @test occursin("Initial states: CartesianIndex{1}[$(CartesianIndex(2))]", str)
     @test occursin("Marginal 1:", str)
-    @test occursin("Ambiguity set type: Interval (dense, CuArray{Float64, 2, CUDA.DeviceMemory})", str)
+    @test occursin(
+        "Ambiguity set type: Interval (dense, CuArray{Float64, 2, CUDA.DeviceMemory})",
+        str,
+    )
     @test !occursin("Marginal 2:", str)
     @test occursin("Inferred properties", str)
     @test occursin("Model type: Interval MDP", str)
@@ -119,7 +121,10 @@ end
     @test occursin("1 action variables with cardinality: (1,)", str)
     @test occursin("Initial states: All states", str)
     @test occursin("Marginal 1:", str)
-    @test occursin("Ambiguity set type: Interval (dense, CuArray{Float64, 2, CUDA.DeviceMemory})", str)
+    @test occursin(
+        "Ambiguity set type: Interval (dense, CuArray{Float64, 2, CUDA.DeviceMemory})",
+        str,
+    )
     @test occursin("Marginal 2:", str)
     @test occursin("Marginal 3:", str)
     @test occursin("Inferred properties", str)
@@ -127,10 +132,7 @@ end
     @test occursin("Number of states: 27", str)
     @test occursin("Number of actions: 1", str)
     @test occursin("Default model checking algorithm: Robust Value Iteration", str)
-    @test occursin(
-        "Default Bellman operator algorithm: Recursive O-Maximization",
-        str,
-    )
+    @test occursin("Default Bellman operator algorithm: Recursive O-Maximization", str)
 end
 
 @testset for N in [Float32, Float64]
@@ -199,7 +201,14 @@ end
             ws = IntervalMDP.construct_workspace(cuda_mdp, OMaximization())
             strategy_cache = IntervalMDP.construct_strategy_cache(cuda_mdp)
             Vres = similar(cuda_V)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, cuda_V, cuda_mdp; upper_bound = true)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                cuda_V,
+                cuda_mdp;
+                upper_bound = true,
+            )
             @test IntervalMDP.cpu(Vres) ≈ Vexpected
         end
 
@@ -213,7 +222,14 @@ end
             ws = IntervalMDP.construct_workspace(cuda_mdp, OMaximization())
             strategy_cache = IntervalMDP.construct_strategy_cache(cuda_mdp)
             Vres = similar(cuda_V)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, cuda_V, cuda_mdp; upper_bound = false)
+            IntervalMDP.bellman!(
+                ws,
+                strategy_cache,
+                Vres,
+                cuda_V,
+                cuda_mdp;
+                upper_bound = false,
+            )
             @test IntervalMDP.cpu(Vres) ≈ Vexpected
         end
     end
@@ -505,14 +521,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, OMaximization())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vexpected = zeros(N, 3, 3, 3)
-            IntervalMDP.bellman!(
-                ws,
-                strategy_cache,
-                Vexpected,
-                V,
-                mdp;
-                upper_bound = true,
-            )
+            IntervalMDP.bellman!(ws, strategy_cache, Vexpected, V, mdp; upper_bound = true)
 
             ws = IntervalMDP.construct_workspace(cuda_mdp, OMaximization())
             strategy_cache = IntervalMDP.construct_strategy_cache(cuda_mdp)
@@ -535,14 +544,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, OMaximization())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vexpected = zeros(N, 3, 3, 3)
-            IntervalMDP.bellman!(
-                ws,
-                strategy_cache,
-                Vexpected,
-                V,
-                mdp;
-                upper_bound = false,
-            )
+            IntervalMDP.bellman!(ws, strategy_cache, Vexpected, V, mdp; upper_bound = false)
 
             ws = IntervalMDP.construct_workspace(cuda_mdp, OMaximization())
             strategy_cache = IntervalMDP.construct_strategy_cache(cuda_mdp)
@@ -1026,11 +1028,7 @@ end
             4,
         )
 
-        margs = ntuple(
-            i ->
-                Marginal(ambs[i], (1, 2, 3, 4), (1,), (3, 3, 3, 3), (1,)),
-            4,
-        )
+        margs = ntuple(i -> Marginal(ambs[i], (1, 2, 3, 4), (1,), (3, 3, 3, 3), (1,)), 4)
 
         mdp = FactoredRobustMarkovDecisionProcess((3, 3, 3, 3), (1,), margs)
         cuda_mdp = IntervalMDP.cu(mdp)
@@ -1043,7 +1041,7 @@ end
         V, it, res = solve(prob, alg)
         V_cuda, it_cuda, res_cuda = solve(cuda_prob, alg)
 
-        @test V ≈ IntervalMDP.cpu(V_cuda) 
+        @test V ≈ IntervalMDP.cpu(V_cuda)
         @test it == it_cuda
         @test res ≈ IntervalMDP.cpu(res_cuda)
     end
@@ -1060,11 +1058,8 @@ end
             5,
         )
 
-        margs = ntuple(
-            i ->
-                Marginal(ambs[i], (1, 2, 3, 4, 5), (1,), (5, 5, 5, 5, 5), (1,)),
-            5,
-        )
+        margs =
+            ntuple(i -> Marginal(ambs[i], (1, 2, 3, 4, 5), (1,), (5, 5, 5, 5, 5), (1,)), 5)
 
         mdp = FactoredRobustMarkovDecisionProcess((5, 5, 5, 5, 5), (1,), margs)
         cuda_mdp = IntervalMDP.cu(mdp)
@@ -1096,12 +1091,11 @@ end
         action_vars = (num_actions,)
 
         prob_lower = [
-            rand(rng, N, num_states_per_axis, num_choices) ./ num_states_per_axis
-            for _ in 1:num_axis
+            rand(rng, N, num_states_per_axis, num_choices) ./ num_states_per_axis for
+            _ in 1:num_axis
         ]
         prob_upper = [
-            (rand(rng, N, num_states_per_axis, num_choices) .+ N(1)) ./
-            num_states_per_axis for _ in 1:num_axis
+            (rand(rng, N, num_states_per_axis, num_choices) .+ N(1)) ./ num_states_per_axis for _ in 1:num_axis
         ]
 
         ambiguity_sets = ntuple(
@@ -1133,7 +1127,10 @@ end
 
         policy, V, it, res = solve(prob, alg)
         cuda_policy, V_cuda, it_cuda, res_cuda = solve(cuda_prob, alg)
-        @test all(p -> all(splat(isequal), zip(p...)), zip(policy.strategy, IntervalMDP.cpu(cuda_policy).strategy))
+        @test all(
+            p -> all(splat(isequal), zip(p...)),
+            zip(policy.strategy, IntervalMDP.cpu(cuda_policy).strategy),
+        )
         @test V ≈ IntervalMDP.cpu(V_cuda)
 
         # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP

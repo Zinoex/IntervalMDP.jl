@@ -84,7 +84,14 @@ function extract_strategy!(
     opt_index = Tuple(first(available_actions))
     neutral = (opt_val, opt_index)
 
-    return _extract_strategy!(strategy_cache.cur_strategy, values, available_actions, neutral, jₛ, maximize)
+    return _extract_strategy!(
+        strategy_cache.cur_strategy,
+        values,
+        available_actions,
+        neutral,
+        jₛ,
+        maximize,
+    )
 end
 function step_postprocess_strategy_cache!(strategy_cache::TimeVaryingStrategyCache)
     push!(strategy_cache.strategy, copy(strategy_cache.cur_strategy))
@@ -124,7 +131,14 @@ function extract_strategy!(
         values[CartesianIndex(s)], s
     end
 
-    return _extract_strategy!(strategy_cache.strategy, values, available_actions, neutral, jₛ, maximize)
+    return _extract_strategy!(
+        strategy_cache.strategy,
+        values,
+        available_actions,
+        neutral,
+        jₛ,
+        maximize,
+    )
 end
 step_postprocess_strategy_cache!(::StationaryStrategyCache) = nothing
 

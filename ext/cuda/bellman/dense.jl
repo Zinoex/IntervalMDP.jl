@@ -24,7 +24,7 @@ function IntervalMDP._bellman_helper!(
     function variable_shmem(threads)
         warps = div(threads, 32)
         return length(V) * (sizeof(Int32) + sizeof(Tv)) + warps * n_actions * sizeof(Tv)
-    end        
+    end
 
     kernel = @cuda launch = false dense_bellman_kernel!(
         workspace,
@@ -77,10 +77,12 @@ function dense_bellman_kernel!(
     action_reduce,
 ) where {Tv}
     # Prepare action workspace shared memory
-    @inbounds action_workspace = initialize_dense_action_workspace(workspace, strategy_cache, V)
+    @inbounds action_workspace =
+        initialize_dense_action_workspace(workspace, strategy_cache, V)
 
     # Prepare sorting shared memory
-    @inbounds value, perm = initialize_dense_value_and_perm(workspace, strategy_cache, V, marginal)
+    @inbounds value, perm =
+        initialize_dense_value_and_perm(workspace, strategy_cache, V, marginal)
 
     # Perform sorting
     @inbounds dense_initialize_sorting_shared_memory!(V, value, perm)
@@ -109,10 +111,8 @@ Base.@propagate_inbounds function initialize_dense_action_workspace(
     assume(warpsize() == 32)
     nwarps = div(blockDim().x, warpsize())
     wid = fld1(threadIdx().x, warpsize())
-    action_workspace = CuDynamicSharedArray(
-        IntervalMDP.valuetype(V),
-        (workspace.num_actions, nwarps),
-    )
+    action_workspace =
+        CuDynamicSharedArray(IntervalMDP.valuetype(V), (workspace.num_actions, nwarps))
 
     action_workspace = @view action_workspace[:, wid]
 

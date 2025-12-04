@@ -1,4 +1,7 @@
-Base.@propagate_inbounds function gpu_nextind(sizes::NTuple{N, Int32}, inds::NTuple{N, Int32}) where {N}
+Base.@propagate_inbounds function gpu_nextind(
+    sizes::NTuple{N, Int32},
+    inds::NTuple{N, Int32},
+) where {N}
     inds_new = inds
     reset_last = false
     for d in Base.OneTo(N)
@@ -13,7 +16,10 @@ Base.@propagate_inbounds function gpu_nextind(sizes::NTuple{N, Int32}, inds::NTu
     return inds_new, reset_last
 end
 
-Base.@propagate_inbounds function sub2ind_gpu(sizes::NTuple{N, Int32}, inds::NTuple{N, Int32}) where {N}
+Base.@propagate_inbounds function sub2ind_gpu(
+    sizes::NTuple{N, Int32},
+    inds::NTuple{N, Int32},
+) where {N}
     ind = zero(Int32)
 
     for i in StepRange(N, -1, 1)

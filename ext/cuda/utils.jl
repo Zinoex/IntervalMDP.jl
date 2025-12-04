@@ -62,7 +62,14 @@ end
     return val, idx
 end
 
-@inline function argmin_block(lt, val::T, idx, neutral_val, neutral_idx, shuffle::Val{true}) where {T}
+@inline function argmin_block(
+    lt,
+    val::T,
+    idx,
+    neutral_val,
+    neutral_idx,
+    shuffle::Val{true},
+) where {T}
     # shared mem for partial sums
     assume(warpsize() == 32)
     shared_val = CuStaticSharedArray(T, Int32(32))
@@ -84,7 +91,7 @@ end
 
     # read from shared memory only if that warp existed
     val, idx = if threadIdx().x <= fld1(blockDim().x, warpsize())
-         @inbounds shared_val[lane], @inbounds shared_idx[lane]
+        @inbounds shared_val[lane], @inbounds shared_idx[lane]
     else
         neutral_val, neutral_idx
     end

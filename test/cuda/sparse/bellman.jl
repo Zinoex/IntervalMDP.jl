@@ -6,22 +6,26 @@ using Random: MersenneTwister
 for N in [Float32, Float64]
     @testset "N = $N" begin
         prob = IntervalAmbiguitySets(;
-            lower = sparse(N[
-                0     1//6
-                1//10 2//10
-                2//10 1//10
-                0     1//6
-                1//10 2//10
-                2//10 1//10
-            ]),
-            upper = sparse(N[
-                5//10 7//10
-                6//10 5//10
-                7//10 3//10
-                5//10 7//10
-                6//10 5//10
-                7//10 3//10
-            ]),
+            lower = sparse(
+                N[
+                    0 1//6
+                    1//10 2//10
+                    2//10 1//10
+                    0 1//6
+                    1//10 2//10
+                    2//10 1//10
+                ],
+            ),
+            upper = sparse(
+                N[
+                    5//10 7//10
+                    6//10 5//10
+                    7//10 3//10
+                    5//10 7//10
+                    6//10 5//10
+                    7//10 3//10
+                ],
+            ),
         )
         prob = IntervalMDP.cu(prob)
 
@@ -37,7 +41,8 @@ for N in [Float32, Float64]
                 strategy_cache,
                 Vres,
                 V,
-                prob, available_actions(prob);
+                prob,
+                available_actions(prob);
                 upper_bound = true,
             )
             Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
@@ -55,12 +60,13 @@ for N in [Float32, Float64]
                 strategy_cache,
                 Vres,
                 V,
-                prob, available_actions(prob);
+                prob,
+                available_actions(prob);
                 upper_bound = false,
             )
             Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
             # [2//10 * 6 + 1//10 * 5 + 2//10 * 3 + 1//10 * 2 + 4//10 * 1, 1//10 * 6 + 2//10 * 5 + 1//6 * 4 + 1//10 * 3 + 2//10 * 2 + 1//6 * 1 + 1//15 * 1]
-            @test Vres ≈ N[29//10, 16//5]
+            @test Vres ≈ N[29 // 10, 16 // 5]
         end
     end
 end
@@ -114,7 +120,8 @@ end
             strategy_cache,
             V_cpu,
             V,
-            prob, available_actions(prob);
+            prob,
+            available_actions(prob);
             upper_bound = false,
         )
 
@@ -126,7 +133,8 @@ end
             strategy_cache,
             V_gpu,
             cuda_V,
-            cuda_prob, available_actions(cuda_prob);
+            cuda_prob,
+            available_actions(cuda_prob);
             upper_bound = false,
         )
         V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
@@ -152,7 +160,8 @@ end
             strategy_cache,
             V_cpu,
             V,
-            prob, available_actions(prob);
+            prob,
+            available_actions(prob);
             upper_bound = false,
         )
 
@@ -164,7 +173,8 @@ end
             strategy_cache,
             V_gpu,
             cuda_V,
-            cuda_prob, available_actions(cuda_prob);
+            cuda_prob,
+            available_actions(cuda_prob);
             upper_bound = false,
         )
         V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
@@ -190,7 +200,8 @@ end
             strategy_cache,
             V_cpu,
             V,
-            prob, available_actions(prob);
+            prob,
+            available_actions(prob);
             upper_bound = false,
         )
 
@@ -202,7 +213,8 @@ end
             strategy_cache,
             V_gpu,
             cuda_V,
-            cuda_prob, available_actions(cuda_prob);
+            cuda_prob,
+            available_actions(cuda_prob);
             upper_bound = false,
         )
         V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
@@ -228,7 +240,8 @@ end
             strategy_cache,
             V_cpu,
             V,
-            prob, available_actions(prob);
+            prob,
+            available_actions(prob);
             upper_bound = false,
         )
 
@@ -240,7 +253,8 @@ end
             strategy_cache,
             V_gpu,
             cuda_V,
-            cuda_prob, available_actions(cuda_prob);
+            cuda_prob,
+            available_actions(cuda_prob);
             upper_bound = false,
         )
         V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
@@ -278,7 +292,8 @@ end
             strategy_cache,
             V_gpu,
             cuda_V,
-            cuda_prob, available_actions(cuda_prob);
+            cuda_prob,
+            available_actions(cuda_prob);
             upper_bound = false,
         )
         V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing

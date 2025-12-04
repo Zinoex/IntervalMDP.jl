@@ -23,7 +23,15 @@ using IntervalMDP, CUDA
         ws = IntervalMDP.construct_workspace(prob)
         strategy_cache = IntervalMDP.construct_strategy_cache(prob)
         Vres = CUDA.zeros(N, 2)
-        IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, prob, available_actions(prob); upper_bound = true)
+        IntervalMDP._bellman_helper!(
+            ws,
+            strategy_cache,
+            Vres,
+            V,
+            prob,
+            available_actions(prob);
+            upper_bound = true,
+        )
         Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
         @test Vres ≈ N[27 // 10, 17 // 10] # [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
     end
@@ -33,7 +41,15 @@ using IntervalMDP, CUDA
         ws = IntervalMDP.construct_workspace(prob)
         strategy_cache = IntervalMDP.construct_strategy_cache(prob)
         Vres = CUDA.zeros(N, 2)
-        IntervalMDP._bellman_helper!(ws, strategy_cache, Vres, V, prob, available_actions(prob); upper_bound = false)
+        IntervalMDP._bellman_helper!(
+            ws,
+            strategy_cache,
+            Vres,
+            V,
+            prob,
+            available_actions(prob);
+            upper_bound = false,
+        )
         Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
         @test Vres ≈ N[17 // 10, 15 // 10]  # [0.5 * 1 + 0.3 * 2 + 0.2 * 3, 0.6 * 1 + 0.3 * 2 + 0.1 * 3]
     end

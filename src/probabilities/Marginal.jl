@@ -27,7 +27,7 @@ struct Marginal{A <: AbstractAmbiguitySets, N, M}
         action_indices::NTuple{M, Int32},
         source_dims::NTuple{N, Int32},
         action_vars::NTuple{M, Int32},
-        check::Val{false}
+        check::Val{false},
     ) where {A <: AbstractAmbiguitySets, N, M}
         new{A, N, M}(
             ambiguity_sets,
@@ -46,7 +46,13 @@ struct Marginal{A <: AbstractAmbiguitySets, N, M}
         action_vars::NTuple{M, Int32},
         check::Val{true},
     ) where {A <: AbstractAmbiguitySets, N, M}
-        checkindices(ambiguity_sets, state_indices, action_indices, source_dims, action_vars)
+        checkindices(
+            ambiguity_sets,
+            state_indices,
+            action_indices,
+            source_dims,
+            action_vars,
+        )
 
         return new{A, N, M}(
             ambiguity_sets,
@@ -188,10 +194,14 @@ Get the ambiguity set corresponding to the given `source` (state) and `action`, 
 the relevant indices of `source` and `action` are selected by `p.action_indices` and `p.state_indices` respectively.
 The selected index is then converted to a linear index for the underlying ambiguity sets.
 """
-Base.@propagate_inbounds Base.getindex(p::Marginal, action, source) = ambiguity_sets(p)[sub2ind(p, action, source)]
+Base.@propagate_inbounds Base.getindex(p::Marginal, action, source) =
+    ambiguity_sets(p)[sub2ind(p, action, source)]
 
-Base.@propagate_inbounds sub2ind(p::Marginal, action::CartesianIndex, source::CartesianIndex) =
-    sub2ind(p, Tuple(action), Tuple(source))
+Base.@propagate_inbounds sub2ind(
+    p::Marginal,
+    action::CartesianIndex,
+    source::CartesianIndex,
+) = sub2ind(p, Tuple(action), Tuple(source))
 Base.@propagate_inbounds function sub2ind(
     p::Marginal{A, N1, M1},
     action::NTuple{M2, T},

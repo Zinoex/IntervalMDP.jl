@@ -33,12 +33,11 @@ function IntervalMDP._bellman_helper!(
 
     function shmem_func(threads)
         warps = div(threads, 32)
-        prealloc_cache_size = sum(workspace.max_support_per_marginal[1:min(2, N - 1)]) * 2 * sizeof(Tv)
+        prealloc_cache_size =
+            sum(workspace.max_support_per_marginal[1:min(2, N - 1)]) * 2 * sizeof(Tv)
         expectation_cache_size = 2 * sum(workspace.max_support_per_marginal) * sizeof(Tv)
         action_cache_size = n_actions * sizeof(Tv)
-        return warps * (prealloc_cache_size +
-            expectation_cache_size +
-            action_cache_size)
+        return warps * (prealloc_cache_size + expectation_cache_size + action_cache_size)
     end
 
     kernel = @cuda launch = false factored_bellman_kernel!(
@@ -52,7 +51,7 @@ function IntervalMDP._bellman_helper!(
     )
 
     config = launch_configuration(kernel.fun; shmem = shmem_func)
-    
+
     max_threads = prevwarp(device(), config.threads)
     warps = div(max_threads, 32)
     threads = warps * 32
@@ -85,12 +84,14 @@ function factored_bellman_kernel!(
     value_lt,
     action_reduce,
 ) where {N, M, Tv}
-    
+
     # Prepare action workspace shared memory
-    @inbounds action_workspace, offset = initialize_factored_action_workspace(workspace, strategy_cache, model)
+    @inbounds action_workspace, offset =
+        initialize_factored_action_workspace(workspace, strategy_cache, model)
 
     # Prepare sorting shared memory
-    @inbounds value_ws, gap_ws, offset = initialize_factored_value_and_gap(workspace, model, offset)
+    @inbounds value_ws, gap_ws, offset =
+        initialize_factored_value_and_gap(workspace, model, offset)
 
     # Prepare preallocated workspace for ambiguity sets
     @inbounds prealloc_ws, offset = initialize_prealloc_workspace(workspace, model, offset)
@@ -122,14 +123,13 @@ Base.@propagate_inbounds function initialize_factored_action_workspace(
     nwarps = div(blockDim().x, warpsize())
     wid = fld1(threadIdx().x, warpsize())
 
-    action_workspace = CuDynamicSharedArray(
-        IntervalMDP.valuetype(model),
-        (action_shape(model)..., nwarps),
-    )
+    action_workspace =
+        CuDynamicSharedArray(IntervalMDP.valuetype(model), (action_shape(model)..., nwarps))
 
     action_workspace = @view action_workspace[(Colon() for _ in 1:M)..., wid]
 
-    return action_workspace, unsafe_trunc(Int32, sizeof(IntervalMDP.valuetype(model)) * num_actions(model) * nwarps)
+    return action_workspace,
+    unsafe_trunc(Int32, sizeof(IntervalMDP.valuetype(model)) * num_actions(model) * nwarps)
 end
 
 Base.@propagate_inbounds function initialize_factored_action_workspace(
@@ -143,7 +143,7 @@ end
 Base.@propagate_inbounds function initialize_factored_value_and_gap(
     workspace,
     model::IntervalMDP.FactoredRMDP{N, M},
-    offset
+    offset,
 ) where {N, M}
     assume(warpsize() == 32)
 
@@ -169,7 +169,7 @@ end
 Base.@propagate_inbounds function initialize_prealloc_workspace(
     workspace,
     model::IntervalMDP.FactoredRMDP{2, M},
-    offset
+    offset,
 ) where {M}
     ws, offset = initialize_prealloc_workspace(
         workspace.max_support_per_marginal[1],
@@ -182,7 +182,7 @@ end
 Base.@propagate_inbounds function initialize_prealloc_workspace(
     workspace,
     model::IntervalMDP.FactoredRMDP{N, M},
-    offset
+    offset,
 ) where {N, M}
     ws1, offset = initialize_prealloc_workspace(
         workspace.max_support_per_marginal[1],
@@ -200,7 +200,7 @@ end
 Base.@propagate_inbounds function initialize_prealloc_workspace(
     marginal_size,
     marginal::Marginal{<:IntervalAmbiguitySets{Tv, <:CuDeviceMatrix}},
-    offset
+    offset,
 ) where {Tv}
     assume(warpsize() == 32)
 
@@ -229,8 +229,10 @@ end
 
 Base.@propagate_inbounds function initialize_prealloc_workspace(
     marginal_size,
-    marginal::Marginal{<:IntervalAmbiguitySets{Tv, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC}},
-    offset
+    marginal::Marginal{
+        <:IntervalAmbiguitySets{Tv, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+    },
+    offset,
 ) where {Tv}
     assume(warpsize() == 32)
 
@@ -251,11 +253,7 @@ Base.@propagate_inbounds function initialize_prealloc_workspace(
     )
     offset += sizeof(IntervalMDP.valuetype(marginal)) * marginal_size * nwarps
 
-    index_ws = CuDynamicSharedArray(
-        Int32,
-        (marginal_size, nwarps),
-        offset,
-    )
+    index_ws = CuDynamicSharedArray(Int32, (marginal_size, nwarps), offset)
 
     value_ws = @view value_ws[:, wid]
     index_ws = @view index_ws[:, wid]
@@ -297,7 +295,7 @@ Base.@propagate_inbounds function factored_omaximization!(
             value_lt,
             action_reduce,
         )
-        
+
         sync_warp()
         jₛ += gridDim().x * n_states_per_block
     end
@@ -345,7 +343,7 @@ Base.@propagate_inbounds function state_factored_bellman!(
 
     sync_warp()
     v = extract_strategy_warp!(strategy_cache, action_workspace, jₛ, action_reduce)
-    
+
     if laneid() == one(Int32)
         Vres[jₛ...] = v
     end
@@ -381,7 +379,7 @@ Base.@propagate_inbounds function state_factored_bellman!(
         jₐ,
         value_lt,
     )
-    
+
     if laneid() == one(Int32)
         Vres[jₛ...] = v
     end
@@ -409,24 +407,34 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     gap_ws = view_supportsizes(gap_ws, ssz)
 
     # Pre-compute the first ambiguity sets, as it is used by far the most
-    first_ambiguity_set = preallocate_ambiguity_set(model[one(Int32)][jₐ, jₛ], prealloc_ws[one(Int32)])
+    first_ambiguity_set =
+        preallocate_ambiguity_set(model[one(Int32)][jₐ, jₛ], prealloc_ws[one(Int32)])
 
     isparse = one(Int32)
     while isparse <= ssz[end]
         I = supports(model, jₐ, jₛ, isparse)
 
         # For the first dimension, we need to copy the values from V
-        factored_initialize_warp_sorting_shared_memory!(@view(V[:, I]), first_ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
+        factored_initialize_warp_sorting_shared_memory!(
+            @view(V[:, I]),
+            first_ambiguity_set,
+            value_ws[one(Int32)],
+            gap_ws[one(Int32)],
+        )
         v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], first_ambiguity_set)
 
         warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], bdgts[one(Int32)])
+        v += small_add_gap_mul_V_sparse(
+            value_ws[one(Int32)],
+            gap_ws[one(Int32)],
+            bdgts[one(Int32)],
+        )
 
         if laneid() == one(Int32)
             value_ws[Int32(2)][isparse] = v
         end
         sync_warp()
-        
+
         isparse += one(Int32)
     end
 
@@ -459,8 +467,10 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     gap_ws = view_supportsizes(gap_ws, ssz)
 
     # Pre-compute the first two ambiguity sets, as they are used by far the most
-    first_ambiguity_set = preallocate_ambiguity_set(model[one(Int32)][jₐ, jₛ], prealloc_ws[one(Int32)])
-    second_ambiguity_set = preallocate_ambiguity_set(model[Int32(2)][jₐ, jₛ], prealloc_ws[Int32(2)])
+    first_ambiguity_set =
+        preallocate_ambiguity_set(model[one(Int32)][jₐ, jₛ], prealloc_ws[one(Int32)])
+    second_ambiguity_set =
+        preallocate_ambiguity_set(model[Int32(2)][jₐ, jₛ], prealloc_ws[Int32(2)])
 
     Isparse = (one(Int32), one(Int32))
     done = false
@@ -468,11 +478,20 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
         I = supports(model, jₐ, jₛ, Isparse)
 
         # For the first dimension, we need to copy the values from V
-        factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), first_ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
+        factored_initialize_warp_sorting_shared_memory!(
+            @view(V[:, I...]),
+            first_ambiguity_set,
+            value_ws[one(Int32)],
+            gap_ws[one(Int32)],
+        )
         v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], first_ambiguity_set)
 
         warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], bdgts[one(Int32)])
+        v += small_add_gap_mul_V_sparse(
+            value_ws[one(Int32)],
+            gap_ws[one(Int32)],
+            bdgts[one(Int32)],
+        )
 
         if laneid() == one(Int32)
             value_ws[Int32(2)][Isparse[Int32(1)]] = v
@@ -487,11 +506,18 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
             continue
         end
 
-        factored_initialize_warp_sorting_shared_memory!(second_ambiguity_set, gap_ws[Int32(2)])
+        factored_initialize_warp_sorting_shared_memory!(
+            second_ambiguity_set,
+            gap_ws[Int32(2)],
+        )
         v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], second_ambiguity_set)
 
         warp_bitonic_sort!(value_ws[Int32(2)], gap_ws[Int32(2)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[Int32(2)], gap_ws[Int32(2)], bdgts[Int32(2)])
+        v += small_add_gap_mul_V_sparse(
+            value_ws[Int32(2)],
+            gap_ws[Int32(2)],
+            bdgts[Int32(2)],
+        )
 
         if laneid() == one(Int32)
             value_ws[Int32(3)][Isparse[Int32(2)]] = v
@@ -530,8 +556,10 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     gap_ws = view_supportsizes(gap_ws, ssz)
 
     # Pre-compute the first two ambiguity sets, as they are used by far the most
-    first_ambiguity_set = preallocate_ambiguity_set(model[one(Int32)][jₐ, jₛ], prealloc_ws[one(Int32)])
-    second_ambiguity_set = preallocate_ambiguity_set(model[Int32(2)][jₐ, jₛ], prealloc_ws[Int32(2)])
+    first_ambiguity_set =
+        preallocate_ambiguity_set(model[one(Int32)][jₐ, jₛ], prealloc_ws[one(Int32)])
+    second_ambiguity_set =
+        preallocate_ambiguity_set(model[Int32(2)][jₐ, jₛ], prealloc_ws[Int32(2)])
 
     Isparse = (one(Int32), one(Int32), one(Int32))
     done = false
@@ -539,11 +567,20 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
         I = supports(model, jₐ, jₛ, Isparse)
 
         # For the first dimension, we need to copy the values from V
-        factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), first_ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])
+        factored_initialize_warp_sorting_shared_memory!(
+            @view(V[:, I...]),
+            first_ambiguity_set,
+            value_ws[one(Int32)],
+            gap_ws[one(Int32)],
+        )
         v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], first_ambiguity_set)
 
         warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], bdgts[one(Int32)])
+        v += small_add_gap_mul_V_sparse(
+            value_ws[one(Int32)],
+            gap_ws[one(Int32)],
+            bdgts[one(Int32)],
+        )
 
         if laneid() == one(Int32)
             value_ws[Int32(2)][Isparse[Int32(1)]] = v
@@ -558,11 +595,18 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
             continue
         end
 
-        factored_initialize_warp_sorting_shared_memory!(second_ambiguity_set, gap_ws[Int32(2)])
+        factored_initialize_warp_sorting_shared_memory!(
+            second_ambiguity_set,
+            gap_ws[Int32(2)],
+        )
         v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], second_ambiguity_set)
 
         warp_bitonic_sort!(value_ws[Int32(2)], gap_ws[Int32(2)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[Int32(2)], gap_ws[Int32(2)], bdgts[Int32(2)])
+        v += small_add_gap_mul_V_sparse(
+            value_ws[Int32(2)],
+            gap_ws[Int32(2)],
+            bdgts[Int32(2)],
+        )
 
         if laneid() == one(Int32)
             value_ws[Int32(3)][Isparse[Int32(2)]] = v
@@ -579,7 +623,11 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
         v = add_lower_mul_V_norem_warp(value_ws[Int32(3)], ambiguity_set)
 
         warp_bitonic_sort!(value_ws[Int32(3)], gap_ws[Int32(3)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[Int32(3)], gap_ws[Int32(3)], bdgts[Int32(3)])
+        v += small_add_gap_mul_V_sparse(
+            value_ws[Int32(3)],
+            gap_ws[Int32(3)],
+            bdgts[Int32(3)],
+        )
 
         if laneid() == one(Int32)
             value_ws[Int32(4)][Isparse[Int32(3)]] = v
@@ -618,8 +666,10 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
     gap_ws = view_supportsizes(gap_ws, ssz)
 
     # Pre-compute the first two ambiguity sets, as they are used by far the most
-    first_ambiguity_set = preallocate_ambiguity_set(model[one(Int32)][jₐ, jₛ], prealloc_ws[one(Int32)])
-    second_ambiguity_set = preallocate_ambiguity_set(model[Int32(2)][jₐ, jₛ], prealloc_ws[Int32(2)])
+    first_ambiguity_set =
+        preallocate_ambiguity_set(model[one(Int32)][jₐ, jₛ], prealloc_ws[one(Int32)])
+    second_ambiguity_set =
+        preallocate_ambiguity_set(model[Int32(2)][jₐ, jₛ], prealloc_ws[Int32(2)])
 
     Isparse = (one(Int32), one(Int32), one(Int32), one(Int32))
     done = false
@@ -627,11 +677,20 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
         I = supports(model, jₐ, jₛ, Isparse)
 
         # For the first dimension, we need to copy the values from V
-        factored_initialize_warp_sorting_shared_memory!(@view(V[:, I...]), first_ambiguity_set, value_ws[one(Int32)], gap_ws[one(Int32)])  # 13%
+        factored_initialize_warp_sorting_shared_memory!(
+            @view(V[:, I...]),
+            first_ambiguity_set,
+            value_ws[one(Int32)],
+            gap_ws[one(Int32)],
+        )  # 13%
         v = add_lower_mul_V_norem_warp(value_ws[one(Int32)], first_ambiguity_set) # 12%
 
         warp_bitonic_sort!(value_ws[one(Int32)], gap_ws[one(Int32)], value_lt)  # 44%
-        v += small_add_gap_mul_V_sparse(value_ws[one(Int32)], gap_ws[one(Int32)], bdgts[one(Int32)])  # 27%
+        v += small_add_gap_mul_V_sparse(
+            value_ws[one(Int32)],
+            gap_ws[one(Int32)],
+            bdgts[one(Int32)],
+        )  # 27%
 
         if laneid() == one(Int32)
             value_ws[Int32(2)][Isparse[Int32(1)]] = v
@@ -646,11 +705,18 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
             continue
         end
 
-        factored_initialize_warp_sorting_shared_memory!(second_ambiguity_set, gap_ws[Int32(2)])
+        factored_initialize_warp_sorting_shared_memory!(
+            second_ambiguity_set,
+            gap_ws[Int32(2)],
+        )
         v = add_lower_mul_V_norem_warp(value_ws[Int32(2)], second_ambiguity_set)
 
         warp_bitonic_sort!(value_ws[Int32(2)], gap_ws[Int32(2)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[Int32(2)], gap_ws[Int32(2)], bdgts[Int32(2)])
+        v += small_add_gap_mul_V_sparse(
+            value_ws[Int32(2)],
+            gap_ws[Int32(2)],
+            bdgts[Int32(2)],
+        )
 
         if laneid() == one(Int32)
             value_ws[Int32(3)][Isparse[Int32(2)]] = v
@@ -667,7 +733,11 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
         v = add_lower_mul_V_norem_warp(value_ws[Int32(3)], ambiguity_set)
 
         warp_bitonic_sort!(value_ws[Int32(3)], gap_ws[Int32(3)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[Int32(3)], gap_ws[Int32(3)], bdgts[Int32(3)])
+        v += small_add_gap_mul_V_sparse(
+            value_ws[Int32(3)],
+            gap_ws[Int32(3)],
+            bdgts[Int32(3)],
+        )
 
         if laneid() == one(Int32)
             value_ws[Int32(4)][Isparse[Int32(3)]] = v
@@ -684,7 +754,11 @@ Base.@propagate_inbounds function state_action_factored_bellman!(
         v = add_lower_mul_V_norem_warp(value_ws[Int32(4)], ambiguity_set)
 
         warp_bitonic_sort!(value_ws[Int32(4)], gap_ws[Int32(4)], value_lt)
-        v += small_add_gap_mul_V_sparse(value_ws[Int32(4)], gap_ws[Int32(4)], bdgts[Int32(4)])
+        v += small_add_gap_mul_V_sparse(
+            value_ws[Int32(4)],
+            gap_ws[Int32(4)],
+            bdgts[Int32(4)],
+        )
 
         if laneid() == one(Int32)
             value_ws[Int32(5)][Isparse[Int32(4)]] = v
@@ -728,7 +802,10 @@ Base.@propagate_inbounds function budgets(
     jₐ,
     jₛ,
 ) where {M}
-    budgets = budget(model[1][jₐ, jₛ]), budget(model[2][jₐ, jₛ]), budget(model[3][jₐ, jₛ]), budget(model[4][jₐ, jₛ])
+    budgets = budget(model[1][jₐ, jₛ]),
+    budget(model[2][jₐ, jₛ]),
+    budget(model[3][jₐ, jₛ]),
+    budget(model[4][jₐ, jₛ])
     return budgets
 end
 
@@ -737,7 +814,11 @@ Base.@propagate_inbounds function budgets(
     jₐ,
     jₛ,
 ) where {M}
-    budgets = budget(model[1][jₐ, jₛ]), budget(model[2][jₐ, jₛ]), budget(model[3][jₐ, jₛ]), budget(model[4][jₐ, jₛ]), budget(model[5][jₐ, jₛ])
+    budgets = budget(model[1][jₐ, jₛ]),
+    budget(model[2][jₐ, jₛ]),
+    budget(model[3][jₐ, jₛ]),
+    budget(model[4][jₐ, jₛ]),
+    budget(model[5][jₐ, jₛ])
     return budgets
 end
 
@@ -746,7 +827,12 @@ Base.@propagate_inbounds function budgets(
     jₐ,
     jₛ,
 ) where {M}
-    budgets = budget(model[1][jₐ, jₛ]), budget(model[2][jₐ, jₛ]), budget(model[3][jₐ, jₛ]), budget(model[4][jₐ, jₛ]), budget(model[5][jₐ, jₛ]), budget(model[6][jₐ, jₛ])
+    budgets = budget(model[1][jₐ, jₛ]),
+    budget(model[2][jₐ, jₛ]),
+    budget(model[3][jₐ, jₛ]),
+    budget(model[4][jₐ, jₛ]),
+    budget(model[5][jₐ, jₛ]),
+    budget(model[6][jₐ, jₛ])
     return budgets
 end
 
@@ -755,7 +841,13 @@ Base.@propagate_inbounds function budgets(
     jₐ,
     jₛ,
 ) where {M}
-    budgets = budget(model[1][jₐ, jₛ]), budget(model[2][jₐ, jₛ]), budget(model[3][jₐ, jₛ]), budget(model[4][jₐ, jₛ]), budget(model[5][jₐ, jₛ]), budget(model[6][jₐ, jₛ]), budget(model[7][jₐ, jₛ])
+    budgets = budget(model[1][jₐ, jₛ]),
+    budget(model[2][jₐ, jₛ]),
+    budget(model[3][jₐ, jₛ]),
+    budget(model[4][jₐ, jₛ]),
+    budget(model[5][jₐ, jₛ]),
+    budget(model[6][jₐ, jₛ]),
+    budget(model[7][jₐ, jₛ])
     return budgets
 end
 
@@ -764,7 +856,14 @@ Base.@propagate_inbounds function budgets(
     jₐ,
     jₛ,
 ) where {M}
-    budgets = budget(model[1][jₐ, jₛ]), budget(model[2][jₐ, jₛ]), budget(model[3][jₐ, jₛ]), budget(model[4][jₐ, jₛ]), budget(model[5][jₐ, jₛ]), budget(model[6][jₐ, jₛ]), budget(model[7][jₐ, jₛ]), budget(model[8][jₐ, jₛ])
+    budgets = budget(model[1][jₐ, jₛ]),
+    budget(model[2][jₐ, jₛ]),
+    budget(model[3][jₐ, jₛ]),
+    budget(model[4][jₐ, jₛ]),
+    budget(model[5][jₐ, jₛ]),
+    budget(model[6][jₐ, jₛ]),
+    budget(model[7][jₐ, jₛ]),
+    budget(model[8][jₐ, jₛ])
     return budgets
 end
 
@@ -773,7 +872,15 @@ Base.@propagate_inbounds function budgets(
     jₐ,
     jₛ,
 ) where {M}
-    budgets = budget(model[1][jₐ, jₛ]), budget(model[2][jₐ, jₛ]), budget(model[3][jₐ, jₛ]), budget(model[4][jₐ, jₛ]), budget(model[5][jₐ, jₛ]), budget(model[6][jₐ, jₛ]), budget(model[7][jₐ, jₛ]), budget(model[8][jₐ, jₛ]), budget(model[9][jₐ, jₛ])
+    budgets = budget(model[1][jₐ, jₛ]),
+    budget(model[2][jₐ, jₛ]),
+    budget(model[3][jₐ, jₛ]),
+    budget(model[4][jₐ, jₛ]),
+    budget(model[5][jₐ, jₛ]),
+    budget(model[6][jₐ, jₛ]),
+    budget(model[7][jₐ, jₛ]),
+    budget(model[8][jₐ, jₛ]),
+    budget(model[9][jₐ, jₛ])
     return budgets
 end
 
@@ -782,12 +889,24 @@ Base.@propagate_inbounds function budgets(
     jₐ,
     jₛ,
 ) where {M}
-    budgets = budget(model[1][jₐ, jₛ]), budget(model[2][jₐ, jₛ]), budget(model[3][jₐ, jₛ]), budget(model[4][jₐ, jₛ]), budget(model[5][jₐ, jₛ]), budget(model[6][jₐ, jₛ]), budget(model[7][jₐ, jₛ]), budget(model[8][jₐ, jₛ]), budget(model[9][jₐ, jₛ]), budget(model[10][jₐ, jₛ])
+    budgets = budget(model[1][jₐ, jₛ]),
+    budget(model[2][jₐ, jₛ]),
+    budget(model[3][jₐ, jₛ]),
+    budget(model[4][jₐ, jₛ]),
+    budget(model[5][jₐ, jₛ]),
+    budget(model[6][jₐ, jₛ]),
+    budget(model[7][jₐ, jₛ]),
+    budget(model[8][jₐ, jₛ]),
+    budget(model[9][jₐ, jₛ]),
+    budget(model[10][jₐ, jₛ])
     return budgets
 end
 
 Base.@propagate_inbounds function budget(
-    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CuDeviceMatrix}},
+    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
+        Tv,
+        <:SubArray{Tv, 1, <:CuDeviceMatrix},
+    },
 ) where {Tv}
     assume(warpsize() == 32)
 
@@ -809,7 +928,10 @@ Base.@propagate_inbounds function budget(
 end
 
 Base.@propagate_inbounds function budget(
-    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC}},
+    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
+        Tv,
+        <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+    },
 ) where {Tv}
     used = zero(Tv)
     lower_nonzeros = SparseArrays.nonzeros(lower(ambiguity_set))
@@ -832,7 +954,8 @@ Base.@propagate_inbounds function supportsizes(
     jₐ,
     jₛ,
 ) where {M}
-    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]), IntervalMDP.supportsize(model[2][jₐ, jₛ])
+    ssz =
+        IntervalMDP.supportsize(model[1][jₐ, jₛ]), IntervalMDP.supportsize(model[2][jₐ, jₛ])
     return ssz
 end
 
@@ -841,7 +964,9 @@ Base.@propagate_inbounds function supportsizes(
     jₐ,
     jₛ,
 ) where {M}
-    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]), IntervalMDP.supportsize(model[2][jₐ, jₛ]), IntervalMDP.supportsize(model[3][jₐ, jₛ])
+    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[2][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[3][jₐ, jₛ])
     return ssz
 end
 
@@ -850,7 +975,10 @@ Base.@propagate_inbounds function supportsizes(
     jₐ,
     jₛ,
 ) where {M}
-    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]), IntervalMDP.supportsize(model[2][jₐ, jₛ]), IntervalMDP.supportsize(model[3][jₐ, jₛ]), IntervalMDP.supportsize(model[4][jₐ, jₛ])
+    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[2][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[3][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[4][jₐ, jₛ])
     return ssz
 end
 
@@ -859,7 +987,11 @@ Base.@propagate_inbounds function supportsizes(
     jₐ,
     jₛ,
 ) where {M}
-    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]), IntervalMDP.supportsize(model[2][jₐ, jₛ]), IntervalMDP.supportsize(model[3][jₐ, jₛ]), IntervalMDP.supportsize(model[4][jₐ, jₛ]), IntervalMDP.supportsize(model[5][jₐ, jₛ])
+    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[2][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[3][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[4][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[5][jₐ, jₛ])
     return ssz
 end
 
@@ -868,7 +1000,12 @@ Base.@propagate_inbounds function supportsizes(
     jₐ,
     jₛ,
 ) where {M}
-    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]), IntervalMDP.supportsize(model[2][jₐ, jₛ]), IntervalMDP.supportsize(model[3][jₐ, jₛ]), IntervalMDP.supportsize(model[4][jₐ, jₛ]), IntervalMDP.supportsize(model[5][jₐ, jₛ]), IntervalMDP.supportsize(model[6][jₐ, jₛ])
+    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[2][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[3][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[4][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[5][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[6][jₐ, jₛ])
     return ssz
 end
 
@@ -877,7 +1014,13 @@ Base.@propagate_inbounds function supportsizes(
     jₐ,
     jₛ,
 ) where {M}
-    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]), IntervalMDP.supportsize(model[2][jₐ, jₛ]), IntervalMDP.supportsize(model[3][jₐ, jₛ]), IntervalMDP.supportsize(model[4][jₐ, jₛ]), IntervalMDP.supportsize(model[5][jₐ, jₛ]), IntervalMDP.supportsize(model[6][jₐ, jₛ]), IntervalMDP.supportsize(model[7][jₐ, jₛ])
+    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[2][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[3][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[4][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[5][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[6][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[7][jₐ, jₛ])
     return ssz
 end
 
@@ -886,7 +1029,14 @@ Base.@propagate_inbounds function supportsizes(
     jₐ,
     jₛ,
 ) where {M}
-    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]), IntervalMDP.supportsize(model[2][jₐ, jₛ]), IntervalMDP.supportsize(model[3][jₐ, jₛ]), IntervalMDP.supportsize(model[4][jₐ, jₛ]), IntervalMDP.supportsize(model[5][jₐ, jₛ]), IntervalMDP.supportsize(model[6][jₐ, jₛ]), IntervalMDP.supportsize(model[7][jₐ, jₛ]), IntervalMDP.supportsize(model[8][jₐ, jₛ])
+    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[2][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[3][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[4][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[5][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[6][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[7][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[8][jₐ, jₛ])
     return ssz
 end
 
@@ -895,7 +1045,15 @@ Base.@propagate_inbounds function supportsizes(
     jₐ,
     jₛ,
 ) where {M}
-    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]), IntervalMDP.supportsize(model[2][jₐ, jₛ]), IntervalMDP.supportsize(model[3][jₐ, jₛ]), IntervalMDP.supportsize(model[4][jₐ, jₛ]), IntervalMDP.supportsize(model[5][jₐ, jₛ]), IntervalMDP.supportsize(model[6][jₐ, jₛ]), IntervalMDP.supportsize(model[7][jₐ, jₛ]), IntervalMDP.supportsize(model[8][jₐ, jₛ]), IntervalMDP.supportsize(model[9][jₐ, jₛ])
+    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[2][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[3][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[4][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[5][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[6][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[7][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[8][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[9][jₐ, jₛ])
     return ssz
 end
 
@@ -904,98 +1062,203 @@ Base.@propagate_inbounds function supportsizes(
     jₐ,
     jₛ,
 ) where {M}
-    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]), IntervalMDP.supportsize(model[2][jₐ, jₛ]), IntervalMDP.supportsize(model[3][jₐ, jₛ]), IntervalMDP.supportsize(model[4][jₐ, jₛ]), IntervalMDP.supportsize(model[5][jₐ, jₛ]), IntervalMDP.supportsize(model[6][jₐ, jₛ]), IntervalMDP.supportsize(model[7][jₐ, jₛ]), IntervalMDP.supportsize(model[8][jₐ, jₛ]), IntervalMDP.supportsize(model[9][jₐ, jₛ]), IntervalMDP.supportsize(model[10][jₐ, jₛ])
+    ssz = IntervalMDP.supportsize(model[1][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[2][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[3][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[4][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[5][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[6][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[7][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[8][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[9][jₐ, jₛ]),
+    IntervalMDP.supportsize(model[10][jₐ, jₛ])
     return ssz
 end
 
 Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{2, <:Int32})
     inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2])
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
-           @view(ws[inds[2]:(inds[3] - one(Int32))])
+    @view(ws[inds[2]:(inds[3] - one(Int32))])
 end
 
 Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{3, <:Int32})
-    inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3])
+    inds = (
+        one(Int32),
+        one(Int32) + ssz[1],
+        one(Int32) + ssz[1] + ssz[2],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3],
+    )
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
-           @view(ws[inds[2]:(inds[3] - one(Int32))]),
-           @view(ws[inds[3]:(inds[4] - one(Int32))])
+    @view(ws[inds[2]:(inds[3] - one(Int32))]),
+    @view(ws[inds[3]:(inds[4] - one(Int32))])
 end
 
 Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{4, <:Int32})
-    inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4])
+    inds = (
+        one(Int32),
+        one(Int32) + ssz[1],
+        one(Int32) + ssz[1] + ssz[2],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4],
+    )
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
-           @view(ws[inds[2]:(inds[3] - one(Int32))]),
-           @view(ws[inds[3]:(inds[4] - one(Int32))]),
-           @view(ws[inds[4]:(inds[5] - one(Int32))])
+    @view(ws[inds[2]:(inds[3] - one(Int32))]),
+    @view(ws[inds[3]:(inds[4] - one(Int32))]),
+    @view(ws[inds[4]:(inds[5] - one(Int32))])
 end
 
 Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{5, <:Int32})
-    inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5])
+    inds = (
+        one(Int32),
+        one(Int32) + ssz[1],
+        one(Int32) + ssz[1] + ssz[2],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5],
+    )
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
-           @view(ws[inds[2]:(inds[3] - one(Int32))]),
-           @view(ws[inds[3]:(inds[4] - one(Int32))]),
-           @view(ws[inds[4]:(inds[5] - one(Int32))]),
-           @view(ws[inds[5]:(inds[6] - one(Int32))])
+    @view(ws[inds[2]:(inds[3] - one(Int32))]),
+    @view(ws[inds[3]:(inds[4] - one(Int32))]),
+    @view(ws[inds[4]:(inds[5] - one(Int32))]),
+    @view(ws[inds[5]:(inds[6] - one(Int32))])
 end
 
 Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{6, <:Int32})
-    inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6])
+    inds = (
+        one(Int32),
+        one(Int32) + ssz[1],
+        one(Int32) + ssz[1] + ssz[2],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6],
+    )
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
-           @view(ws[inds[2]:(inds[3] - one(Int32))]),
-           @view(ws[inds[3]:(inds[4] - one(Int32))]),
-           @view(ws[inds[4]:(inds[5] - one(Int32))]),
-           @view(ws[inds[5]:(inds[6] - one(Int32))]),
-           @view(ws[inds[6]:(inds[7] - one(Int32))])
+    @view(ws[inds[2]:(inds[3] - one(Int32))]),
+    @view(ws[inds[3]:(inds[4] - one(Int32))]),
+    @view(ws[inds[4]:(inds[5] - one(Int32))]),
+    @view(ws[inds[5]:(inds[6] - one(Int32))]),
+    @view(ws[inds[6]:(inds[7] - one(Int32))])
 end
 
 Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{7, <:Int32})
-    inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7])
+    inds = (
+        one(Int32),
+        one(Int32) + ssz[1],
+        one(Int32) + ssz[1] + ssz[2],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7],
+    )
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
-           @view(ws[inds[2]:(inds[3] - one(Int32))]),
-           @view(ws[inds[3]:(inds[4] - one(Int32))]),
-           @view(ws[inds[4]:(inds[5] - one(Int32))]),
-           @view(ws[inds[5]:(inds[6] - one(Int32))]),
-           @view(ws[inds[6]:(inds[7] - one(Int32))]),
-           @view(ws[inds[7]:(inds[8] - one(Int32))])
+    @view(ws[inds[2]:(inds[3] - one(Int32))]),
+    @view(ws[inds[3]:(inds[4] - one(Int32))]),
+    @view(ws[inds[4]:(inds[5] - one(Int32))]),
+    @view(ws[inds[5]:(inds[6] - one(Int32))]),
+    @view(ws[inds[6]:(inds[7] - one(Int32))]),
+    @view(ws[inds[7]:(inds[8] - one(Int32))])
 end
 
 Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{8, <:Int32})
-    inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8])
+    inds = (
+        one(Int32),
+        one(Int32) + ssz[1],
+        one(Int32) + ssz[1] + ssz[2],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8],
+    )
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
-           @view(ws[inds[2]:(inds[3] - one(Int32))]),
-           @view(ws[inds[3]:(inds[4] - one(Int32))]),
-           @view(ws[inds[4]:(inds[5] - one(Int32))]),
-           @view(ws[inds[5]:(inds[6] - one(Int32))]),
-           @view(ws[inds[6]:(inds[7] - one(Int32))]),
-           @view(ws[inds[7]:(inds[8] - one(Int32))]),
-           @view(ws[inds[8]:(inds[9] - one(Int32))])
+    @view(ws[inds[2]:(inds[3] - one(Int32))]),
+    @view(ws[inds[3]:(inds[4] - one(Int32))]),
+    @view(ws[inds[4]:(inds[5] - one(Int32))]),
+    @view(ws[inds[5]:(inds[6] - one(Int32))]),
+    @view(ws[inds[6]:(inds[7] - one(Int32))]),
+    @view(ws[inds[7]:(inds[8] - one(Int32))]),
+    @view(ws[inds[8]:(inds[9] - one(Int32))])
 end
 
 Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{9, <:Int32})
-    inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8] + ssz[9])
+    inds = (
+        one(Int32),
+        one(Int32) + ssz[1],
+        one(Int32) + ssz[1] + ssz[2],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8],
+        one(Int32) +
+        ssz[1] +
+        ssz[2] +
+        ssz[3] +
+        ssz[4] +
+        ssz[5] +
+        ssz[6] +
+        ssz[7] +
+        ssz[8] +
+        ssz[9],
+    )
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
-           @view(ws[inds[2]:(inds[3] - one(Int32))]),
-           @view(ws[inds[3]:(inds[4] - one(Int32))]),
-           @view(ws[inds[4]:(inds[5] - one(Int32))]),
-           @view(ws[inds[5]:(inds[6] - one(Int32))]),
-           @view(ws[inds[6]:(inds[7] - one(Int32))]),
-           @view(ws[inds[7]:(inds[8] - one(Int32))]),
-           @view(ws[inds[8]:(inds[9] - one(Int32))]),
-           @view(ws[inds[9]:(inds[10] - one(Int32))])
+    @view(ws[inds[2]:(inds[3] - one(Int32))]),
+    @view(ws[inds[3]:(inds[4] - one(Int32))]),
+    @view(ws[inds[4]:(inds[5] - one(Int32))]),
+    @view(ws[inds[5]:(inds[6] - one(Int32))]),
+    @view(ws[inds[6]:(inds[7] - one(Int32))]),
+    @view(ws[inds[7]:(inds[8] - one(Int32))]),
+    @view(ws[inds[8]:(inds[9] - one(Int32))]),
+    @view(ws[inds[9]:(inds[10] - one(Int32))])
 end
 
 Base.@propagate_inbounds function view_supportsizes(ws, ssz::NTuple{10, <:Int32})
-    inds = (one(Int32), one(Int32) + ssz[1], one(Int32) + ssz[1] + ssz[2], one(Int32) + ssz[1] + ssz[2] + ssz[3], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8] + ssz[9], one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8] + ssz[9] + ssz[10])
+    inds = (
+        one(Int32),
+        one(Int32) + ssz[1],
+        one(Int32) + ssz[1] + ssz[2],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7],
+        one(Int32) + ssz[1] + ssz[2] + ssz[3] + ssz[4] + ssz[5] + ssz[6] + ssz[7] + ssz[8],
+        one(Int32) +
+        ssz[1] +
+        ssz[2] +
+        ssz[3] +
+        ssz[4] +
+        ssz[5] +
+        ssz[6] +
+        ssz[7] +
+        ssz[8] +
+        ssz[9],
+        one(Int32) +
+        ssz[1] +
+        ssz[2] +
+        ssz[3] +
+        ssz[4] +
+        ssz[5] +
+        ssz[6] +
+        ssz[7] +
+        ssz[8] +
+        ssz[9] +
+        ssz[10],
+    )
     return @view(ws[inds[1]:(inds[2] - one(Int32))]),
-           @view(ws[inds[2]:(inds[3] - one(Int32))]),
-           @view(ws[inds[3]:(inds[4] - one(Int32))]),
-           @view(ws[inds[4]:(inds[5] - one(Int32))]),
-           @view(ws[inds[5]:(inds[6] - one(Int32))]),
-           @view(ws[inds[6]:(inds[7] - one(Int32))]),
-           @view(ws[inds[7]:(inds[8] - one(Int32))]),
-           @view(ws[inds[8]:(inds[9] - one(Int32))]),
-           @view(ws[inds[9]:(inds[10] - one(Int32))]),
-           @view(ws[inds[10]:(inds[11] - one(Int32))])
+    @view(ws[inds[2]:(inds[3] - one(Int32))]),
+    @view(ws[inds[3]:(inds[4] - one(Int32))]),
+    @view(ws[inds[4]:(inds[5] - one(Int32))]),
+    @view(ws[inds[5]:(inds[6] - one(Int32))]),
+    @view(ws[inds[6]:(inds[7] - one(Int32))]),
+    @view(ws[inds[7]:(inds[8] - one(Int32))]),
+    @view(ws[inds[8]:(inds[9] - one(Int32))]),
+    @view(ws[inds[9]:(inds[10] - one(Int32))]),
+    @view(ws[inds[10]:(inds[11] - one(Int32))])
 end
 
 Base.@propagate_inbounds function supports(
@@ -1014,7 +1277,8 @@ Base.@propagate_inbounds function supports(
     jₛ,
     Isparse::NTuple{2, Int32},
 ) where {M}
-    supports = IntervalMDP.support(model[2][jₐ, jₛ], Isparse[1]), IntervalMDP.support(model[3][jₐ, jₛ], Isparse[2])
+    supports = IntervalMDP.support(model[2][jₐ, jₛ], Isparse[1]),
+    IntervalMDP.support(model[3][jₐ, jₛ], Isparse[2])
     return supports
 end
 
@@ -1024,7 +1288,9 @@ Base.@propagate_inbounds function supports(
     jₛ,
     Isparse::NTuple{3, Int32},
 ) where {M}
-    supports = IntervalMDP.support(model[2][jₐ, jₛ], Isparse[1]), IntervalMDP.support(model[3][jₐ, jₛ], Isparse[2]), IntervalMDP.support(model[4][jₐ, jₛ], Isparse[3])
+    supports = IntervalMDP.support(model[2][jₐ, jₛ], Isparse[1]),
+    IntervalMDP.support(model[3][jₐ, jₛ], Isparse[2]),
+    IntervalMDP.support(model[4][jₐ, jₛ], Isparse[3])
     return supports
 end
 
@@ -1034,12 +1300,18 @@ Base.@propagate_inbounds function supports(
     jₛ,
     Isparse::NTuple{4, Int32},
 ) where {M}
-    supports = IntervalMDP.support(model[2][jₐ, jₛ], Isparse[1]), IntervalMDP.support(model[3][jₐ, jₛ], Isparse[2]), IntervalMDP.support(model[4][jₐ, jₛ], Isparse[3]), IntervalMDP.support(model[5][jₐ, jₛ], Isparse[4])
+    supports = IntervalMDP.support(model[2][jₐ, jₛ], Isparse[1]),
+    IntervalMDP.support(model[3][jₐ, jₛ], Isparse[2]),
+    IntervalMDP.support(model[4][jₐ, jₛ], Isparse[3]),
+    IntervalMDP.support(model[5][jₐ, jₛ], Isparse[4])
     return supports
 end
 
 Base.@propagate_inbounds function preallocate_ambiguity_set(
-    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CuDeviceMatrix}},
+    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
+        Tv,
+        <:SubArray{Tv, 1, <:CuDeviceMatrix},
+    },
     ws,
 ) where {Tv}
     assume(warpsize() == 32)
@@ -1059,7 +1331,13 @@ Base.@propagate_inbounds function preallocate_ambiguity_set(
     return IntervalMDP.IntervalAmbiguitySet(lower_ws, gap_ws)
 end
 
-Base.@propagate_inbounds function add_lower_mul_V_norem_warp(V::AbstractVector{Tv}, ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CuDeviceMatrix}}) where {Tv}
+Base.@propagate_inbounds function add_lower_mul_V_norem_warp(
+    V::AbstractVector{Tv},
+    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
+        Tv,
+        <:SubArray{Tv, 1, <:CuDeviceMatrix},
+    },
+) where {Tv}
     assume(warpsize() == 32)
 
     ssz = IntervalMDP.supportsize(ambiguity_set)
@@ -1077,7 +1355,13 @@ Base.@propagate_inbounds function add_lower_mul_V_norem_warp(V::AbstractVector{T
     return lower_value
 end
 
-Base.@propagate_inbounds function add_lower_mul_V_norem_warp(V::AbstractVector{Tv}, ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC}}) where {Tv}
+Base.@propagate_inbounds function add_lower_mul_V_norem_warp(
+    V::AbstractVector{Tv},
+    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
+        Tv,
+        <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+    },
+) where {Tv}
     assume(warpsize() == 32)
 
     lower_nonzeros = SparseArrays.nonzeros(lower(ambiguity_set))
@@ -1096,7 +1380,10 @@ Base.@propagate_inbounds function add_lower_mul_V_norem_warp(V::AbstractVector{T
 end
 
 Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory!(
-    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CuDeviceMatrix}},
+    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
+        Tv,
+        <:SubArray{Tv, 1, <:CuDeviceMatrix},
+    },
     prob,
 ) where {Tv}
     assume(warpsize() == 32)
@@ -1115,7 +1402,10 @@ Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory
 end
 
 Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory!(
-    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC}},
+    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
+        Tv,
+        <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+    },
     prob,
 ) where {Tv}
     assume(warpsize() == 32)
@@ -1134,7 +1424,10 @@ end
 
 Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory!(
     V,
-    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CuDeviceMatrix}},
+    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
+        Tv,
+        <:SubArray{Tv, 1, <:CuDeviceMatrix},
+    },
     value,
     prob,
 ) where {Tv}
@@ -1155,7 +1448,10 @@ end
 
 Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory!(
     V,
-    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{Tv, <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC}},
+    ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
+        Tv,
+        <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+    },
     value,
     prob,
 ) where {Tv}

@@ -141,7 +141,7 @@ Base.@propagate_inbounds function extract_strategy_warp!(
     ::NoStrategyActiveCache,
     values::AbstractArray{Tv},
     jₛ,
-    action_reduce
+    action_reduce,
 ) where {Tv}
     action_min, _, action_neutral = action_reduce
 
@@ -168,7 +168,7 @@ Base.@propagate_inbounds function extract_strategy_warp!(
     cache::TimeVaryingStrategyActiveCache{N, <:AbstractArray},
     values::AbstractArray{Tv},
     jₛ,
-    action_reduce
+    action_reduce,
 ) where {N, Tv}
     _, action_lt, action_neutral = action_reduce
 
@@ -201,7 +201,7 @@ Base.@propagate_inbounds function extract_strategy_warp!(
     cache::StationaryStrategyActiveCache{N, <:AbstractArray},
     values::AbstractArray{Tv},
     jₛ,
-    action_reduce
+    action_reduce,
 ) where {N, Tv}
     _, action_lt, action_neutral = action_reduce
 

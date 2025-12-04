@@ -284,9 +284,13 @@ Base.@propagate_inbounds sub2ind(
     jₐ::NTuple{M, T},
     jₛ::NTuple{N, T},
 ) where {N, M, T <: Integer} = T(jₛ[1])
-Base.@propagate_inbounds sub2ind(p::IntervalAmbiguitySets, jₐ::CartesianIndex, jₛ::CartesianIndex) =
-    sub2ind(p, Tuple(jₐ), Tuple(jₛ))
-Base.@propagate_inbounds Base.getindex(p::IntervalAmbiguitySets, jₐ, jₛ) = p[sub2ind(p, jₐ, jₛ)]
+Base.@propagate_inbounds sub2ind(
+    p::IntervalAmbiguitySets,
+    jₐ::CartesianIndex,
+    jₛ::CartesianIndex,
+) = sub2ind(p, Tuple(jₐ), Tuple(jₛ))
+Base.@propagate_inbounds Base.getindex(p::IntervalAmbiguitySets, jₐ, jₛ) =
+    p[sub2ind(p, jₐ, jₛ)]
 
 Base.iterate(p::IntervalAmbiguitySets) = (p[1], 2)
 function Base.iterate(p::IntervalAmbiguitySets, state)
@@ -366,7 +370,8 @@ Base.@propagate_inbounds lower(p::IntervalAmbiguitySet, destination) = p.lower[d
 Return the upper bound transition probabilities of the ambiguity set to all target states.
 """
 upper(p::IntervalAmbiguitySet) = p.lower + p.gap
-Base.@propagate_inbounds upper(p::IntervalAmbiguitySet, destination) = p.lower[destination] + p.gap[destination]
+Base.@propagate_inbounds upper(p::IntervalAmbiguitySet, destination) =
+    p.lower[destination] + p.gap[destination]
 
 """
     gap(p::IntervalAmbiguitySet)
@@ -387,11 +392,18 @@ const SparseColumnView{Tv, Ti} = SubArray{
     1,
     <:SparseArrays.AbstractSparseMatrixCSC{Tv, Ti},
     Tuple{Base.Slice{Base.OneTo{Int}}, Int},
-    false
+    false,
 }
-Base.@propagate_inbounds support(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = rowvals(p.gap)
-Base.@propagate_inbounds support(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}, s) where {R} = support(p)[s]
-Base.@propagate_inbounds supportsize(p::IntervalAmbiguitySet{R, <:SparseColumnView{R}}) where {R} = Int32(nnz(p.gap))
+Base.@propagate_inbounds support(
+    p::IntervalAmbiguitySet{R, <:SparseColumnView{R}},
+) where {R} = rowvals(p.gap)
+Base.@propagate_inbounds support(
+    p::IntervalAmbiguitySet{R, <:SparseColumnView{R}},
+    s,
+) where {R} = support(p)[s]
+Base.@propagate_inbounds supportsize(
+    p::IntervalAmbiguitySet{R, <:SparseColumnView{R}},
+) where {R} = Int32(nnz(p.gap))
 
 # Vertex iterator for IntervalAmbiguitySet
 struct IntervalAmbiguitySetVertexIterator{R, VR <: AbstractVector{R}} <: VertexIterator

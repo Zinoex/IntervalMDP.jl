@@ -355,7 +355,7 @@ Base.@propagate_inbounds function state_action_small_sparse_omaximization!(
     gap_ws,
     V,
     ambiguity_set,
-    value_lt
+    value_lt,
 )
     value_ws = @view value_ws[1:IntervalMDP.supportsize(ambiguity_set)]
     gap_ws = @view gap_ws[1:IntervalMDP.supportsize(ambiguity_set)]
@@ -392,7 +392,10 @@ Base.@propagate_inbounds function small_sparse_initialize_sorting_shared_memory!
     sync_warp()
 end
 
-Base.@propagate_inbounds function add_lower_mul_V_warp(V::AbstractVector{R}, ambiguity_set) where {R}
+Base.@propagate_inbounds function add_lower_mul_V_warp(
+    V::AbstractVector{R},
+    ambiguity_set,
+) where {R}
     assume(warpsize() == 32)
     warp_aligned_length = kernel_nextwarp(IntervalMDP.supportsize(ambiguity_set))
 
@@ -421,7 +424,11 @@ Base.@propagate_inbounds function add_lower_mul_V_warp(V::AbstractVector{R}, amb
     return lower_value, remaining
 end
 
-Base.@propagate_inbounds function small_add_gap_mul_V_sparse(value, prob, remaining::Tv) where {Tv}
+Base.@propagate_inbounds function small_add_gap_mul_V_sparse(
+    value,
+    prob,
+    remaining::Tv,
+) where {Tv}
     assume(warpsize() == 32)
 
     warp_aligned_length = kernel_nextwarp(length(prob))
@@ -691,12 +698,7 @@ Base.@propagate_inbounds function state_sparse_omaximization!(
     # Find the best action
     wid = fld1(threadIdx().x, warpsize())
     if wid == one(Int32)
-        v = extract_strategy_warp!(
-            strategy_cache,
-            action_workspace,
-            jₛ,
-            action_reduce
-        )
+        v = extract_strategy_warp!(strategy_cache, action_workspace, jₛ, action_reduce)
 
         if threadIdx().x == one(Int32)
             Vres[jₛ] = v
@@ -748,7 +750,10 @@ Base.@propagate_inbounds function state_action_sparse_omaximization!(
     return value
 end
 
-Base.@propagate_inbounds function add_lower_mul_V_block(V::AbstractVector{R}, ambiguity_set) where {R}
+Base.@propagate_inbounds function add_lower_mul_V_block(
+    V::AbstractVector{R},
+    ambiguity_set,
+) where {R}
     reduction_ws = CuStaticSharedArray(R, 32)
 
     supportsize = IntervalMDP.supportsize(ambiguity_set)
@@ -782,7 +787,12 @@ Base.@propagate_inbounds function add_lower_mul_V_block(V::AbstractVector{R}, am
     return lower_value, remaining
 end
 
-Base.@propagate_inbounds function ff_sparse_initialize_sorting_shared_memory!(V, ambiguity_set, value, prob)
+Base.@propagate_inbounds function ff_sparse_initialize_sorting_shared_memory!(
+    V,
+    ambiguity_set,
+    value,
+    prob,
+)
     support = IntervalMDP.support(ambiguity_set)
     supportsize = IntervalMDP.supportsize(ambiguity_set)
 
@@ -800,7 +810,11 @@ Base.@propagate_inbounds function ff_sparse_initialize_sorting_shared_memory!(V,
     sync_threads()
 end
 
-Base.@propagate_inbounds function ff_add_gap_mul_V_sparse(value, prob, remaining::Tv) where {Tv}
+Base.@propagate_inbounds function ff_add_gap_mul_V_sparse(
+    value,
+    prob,
+    remaining::Tv,
+) where {Tv}
     assume(warpsize() == 32)
     wid = fld1(threadIdx().x, warpsize())
     reduction_ws = CuStaticSharedArray(Tv, 32)
@@ -874,7 +888,12 @@ Base.@propagate_inbounds function state_action_sparse_omaximization!(
     return value
 end
 
-Base.@propagate_inbounds function fi_sparse_initialize_sorting_shared_memory!(V, ambiguity_set, value, perm)
+Base.@propagate_inbounds function fi_sparse_initialize_sorting_shared_memory!(
+    V,
+    ambiguity_set,
+    value,
+    perm,
+)
     support = IntervalMDP.support(ambiguity_set)
     supportsize = IntervalMDP.supportsize(ambiguity_set)
 
@@ -970,7 +989,11 @@ Base.@propagate_inbounds function state_action_sparse_omaximization!(
     return value
 end
 
-Base.@propagate_inbounds function ii_sparse_initialize_sorting_shared_memory!(ambiguity_set, Vperm, Pperm)
+Base.@propagate_inbounds function ii_sparse_initialize_sorting_shared_memory!(
+    ambiguity_set,
+    Vperm,
+    Pperm,
+)
     support = IntervalMDP.support(ambiguity_set)
     supportsize = IntervalMDP.supportsize(ambiguity_set)
 
@@ -1066,7 +1089,10 @@ Base.@propagate_inbounds function state_action_sparse_omaximization!(
     return value
 end
 
-Base.@propagate_inbounds function i_sparse_initialize_sorting_shared_memory!(ambiguity_set, perm)
+Base.@propagate_inbounds function i_sparse_initialize_sorting_shared_memory!(
+    ambiguity_set,
+    perm,
+)
     support = IntervalMDP.support(ambiguity_set)
     supportsize = IntervalMDP.supportsize(ambiguity_set)
 
