@@ -445,7 +445,7 @@ Base.@propagate_inbounds function state_bellman!(
             state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)
     end
 
-    Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, jₛ, maximize)
+    Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, available(avail_act, jₛ), jₛ, maximize)
 end
 
 Base.@propagate_inbounds function state_bellman!(
@@ -593,7 +593,7 @@ Base.@propagate_inbounds function state_bellman!(
             state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
     end
 
-    Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, jₛ, maximize)
+    Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, available(avail_act, jₛ), jₛ, maximize)
 end
 
 Base.@propagate_inbounds function state_bellman!(
@@ -792,7 +792,7 @@ Base.@propagate_inbounds function state_bellman!(
         )
     end
 
-    Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, jₛ, maximize)
+    Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, available(avail_act, jₛ), jₛ, maximize)
 end
 
 Base.@propagate_inbounds function state_bellman!(
@@ -948,7 +948,7 @@ Base.@propagate_inbounds function state_bellman!(
             state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
     end
 
-    Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, jₛ, maximize)
+    Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, available(avail_act, jₛ), jₛ, maximize)
 end
 
 Base.@propagate_inbounds function state_bellman!(
