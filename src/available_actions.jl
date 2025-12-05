@@ -33,7 +33,7 @@ struct ListAvailableActions{
     N,
     M,
     V <: AbstractVector{CartesianIndex{M}},
-    A <: AbstractArray{V},
+    A <: AbstractArray{V, N},
 } <: SingleTimeStepAvailableActions
     states::A
 end
@@ -56,7 +56,7 @@ function check_available_actions(
 
     for available_actions in aa.states  # Iterate over each state's available actions
         for a in available_actions
-            if !(all(1 .<= a .<= action_vars))
+            if any(Tuple(a) .<= 1) || any(Tuple(a) .>= action_vars)
                 throw(
                     ArgumentError(
                         "Each action must be between 1 and the number of action variables $action_vars. Got $a.",
