@@ -1,7 +1,7 @@
 """
     struct ProbabilisticLabelling{
         R <: Real, 
-        MR <: AbstractMatrix{R}
+        MR <: AbstractArray{R}
     }
 
 A type representing the Probabilistic labelling of IMDP states into DFA inputs. Each labelling is assigned a probability.
@@ -19,19 +19,18 @@ The choice to have labels on the rows is due to the column-major storage of matr
 in the Bellman operator `bellman!`.
 
 """
-struct ProbabilisticLabelling{R <: Real, MR <: AbstractMatrix{R}} <:
+struct ProbabilisticLabelling{R <: Real, MR <: AbstractArray{R}} <:
        AbstractSingleStepLabelling
     map::MR
 
-    function ProbabilisticLabelling(map::MR) where {R <: Real, MR <: AbstractMatrix{R}}
+    function ProbabilisticLabelling(map::MR) where {R <: Real, MR <: AbstractArray{R}}
         checklabellingprobs(map)
 
         return new{R, MR}(map)
     end
 end
 
-function checklabellingprobs(map::AbstractMatrix{<:Real})
-
+function checklabellingprobs(map::AbstractArray{<:Real})
     # check for each state, all the labels probabilities sum to 1
     if any(sum(map; dims = 1) .!= one(eltype(map)))
         throw(
