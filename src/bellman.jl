@@ -379,10 +379,10 @@ function _expectation_helper!(
     upper_bound = false,
     maximize = true,
 )
-    bellman_precomputation!(workspace, V, upper_bound)
+    expectation_precomputation!(workspace, V, upper_bound)
 
     for jₛ in CartesianIndices(source_shape(model))
-        state_bellman!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
+        state_expectation!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
 
     return Vres
@@ -401,11 +401,11 @@ function _expectation_helper!(
     upper_bound = false,
     maximize = true,
 )
-    @inbounds bellman_precomputation!(workspace, V, upper_bound)
+    @inbounds expectation_precomputation!(workspace, V, upper_bound)
 
     @threadstid tid for jₛ in CartesianIndices(source_shape(model))
         @inbounds ws = workspace[tid]
-        @inbounds state_bellman!(
+        @inbounds state_expectation!(
             ws,
             strategy_cache,
             Vres,
@@ -420,7 +420,7 @@ function _expectation_helper!(
     return Vres
 end
 
-Base.@propagate_inbounds function bellman_precomputation!(
+Base.@propagate_inbounds function expectation_precomputation!(
     workspace::Union{DenseIntervalOMaxWorkspace, ThreadedDenseIntervalOMaxWorkspace},
     V,
     upper_bound,
@@ -429,13 +429,14 @@ Base.@propagate_inbounds function bellman_precomputation!(
     sortperm!(permutation(workspace), V; rev = upper_bound, scratch = scratch(workspace))
 end
 
-Base.@propagate_inbounds bellman_precomputation!(
+Base.@propagate_inbounds expectation_precomputation!(
     workspace::Union{SparseIntervalOMaxWorkspace, ThreadedSparseIntervalOMaxWorkspace},
     V,
     upper_bound,
 ) = nothing
 
-Base.@propagate_inbounds function state_bellman!(
+#TODO: 
+Base.@propagate_inbounds function state_expectation!(
     workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
     strategy_cache::OptimizingStrategyCache,
     Vres,
@@ -451,7 +452,7 @@ Base.@propagate_inbounds function state_bellman!(
         ambiguity_set = marginal[jₐ, jₛ]
         budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
         workspace.actions[jₐ] =
-            state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)
+            state_action_expectation(workspace, V, ambiguity_set, budget, upper_bound)
     end
 
     Vres[jₛ] = extract_strategy!(
@@ -463,7 +464,8 @@ Base.@propagate_inbounds function state_bellman!(
     )
 end
 
-Base.@propagate_inbounds function state_bellman!(
+ 
+Base.@propagate_inbounds function state_expectation!(
     workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
     strategy_cache::NonOptimizingStrategyCache,
     Vres,
@@ -478,10 +480,11 @@ Base.@propagate_inbounds function state_bellman!(
     jₐ = CartesianIndex(strategy_cache[jₛ])
     ambiguity_set = marginal[jₐ, jₛ]
     budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
-    Vres[jₛ] = state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)
+    Vres[jₛ] = state_action_expectation(workspace, V, ambiguity_set, budget, upper_bound)
 end
 
-Base.@propagate_inbounds function state_action_bellman(
+
+Base.@propagate_inbounds function state_action_expectation(
     workspace::DenseIntervalOMaxWorkspace,
     V,
     ambiguity_set,
@@ -513,7 +516,8 @@ Base.@propagate_inbounds function gap_value(
     return res
 end
 
-Base.@propagate_inbounds function state_action_bellman(
+
+Base.@propagate_inbounds function state_action_expectation(
     workspace::SparseIntervalOMaxWorkspace,
     V,
     ambiguity_set,
@@ -566,7 +570,7 @@ function _expectation_helper!(
     maximize = true,
 )
     @inbounds for jₛ in CartesianIndices(source_shape(model))
-        state_bellman!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
+        state_expectation!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
 
     return Vres
@@ -584,7 +588,7 @@ function _expectation_helper!(
 )
     @threadstid tid for jₛ in CartesianIndices(source_shape(model))
         @inbounds ws = workspace[tid]
-        @inbounds state_bellman!(
+        @inbounds state_expectation!(
             ws,
             strategy_cache,
             Vres,
@@ -599,7 +603,7 @@ function _expectation_helper!(
     return Vres
 end
 
-Base.@propagate_inbounds function state_bellman!(
+Base.@propagate_inbounds function state_expectation!(
     workspace::FactoredIntervalMcCormickWorkspace,
     strategy_cache::OptimizingStrategyCache,
     Vres,
@@ -612,7 +616,7 @@ Base.@propagate_inbounds function state_bellman!(
     for jₐ in available(model, jₛ)
         ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
         workspace.actions[jₐ] =
-            state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
+            state_action_expectation(workspace, V, ambiguity_sets, upper_bound)
     end
 
     Vres[jₛ] = extract_strategy!(
@@ -624,7 +628,7 @@ Base.@propagate_inbounds function state_bellman!(
     )
 end
 
-Base.@propagate_inbounds function state_bellman!(
+Base.@propagate_inbounds function state_expectation!(
     workspace::FactoredIntervalMcCormickWorkspace,
     strategy_cache::NonOptimizingStrategyCache,
     Vres,
@@ -636,10 +640,10 @@ Base.@propagate_inbounds function state_bellman!(
 )
     jₐ = CartesianIndex(strategy_cache[jₛ])
     ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
-    Vres[jₛ] = state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
+    Vres[jₛ] = state_action_expectation(workspace, V, ambiguity_sets, upper_bound)
 end
 
-Base.@propagate_inbounds function state_action_bellman(
+Base.@propagate_inbounds function state_action_expectation(
     workspace::FactoredIntervalMcCormickWorkspace,
     V::AbstractArray{R},
     ambiguity_sets,
@@ -749,7 +753,7 @@ function _expectation_helper!(
 )
     # For each source state
     @inbounds for jₛ in CartesianIndices(source_shape(model))
-        state_bellman!(
+        state_expectation!(
             workspace,
             strategy_cache,
             Vres,
@@ -777,7 +781,7 @@ function _expectation_helper!(
     @threadstid tid for jₛ in CartesianIndices(source_shape(model))
         @inbounds ws = workspace[tid]
 
-        @inbounds state_bellman!(
+        @inbounds state_expectation!(
             ws,
             strategy_cache,
             Vres,
@@ -792,7 +796,7 @@ function _expectation_helper!(
     return Vres
 end
 
-Base.@propagate_inbounds function state_bellman!(
+Base.@propagate_inbounds function state_expectation!(
     workspace::FactoredIntervalOMaxWorkspace,
     strategy_cache::OptimizingStrategyCache,
     Vres,
@@ -808,7 +812,7 @@ Base.@propagate_inbounds function state_bellman!(
         budgets = getindex.(workspace.budgets, inds)
 
         workspace.actions[jₐ] =
-            state_action_bellman(workspace, V, model, ambiguity_sets, budgets, upper_bound)
+            state_action_expectation(workspace, V, model, ambiguity_sets, budgets, upper_bound)
     end
 
     Vres[jₛ] = extract_strategy!(
@@ -820,7 +824,7 @@ Base.@propagate_inbounds function state_bellman!(
     )
 end
 
-Base.@propagate_inbounds function state_bellman!(
+Base.@propagate_inbounds function state_expectation!(
     workspace::FactoredIntervalOMaxWorkspace,
     strategy_cache::NonOptimizingStrategyCache,
     Vres,
@@ -835,10 +839,10 @@ Base.@propagate_inbounds function state_bellman!(
     inds = map(marginal -> sub2ind(marginal, jₐ, jₛ), marginals(model))
     budgets = getindex.(workspace.budgets, inds)
     Vres[jₛ] =
-        state_action_bellman(workspace, V, model, ambiguity_sets, budgets, upper_bound)
+        state_action_expectation(workspace, V, model, ambiguity_sets, budgets, upper_bound)
 end
 
-Base.@propagate_inbounds function state_action_bellman(
+Base.@propagate_inbounds function state_action_expectation(
     workspace::FactoredIntervalOMaxWorkspace,
     V,
     model,
@@ -929,7 +933,7 @@ function _expectation_helper!(
     maximize = true,
 )
     @inbounds for jₛ in CartesianIndices(source_shape(model))
-        state_bellman!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
+        state_expectation!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
 
     return Vres
@@ -947,7 +951,7 @@ function _expectation_helper!(
 )
     @threadstid tid for jₛ in CartesianIndices(source_shape(model))
         @inbounds ws = workspace[tid]
-        @inbounds state_bellman!(
+        @inbounds state_expectation!(
             ws,
             strategy_cache,
             Vres,
@@ -962,7 +966,7 @@ function _expectation_helper!(
     return Vres
 end
 
-Base.@propagate_inbounds function state_bellman!(
+Base.@propagate_inbounds function state_expectation!(
     workspace::FactoredVertexIteratorWorkspace,
     strategy_cache::OptimizingStrategyCache,
     Vres,
@@ -975,7 +979,7 @@ Base.@propagate_inbounds function state_bellman!(
     for jₐ in available(model, jₛ)
         ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
         workspace.actions[jₐ] =
-            state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
+            state_action_expectation(workspace, V, ambiguity_sets, upper_bound)
     end
 
     Vres[jₛ] = extract_strategy!(
@@ -987,7 +991,7 @@ Base.@propagate_inbounds function state_bellman!(
     )
 end
 
-Base.@propagate_inbounds function state_bellman!(
+Base.@propagate_inbounds function state_expectation!(
     workspace::FactoredVertexIteratorWorkspace,
     strategy_cache::NonOptimizingStrategyCache,
     Vres,
@@ -999,10 +1003,10 @@ Base.@propagate_inbounds function state_bellman!(
 )
     jₐ = CartesianIndex(strategy_cache[jₛ])
     ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
-    Vres[jₛ] = state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
+    Vres[jₛ] = state_action_expectation(workspace, V, ambiguity_sets, upper_bound)
 end
 
-Base.@propagate_inbounds function state_action_bellman(
+Base.@propagate_inbounds function state_action_expectation(
     workspace::FactoredVertexIteratorWorkspace,
     V::AbstractArray{R},
     ambiguity_sets,
