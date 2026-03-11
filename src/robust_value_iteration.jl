@@ -180,7 +180,7 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     initialize!(value_function, spec)
     nextiteration!(value_function)
 
-    step!(workspace, strategy_cache, value_function, 0, mp, spec)
+    bellman_update!(workspace, strategy_cache, value_function, 0, mp, spec)
     k = 1
 
     if !isnothing(callback)
@@ -190,7 +190,7 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
 
-        step!(workspace, strategy_cache, value_function, k, mp, spec)
+        bellman_update!(workspace, strategy_cache, value_function, k, mp, spec)
         k += 1
 
         if !isnothing(callback)
@@ -233,7 +233,7 @@ function nextiteration!(V)
     return V
 end
 
-function step!(workspace, strategy_cache, value_function, k, mp, spec)
+function bellman_update!(workspace, strategy_cache, value_function, k, mp, spec)
     expectation!(
         workspace,
         select_strategy_cache(strategy_cache, k),
