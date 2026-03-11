@@ -57,7 +57,7 @@ using IntervalMDP
         ]
 
         Vres = similar(Vres)
-        IntervalMDP.bellman!(Vres, V, mdp; upper_bound = false, maximize = true)
+        IntervalMDP.expectation!(Vres, V, mdp; upper_bound = false, maximize = true)
         @test Vres ≈ N[
             (1 // 2) * 1 + (3 // 10) * 2 + (1 // 5) * 3,
             (3 // 10) * 1 + (3 // 10) * 2 + (2 // 5) * 3,
@@ -72,7 +72,7 @@ using IntervalMDP
         ]
 
         Vres = similar(Vres)
-        IntervalMDP.bellman!(Vres, V, mdp; upper_bound = true, maximize = false)
+        IntervalMDP.expectation!(Vres, V, mdp; upper_bound = true, maximize = false)
         @test Vres ≈ N[
             (1 // 2) * 1 + (3 // 10) * 2 + (1 // 5) * 3,
             (1 // 5) * 1 + (2 // 5) * 2 + (2 // 5) * 3,

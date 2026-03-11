@@ -429,14 +429,14 @@ end
             ws = IntervalMDP.construct_workspace(imc, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
             Vres = zeros(N, 3)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, imc; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = true)
             @test Vres ≈ Vexpected
 
             ws =
                 IntervalMDP.FactoredIntervalMcCormickWorkspace(imc, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
             Vres = similar(Vres)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, imc; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = true)
             @test Vres ≈ Vexpected
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(
@@ -445,25 +445,25 @@ end
             )
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
             Vres = similar(Vres)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, imc; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = true)
             @test Vres ≈ Vexpected
 
             ws = IntervalMDP.construct_workspace(imc, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
             Vres = zeros(N, 3)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, imc; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = true)
             @test Vres ≈ Vexpected
 
             ws = IntervalMDP.FactoredVertexIteratorWorkspace(imc)
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
             Vres = similar(Vres)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, imc; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = true)
             @test Vres ≈ Vexpected
 
             ws = IntervalMDP.ThreadedFactoredVertexIteratorWorkspace(imc)
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
             Vres = similar(Vres)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, imc; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = true)
             @test Vres ≈ Vexpected
         end
 
@@ -473,14 +473,14 @@ end
             ws = IntervalMDP.construct_workspace(imc, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
             Vres = zeros(N, 3)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, imc; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = false)
             @test Vres ≈ Vexpected
 
             ws =
                 IntervalMDP.FactoredIntervalMcCormickWorkspace(imc, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
             Vres = similar(Vres)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, imc; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = false)
             @test Vres ≈ Vexpected
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(
@@ -489,25 +489,25 @@ end
             )
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
             Vres = similar(Vres)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, imc; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = false)
             @test Vres ≈ Vexpected
 
             ws = IntervalMDP.construct_workspace(imc, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
             Vres = zeros(N, 3)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, imc; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = false)
             @test Vres ≈ Vexpected
 
             ws = IntervalMDP.FactoredVertexIteratorWorkspace(imc)
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
             Vres = similar(Vres)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, imc; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = false)
             @test Vres ≈ Vexpected
 
             ws = IntervalMDP.ThreadedFactoredVertexIteratorWorkspace(imc)
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
             Vres = similar(Vres)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, imc; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = false)
             @test Vres ≈ Vexpected
         end
     end
@@ -584,7 +584,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             V_vertex = zeros(N, 2, 3)
-            IntervalMDP.bellman!(ws, strategy_cache, V_vertex, V, mdp; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, V_vertex, V, mdp; upper_bound = true)
 
             @test V_vertex ≈ N[
                 1076//75 4279//300 167//15
@@ -594,7 +594,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_McCormick = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_McCormick,
@@ -612,7 +612,7 @@ end
                 IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
             @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(
@@ -621,13 +621,13 @@ end
             )
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
             @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.construct_workspace(mdp, OMaximization())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_OMax = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_OMax,
@@ -644,13 +644,13 @@ end
             ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
             @test Vres ≈ Vres_first_OMax
 
             ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
             @test Vres ≈ Vres_first_OMax
         end
 
@@ -659,7 +659,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             V_vertex = zeros(N, 2, 3)
-            IntervalMDP.bellman!(ws, strategy_cache, V_vertex, V, mdp; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, V_vertex, V, mdp; upper_bound = false)
 
             @test V_vertex ≈ N[
                 4399//450 41//5 488//45
@@ -669,7 +669,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_McCormick = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_McCormick,
@@ -687,7 +687,7 @@ end
                 IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
             @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(
@@ -696,13 +696,13 @@ end
             )
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
             @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.construct_workspace(mdp, OMaximization())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_OMax = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_OMax,
@@ -719,13 +719,13 @@ end
             ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
             @test Vres ≈ Vres_first_OMax
 
             ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
             @test Vres ≈ Vres_first_OMax
         end
     end
@@ -786,7 +786,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             V_vertex = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 V_vertex,
@@ -799,7 +799,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_McCormick = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_McCormick,
@@ -818,7 +818,7 @@ end
                 IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -835,7 +835,7 @@ end
             )
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -849,7 +849,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, OMaximization())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_OMax = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_OMax,
@@ -867,7 +867,7 @@ end
             ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -881,7 +881,7 @@ end
             ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -897,7 +897,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             V_vertex = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 V_vertex,
@@ -910,7 +910,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_McCormick = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_McCormick,
@@ -929,7 +929,7 @@ end
                 IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -946,7 +946,7 @@ end
             )
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -960,7 +960,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, OMaximization())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_OMax = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_OMax,
@@ -978,7 +978,7 @@ end
             ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -992,7 +992,7 @@ end
             ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -1009,7 +1009,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             V_vertex = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 V_vertex,
@@ -1022,7 +1022,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_McCormick = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_McCormick,
@@ -1041,7 +1041,7 @@ end
                 IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -1058,7 +1058,7 @@ end
             )
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -1072,7 +1072,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, OMaximization())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_OMax = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_OMax,
@@ -1090,7 +1090,7 @@ end
             ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -1104,7 +1104,7 @@ end
             ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -1120,7 +1120,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             V_vertex = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 V_vertex,
@@ -1133,7 +1133,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_McCormick = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_McCormick,
@@ -1152,7 +1152,7 @@ end
                 IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -1169,7 +1169,7 @@ end
             )
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -1183,7 +1183,7 @@ end
             ws = IntervalMDP.construct_workspace(mdp, OMaximization())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_OMax = zeros(N, 2, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_OMax,
@@ -1201,7 +1201,7 @@ end
             ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -1215,7 +1215,7 @@ end
             ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres,
@@ -1333,12 +1333,12 @@ end
             ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             V_vertex = zeros(N, 3, 3, 3)
-            IntervalMDP.bellman!(ws, strategy_cache, V_vertex, V, mdp; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, V_vertex, V, mdp; upper_bound = true)
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_McCormick = zeros(N, 3, 3, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_McCormick,
@@ -1356,7 +1356,7 @@ end
                 IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
             @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(
@@ -1365,13 +1365,13 @@ end
             )
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
             @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.construct_workspace(mdp, OMaximization())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_OMax = zeros(N, 3, 3, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_OMax,
@@ -1388,13 +1388,13 @@ end
             ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
             @test Vres ≈ Vres_first_OMax
 
             ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = true)
             @test Vres ≈ Vres_first_OMax
         end
 
@@ -1403,12 +1403,12 @@ end
             ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             V_vertex = zeros(N, 3, 3, 3)
-            IntervalMDP.bellman!(ws, strategy_cache, V_vertex, V, mdp; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, V_vertex, V, mdp; upper_bound = false)
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_McCormick = zeros(N, 3, 3, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_McCormick,
@@ -1426,7 +1426,7 @@ end
                 IntervalMDP.FactoredIntervalMcCormickWorkspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
             @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace(
@@ -1435,13 +1435,13 @@ end
             )
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_McCormick)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
             @test Vres ≈ Vres_first_McCormick
 
             ws = IntervalMDP.construct_workspace(mdp, OMaximization())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres_first_OMax = zeros(N, 3, 3, 3)
-            IntervalMDP.bellman!(
+            IntervalMDP.expectation!(
                 ws,
                 strategy_cache,
                 Vres_first_OMax,
@@ -1458,13 +1458,13 @@ end
             ws = IntervalMDP.FactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
             @test Vres ≈ Vres_first_OMax
 
             ws = IntervalMDP.ThreadedFactoredIntervalOMaxWorkspace(mdp)
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             Vres = similar(Vres_first_OMax)
-            IntervalMDP.bellman!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
+            IntervalMDP.expectation!(ws, strategy_cache, Vres, V, mdp; upper_bound = false)
             @test Vres ≈ Vres_first_OMax
         end
     end

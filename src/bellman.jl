@@ -81,7 +81,7 @@ function bellman(
 )
     Vres = similar(V, source_shape(model))
 
-    return bellman!(
+    return expectation!(
         Vres,
         V,
         model,
@@ -93,7 +93,7 @@ function bellman(
 end
 
 """
-    bellman!(workspace, strategy_cache, Vres, V, model; upper_bound = false, maximize = true)
+    expectation!(workspace, strategy_cache, Vres, V, model; upper_bound = false, maximize = true)
 
 Compute in-place robust Bellman update with the value function `V` and the model `model`, 
 e.g. [`IntervalMarkovDecisionProcess`](@ref), that upper or lower bounds the expectation of the value function `V`.
@@ -159,7 +159,7 @@ workspace = IntervalMDP.construct_workspace(model)
 strategy_cache = IntervalMDP.construct_strategy_cache(model)
 Vcur = similar(Vprev)
 
-IntervalMDP.bellman!(workspace, strategy_cache, Vcur, Vprev, model; upper_bound = false, maximize = true)
+IntervalMDP.expectation!(workspace, strategy_cache, Vcur, Vprev, model; upper_bound = false, maximize = true)
 
 # output
 
@@ -169,9 +169,9 @@ IntervalMDP.bellman!(workspace, strategy_cache, Vcur, Vprev, model; upper_bound 
  3.0
 ```
 """
-function bellman! end
+function expectation! end
 
-function bellman!(
+function expectation!(
     Vres::AbstractArray,
     V::AbstractArray,
     model,
@@ -183,7 +183,7 @@ function bellman!(
     workspace = construct_workspace(model, alg)
     strategy_cache = construct_strategy_cache(model)
 
-    return bellman!(
+    return expectation!(
         workspace,
         strategy_cache,
         Vres,
@@ -195,7 +195,7 @@ function bellman!(
     )
 end
 
-function bellman!(
+function expectation!(
     workspace,
     strategy_cache,
     Vres::AbstractArray,
@@ -216,7 +216,7 @@ function bellman!(
     )
 end
 
-function bellman!(
+function expectation!(
     workspace::ProductWorkspace,
     strategy_cache,
     Vres::AbstractArray,
@@ -274,7 +274,7 @@ function _bellman_helper!(
 
         # For each state in the product process, compute the Bellman operator
         # for the corresponding Markov process
-        bellman!(
+        expectation!(
             workspace.underlying_workspace,
             local_strategy_cache,
             selectdim(Vres, ndims(Vres), state),
@@ -325,7 +325,7 @@ function _bellman_helper!(
 
         # For each state in the product process, compute the Bellman operator
         # for the corresponding Markov process
-        bellman!(
+        expectation!(
             workspace.underlying_workspace,
             local_strategy_cache,
             selectdim(Vres, ndims(Vres), state),

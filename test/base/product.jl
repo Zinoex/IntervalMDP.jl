@@ -229,7 +229,7 @@ end
 
             Vres = copy(V)
 
-            Vres = IntervalMDP.bellman!(
+            Vres = IntervalMDP.expectation!(
                 workspace,
                 strategy_cache,
                 Vres,
@@ -251,7 +251,7 @@ end
 
             Vres = copy(V)
 
-            Vres = IntervalMDP.bellman!(
+            Vres = IntervalMDP.expectation!(
                 workspace,
                 strategy_cache,
                 Vres,
@@ -273,7 +273,7 @@ end
 
             Vres = copy(V)
 
-            Vres = IntervalMDP.bellman!(
+            Vres = IntervalMDP.expectation!(
                 workspace,
                 strategy_cache,
                 Vres,
@@ -290,7 +290,7 @@ end
 
             Vres = copy(V)
 
-            Vres = IntervalMDP.bellman!(
+            Vres = IntervalMDP.expectation!(
                 workspace,
                 strategy_cache,
                 Vres,
@@ -312,7 +312,7 @@ end
 
             Vres = copy(V)
 
-            Vres = IntervalMDP.bellman!(
+            Vres = IntervalMDP.expectation!(
                 workspace,
                 strategy_cache,
                 Vres,
@@ -334,7 +334,7 @@ end
 
             Vres = copy(V)
 
-            Vres = IntervalMDP.bellman!(
+            Vres = IntervalMDP.expectation!(
                 workspace,
                 strategy_cache,
                 Vres,
@@ -356,7 +356,7 @@ end
 
             Vres = copy(V)
 
-            Vres = IntervalMDP.bellman!(
+            Vres = IntervalMDP.expectation!(
                 workspace,
                 strategy_cache,
                 Vres,
@@ -513,7 +513,7 @@ end
 
             Vres = copy(V)
 
-            Vres = IntervalMDP.bellman!(
+            Vres = IntervalMDP.expectation!(
                 workspace,
                 strategy_cache,
                 Vres,
@@ -535,7 +535,7 @@ end
 
             Vres = copy(V)
 
-            Vres = IntervalMDP.bellman!(
+            Vres = IntervalMDP.expectation!(
                 workspace,
                 strategy_cache,
                 Vres,
@@ -557,7 +557,7 @@ end
 
             Vres = copy(V)
 
-            Vres = IntervalMDP.bellman!(
+            Vres = IntervalMDP.expectation!(
                 workspace,
                 strategy_cache,
                 Vres,
@@ -574,7 +574,7 @@ end
 
             Vres = copy(V)
 
-            Vres = IntervalMDP.bellman!(
+            Vres = IntervalMDP.expectation!(
                 workspace,
                 strategy_cache,
                 Vres,
@@ -596,7 +596,7 @@ end
 
             Vres = copy(V)
 
-            Vres = IntervalMDP.bellman!(
+            Vres = IntervalMDP.expectation!(
                 workspace,
                 strategy_cache,
                 Vres,
@@ -618,7 +618,7 @@ end
 
             Vres = copy(V)
 
-            Vres = IntervalMDP.bellman!(
+            Vres = IntervalMDP.expectation!(
                 workspace,
                 strategy_cache,
                 Vres,
@@ -640,7 +640,7 @@ end
 
             Vres = copy(V)
 
-            Vres = IntervalMDP.bellman!(
+            Vres = IntervalMDP.expectation!(
                 workspace,
                 strategy_cache,
                 Vres,

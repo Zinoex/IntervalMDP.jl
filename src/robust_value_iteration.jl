@@ -234,7 +234,7 @@ function nextiteration!(V)
 end
 
 function step!(workspace, strategy_cache, value_function, k, mp, spec)
-    bellman!(
+    expectation!(
         workspace,
         select_strategy_cache(strategy_cache, k),
         value_function.current,
