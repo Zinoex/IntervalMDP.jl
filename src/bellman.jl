@@ -205,7 +205,7 @@ function expectation!(
     maximize = true,
     prop = nothing,
 )
-    return _bellman_helper!(
+    return _expectation_helper!(
         workspace,
         strategy_cache,
         Vres,
@@ -230,7 +230,7 @@ function expectation!(
     lf = labelling_function(model)
     dfa = automaton(model)
 
-    return _bellman_helper!(
+    return _expectation_helper!(
         workspace,
         strategy_cache,
         Vres,
@@ -244,7 +244,7 @@ function expectation!(
     )
 end
 
-function _bellman_helper!(
+function _expectation_helper!(
     workspace::ProductWorkspace,
     strategy_cache::AbstractStrategyCache,
     Vres,
@@ -288,7 +288,7 @@ function _bellman_helper!(
     return Vres
 end
 
-function _bellman_helper!(
+function _expectation_helper!(
     workspace::ProductWorkspace,
     strategy_cache::AbstractStrategyCache,
     Vres,
@@ -370,7 +370,7 @@ end
 ###########################################################################
 
 # Non-threaded
-function _bellman_helper!(
+function _expectation_helper!(
     workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
     strategy_cache::AbstractStrategyCache,
     Vres,
@@ -389,7 +389,7 @@ function _bellman_helper!(
 end
 
 # Threaded
-function _bellman_helper!(
+function _expectation_helper!(
     workspace::Union{
         ThreadedDenseIntervalOMaxWorkspace,
         ThreadedSparseIntervalOMaxWorkspace,
@@ -556,7 +556,7 @@ end
 ##########################################################
 
 # Non-threaded
-function _bellman_helper!(
+function _expectation_helper!(
     workspace::FactoredIntervalMcCormickWorkspace,
     strategy_cache::AbstractStrategyCache,
     Vres,
@@ -573,7 +573,7 @@ function _bellman_helper!(
 end
 
 # Threaded
-function _bellman_helper!(
+function _expectation_helper!(
     workspace::ThreadedFactoredIntervalMcCormickWorkspace,
     strategy_cache::AbstractStrategyCache,
     Vres,
@@ -738,7 +738,7 @@ end
 ####################################################
 # O-Maximization-based Bellman operator for fIMDPs #
 ####################################################
-function _bellman_helper!(
+function _expectation_helper!(
     workspace::FactoredIntervalOMaxWorkspace,
     strategy_cache::AbstractStrategyCache,
     Vres,
@@ -764,7 +764,7 @@ function _bellman_helper!(
     return Vres
 end
 
-function _bellman_helper!(
+function _expectation_helper!(
     workspace::ThreadedFactoredIntervalOMaxWorkspace,
     strategy_cache::AbstractStrategyCache,
     Vres,
@@ -919,7 +919,7 @@ end
 ##########################################################
 
 # Non-threaded
-function _bellman_helper!(
+function _expectation_helper!(
     workspace::FactoredVertexIteratorWorkspace,
     strategy_cache::AbstractStrategyCache,
     Vres,
@@ -936,7 +936,7 @@ function _bellman_helper!(
 end
 
 # Threaded
-function _bellman_helper!(
+function _expectation_helper!(
     workspace::ThreadedFactoredVertexIteratorWorkspace,
     strategy_cache::AbstractStrategyCache,
     Vres,

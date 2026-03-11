@@ -62,7 +62,7 @@ for N in [Float32, Float64]
                 ws = IntervalMDP.construct_workspace(mixture_prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = zeros(N, 2)
-                IntervalMDP._bellman_helper!(
+                IntervalMDP._expectation_helper!(
                     ws,
                     strategy_cache,
                     Vres,
@@ -76,7 +76,7 @@ for N in [Float32, Float64]
                 ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
                 strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(
+                IntervalMDP._expectation_helper!(
                     ws,
                     strategy_cache,
                     Vres,
@@ -90,7 +90,7 @@ for N in [Float32, Float64]
                 ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
                 strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(
+                IntervalMDP._expectation_helper!(
                     ws,
                     strategy_cache,
                     Vres,
@@ -111,7 +111,7 @@ for N in [Float32, Float64]
                 ws = IntervalMDP.construct_workspace(mixture_prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = zeros(N, 2)
-                IntervalMDP._bellman_helper!(
+                IntervalMDP._expectation_helper!(
                     ws,
                     strategy_cache,
                     Vres,
@@ -125,7 +125,7 @@ for N in [Float32, Float64]
                 ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
                 strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(
+                IntervalMDP._expectation_helper!(
                     ws,
                     strategy_cache,
                     Vres,
@@ -139,7 +139,7 @@ for N in [Float32, Float64]
                 ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
                 strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(
+                IntervalMDP._expectation_helper!(
                     ws,
                     strategy_cache,
                     Vres,
@@ -214,7 +214,7 @@ for N in [Float32, Float64]
                 ws = IntervalMDP.construct_workspace(mixture_prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = zeros(N, 2)
-                IntervalMDP._bellman_helper!(
+                IntervalMDP._expectation_helper!(
                     ws,
                     strategy_cache,
                     Vres,
@@ -228,7 +228,7 @@ for N in [Float32, Float64]
                 ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
                 strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(
+                IntervalMDP._expectation_helper!(
                     ws,
                     strategy_cache,
                     Vres,
@@ -242,7 +242,7 @@ for N in [Float32, Float64]
                 ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
                 strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(
+                IntervalMDP._expectation_helper!(
                     ws,
                     strategy_cache,
                     Vres,
@@ -263,7 +263,7 @@ for N in [Float32, Float64]
                 ws = IntervalMDP.construct_workspace(mixture_prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = zeros(N, 2)
-                IntervalMDP._bellman_helper!(
+                IntervalMDP._expectation_helper!(
                     ws,
                     strategy_cache,
                     Vres,
@@ -277,7 +277,7 @@ for N in [Float32, Float64]
                 ws = IntervalMDP.MixtureWorkspace(mixture_prob, 1)
                 strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(
+                IntervalMDP._expectation_helper!(
                     ws,
                     strategy_cache,
                     Vres,
@@ -291,7 +291,7 @@ for N in [Float32, Float64]
                 ws = IntervalMDP.ThreadedMixtureWorkspace(mixture_prob, 1)
                 strategy_cache = IntervalMDP.construct_strategy_cache(mixture_prob)
                 Vres = similar(Vres)
-                IntervalMDP._bellman_helper!(
+                IntervalMDP._expectation_helper!(
                     ws,
                     strategy_cache,
                     Vres,
