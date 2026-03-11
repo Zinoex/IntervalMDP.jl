@@ -176,7 +176,7 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     workspace = construct_workspace(mp, bellman_algorithm(alg))
     strategy_cache = construct_strategy_cache(problem)
 
-    value_function = ValueFunction(problem)
+    value_function = StateValueFunction(problem)
     initialize!(value_function, spec)
     nextiteration!(value_function)
 
