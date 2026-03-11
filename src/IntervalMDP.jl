@@ -62,6 +62,7 @@ include("threading.jl")
 include("workspace.jl")
 include("strategy_cache.jl")
 include("bellman.jl")
+include("value.jl")
 
 include("robust_value_iteration.jl")
 
