@@ -1,9 +1,9 @@
 abstract type ValueFunction end
 
-struct StateValueFunction{R, A <: AbstractArray{R}} <: ValueFunction
-    previous::A
-    current::A
-    intermediate_state_action_value::A
+struct StateValueFunction{R, A1 <: AbstractArray{R}, A2 <: AbstractArray{R}} <: ValueFunction
+    previous::A1
+    current::A1
+    intermediate_state_action_value::A2
 end
 
 function StateValueFunction(problem::AbstractIntervalMDPProblem)
@@ -12,7 +12,11 @@ function StateValueFunction(problem::AbstractIntervalMDPProblem)
     previous .= zero(valuetype(mp))
     current = copy(previous)
 
-    intermediate_state_action_value = arrayfactory(mp, valuetype(mp), state_values(mp) .* action_values(mp))
+    dim = Tuple(Iterators.flatten(zip(action_values(mp), state_values(mp))))
+    # interleaved concat gives shape: (a1, a2) , (s1, s2) => (a1, s1, a2, s2)
+    # (a, s) to access s more frequently due to column major
+    # TODO: works for IMDP, need to check for fIMDP
+    intermediate_state_action_value = arrayfactory(mp, valuetype(mp), dim)
     intermediate_state_action_value .= zero(valuetype(mp))
 
     return StateValueFunction(previous, current, intermediate_state_action_value)
@@ -33,15 +37,17 @@ function nextiteration!(V::StateValueFunction)
 end
 
 
-struct StateActionValueFunction{R, A <: AbstractArray{R}} <: ValueFunction
-    previous::A
-    current::A
-    intermediate_state_value::A
+struct StateActionValueFunction{R, A1 <: AbstractArray{R}, A2 <: AbstractArray{R}} <: ValueFunction
+    previous::A1
+    current::A1
+    intermediate_state_value::A2
 end
 
 function StateActionValueFunction(problem::AbstractIntervalMDPProblem)
     mp = system(problem)
-    previous = arrayfactory(mp, valuetype(mp), state_values(mp) .* action_values(mp))
+    dim = Tuple(Iterators.flatten(zip(action_values(mp), state_values(mp))))
+    # TODO: works for IMDP, need to check for fIMDP
+    previous = arrayfactory(mp, valuetype(mp), dim)
     previous .= zero(valuetype(mp))
     current = copy(previous)
 
