@@ -56,7 +56,7 @@ using IntervalMDP
             1 * 3,
         ]
 
-        Vres = similar(Vres)
+        Vres = Array{N}(undef, (3, 3))
         IntervalMDP.expectation!(Vres, V, mdp; upper_bound = false, maximize = true)
         @test Vres ≈ N[
             (1 // 2) * 1 + (3 // 10) * 2 + (1 // 5) * 3,
@@ -71,7 +71,7 @@ using IntervalMDP
             1 * 3,
         ]
 
-        Vres = similar(Vres)
+        Vres = Array{N}(undef, (3, 3))
         IntervalMDP.expectation!(Vres, V, mdp; upper_bound = true, maximize = false)
         @test Vres ≈ N[
             (1 // 2) * 1 + (3 // 10) * 2 + (1 // 5) * 3,

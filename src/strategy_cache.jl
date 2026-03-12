@@ -159,3 +159,26 @@ function _extract_strategy!(cur_strategy, values, available_actions, neutral, j�
     @inbounds cur_strategy[jₛ] = opt_index
     return opt_val
 end
+
+
+function strategy!(
+    strategy_cache::OptimizingStrategyCache,
+    Vres::AbstractArray{R},
+    Q::AbstractArray{R},
+    model,
+    maximize,
+) where {R <: Real}
+
+    #TODO: can be threaded?
+    for jₛ in CartesianIndices(source_shape(model))
+
+        Vres[jₛ] = extract_strategy!(
+            strategy_cache,
+            Q[:, jₛ],
+            available(model, jₛ),
+            jₛ,
+            maximize,
+        )
+
+    end
+end

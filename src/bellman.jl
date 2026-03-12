@@ -79,7 +79,7 @@ function bellman(
     maximize = true,
     prop = nothing,
 )
-    Vres = similar(V, source_shape(model))
+    Vres = Array{eltype(V)}(undef, (action_values(model)..., state_values(model)...))
 
     return expectation!(
         Vres,
@@ -451,17 +451,9 @@ Base.@propagate_inbounds function state_expectation!(
     for jₐ in available(model, jₛ)
         ambiguity_set = marginal[jₐ, jₛ]
         budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
-        workspace.actions[jₐ] =
+        Vres[jₐ, jₛ] =
             state_action_expectation(workspace, V, ambiguity_set, budget, upper_bound)
     end
-
-    Vres[jₛ] = extract_strategy!(
-        strategy_cache,
-        workspace.actions,
-        available(model, jₛ),
-        jₛ,
-        maximize,
-    )
 end
 
  
