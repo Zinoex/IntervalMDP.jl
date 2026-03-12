@@ -1,5 +1,5 @@
 """
-    bellman(V, model; upper_bound = false, maximize = true)
+    expectation(V, model; upper_bound = false, maximize = true)
 
 Compute robust Bellman update with the value function `V` and the model `model`, e.g. [`IntervalMarkovDecisionProcess`](@ref),
 that upper or lower bounds the expectation of the value function `V`.
@@ -56,7 +56,7 @@ istates = [Int32(1)]
 model = IntervalMarkovDecisionProcess(transition_probs, istates)
 
 Vprev = [1.0, 2.0, 3.0]
-Vcur = IntervalMDP.bellman(Vprev, model; upper_bound = false)
+Vcur = IntervalMDP.expectation(Vprev, model; upper_bound = false)
 
 # output
 
@@ -71,7 +71,7 @@ Vcur = IntervalMDP.bellman(Vprev, model; upper_bound = false)
     For a hot-loop, it is more efficient to use `bellman!` and pass in pre-allocated objects.
 
 """
-function bellman(
+function expectation(
     V,
     model,
     alg::BellmanAlgorithm = default_bellman_algorithm(model);

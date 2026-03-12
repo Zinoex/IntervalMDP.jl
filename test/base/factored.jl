@@ -424,7 +424,7 @@ end
         end
 
         @testset "maximization" begin
-            Vexpected = IntervalMDP.bellman(V, imc; upper_bound = true) # Using O-maximization, should be equivalent
+            Vexpected = IntervalMDP.expectation(V, imc; upper_bound = true) # Using O-maximization, should be equivalent
 
             ws = IntervalMDP.construct_workspace(imc, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
@@ -468,7 +468,7 @@ end
         end
 
         @testset "minimization" begin
-            Vexpected = IntervalMDP.bellman(V, imc; upper_bound = false) # Using O-maximization, should be equivalent
+            Vexpected = IntervalMDP.expectation(V, imc; upper_bound = false) # Using O-maximization, should be equivalent
 
             ws = IntervalMDP.construct_workspace(imc, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
