@@ -51,7 +51,7 @@ using IntervalMDP, SparseArrays
 
     @testset "bellman" begin
         V = N[1, 2, 3]
-        Vres = IntervalMDP.bellman(V, mdp; upper_bound = false, maximize = true)
+        Vres = IntervalMDP.expectation(V, mdp; upper_bound = false, maximize = true)
         @test Vres ≈ N[
             (1 // 2) * 1 + (3 // 10) * 2 + (1 // 5) * 3,
             (3 // 10) * 1 + (3 // 10) * 2 + (2 // 5) * 3,

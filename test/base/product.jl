@@ -137,13 +137,16 @@ end
                 0 5
             ]
 
-            Vres = IntervalMDP.bellman(V, prod_proc; upper_bound = false)
+            Vres = IntervalMDP.expectation(V, prod_proc; upper_bound = false)
 
-            @test Vres ≈ N[
+            Vtar = N[
                 30//10 24//10
                 33//10 2
                 5 5
             ]
+            Vtar = reshape(Vtar, 1, size(Vtar)...)
+
+            @test Vres ≈ Vtar
         end
     end
 end
@@ -220,7 +223,7 @@ end
             ]
 
             # No Strategy
-            Vres = IntervalMDP.bellman(V, prod_proc; upper_bound = false)
+            Vres = IntervalMDP.expectation(V, prod_proc; upper_bound = false)
             @test Vtar ≈ Vres atol=eps
 
             # Non Stationary Strategy (Init iteration)
@@ -421,7 +424,7 @@ end
                 45//10 5
             ]
 
-            Vres = IntervalMDP.bellman(V, prod_proc; upper_bound = false)
+            Vres = IntervalMDP.expectation(V, prod_proc; upper_bound = false)
             @test Vres ≈ Vtar
         end
     end
@@ -504,7 +507,7 @@ end
             ]
 
             # No Strategy
-            Vres = IntervalMDP.bellman(V, prod_proc; upper_bound = false)
+            Vres = IntervalMDP.expectation(V, prod_proc; upper_bound = false)
             @test Vtar ≈ Vres atol=eps
 
             # Non Stationary Strategy

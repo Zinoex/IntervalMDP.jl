@@ -51,7 +51,7 @@ using IntervalMDP, CUDA, SparseArrays
 
     @testset "bellman" begin
         V = IntervalMDP.cu(N[1, 2, 3])
-        Vres = IntervalMDP.bellman(V, mdp; upper_bound = false, maximize = true)
+        Vres = IntervalMDP.expectation(V, mdp; upper_bound = false, maximize = true)
         Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
         @test Vres ≈ N[
             (1 // 2) * 1 + (3 // 10) * 2 + (1 // 5) * 3,

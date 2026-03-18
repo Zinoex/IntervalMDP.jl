@@ -12,9 +12,9 @@ function StateValueFunction(problem::AbstractIntervalMDPProblem)
     previous .= zero(valuetype(mp))
     current = copy(previous)
 
-    dim = Tuple(Iterators.flatten(zip(action_values(mp), state_values(mp))))
-    # interleaved concat gives shape: (a1, a2) , (s1, s2) => (a1, s1, a2, s2)
-    # (a, s) to access s more frequently due to column major
+    dim = (action_values(mp)..., state_values(mp)...)
+    # concat gives shape: (a1, a2) , (s1, s2) => (a1, a2, s1, s2)
+    # (a, s) to access a more frequently due to column major
     # TODO: works for IMDP, need to check for fIMDP
     intermediate_state_action_value = arrayfactory(mp, valuetype(mp), dim)
     intermediate_state_action_value .= zero(valuetype(mp))
@@ -45,7 +45,7 @@ end
 
 function StateActionValueFunction(problem::AbstractIntervalMDPProblem)
     mp = system(problem)
-    dim = Tuple(Iterators.flatten(zip(action_values(mp), state_values(mp))))
+    dim = (action_values(mp)..., state_values(mp)...)
     # TODO: works for IMDP, need to check for fIMDP
     previous = arrayfactory(mp, valuetype(mp), dim)
     previous .= zero(valuetype(mp))

@@ -205,7 +205,35 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     return value_function.current, k, value_function.previous, strategy_cache
 end
 
-function bellman_update!(workspace, strategy_cache, value_function, k, mp, spec)
+function bellman_update!(workspace, strategy_cache, value_function::StateValueFunction, k, mp, spec)
+
+    # 1. compute expectation for Q(s, a)
+    expectation!(
+        workspace,
+        select_strategy_cache(strategy_cache, k),
+        value_function.intermediate_state_action_value,
+        value_function.previous,
+        select_model(mp, k);  # For time-varying available and labelling functions
+        upper_bound = isoptimistic(spec),
+        maximize = ismaximize(spec),
+        prop = system_property(spec),
+    )
+
+    # 2. extract strategy and compute V'(s) = max_a Q(s, a)
+    strategy!(
+        select_strategy_cache(strategy_cache, k),
+        value_function.current,
+        value_function.intermediate_state_action_value,
+        select_model(mp, k),
+        ismaximize(spec),
+    )
+
+    # 3. post process to compute V(s) = g(s, V'(s)) where the definition of g depends on the objective
+    step_postprocess_value_function!(value_function, spec)
+    step_postprocess_strategy_cache!(strategy_cache)
+end
+
+function bellman_update!(workspace, strategy_cache::NonOptimizingStrategyCache, value_function::StateValueFunction, k, mp, spec)
     expectation!(
         workspace,
         select_strategy_cache(strategy_cache, k),

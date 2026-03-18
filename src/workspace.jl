@@ -53,7 +53,6 @@ struct DenseIntervalOMaxWorkspace{T <: Real}
     budget::Vector{T}
     scratch::Vector{Int32}
     permutation::Vector{Int32}
-    actions::Vector{T}
 end
 
 function DenseIntervalOMaxWorkspace(
@@ -63,8 +62,7 @@ function DenseIntervalOMaxWorkspace(
     budget = 1 .- vec(sum(ambiguity_set.lower; dims = 1))
     scratch = Vector{Int32}(undef, num_target(ambiguity_set))
     perm = Vector{Int32}(undef, num_target(ambiguity_set))
-    actions = Vector{R}(undef, nactions)
-    return DenseIntervalOMaxWorkspace(budget, scratch, perm, actions)
+    return DenseIntervalOMaxWorkspace(budget, scratch, perm)
 end
 
 permutation(ws::DenseIntervalOMaxWorkspace) = ws.permutation
@@ -83,7 +81,7 @@ function ThreadedDenseIntervalOMaxWorkspace(
     perm = Vector{Int32}(undef, num_target(ambiguity_set))
 
     workspaces = [
-        DenseIntervalOMaxWorkspace(budget, scratch, perm, Vector{R}(undef, nactions))
+        DenseIntervalOMaxWorkspace(budget, scratch, perm)
         for _ in 1:Threads.nthreads()
     ]
     return ThreadedDenseIntervalOMaxWorkspace(workspaces)
