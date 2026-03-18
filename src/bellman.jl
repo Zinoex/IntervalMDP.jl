@@ -79,7 +79,7 @@ function expectation(
     maximize = true,
     prop = nothing,
 )
-    Vres = Array{eltype(V)}(undef, (action_values(model)..., state_values(model)...))
+    Vres = Array{eltype(V)}(undef, (action_values(model)..., size(V)...))
 
     return expectation!(
         Vres,

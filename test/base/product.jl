@@ -139,11 +139,14 @@ end
 
             Vres = IntervalMDP.expectation(V, prod_proc; upper_bound = false)
 
-            @test Vres ≈ N[
+            Vtar = N[
                 30//10 24//10
                 33//10 2
                 5 5
             ]
+            Vtar = reshape(Vtar, 1, size(Vtar)...)
+
+            @test Vres ≈ Vtar
         end
     end
 end

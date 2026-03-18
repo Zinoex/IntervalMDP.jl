@@ -51,32 +51,28 @@ using IntervalMDP
 
         Vres = IntervalMDP.expectation(V, mdp; upper_bound = false, maximize = true)
         @test Vres ≈ N[
-            (1 // 2) * 1 + (3 // 10) * 2 + (1 // 5) * 3,
-            (3 // 10) * 1 + (3 // 10) * 2 + (2 // 5) * 3,
-            1 * 3,
+            17//10 18//10 3//1
+            15//10 21//10 3//1
         ]
 
-        Vres = Array{N}(undef, (3, 3))
+        Vres = Array{N}(undef, (2, 3))
         IntervalMDP.expectation!(Vres, V, mdp; upper_bound = false, maximize = true)
         @test Vres ≈ N[
-            (1 // 2) * 1 + (3 // 10) * 2 + (1 // 5) * 3,
-            (3 // 10) * 1 + (3 // 10) * 2 + (2 // 5) * 3,
-            1 * 3,
+            17//10 18//10 3//1
+            15//10 21//10 3//1
         ]
 
         Vres = IntervalMDP.expectation(V, mdp; upper_bound = true, maximize = false)
         @test Vres ≈ N[
-            (1 // 2) * 1 + (3 // 10) * 2 + (1 // 5) * 3,
-            (1 // 5) * 1 + (2 // 5) * 2 + (2 // 5) * 3,
-            1 * 3,
+            27//10 23//10 3//1
+            17//10 22//10 3//1
         ]
 
-        Vres = Array{N}(undef, (3, 3))
+        Vres = Array{N}(undef, (2, 3))
         IntervalMDP.expectation!(Vres, V, mdp; upper_bound = true, maximize = false)
         @test Vres ≈ N[
-            (1 // 2) * 1 + (3 // 10) * 2 + (1 // 5) * 3,
-            (1 // 5) * 1 + (2 // 5) * 2 + (2 // 5) * 3,
-            1 * 3,
+            27//10 23//10 3//1
+            17//10 22//10 3//1
         ]
     end
 
