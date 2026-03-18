@@ -378,10 +378,11 @@ function _expectation_helper!(
     model;
     upper_bound = false,
     maximize = true,
+    state_update_sequence = exhaustive_cartesian(model),
 )
     expectation_precomputation!(workspace, V, upper_bound)
 
-    for jₛ in CartesianIndices(source_shape(model))
+    for jₛ in state_update_sequence
         state_expectation!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
 
@@ -400,10 +401,11 @@ function _expectation_helper!(
     model;
     upper_bound = false,
     maximize = true,
+    state_update_sequence = exhaustive_cartesian(model),
 )
     @inbounds expectation_precomputation!(workspace, V, upper_bound)
 
-    @threadstid tid for jₛ in CartesianIndices(source_shape(model))
+    @threadstid tid for jₛ in state_update_sequence
         @inbounds ws = workspace[tid]
         @inbounds state_expectation!(
             ws,

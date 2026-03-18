@@ -63,6 +63,7 @@ include("workspace.jl")
 include("strategy_cache.jl")
 include("bellman.jl")
 include("value.jl")
+include("state_sampling.jl")
 
 include("robust_value_iteration.jl")
 
