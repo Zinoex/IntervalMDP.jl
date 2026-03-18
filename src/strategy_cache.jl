@@ -170,11 +170,11 @@ function strategy!(
 ) where {R <: Real}
 
     #TODO: can be threaded?
-    for jₛ in CartesianIndices(source_shape(model))
+    @inbounds for jₛ in CartesianIndices(source_shape(model))
 
         Vres[jₛ] = extract_strategy!(
             strategy_cache,
-            Q[:, jₛ],
+            @view(Q[:, jₛ]),
             available(model, jₛ),
             jₛ,
             maximize,

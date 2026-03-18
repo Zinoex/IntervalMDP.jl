@@ -14,7 +14,7 @@ function StateValueFunction(problem::AbstractIntervalMDPProblem)
 
     dim = (action_values(mp)..., state_values(mp)...)
     # concat gives shape: (a1, a2) , (s1, s2) => (a1, a2, s1, s2)
-    # (a, s) to access s more frequently due to column major
+    # (a, s) to access a more frequently due to column major
     # TODO: works for IMDP, need to check for fIMDP
     intermediate_state_action_value = arrayfactory(mp, valuetype(mp), dim)
     intermediate_state_action_value .= zero(valuetype(mp))

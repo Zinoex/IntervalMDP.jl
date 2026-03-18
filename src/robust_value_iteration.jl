@@ -219,7 +219,7 @@ function bellman_update!(workspace, strategy_cache, value_function::StateValueFu
         prop = system_property(spec),
     )
 
-    # 2. extract strategy and compute V(s) = max_a Q(s, a)
+    # 2. extract strategy and compute V'(s) = max_a Q(s, a)
     strategy!(
         select_strategy_cache(strategy_cache, k),
         value_function.current,
@@ -228,7 +228,7 @@ function bellman_update!(workspace, strategy_cache, value_function::StateValueFu
         ismaximize(spec),
     )
 
-    # 3. post process
+    # 3. post process to compute V(s) = g(s, V'(s)) where the definition of g depends on the objective
     step_postprocess_value_function!(value_function, spec)
     step_postprocess_strategy_cache!(strategy_cache)
 end
