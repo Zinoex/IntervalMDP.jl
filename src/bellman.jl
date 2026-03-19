@@ -378,8 +378,10 @@ function _expectation_helper!(
     model;
     upper_bound = false,
     maximize = true,
-    state_update_sequence = exhaustive_cartesian(model),
-)
+    state_update_sequence::SF = exhaustive_cartesian(model),
+) where {SF}
+    @assert eltype(SF) <: CartesianIndex
+
     expectation_precomputation!(workspace, V, upper_bound)
 
     for jₛ in state_update_sequence
@@ -401,8 +403,10 @@ function _expectation_helper!(
     model;
     upper_bound = false,
     maximize = true,
-    state_update_sequence = exhaustive_cartesian(model),
-)
+    state_update_sequence::SF = exhaustive_cartesian(model),
+) where {SF}
+    @assert eltype(SF) <: CartesianIndex
+
     @inbounds expectation_precomputation!(workspace, V, upper_bound)
 
     @threadstid tid for jₛ in state_update_sequence
