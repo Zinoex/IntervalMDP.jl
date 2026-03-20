@@ -522,46 +522,6 @@ Base.@propagate_inbounds expectation_precomputation!(
     upper_bound,
 ) = nothing
 
-#TODO: 
-# Base.@propagate_inbounds function state_expectation!(
-#     workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
-#     strategy_cache::OptimizingStrategyCache,
-#     Vres,
-#     V,
-#     model,
-#     jₛ,
-#     upper_bound,
-#     maximize,
-# )
-#     marginal = marginals(model)[1]
-
-#     for jₐ in available(model, jₛ)
-#         ambiguity_set = marginal[jₐ, jₛ]
-#         budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
-#         Vres[jₐ, jₛ] =
-#             state_action_expectation(workspace, V, ambiguity_set, budget, upper_bound)
-#     end
-# end
-
- 
-# Base.@propagate_inbounds function state_expectation!(
-#     workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
-#     strategy_cache::NonOptimizingStrategyCache,
-#     Vres,
-#     V,
-#     model,
-#     jₛ,
-#     upper_bound,
-#     maximize,
-# )
-#     marginal = marginals(model)[1]
-
-#     jₐ = CartesianIndex(strategy_cache[jₛ])
-#     ambiguity_set = marginal[jₐ, jₛ]
-#     budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
-#     Vres[jₛ] = state_action_expectation(workspace, V, ambiguity_set, budget, upper_bound)
-# end
-
 
 Base.@propagate_inbounds function state_action_expectation(
     workspace::DenseIntervalOMaxWorkspace,
