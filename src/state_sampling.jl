@@ -120,3 +120,8 @@ end
 # TODO: 2. (epsilon) greedy on policy trajectory simulation
 # TODO: 3. BRTDP gap based trajectory simulation
 # TODO: 
+
+
+### Robust Value Iteration
+sampling_strategy(alg::RobustValueIteration, ::NotThreaded) = AllSampling()
+sampling_strategy(alg::RobustValueIteration, ::IsThreaded) = ThreadedAllSampling()
