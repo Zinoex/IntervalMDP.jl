@@ -74,6 +74,7 @@ Vcur = IntervalMDP.expectation(Vprev, model; upper_bound = false)
 function expectation(
     V,
     model,
+    update_sequence = sample(default_sampling_strategy(), model),
     alg::BellmanAlgorithm = default_bellman_algorithm(model);
     upper_bound = false,
     maximize = true,
@@ -85,6 +86,7 @@ function expectation(
         Vres,
         V,
         model,
+        update_sequence,
         alg;
         upper_bound = upper_bound,
         maximize = maximize,
@@ -175,6 +177,7 @@ function expectation!(
     Vres::AbstractArray,
     V::AbstractArray,
     model,
+    update_sequence = sample(default_sampling_strategy(), model),
     alg::BellmanAlgorithm = default_bellman_algorithm(model);
     upper_bound = false,
     maximize = true,
@@ -188,7 +191,8 @@ function expectation!(
         strategy_cache,
         Vres,
         V,
-        model;
+        model,
+        update_sequence;
         upper_bound = upper_bound,
         maximize = maximize,
         prop = prop,
@@ -200,7 +204,8 @@ function expectation!(
     strategy_cache,
     Vres::AbstractArray,
     V::AbstractArray,
-    model::IntervalMarkovProcess;
+    model::IntervalMarkovProcess,
+    update_sequence = sample(default_sampling_strategy(threadtype(workspace)), model, strategy_cache);
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -210,7 +215,8 @@ function expectation!(
         strategy_cache,
         Vres,
         V,
-        model;
+        model,
+        update_sequence;
         upper_bound = upper_bound,
         maximize = maximize,
     )
@@ -221,7 +227,8 @@ function expectation!(
     strategy_cache,
     Vres::AbstractArray,
     V::AbstractArray,
-    model::ProductProcess;
+    model::ProductProcess,
+    update_sequence;
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -237,7 +244,8 @@ function expectation!(
         V,
         dfa,
         lf,
-        mp;
+        mp,
+        update_sequence;
         upper_bound = upper_bound,
         maximize = maximize,
         prop = prop,
@@ -251,7 +259,8 @@ function _expectation_helper!(
     V,
     dfa::DFA,
     lf::DeterministicLabelling,
-    mp::IntervalMarkovProcess;
+    mp::IntervalMarkovProcess,
+    update_sequence;
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -279,7 +288,8 @@ function _expectation_helper!(
             local_strategy_cache,
             selectdim(Vres, ndims(Vres), state),
             W,
-            mp;
+            mp,
+            update_sequence; #TODO: need to separate automata states
             upper_bound = upper_bound,
             maximize = maximize,
         )
@@ -295,7 +305,8 @@ function _expectation_helper!(
     V::AbstractArray{R},
     dfa::DFA,
     lf::ProbabilisticLabelling,
-    mp::IntervalMarkovProcess;
+    mp::IntervalMarkovProcess,
+    update_sequence;
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -330,7 +341,8 @@ function _expectation_helper!(
             local_strategy_cache,
             selectdim(Vres, ndims(Vres), state),
             W,
-            mp;
+            mp,
+            update_sequence; #TODO: need to separate automata states
             upper_bound = upper_bound,
             maximize = maximize,
         )
@@ -372,20 +384,49 @@ end
 # Non-threaded
 function _expectation_helper!(
     workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
-    strategy_cache::AbstractStrategyCache,
+    strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    update_sequence = sample(default_sampling_strategy(threadtype(workspace)), model, strategy_cache);
     upper_bound = false,
     maximize = true,
-    state_update_sequence::SF = exhaustive_cartesian(model),
-) where {SF}
-    @assert eltype(SF) <: CartesianIndex
-
+)
     expectation_precomputation!(workspace, V, upper_bound)
 
-    for jₛ in state_update_sequence
-        state_expectation!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
+    marginal = marginals(model)[1]
+
+    @inbounds for (jₐ, jₛ) in update_sequence
+        ambiguity_set = marginal[jₐ, jₛ]
+        budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
+
+        Vres[jₐ, jₛ] =
+            state_action_expectation(workspace, V, ambiguity_set, budget, upper_bound)
+    end
+
+    return Vres
+end
+
+function _expectation_helper!(
+    workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    update_sequence = sample(default_sampling_strategy(threadtype(workspace)), model, strategy_cache);
+    upper_bound = false,
+    maximize = true,
+)
+    expectation_precomputation!(workspace, V, upper_bound)
+
+    marginal = marginals(model)[1]
+
+    @inbounds for (jₐ, jₛ) in update_sequence
+        ambiguity_set = marginal[jₐ, jₛ]
+        budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
+
+        Vres[jₛ] =
+            state_action_expectation(workspace, V, ambiguity_set, budget, upper_bound)
     end
 
     return Vres
@@ -397,30 +438,70 @@ function _expectation_helper!(
         ThreadedDenseIntervalOMaxWorkspace,
         ThreadedSparseIntervalOMaxWorkspace,
     },
-    strategy_cache::AbstractStrategyCache,
+    strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    update_sequence = sample(default_sampling_strategy(threadtype(workspace)), model, strategy_cache);
     upper_bound = false,
     maximize = true,
-    state_update_sequence::SF = exhaustive_cartesian(model),
-) where {SF}
-    @assert eltype(SF) <: CartesianIndex
+)
 
     @inbounds expectation_precomputation!(workspace, V, upper_bound)
 
-    @threadstid tid for jₛ in state_update_sequence
-        @inbounds ws = workspace[tid]
-        @inbounds state_expectation!(
-            ws,
-            strategy_cache,
-            Vres,
-            V,
-            model,
-            jₛ,
-            upper_bound,
-            maximize,
-        )
+    marginal = marginals(model)[1]
+
+    (A_cache, S) = update_sequence
+
+    @threadstid tid for i in eachindex(S)
+        jₛ = S[i]
+        A = A_cache[i]
+
+        for jₐ in A
+            @inbounds ws = workspace[tid]
+
+            @inbounds ambiguity_set = marginal[jₐ, jₛ]
+            @inbounds budget = ws.budget[sub2ind(marginal, jₐ, jₛ)]
+            @inbounds Vres[jₐ, jₛ] =
+                state_action_expectation(ws, V, ambiguity_set, budget, upper_bound)
+        end
+    end
+
+    return Vres
+end
+
+function _expectation_helper!(
+    workspace::Union{
+        ThreadedDenseIntervalOMaxWorkspace,
+        ThreadedSparseIntervalOMaxWorkspace,
+    },
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    update_sequence = sample(default_sampling_strategy(threadtype(workspace)), model, strategy_cache);
+    upper_bound = false,
+    maximize = true,
+)
+
+    @inbounds expectation_precomputation!(workspace, V, upper_bound)
+
+    marginal = marginals(model)[1]
+
+    (A_cache, S) = update_sequence
+
+    @threadstid tid for i in eachindex(S)
+        jₛ = S[i]
+        A = A_cache[i]
+
+        for jₐ in A
+            @inbounds ws = workspace[tid]
+
+            @inbounds ambiguity_set = marginal[jₐ, jₛ]
+            @inbounds budget = ws.budget[sub2ind(marginal, jₐ, jₛ)]
+            @inbounds Vres[jₛ] =
+                state_action_expectation(ws, V, ambiguity_set, budget, upper_bound)
+        end
     end
 
     return Vres
@@ -442,44 +523,44 @@ Base.@propagate_inbounds expectation_precomputation!(
 ) = nothing
 
 #TODO: 
-Base.@propagate_inbounds function state_expectation!(
-    workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
-    strategy_cache::OptimizingStrategyCache,
-    Vres,
-    V,
-    model,
-    jₛ,
-    upper_bound,
-    maximize,
-)
-    marginal = marginals(model)[1]
+# Base.@propagate_inbounds function state_expectation!(
+#     workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
+#     strategy_cache::OptimizingStrategyCache,
+#     Vres,
+#     V,
+#     model,
+#     jₛ,
+#     upper_bound,
+#     maximize,
+# )
+#     marginal = marginals(model)[1]
 
-    for jₐ in available(model, jₛ)
-        ambiguity_set = marginal[jₐ, jₛ]
-        budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
-        Vres[jₐ, jₛ] =
-            state_action_expectation(workspace, V, ambiguity_set, budget, upper_bound)
-    end
-end
+#     for jₐ in available(model, jₛ)
+#         ambiguity_set = marginal[jₐ, jₛ]
+#         budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
+#         Vres[jₐ, jₛ] =
+#             state_action_expectation(workspace, V, ambiguity_set, budget, upper_bound)
+#     end
+# end
 
  
-Base.@propagate_inbounds function state_expectation!(
-    workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
-    strategy_cache::NonOptimizingStrategyCache,
-    Vres,
-    V,
-    model,
-    jₛ,
-    upper_bound,
-    maximize,
-)
-    marginal = marginals(model)[1]
+# Base.@propagate_inbounds function state_expectation!(
+#     workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
+#     strategy_cache::NonOptimizingStrategyCache,
+#     Vres,
+#     V,
+#     model,
+#     jₛ,
+#     upper_bound,
+#     maximize,
+# )
+#     marginal = marginals(model)[1]
 
-    jₐ = CartesianIndex(strategy_cache[jₛ])
-    ambiguity_set = marginal[jₐ, jₛ]
-    budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
-    Vres[jₛ] = state_action_expectation(workspace, V, ambiguity_set, budget, upper_bound)
-end
+#     jₐ = CartesianIndex(strategy_cache[jₛ])
+#     ambiguity_set = marginal[jₐ, jₛ]
+#     budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
+#     Vres[jₛ] = state_action_expectation(workspace, V, ambiguity_set, budget, upper_bound)
+# end
 
 
 Base.@propagate_inbounds function state_action_expectation(

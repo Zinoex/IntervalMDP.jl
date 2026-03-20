@@ -207,13 +207,17 @@ end
 
 function bellman_update!(workspace, strategy_cache, value_function::StateValueFunction, k, mp, spec)
 
+    sampling_strat = default_sampling_strategy(threadtype(workspace))
+    update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, k))
+
     # 1. compute expectation for Q(s, a)
     expectation!(
         workspace,
         select_strategy_cache(strategy_cache, k),
         value_function.intermediate_state_action_value,
         value_function.previous,
-        select_model(mp, k);  # For time-varying available and labelling functions
+        select_model(mp, k), # For time-varying available and labelling functions
+        update_sequence;  
         upper_bound = isoptimistic(spec),
         maximize = ismaximize(spec),
         prop = system_property(spec),
@@ -234,12 +238,17 @@ function bellman_update!(workspace, strategy_cache, value_function::StateValueFu
 end
 
 function bellman_update!(workspace, strategy_cache::NonOptimizingStrategyCache, value_function::StateValueFunction, k, mp, spec)
+
+    sampling_strat = default_sampling_strategy(threadtype(workspace))
+    update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, k))
+
     expectation!(
         workspace,
         select_strategy_cache(strategy_cache, k),
         value_function.current,
         value_function.previous,
-        select_model(mp, k);  # For time-varying available and labelling functions
+        select_model(mp, k),  # For time-varying available and labelling functions
+        update_sequence;
         upper_bound = isoptimistic(spec),
         maximize = ismaximize(spec),
         prop = system_property(spec),
