@@ -1,19 +1,19 @@
-struct ThreadedProductIterator{AI, SI}
+struct ProductIterator{AI, SI}
     A::AI
     S::SI
     nA::Int
     nS::Int
 
-    function ThreadedProductIterator(A, S)
+    function ProductIterator(A, S)
         nA = length(A)
         nS = length(S)
         new{typeof(A), typeof(S)}(A, S, nA, nS)
     end
 end
 
-Base.length(iter::ThreadedProductIterator) = iter.nA * iter.nS
-Base.firstindex(iter::ThreadedProductIterator) = 1
-Base.getindex(iter::ThreadedProductIterator, i) = begin
+Base.length(iter::ProductIterator) = iter.nA * iter.nS
+Base.firstindex(iter::ProductIterator) = (firstindex(iter.S)-1)*iter.nS + firstindex(iter.A)
+Base.getindex(iter::ProductIterator, i) = begin
     A = iter.A
     S = iter.S
 
@@ -24,29 +24,120 @@ Base.getindex(iter::ThreadedProductIterator, i) = begin
     is = ((i - 1) ÷ nA) + firstindex(S)
     return (A[ia], S[is])
 end
+Base.iterate(iter::ProductIterator) = begin
+    (iter.nA == 0 || iter.nS == 0) && return nothing
 
-struct ThreadedIndexIterator{AI, SI}
+    A = iter.A
+    S = iter.S
+
+    ia = firstindex(A)
+    is = firstindex(S)
+
+    return ((A[ia], S[is]), (ia, is))
+end
+
+Base.iterate(iter::ProductIterator, state) = begin
+    A = iter.A
+    S = iter.S
+
+    ia, is = state
+
+    # iterate s as outer loop due to column major order of value function Q(a, s)
+
+    # 1. advance inner loop (actions)
+    ia += 1
+
+    if ia > lastindex(A)
+        # 2. reset inner loop and advance outer loop (states)
+        ia = firstindex(A)
+        is += 1
+    end
+
+    # 3. loop exit condition
+    if is > lastindex(S)
+        return nothing
+    end
+
+    return ((A[ia], S[is]), (ia, is))
+end
+
+struct ZipIterator{AI, SI}
     A::AI
     S::SI
     n::Int
 
-    function ThreadedIndexIterator(A, S)
+    function ZipIterator(A, S)
         nA = length(A)
         nS = length(S)
 
-        @assert nA == nS "Action and state spaces must have the same length for ThreadedIndexIterator"
+        @assert nA == nS "Action and state spaces must have the same length for ZipIterator"
 
         new{typeof(A), typeof(S)}(A, S, nA)
     end
 end
 
-Base.length(iter::ThreadedIndexIterator) = iter.n
-Base.firstindex(iter::ThreadedIndexIterator) = 1
-Base.getindex(iter::ThreadedIndexIterator, i) = begin
+Base.length(iter::ZipIterator) = iter.n
+Base.firstindex(iter::ZipIterator) = 1
+Base.getindex(iter::ZipIterator, i) = begin
     A = iter.A
     S = iter.S
 
     return (return (A[i], S[i]))
+end
+
+Base.iterate(iter::ZipIterator) = begin
+    iter.n == 0 && return nothing
+
+    A = iter.A
+    S = iter.S
+
+    i = firstindex(A)
+    return ((A[i], S[i]), i)
+end
+
+Base.iterate(iter::ZipIterator, i) = begin
+    A = iter.A
+    S = iter.S
+
+    i += 1
+    if i > iter.n
+        return nothing
+    end
+
+    return ((A[i], S[i]), i)
+end
+
+struct OnPolicyActionIterator
+    S::CartesianIndices
+    strategy_cache::AbstractStrategyCache
+
+    function OnPolicyActionIterator(S::CartesianIndices, strategy_cache::AbstractStrategyCache)
+        new(S, strategy_cache)
+    end
+end
+Base.length(iter::OnPolicyActionIterator) = length(iter.S)
+Base.firstindex(iter::OnPolicyActionIterator) = firstindex(iter.S)
+Base.lastindex(iter::OnPolicyActionIterator) = lastindex(iter.S)
+Base.getindex(iter::OnPolicyActionIterator, i) = CartesianIndex(iter.strategy_cache[i])
+Base.iterate(iter::OnPolicyActionIterator) = begin
+    length(iter) == 0 && return nothing
+
+    S = iter.S
+    strategy_cache = iter.strategy_cache
+
+    i = firstindex(S)
+    return (CartesianIndex(strategy_cache[i]), i)
+end
+Base.iterate(iter::OnPolicyActionIterator, i) = begin
+    S = iter.S
+    strategy_cache = iter.strategy_cache
+
+    i += 1
+    if i > lastindex(S)
+        return nothing
+    end
+
+    return (CartesianIndex(strategy_cache[i]), i)
 end
 
 
@@ -71,19 +162,19 @@ sample(::ThreadedAllSampling, model, strategy_cache::AbstractStrategyCache) = ex
 
 
 exhaustive_cartesian(model::FactoredRMDP, threaded::ThreadedType) = exhaustive_cartesian(model, modeltype(model), threaded)
-exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP, ::NotThreaded) = Iterators.product(CartesianIndices(action_shape(model)), CartesianIndices(source_shape(model)))
-exhaustive_cartesian(model::IntervalAmbiguitySets, ::NotThreaded) = Iterators.product(CartesianIndices(action_shape(model)), CartesianIndices(source_shape(model)))
+exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP, ::NotThreaded) = ProductIterator(CartesianIndices(action_shape(model)), CartesianIndices(source_shape(model)))
+exhaustive_cartesian(model::IntervalAmbiguitySets, ::NotThreaded) = ProductIterator(CartesianIndices(action_shape(model)), CartesianIndices(source_shape(model)))
 function exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP, ::IsThreaded) 
     A = CartesianIndices(action_shape(model))
     S = CartesianIndices(source_shape(model))
 
-    return ThreadedProductIterator(A, S)
+    return ProductIterator(A, S)
 end
 function exhaustive_cartesian(model::IntervalAmbiguitySets, ::IsThreaded) 
     A = CartesianIndices(action_shape(model))
     S = CartesianIndices(source_shape(model))
 
-    return ThreadedProductIterator(A, S)
+    return ProductIterator(A, S)
 end
 
 exhaustive_cartesian(model, strategy_cache::OptimizingStrategyCache, threaded::ThreadedType) = exhaustive_cartesian(model, threaded)
@@ -92,37 +183,31 @@ exhaustive_cartesian(model::FactoredRMDP, strategy_cache::NonOptimizingStrategyC
 function exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP, strategy_cache::NonOptimizingStrategyCache, ::NotThreaded)
 
     S = CartesianIndices(source_shape(model))
+    A = OnPolicyActionIterator(S, strategy_cache)
 
-    return (
-        (CartesianIndex(strategy_cache[jₛ]), jₛ)
-        for jₛ in S
-    )
-    # map(jₛ -> (CartesianIndex(strategy_cache[jₛ]), jₛ), CartesianIndices(source_shape(model)))
+    return ZipIterator(A, S)
 end
 
 function exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP, strategy_cache::NonOptimizingStrategyCache, ::IsThreaded)
 
     S = CartesianIndices(source_shape(model))
-    A = (CartesianIndex(strategy_cache[jₛ]) for jₛ in S)
-    
-    return ThreadedIndexIterator(A, S)
+    A = OnPolicyActionIterator(S, strategy_cache)
+
+    return ZipIterator(A, S)
 end
 
 function exhaustive_cartesian(model::IntervalAmbiguitySets, strategy_cache::NonOptimizingStrategyCache, ::NotThreaded) 
     S = CartesianIndices(source_shape(model))
+    A = OnPolicyActionIterator(S, strategy_cache)
 
-    return (
-        (CartesianIndex(strategy_cache[jₛ]), jₛ)
-        for jₛ in S
-    )
-    # map(jₛ -> (CartesianIndex(strategy_cache[jₛ]), jₛ), CartesianIndices(source_shape(model)))
+    return ZipIterator(A, S)
 end
 
 function exhaustive_cartesian(model::IntervalAmbiguitySets, strategy_cache::NonOptimizingStrategyCache, ::IsThreaded)
     S = CartesianIndices(source_shape(model))
-    A = (CartesianIndex(strategy_cache[jₛ]) for jₛ in S)
-    
-    return ThreadedIndexIterator(A, S) 
+    A = OnPolicyActionIterator(S, strategy_cache)
+
+    return ZipIterator(A, S) 
 end
 
 
