@@ -1,4 +1,4 @@
-function IntervalMDP._bellman_helper!(
+function IntervalMDP._expectation_helper!(
     workspace::CuFactoredOMaxWorkspace,
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres::AbstractArray{Tv},
