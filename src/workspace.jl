@@ -325,21 +325,3 @@ function construct_workspace(
         return ThreadedFactoredVertexIteratorWorkspace(sys)
     end
 end
-
-### Threaded Type Analysis
-abstract type ThreadedType end
-
-struct IsThreaded  <: ThreadedType end
-struct NotThreaded <: ThreadedType end
-
-threadtype(workspace::DenseIntervalOMaxWorkspace) = NotThreaded()
-threadtype(workspace::ThreadedDenseIntervalOMaxWorkspace) = IsThreaded()
-threadtype(workspace::SparseIntervalOMaxWorkspace) = NotThreaded()
-threadtype(workspace::ThreadedSparseIntervalOMaxWorkspace) = IsThreaded()
-threadtype(workspace::FactoredIntervalMcCormickWorkspace) = NotThreaded()
-threadtype(workspace::ThreadedFactoredIntervalMcCormickWorkspace) = IsThreaded()
-threadtype(workspace::FactoredIntervalOMaxWorkspace) = NotThreaded()
-threadtype(workspace::ThreadedFactoredIntervalOMaxWorkspace) = IsThreaded()
-threadtype(workspace::FactoredVertexIteratorWorkspace) = NotThreaded()
-threadtype(workspace::ThreadedFactoredVertexIteratorWorkspace) = IsThreaded()
-threadtype(workspace::ProductWorkspace) = threadtype(underlying_workspace(workspace))

@@ -205,7 +205,7 @@ function expectation!(
     Vres::AbstractArray,
     V::AbstractArray,
     model::IntervalMarkovProcess,
-    update_sequence = sample(default_sampling_strategy(threadtype(workspace)), model, strategy_cache);
+    update_sequence = sample(default_sampling_strategy(), model, strategy_cache);
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -388,7 +388,7 @@ function _expectation_helper!(
     Vres,
     V,
     model,
-    update_sequence = sample(default_sampling_strategy(threadtype(workspace)), model, strategy_cache);
+    update_sequence = sample(default_sampling_strategy(), model, strategy_cache);
     upper_bound = false,
     maximize = true,
 )
@@ -413,7 +413,7 @@ function _expectation_helper!(
     Vres,
     V,
     model,
-    update_sequence = sample(default_sampling_strategy(threadtype(workspace)), model, strategy_cache);
+    update_sequence = sample(default_sampling_strategy(), model, strategy_cache);
     upper_bound = false,
     maximize = true,
 )
@@ -442,7 +442,7 @@ function _expectation_helper!(
     Vres,
     V,
     model,
-    update_sequence = sample(default_sampling_strategy(threadtype(workspace)), model, strategy_cache);
+    update_sequence = sample(default_sampling_strategy(), model, strategy_cache);
     upper_bound = false,
     maximize = true,
 )
@@ -473,7 +473,7 @@ function _expectation_helper!(
     Vres,
     V,
     model,
-    update_sequence = sample(default_sampling_strategy(threadtype(workspace)), model, strategy_cache);
+    update_sequence = sample(default_sampling_strategy(), model, strategy_cache);
     upper_bound = false,
     maximize = true,
 )

@@ -143,44 +143,25 @@ end
 
 
 abstract type SamplingStrategy end
-abstract type ThreadedSamplingStrategy <: SamplingStrategy end
 
 function sample(::SamplingStrategy, model) end
 
 struct AllSampling <: SamplingStrategy end
-struct ThreadedAllSampling <: ThreadedSamplingStrategy end
 
 default_sampling_strategy() = AllSampling()
-default_sampling_strategy(::NotThreaded) = AllSampling()
-default_sampling_strategy(::IsThreaded) = ThreadedAllSampling()
 
-sample(::AllSampling, model) = exhaustive_cartesian(model, NotThreaded())
-sample(::ThreadedAllSampling, model) = exhaustive_cartesian(model, IsThreaded())
+sample(::AllSampling, model) = exhaustive_cartesian(model)
 
-sample(::AllSampling, model, strategy_cache::AbstractStrategyCache) = exhaustive_cartesian(model, strategy_cache, NotThreaded())
-sample(::ThreadedAllSampling, model, strategy_cache::AbstractStrategyCache) = exhaustive_cartesian(model, strategy_cache, IsThreaded())
+sample(::AllSampling, model, strategy_cache::AbstractStrategyCache) = exhaustive_cartesian(model, strategy_cache)
 
+exhaustive_cartesian(model::FactoredRMDP) = exhaustive_cartesian(model, modeltype(model))
+exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP) = ProductIterator(CartesianIndices(action_shape(model)), CartesianIndices(source_shape(model)))
+exhaustive_cartesian(model::IntervalAmbiguitySets) = ProductIterator(CartesianIndices(action_shape(model)), CartesianIndices(source_shape(model)))
 
-exhaustive_cartesian(model::FactoredRMDP, threaded::ThreadedType) = exhaustive_cartesian(model, modeltype(model), threaded)
-exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP, ::NotThreaded) = ProductIterator(CartesianIndices(action_shape(model)), CartesianIndices(source_shape(model)))
-exhaustive_cartesian(model::IntervalAmbiguitySets, ::NotThreaded) = ProductIterator(CartesianIndices(action_shape(model)), CartesianIndices(source_shape(model)))
-function exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP, ::IsThreaded) 
-    A = CartesianIndices(action_shape(model))
-    S = CartesianIndices(source_shape(model))
+exhaustive_cartesian(model, strategy_cache::OptimizingStrategyCache) = exhaustive_cartesian(model)
+exhaustive_cartesian(model::FactoredRMDP, strategy_cache::NonOptimizingStrategyCache) = exhaustive_cartesian(model, modeltype(model), strategy_cache)
 
-    return ProductIterator(A, S)
-end
-function exhaustive_cartesian(model::IntervalAmbiguitySets, ::IsThreaded) 
-    A = CartesianIndices(action_shape(model))
-    S = CartesianIndices(source_shape(model))
-
-    return ProductIterator(A, S)
-end
-
-exhaustive_cartesian(model, strategy_cache::OptimizingStrategyCache, threaded::ThreadedType) = exhaustive_cartesian(model, threaded)
-exhaustive_cartesian(model::FactoredRMDP, strategy_cache::NonOptimizingStrategyCache, threaded::ThreadedType) = exhaustive_cartesian(model, modeltype(model), strategy_cache, threaded)
-
-function exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP, strategy_cache::NonOptimizingStrategyCache, ::NotThreaded)
+function exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP, strategy_cache::NonOptimizingStrategyCache)
 
     S = CartesianIndices(source_shape(model))
     A = OnPolicyActionIterator(S, strategy_cache)
@@ -188,27 +169,13 @@ function exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP, strategy_cache::Non
     return ZipIterator(A, S)
 end
 
-function exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP, strategy_cache::NonOptimizingStrategyCache, ::IsThreaded)
-
+function exhaustive_cartesian(model::IntervalAmbiguitySets, strategy_cache::NonOptimizingStrategyCache) 
     S = CartesianIndices(source_shape(model))
     A = OnPolicyActionIterator(S, strategy_cache)
 
     return ZipIterator(A, S)
 end
 
-function exhaustive_cartesian(model::IntervalAmbiguitySets, strategy_cache::NonOptimizingStrategyCache, ::NotThreaded) 
-    S = CartesianIndices(source_shape(model))
-    A = OnPolicyActionIterator(S, strategy_cache)
-
-    return ZipIterator(A, S)
-end
-
-function exhaustive_cartesian(model::IntervalAmbiguitySets, strategy_cache::NonOptimizingStrategyCache, ::IsThreaded)
-    S = CartesianIndices(source_shape(model))
-    A = OnPolicyActionIterator(S, strategy_cache)
-
-    return ZipIterator(A, S) 
-end
 
 
 
@@ -257,5 +224,4 @@ end
 
 
 ### Robust Value Iteration
-sampling_strategy(alg::RobustValueIteration, ::NotThreaded) = AllSampling()
-sampling_strategy(alg::RobustValueIteration, ::IsThreaded) = ThreadedAllSampling()
+sampling_strategy(alg::RobustValueIteration) = AllSampling()

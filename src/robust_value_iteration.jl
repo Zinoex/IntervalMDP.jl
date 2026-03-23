@@ -175,7 +175,7 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     # It is more efficient to use allocate first and reuse across iterations
     workspace = construct_workspace(mp, bellman_algorithm(alg))
     strategy_cache = construct_strategy_cache(problem)
-    sampling_strat = sampling_strategy(alg, threadtype(workspace))
+    sampling_strat = sampling_strategy(alg)
 
     value_function = StateValueFunction(problem)
     initialize!(value_function, spec)
