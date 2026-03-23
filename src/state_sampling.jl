@@ -1,4 +1,17 @@
-struct ProductIterator{AI, SI}
+###################################
+# Custom Iterator Implementations #
+###################################
+
+abstract type AbstractIterator end
+function Base.length(iter::AbstractIterator) end
+function Base.firstindex(iter::AbstractIterator) end
+function Base.lastindex(iter::AbstractIterator) end
+function Base.getindex(iter::AbstractIterator, i) end
+function Base.iterate(iter::AbstractIterator) end
+function Base.iterate(iter::AbstractIterator, state) end
+
+
+struct ProductIterator{AI, SI} <: AbstractIterator
     A::AI
     S::SI
     nA::Int
@@ -13,6 +26,7 @@ end
 
 Base.length(iter::ProductIterator) = iter.nA * iter.nS
 Base.firstindex(iter::ProductIterator) = (firstindex(iter.S)-1)*iter.nS + firstindex(iter.A)
+Base.lastindex(iter::ProductIterator) = (lastindex(iter.S)-1)*iter.nS + lastindex(iter.A)
 Base.getindex(iter::ProductIterator, i) = begin
     A = iter.A
     S = iter.S
@@ -61,7 +75,7 @@ Base.iterate(iter::ProductIterator, state) = begin
     return ((A[ia], S[is]), (ia, is))
 end
 
-struct ZipIterator{AI, SI}
+struct ZipIterator{AI, SI} <: AbstractIterator
     A::AI
     S::SI
     n::Int
@@ -78,11 +92,12 @@ end
 
 Base.length(iter::ZipIterator) = iter.n
 Base.firstindex(iter::ZipIterator) = 1
+Base.lastindex(iter::ZipIterator) = iter.n
 Base.getindex(iter::ZipIterator, i) = begin
     A = iter.A
     S = iter.S
 
-    return (return (A[i], S[i]))
+    return (A[i], S[i])
 end
 
 Base.iterate(iter::ZipIterator) = begin
@@ -91,8 +106,8 @@ Base.iterate(iter::ZipIterator) = begin
     A = iter.A
     S = iter.S
 
-    i = firstindex(A)
-    return ((A[i], S[i]), i)
+    i = 1
+    return ((A[firstindex(A)-1+i], S[firstindex(S)-1+i]), i)
 end
 
 Base.iterate(iter::ZipIterator, i) = begin
@@ -104,10 +119,10 @@ Base.iterate(iter::ZipIterator, i) = begin
         return nothing
     end
 
-    return ((A[i], S[i]), i)
+    return ((A[firstindex(A)-1+i], S[firstindex(S)-1+i]), i)
 end
 
-struct OnPolicyActionIterator
+struct OnPolicyActionIterator <: AbstractIterator
     S::CartesianIndices
     strategy_cache::AbstractStrategyCache
 
@@ -141,6 +156,50 @@ Base.iterate(iter::OnPolicyActionIterator, i) = begin
 end
 
 
+struct GivenSequenceIterator{NA, NS, T} <: AbstractIterator
+    sequence::Vector{Tuple{NTuple{NA, T}, NTuple{NS, T}}}
+end
+
+Base.length(iter::GivenSequenceIterator) = length(iter.sequence)
+Base.firstindex(iter::GivenSequenceIterator) = firstindex(iter.sequence)
+Base.lastindex(iter::GivenSequenceIterator) = lastindex(iter.sequence)
+Base.getindex(iter::GivenSequenceIterator, i) = begin
+    a, s =  getindex(iter.sequence, i)
+
+    return (CartesianIndex(a...), CartesianIndex(s...))
+end
+Base.iterate(iter::GivenSequenceIterator) = begin 
+    next = iterate(iter.sequence)
+
+    if next === nothing
+        return nothing
+    end
+
+    value, index = next
+    a, s = value
+
+    return ((CartesianIndex(a...), CartesianIndex(s...)), index)
+end
+
+Base.iterate(iter::GivenSequenceIterator, state) = begin 
+    next = iterate(iter.sequence, state)
+
+    if next === nothing
+        return nothing
+    end
+
+    value, index = next
+    a, s = value
+
+    return ((CartesianIndex(a...), CartesianIndex(s...)), index)
+end
+
+
+
+
+###################################
+# Sampling Strategies             #
+###################################
 
 abstract type SamplingStrategy end
 
@@ -179,11 +238,9 @@ end
 
 
 
-struct GivenSequence{} <: SamplingStrategy
-    sequence::Vector{Tuple{Int}}
-end
+struct GivenSequence <: SamplingStrategy end
 
-function sample(strategy::GivenSequence, 
+function sample(::GivenSequence, 
                 model, 
                 sequence::Vector{Tuple{NTuple{N, T}, NTuple{M, T}}} # each element: (state_tuple, action_tuple
                 ) where {N, M, T<:Integer}
@@ -210,8 +267,7 @@ function custom_sequence(
         @assert all((xi, yi) -> xi <= yi, zip(a, shape_a))
     end
 
-    # Convert to CartesianIndex tuples
-    return [(CartesianIndex(a...), CartesianIndex(s...)) for (s, a) in sequence]
+    return GivenSequenceIterator(sequence)
 end
 
 # TODO: 1. random sampling of states, with or without replacement, with or without weighting (e.g. based on current value function)
