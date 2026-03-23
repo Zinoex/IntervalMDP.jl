@@ -175,12 +175,13 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     # It is more efficient to use allocate first and reuse across iterations
     workspace = construct_workspace(mp, bellman_algorithm(alg))
     strategy_cache = construct_strategy_cache(problem)
+    sampling_strat = sampling_strategy(alg)
 
     value_function = StateValueFunction(problem)
     initialize!(value_function, spec)
     nextiteration!(value_function)
 
-    bellman_update!(workspace, strategy_cache, value_function, 0, mp, spec)
+    bellman_update!(workspace, strategy_cache, sampling_strat, value_function, 0, mp, spec)
     k = 1
 
     if !isnothing(callback)
@@ -190,7 +191,7 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
 
-        bellman_update!(workspace, strategy_cache, value_function, k, mp, spec)
+        bellman_update!(workspace, strategy_cache, sampling_strat, value_function, k, mp, spec)
         k += 1
 
         if !isnothing(callback)
@@ -205,7 +206,9 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     return value_function.current, k, value_function.previous, strategy_cache
 end
 
-function bellman_update!(workspace, strategy_cache, value_function::StateValueFunction, k, mp, spec)
+function bellman_update!(workspace, strategy_cache, sampling_strat::SamplingStrategy, value_function::StateValueFunction, k, mp, spec)
+
+    update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, k))
 
     # 1. compute expectation for Q(s, a)
     expectation!(
@@ -213,7 +216,8 @@ function bellman_update!(workspace, strategy_cache, value_function::StateValueFu
         select_strategy_cache(strategy_cache, k),
         value_function.intermediate_state_action_value,
         value_function.previous,
-        select_model(mp, k);  # For time-varying available and labelling functions
+        select_model(mp, k), # For time-varying available and labelling functions
+        update_sequence;  
         upper_bound = isoptimistic(spec),
         maximize = ismaximize(spec),
         prop = system_property(spec),
@@ -233,13 +237,17 @@ function bellman_update!(workspace, strategy_cache, value_function::StateValueFu
     step_postprocess_strategy_cache!(strategy_cache)
 end
 
-function bellman_update!(workspace, strategy_cache::NonOptimizingStrategyCache, value_function::StateValueFunction, k, mp, spec)
+function bellman_update!(workspace, strategy_cache::NonOptimizingStrategyCache, sampling_strat::SamplingStrategy, value_function::StateValueFunction, k, mp, spec)
+
+    update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, k))
+
     expectation!(
         workspace,
         select_strategy_cache(strategy_cache, k),
         value_function.current,
         value_function.previous,
-        select_model(mp, k);  # For time-varying available and labelling functions
+        select_model(mp, k),  # For time-varying available and labelling functions
+        update_sequence;
         upper_bound = isoptimistic(spec),
         maximize = ismaximize(spec),
         prop = system_property(spec),
