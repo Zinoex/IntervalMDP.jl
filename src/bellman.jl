@@ -451,20 +451,14 @@ function _expectation_helper!(
 
     marginal = marginals(model)[1]
 
-    (A_cache, S) = update_sequence
+    @threadstid tid for (jₐ, jₛ) in update_sequence
+        @inbounds ws = workspace[tid]
 
-    @threadstid tid for i in eachindex(S)
-        jₛ = S[i]
-        A = A_cache[i]
-
-        for jₐ in A
-            @inbounds ws = workspace[tid]
-
-            @inbounds ambiguity_set = marginal[jₐ, jₛ]
-            @inbounds budget = ws.budget[sub2ind(marginal, jₐ, jₛ)]
-            @inbounds Vres[jₐ, jₛ] =
-                state_action_expectation(ws, V, ambiguity_set, budget, upper_bound)
-        end
+        @inbounds ambiguity_set = marginal[jₐ, jₛ]
+        @inbounds budget = ws.budget[sub2ind(marginal, jₐ, jₛ)]
+        @inbounds Vres[jₐ, jₛ] =
+            state_action_expectation(ws, V, ambiguity_set, budget, upper_bound)
+            
     end
 
     return Vres
@@ -488,20 +482,14 @@ function _expectation_helper!(
 
     marginal = marginals(model)[1]
 
-    (A_cache, S) = update_sequence
+    @threadstid tid for (jₐ, jₛ) in update_sequence
+        @inbounds ws = workspace[tid]
 
-    @threadstid tid for i in eachindex(S)
-        jₛ = S[i]
-        A = A_cache[i]
-
-        for jₐ in A
-            @inbounds ws = workspace[tid]
-
-            @inbounds ambiguity_set = marginal[jₐ, jₛ]
-            @inbounds budget = ws.budget[sub2ind(marginal, jₐ, jₛ)]
-            @inbounds Vres[jₛ] =
-                state_action_expectation(ws, V, ambiguity_set, budget, upper_bound)
-        end
+        @inbounds ambiguity_set = marginal[jₐ, jₛ]
+        @inbounds budget = ws.budget[sub2ind(marginal, jₐ, jₛ)]
+        @inbounds Vres[jₛ] =
+            state_action_expectation(ws, V, ambiguity_set, budget, upper_bound)
+            
     end
 
     return Vres

@@ -1,3 +1,56 @@
+struct ThreadedProductIterator{AI, SI}
+    A::AI
+    S::SI
+    nA::Int
+    nS::Int
+
+    function ThreadedProductIterator(A, S)
+        nA = length(A)
+        nS = length(S)
+        new{typeof(A), typeof(S)}(A, S, nA, nS)
+    end
+end
+
+Base.length(iter::ThreadedProductIterator) = iter.nA * iter.nS
+Base.firstindex(iter::ThreadedProductIterator) = 1
+Base.getindex(iter::ThreadedProductIterator, i) = begin
+    A = iter.A
+    S = iter.S
+
+    nA = iter.nA
+    nS = iter.nS
+
+    ia = ((i - 1) % nA) + firstindex(A)
+    is = ((i - 1) ÷ nA) + firstindex(S)
+    return (A[ia], S[is])
+end
+
+struct ThreadedIndexIterator{AI, SI}
+    A::AI
+    S::SI
+    n::Int
+
+    function ThreadedIndexIterator(A, S)
+        nA = length(A)
+        nS = length(S)
+
+        @assert nA == nS "Action and state spaces must have the same length for ThreadedIndexIterator"
+
+        new{typeof(A), typeof(S)}(A, S, nA)
+    end
+end
+
+Base.length(iter::ThreadedIndexIterator) = iter.n
+Base.firstindex(iter::ThreadedIndexIterator) = 1
+Base.getindex(iter::ThreadedIndexIterator, i) = begin
+    A = iter.A
+    S = iter.S
+
+    return (return (A[i], S[i]))
+end
+
+
+
 abstract type SamplingStrategy end
 abstract type ThreadedSamplingStrategy <: SamplingStrategy end
 
@@ -24,17 +77,13 @@ function exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP, ::IsThreaded)
     A = CartesianIndices(action_shape(model))
     S = CartesianIndices(source_shape(model))
 
-    A_cache = [A for s in S]
-
-    return (A_cache, S)
+    return ThreadedProductIterator(A, S)
 end
 function exhaustive_cartesian(model::IntervalAmbiguitySets, ::IsThreaded) 
     A = CartesianIndices(action_shape(model))
     S = CartesianIndices(source_shape(model))
 
-    A_cache = [A for s in S]
-
-    return (A_cache, S)
+    return ThreadedProductIterator(A, S)
 end
 
 exhaustive_cartesian(model, strategy_cache::OptimizingStrategyCache, threaded::ThreadedType) = exhaustive_cartesian(model, threaded)
@@ -54,9 +103,9 @@ end
 function exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP, strategy_cache::NonOptimizingStrategyCache, ::IsThreaded)
 
     S = CartesianIndices(source_shape(model))
-    A_cache = [CartesianIndex(strategy_cache[jₛ]) for jₛ in S]
+    A = (CartesianIndex(strategy_cache[jₛ]) for jₛ in S)
     
-    return (A_cache, S)
+    return ThreadedIndexIterator(A, S)
 end
 
 function exhaustive_cartesian(model::IntervalAmbiguitySets, strategy_cache::NonOptimizingStrategyCache, ::NotThreaded) 
@@ -71,9 +120,9 @@ end
 
 function exhaustive_cartesian(model::IntervalAmbiguitySets, strategy_cache::NonOptimizingStrategyCache, ::IsThreaded)
     S = CartesianIndices(source_shape(model))
-    A_cache = [CartesianIndex(strategy_cache[jₛ]) for jₛ in S]
+    A = (CartesianIndex(strategy_cache[jₛ]) for jₛ in S)
     
-    return (A_cache, S) 
+    return ThreadedIndexIterator(A, S) 
 end
 
 
