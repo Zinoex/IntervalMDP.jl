@@ -19,6 +19,12 @@ end
 termination_criteria(prop, finitetime::Val{false}) =
     CovergenceCriteria(convergence_eps(prop))
 
+function initialize!(value_function::ValueFunction, prop::AbstractReachability)
+    initialize!(value_function, prop, Val(isupper(value_function)))
+end
+
+termination_criteria(::RobustValueIteration, spec) = termination_criteria(spec)
+
 """
     solve(problem::AbstractIntervalMDPProblem, alg::RobustValueIteration; callback=nothing)
 
@@ -167,21 +173,22 @@ function solve(problem::ControlSynthesisProblem, alg::RobustValueIteration; kwar
     return ControlSynthesisSolution(strategy, V, res, k)
 end
 
-function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = nothing)
+function _value_iteration!(problem::AbstractIntervalMDPProblem, alg::RobustValueIteration; callback = nothing)
     mp = system(problem)
     spec = specification(problem)
-    term_criteria = termination_criteria(spec)
+    term_criteria = termination_criteria(alg, spec)
 
     # It is more efficient to use allocate first and reuse across iterations
     workspace = construct_workspace(mp, bellman_algorithm(alg))
     strategy_cache = construct_strategy_cache(problem)
     sampling_strat = sampling_strategy(alg)
 
-    value_function = StateValueFunction(problem)
+    value_function = construct_value_function(alg, problem)
     initialize!(value_function, spec)
     nextiteration!(value_function)
 
-    bellman_update!(workspace, strategy_cache, sampling_strat, value_function, 0, mp, spec)
+    update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, 0))
+    bellman_update!(workspace, strategy_cache, update_sequence, value_function, 0, mp, spec)
     k = 1
 
     if !isnothing(callback)
@@ -191,7 +198,8 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
 
-        bellman_update!(workspace, strategy_cache, sampling_strat, value_function, k, mp, spec)
+        update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, k))
+        bellman_update!(workspace, strategy_cache, update_sequence, value_function, k, mp, spec)
         k += 1
 
         if !isnothing(callback)
@@ -206,9 +214,7 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     return value_function.current, k, value_function.previous, strategy_cache
 end
 
-function bellman_update!(workspace, strategy_cache, sampling_strat::SamplingStrategy, value_function::StateValueFunction, k, mp, spec)
-
-    update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, k))
+function bellman_update!(workspace, strategy_cache, update_sequence, value_function::StateValueFunction, k, mp, spec)
 
     # 1. compute expectation for Q(s, a)
     expectation!(
@@ -237,9 +243,7 @@ function bellman_update!(workspace, strategy_cache, sampling_strat::SamplingStra
     step_postprocess_strategy_cache!(strategy_cache)
 end
 
-function bellman_update!(workspace, strategy_cache::NonOptimizingStrategyCache, sampling_strat::SamplingStrategy, value_function::StateValueFunction, k, mp, spec)
-
-    update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, k))
+function bellman_update!(workspace, strategy_cache::NonOptimizingStrategyCache, update_sequence, value_function::StateValueFunction, k, mp, spec)
 
     expectation!(
         workspace,

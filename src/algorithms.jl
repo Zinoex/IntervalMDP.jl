@@ -77,8 +77,25 @@ bellman_algorithm(alg::RobustValueIteration) = alg.bellman_alg
 ############################
 
 # TODO: Provide implementation for this algorithm. When provided, consider changing the default algorithm.
-struct IntervalValueIteration <: ModelCheckingAlgorithm end
+struct IntervalValueIteration{B <: BellmanAlgorithm} <: ModelCheckingAlgorithm 
+    bellman_alg::B
+end
+bellman_algorithm(alg::IntervalValueIteration) = alg.bellman_alg
 
+struct BoundedRealTimeDynamicProgramming{B <: BellmanAlgorithm} <: ModelCheckingAlgorithm
+    bellman_alg::B
+end
+bellman_algorithm(alg::BoundedRealTimeDynamicProgramming) = alg.bellman_alg
+
+
+struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm} <: ModelCheckingAlgorithm
+    bellman_alg::B
+end
+bellman_algorithm(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.bellman_alg
+
+###############################
+# Topological Value Iteration #
+###############################
 # TODO: Consider topological value iteration as an alternative algorithm (infinite time only).
 
 ##### Default algorithm for solving Interval MDP problems

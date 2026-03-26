@@ -57,12 +57,12 @@ export OMaximization, LPMcCormickRelaxation, VertexEnumeration
 export RobustValueIteration
 export default_algorithm, default_bellman_algorithm, bellman_algorithm
 
+include("value.jl")
 include("utils.jl")
 include("threading.jl")
 include("workspace.jl")
 include("strategy_cache.jl")
 include("bellman.jl")
-include("value.jl")
 include("state_sampling.jl")
 
 include("robust_value_iteration.jl")

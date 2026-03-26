@@ -353,6 +353,15 @@ function initialize!(value_function, prop::AbstractReachability)
     @inbounds value_function.current[reach(prop)] .= 1.0
 end
 
+function initialize!(value_function, prop::AbstractReachability, upper::Val{false})
+    @inbounds value_function.current[reach(prop)] .= 1.0
+end
+
+function initialize!(value_function, prop::AbstractReachability, upper::Val{true})
+    value_function.current .= 1.0
+    @inbounds value_function.current[reach(prop)] .= 1.0
+end
+
 function step_postprocess_value_function!(value_function, prop::AbstractReachability)
     @inbounds value_function.current[reach(prop)] .= 1.0
 end
@@ -564,6 +573,13 @@ function checkdisjoint(reach, avoid)
     if !isdisjoint(reach, avoid)
         throw(DomainError((reach, avoid), "reach and avoid sets are not disjoint"))
     end
+end
+
+
+function initialize!(value_function, prop::AbstractReachAvoid, upper::Val{true})
+    value_function.current .= 1.0
+    @inbounds value_function.current[reach(prop)] .= 1.0
+    @inbounds value_function.current[avoid(prop)] .= -1.0
 end
 
 """
