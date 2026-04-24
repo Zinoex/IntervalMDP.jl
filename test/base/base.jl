@@ -11,6 +11,7 @@ test_files = [
     "labelling.jl",
     "dfa.jl",
     "product.jl",
+    "gensampling.jl",
 ]
 for f in test_files
     @testset "base/$f" include(f)

@@ -10,6 +10,22 @@ function Base.getindex(iter::AbstractIterator, i) end
 function Base.iterate(iter::AbstractIterator) end
 function Base.iterate(iter::AbstractIterator, state) end
 
+###################################
+# Sequence shape trait             #
+###################################
+#
+# An update-sequence iterator yields either bare states `s`
+# (`StateUpdateSequence`) or state-action pairs `(a, s)`
+# (`StateActionUpdateSequence`). `bellman_update!` dispatches on this trait,
+# so the inner loop structure is determined by the sampling strategy, not by
+# the model/workspace type.
+
+abstract type SequenceShape end
+struct StateUpdateSequence <: SequenceShape end
+struct StateActionUpdateSequence <: SequenceShape end
+
+# Default: today's iterators all yield (a, s) pairs.
+sequence_shape(::AbstractIterator) = StateActionUpdateSequence()
 
 struct ProductIterator{AI, SI} <: AbstractIterator
     A::AI
@@ -107,7 +123,7 @@ Base.iterate(iter::ZipIterator) = begin
     S = iter.S
 
     i = 1
-    return ((A[firstindex(A)-1+i], S[firstindex(S)-1+i]), i)
+    return ((A[firstindex(A) - 1 + i], S[firstindex(S) - 1 + i]), i)
 end
 
 Base.iterate(iter::ZipIterator, i) = begin
@@ -119,14 +135,17 @@ Base.iterate(iter::ZipIterator, i) = begin
         return nothing
     end
 
-    return ((A[firstindex(A)-1+i], S[firstindex(S)-1+i]), i)
+    return ((A[firstindex(A) - 1 + i], S[firstindex(S) - 1 + i]), i)
 end
 
 struct OnPolicyActionIterator <: AbstractIterator
     S::CartesianIndices
     strategy_cache::AbstractStrategyCache
 
-    function OnPolicyActionIterator(S::CartesianIndices, strategy_cache::AbstractStrategyCache)
+    function OnPolicyActionIterator(
+        S::CartesianIndices,
+        strategy_cache::AbstractStrategyCache,
+    )
         new(S, strategy_cache)
     end
 end
@@ -155,7 +174,6 @@ Base.iterate(iter::OnPolicyActionIterator, i) = begin
     return (CartesianIndex(strategy_cache[i]), i)
 end
 
-
 struct GivenSequenceIterator{NA, NS, T} <: AbstractIterator
     sequence::Vector{Tuple{NTuple{NA, T}, NTuple{NS, T}}}
 end
@@ -164,11 +182,11 @@ Base.length(iter::GivenSequenceIterator) = length(iter.sequence)
 Base.firstindex(iter::GivenSequenceIterator) = firstindex(iter.sequence)
 Base.lastindex(iter::GivenSequenceIterator) = lastindex(iter.sequence)
 Base.getindex(iter::GivenSequenceIterator, i) = begin
-    a, s =  getindex(iter.sequence, i)
+    a, s = getindex(iter.sequence, i)
 
     return (CartesianIndex(a...), CartesianIndex(s...))
 end
-Base.iterate(iter::GivenSequenceIterator) = begin 
+Base.iterate(iter::GivenSequenceIterator) = begin
     next = iterate(iter.sequence)
 
     if next === nothing
@@ -181,7 +199,7 @@ Base.iterate(iter::GivenSequenceIterator) = begin
     return ((CartesianIndex(a...), CartesianIndex(s...)), index)
 end
 
-Base.iterate(iter::GivenSequenceIterator, state) = begin 
+Base.iterate(iter::GivenSequenceIterator, state) = begin
     next = iterate(iter.sequence, state)
 
     if next === nothing
@@ -194,8 +212,26 @@ Base.iterate(iter::GivenSequenceIterator, state) = begin
     return ((CartesianIndex(a...), CartesianIndex(s...)), index)
 end
 
+# Iterator over states only. Yields `s::CartesianIndex`; used by
+# `StateUpdateSequence`-shape samplers that sweep all available actions per
+# visited state.
+struct StateIterator{SI} <: AbstractIterator
+    S::SI
+    nS::Int
 
+    function StateIterator(S)
+        new{typeof(S)}(S, length(S))
+    end
+end
 
+Base.length(iter::StateIterator) = iter.nS
+Base.firstindex(iter::StateIterator) = firstindex(iter.S)
+Base.lastindex(iter::StateIterator) = lastindex(iter.S)
+Base.getindex(iter::StateIterator, i) = iter.S[i]
+Base.iterate(iter::StateIterator) = iterate(iter.S)
+Base.iterate(iter::StateIterator, state) = iterate(iter.S, state)
+
+sequence_shape(::StateIterator) = StateUpdateSequence()
 
 ###################################
 # Sampling Strategies             #
@@ -211,46 +247,71 @@ default_sampling_strategy() = AllSampling()
 
 sample(::AllSampling, model) = exhaustive_cartesian(model)
 
-sample(::AllSampling, model, strategy_cache::AbstractStrategyCache) = exhaustive_cartesian(model, strategy_cache)
+sample(::AllSampling, model, strategy_cache::AbstractStrategyCache) =
+    exhaustive_cartesian(model, strategy_cache)
 
 exhaustive_cartesian(model::FactoredRMDP) = exhaustive_cartesian(model, modeltype(model))
-exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP) = ProductIterator(CartesianIndices(action_shape(model)), CartesianIndices(source_shape(model)))
-exhaustive_cartesian(model::IntervalAmbiguitySets) = ProductIterator(CartesianIndices(action_shape(model)), CartesianIndices(source_shape(model)))
+exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP) = ProductIterator(
+    CartesianIndices(action_shape(model)),
+    CartesianIndices(source_shape(model)),
+)
+exhaustive_cartesian(model::IntervalAmbiguitySets) = ProductIterator(
+    CartesianIndices(action_shape(model)),
+    CartesianIndices(source_shape(model)),
+)
 
-exhaustive_cartesian(model, strategy_cache::OptimizingStrategyCache) = exhaustive_cartesian(model)
-exhaustive_cartesian(model::FactoredRMDP, strategy_cache::NonOptimizingStrategyCache) = exhaustive_cartesian(model, modeltype(model), strategy_cache)
+exhaustive_cartesian(model, strategy_cache::OptimizingStrategyCache) =
+    exhaustive_cartesian(model)
+exhaustive_cartesian(model::FactoredRMDP, strategy_cache::NonOptimizingStrategyCache) =
+    exhaustive_cartesian(model, modeltype(model), strategy_cache)
 
-function exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP, strategy_cache::NonOptimizingStrategyCache)
-
+function exhaustive_cartesian(
+    model::FactoredRMDP,
+    ::IsIMDP,
+    strategy_cache::NonOptimizingStrategyCache,
+)
     S = CartesianIndices(source_shape(model))
     A = OnPolicyActionIterator(S, strategy_cache)
 
     return ZipIterator(A, S)
 end
 
-function exhaustive_cartesian(model::IntervalAmbiguitySets, strategy_cache::NonOptimizingStrategyCache) 
+function exhaustive_cartesian(
+    model::IntervalAmbiguitySets,
+    strategy_cache::NonOptimizingStrategyCache,
+)
     S = CartesianIndices(source_shape(model))
     A = OnPolicyActionIterator(S, strategy_cache)
 
     return ZipIterator(A, S)
 end
 
+# State-sweep sampler. Yields bare states; the inner loop of `bellman_update!`
+# is expected to sweep all available actions per visited state.
+struct AllStatesSweep <: SamplingStrategy end
 
+sample(::AllStatesSweep, model) = exhaustive_state_sweep(model)
+sample(::AllStatesSweep, model, ::AbstractStrategyCache) = exhaustive_state_sweep(model)
 
+exhaustive_state_sweep(model::FactoredRMDP) =
+    StateIterator(CartesianIndices(source_shape(model)))
+exhaustive_state_sweep(model::IntervalAmbiguitySets) =
+    StateIterator(CartesianIndices(source_shape(model)))
 
 struct GivenSequence <: SamplingStrategy end
 
-function sample(::GivenSequence, 
-                model, 
-                sequence::Vector{Tuple{NTuple{N, T}, NTuple{M, T}}} # each element: (state_tuple, action_tuple
-                ) where {N, M, T<:Integer}
+function sample(
+    ::GivenSequence,
+    model,
+    sequence::Vector{Tuple{NTuple{N, T}, NTuple{M, T}}}, # each element: (state_tuple, action_tuple
+) where {N, M, T <: Integer}
     return custom_sequence(model, sequence)
 end
 
 function custom_sequence(
     model::FactoredRMDP,
-    sequence::Vector{Tuple{NTuple{N, T}, NTuple{M, T}}}
-)::AbstractVector{Tuple{CartesianIndex{N}, CartesianIndex{M}}} where {N, M, T<:Integer}
+    sequence::Vector{Tuple{NTuple{N, T}, NTuple{M, T}}},
+)::AbstractVector{Tuple{CartesianIndex{N}, CartesianIndex{M}}} where {N, M, T <: Integer}
 
     # Precompute model shapes
     shape_s = source_shape(model)   # state shape tuple
@@ -278,6 +339,9 @@ end
 # TODO: 3. BRTDP gap based trajectory simulation
 # TODO: 
 
-
 ### Robust Value Iteration
 sampling_strategy(alg::RobustValueIteration) = AllSampling()
+
+### Generalized Sampling-based Robust Dynamic Programming
+sampling_strategy(alg::GeneralizedSamplingbasedRobustDynamicProgramming) =
+    alg.sampling_strategy

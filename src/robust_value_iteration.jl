@@ -24,6 +24,8 @@ function initialize!(value_function::ValueFunction, prop::AbstractReachability)
 end
 
 termination_criteria(::RobustValueIteration, spec) = termination_criteria(spec)
+termination_criteria(::GeneralizedSamplingbasedRobustDynamicProgramming, spec) =
+    termination_criteria(spec)
 
 """
     solve(problem::AbstractIntervalMDPProblem, alg::RobustValueIteration; callback=nothing)
@@ -173,7 +175,31 @@ function solve(problem::ControlSynthesisProblem, alg::RobustValueIteration; kwar
     return ControlSynthesisSolution(strategy, V, res, k)
 end
 
-function _value_iteration!(problem::AbstractIntervalMDPProblem, alg::RobustValueIteration; callback = nothing)
+function solve(
+    problem::VerificationProblem,
+    alg::GeneralizedSamplingbasedRobustDynamicProgramming;
+    kwargs...,
+)
+    V, k, res, _ = _value_iteration!(problem, alg; kwargs...)
+    return VerificationSolution(V, res, k)
+end
+
+function solve(
+    problem::ControlSynthesisProblem,
+    alg::GeneralizedSamplingbasedRobustDynamicProgramming;
+    kwargs...,
+)
+    V, k, res, strategy_cache = _value_iteration!(problem, alg; kwargs...)
+    strategy = cachetostrategy(strategy_cache)
+
+    return ControlSynthesisSolution(strategy, V, res, k)
+end
+
+function _value_iteration!(
+    problem::AbstractIntervalMDPProblem,
+    alg::ModelCheckingAlgorithm;
+    callback = nothing,
+)
     mp = system(problem)
     spec = specification(problem)
     term_criteria = termination_criteria(alg, spec)
@@ -198,8 +224,17 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg::RobustValue
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
 
-        update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, k))
-        bellman_update!(workspace, strategy_cache, update_sequence, value_function, k, mp, spec)
+        update_sequence =
+            sample(sampling_strat, mp, select_strategy_cache(strategy_cache, k))
+        bellman_update!(
+            workspace,
+            strategy_cache,
+            update_sequence,
+            value_function,
+            k,
+            mp,
+            spec,
+        )
         k += 1
 
         if !isnothing(callback)
@@ -214,7 +249,15 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg::RobustValue
     return value_function.current, k, value_function.previous, strategy_cache
 end
 
-function bellman_update!(workspace, strategy_cache, update_sequence, value_function::StateValueFunction, k, mp, spec)
+function bellman_update!(
+    workspace,
+    strategy_cache,
+    update_sequence,
+    value_function::StateValueFunction,
+    k,
+    mp,
+    spec,
+)
 
     # 1. compute expectation for Q(s, a)
     expectation!(
@@ -223,7 +266,7 @@ function bellman_update!(workspace, strategy_cache, update_sequence, value_funct
         value_function.intermediate_state_action_value,
         value_function.previous,
         select_model(mp, k), # For time-varying available and labelling functions
-        update_sequence;  
+        update_sequence;
         upper_bound = isoptimistic(spec),
         maximize = ismaximize(spec),
         prop = system_property(spec),
@@ -243,8 +286,15 @@ function bellman_update!(workspace, strategy_cache, update_sequence, value_funct
     step_postprocess_strategy_cache!(strategy_cache)
 end
 
-function bellman_update!(workspace, strategy_cache::NonOptimizingStrategyCache, update_sequence, value_function::StateValueFunction, k, mp, spec)
-
+function bellman_update!(
+    workspace,
+    strategy_cache::NonOptimizingStrategyCache,
+    update_sequence,
+    value_function::StateValueFunction,
+    k,
+    mp,
+    spec,
+)
     expectation!(
         workspace,
         select_strategy_cache(strategy_cache, k),

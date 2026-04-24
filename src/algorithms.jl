@@ -77,7 +77,7 @@ bellman_algorithm(alg::RobustValueIteration) = alg.bellman_alg
 ############################
 
 # TODO: Provide implementation for this algorithm. When provided, consider changing the default algorithm.
-struct IntervalValueIteration{B <: BellmanAlgorithm} <: ModelCheckingAlgorithm 
+struct IntervalValueIteration{B <: BellmanAlgorithm} <: ModelCheckingAlgorithm
     bellman_alg::B
 end
 bellman_algorithm(alg::IntervalValueIteration) = alg.bellman_alg
@@ -87,10 +87,20 @@ struct BoundedRealTimeDynamicProgramming{B <: BellmanAlgorithm} <: ModelChecking
 end
 bellman_algorithm(alg::BoundedRealTimeDynamicProgramming) = alg.bellman_alg
 
+"""
+    GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, sampling_strategy)
 
-struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm} <: ModelCheckingAlgorithm
+Generalized sampling-based robust dynamic programming. The `sampling_strategy`
+field controls which state (or state-action) pairs are updated each iteration.
+Defaults to `AllSampling()` for parity with [`RobustValueIteration`](@ref).
+"""
+struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm, S} <:
+       ModelCheckingAlgorithm
     bellman_alg::B
+    sampling_strategy::S
 end
+GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg::BellmanAlgorithm) =
+    GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, AllSampling())
 bellman_algorithm(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.bellman_alg
 
 ###############################

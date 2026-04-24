@@ -4,7 +4,8 @@ islower(mode::IntervalMode) = mode == Lower
 
 abstract type ValueFunction end
 
-struct StateValueFunction{R, A1 <: AbstractArray{R}, A2 <: AbstractArray{R}} <: ValueFunction
+struct StateValueFunction{R, A1 <: AbstractArray{R}, A2 <: AbstractArray{R}} <:
+       ValueFunction
     previous::A1
     current::A1
     intermediate_state_action_value::A2
@@ -60,8 +61,8 @@ end
 islower(V::StateValueFunction) = islower(V.interval)
 isupper(V::StateValueFunction) = isupper(V.interval)
 
-
-struct StateActionValueFunction{R, A1 <: AbstractArray{R}, A2 <: AbstractArray{R}} <: ValueFunction
+struct StateActionValueFunction{R, A1 <: AbstractArray{R}, A2 <: AbstractArray{R}} <:
+       ValueFunction
     previous::A1
     current::A1
     intermediate_state_value::A2
@@ -96,7 +97,6 @@ function StateActionValueFunction(problem::AbstractIntervalMDPProblem, mode::Int
     return StateActionValueFunction(previous, current, intermediate_state_value, mode)
 end
 
-
 function lastdiff!(V::StateActionValueFunction{R}) where {R}
     # Reuse prev to store the latest difference
     V.previous .-= V.current
@@ -114,11 +114,10 @@ end
 islower(V::StateActionValueFunction) = islower(V.interval)
 isupper(V::StateActionValueFunction) = isupper(V.interval)
 
-
-struct IntervalValueFunction{V <: ValueFunction} <: ValueFunction 
+struct IntervalValueFunction{V <: ValueFunction} <: ValueFunction
     lower::V
     upper::V
-end 
+end
 
 lower(V::IntervalValueFunction) = V.lower
 upper(V::IntervalValueFunction) = V.upper
@@ -136,17 +135,20 @@ end
 
 function gap(V::IntervalValueFunction)
     return abs.(V.lower.current .- V.upper.current)
-end 
+end
 
 function initialize!(value_function::IntervalValueFunction, prop::AbstractReachability)
     initialize!(value_function.lower, prop, Val(false))
     initialize!(value_function.upper, prop, Val(true))
 end
 
-
 #################
 # Algorithms    #
 #################
 construct_value_function(::RobustValueIteration, problem) = StateValueFunction(problem)
-construct_value_function(::IntervalValueIteration, problem) = IntervalValueFunction(lower=StateValueFunction(problem), upper=StateValueFunction(problem))
-construct_value_function(::GeneralizedSamplingbasedRobustDynamicProgramming, problem) = IntervalValueFunction(lower=StateActionValueFunction(problem), upper=StateActionValueFunction(problem))
+construct_value_function(::IntervalValueIteration, problem) = IntervalValueFunction(
+    lower = StateValueFunction(problem),
+    upper = StateValueFunction(problem),
+)
+construct_value_function(::GeneralizedSamplingbasedRobustDynamicProgramming, problem) =
+    StateValueFunction(problem)
