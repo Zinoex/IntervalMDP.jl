@@ -134,3 +134,86 @@ end
     @test num_iterations(sol_rvi) == num_iterations(sol_gsdp)
     @test value_function(sol_rvi) == value_function(sol_gsdp)
 end
+
+# Partial-sweep correctness: `RandomSubsetStateActions(0)` visits no
+# (s, a) pairs, so V must remain at the initialization value for every
+# iteration — no state's V or strategy should ever be touched.
+@testset "RandomSubsetStateActions(0) leaves V at V_0" for N in [Float32, Float64]
+    using Random
+    Random.seed!(0)
+
+    prob = IntervalAmbiguitySets(;
+        lower = N[
+            0 1//2 0
+            1//10 3//10 0
+            1//5 1//10 1
+        ],
+        upper = N[
+            1//2 7//10 0
+            3//5 1//2 0
+            7//10 3//10 1
+        ],
+    )
+    mdp = IntervalMarkovDecisionProcess([prob, prob], [1])
+
+    prop = FiniteTimeReachability([3], 10)
+    spec = Specification(prop, Pessimistic, Maximize)
+    problem = VerificationProblem(mdp, spec)
+
+    alg = GeneralizedSamplingbasedRobustDynamicProgramming(
+        default_bellman_algorithm(mdp),
+        IntervalMDP.RandomSubsetStateActions(0),
+    )
+    V, k, _ = solve(problem, alg)
+
+    # `initialize!` for FiniteTimeReachability sets V = 1 on reach states, 0
+    # elsewhere. With no (s, a) pairs visited, every iteration leaves V
+    # unchanged, so V must equal the initialization after `k == horizon`.
+    @test k == 10
+    @test V == N[0, 0, 1]
+end
+
+# With a large per-iteration subset size, RandomSubsetStateActions should
+# produce V bounded in [0, 1] for reachability and converge towards — or
+# at least stay below — the full-sweep fixed point on the same finite
+# horizon (sampling-based VI is monotone per visited state under
+# Pessimistic Maximize).
+@testset "RandomSubsetStateActions bounded + below full-sweep" for N in [Float32, Float64]
+    using Random
+    Random.seed!(123)
+
+    prob = IntervalAmbiguitySets(;
+        lower = N[
+            0 1//2 0
+            1//10 3//10 0
+            1//5 1//10 1
+        ],
+        upper = N[
+            1//2 7//10 0
+            3//5 1//2 0
+            7//10 3//10 1
+        ],
+    )
+    mdp = IntervalMarkovDecisionProcess([prob, prob], [1])
+
+    prop = FiniteTimeReachability([3], 20)
+    spec = Specification(prop, Pessimistic, Maximize)
+    problem = VerificationProblem(mdp, spec)
+
+    full = GeneralizedSamplingbasedRobustDynamicProgramming(
+        default_bellman_algorithm(mdp),
+        IntervalMDP.AllSampling(),
+    )
+    partial = GeneralizedSamplingbasedRobustDynamicProgramming(
+        default_bellman_algorithm(mdp),
+        IntervalMDP.RandomSubsetStateActions(50),
+    )
+    V_full, _, _ = solve(problem, full)
+    V_partial, _, _ = solve(problem, partial)
+
+    @test all(V_partial .>= N(0))
+    @test all(V_partial .<= N(1))
+    # Partial sweep ≤ full sweep under Pessimistic Maximize (monotone up;
+    # partial visit == fewer relaxations == lower V).
+    @test all(V_partial .<= V_full .+ 10 * eps(N))
+end

@@ -214,7 +214,16 @@ function _value_iteration!(
     nextiteration!(value_function)
 
     update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, 0))
-    bellman_update!(workspace, strategy_cache, update_sequence, value_function, 0, mp, spec)
+    bellman_update!(
+        alg,
+        workspace,
+        strategy_cache,
+        update_sequence,
+        value_function,
+        0,
+        mp,
+        spec,
+    )
     k = 1
 
     if !isnothing(callback)
@@ -227,6 +236,7 @@ function _value_iteration!(
         update_sequence =
             sample(sampling_strat, mp, select_strategy_cache(strategy_cache, k))
         bellman_update!(
+            alg,
             workspace,
             strategy_cache,
             update_sequence,
@@ -250,6 +260,7 @@ function _value_iteration!(
 end
 
 function bellman_update!(
+    ::RobustValueIteration,
     workspace,
     strategy_cache,
     update_sequence,
@@ -287,6 +298,7 @@ function bellman_update!(
 end
 
 function bellman_update!(
+    ::RobustValueIteration,
     workspace,
     strategy_cache::NonOptimizingStrategyCache,
     update_sequence,
@@ -306,6 +318,34 @@ function bellman_update!(
         maximize = ismaximize(spec),
         prop = system_property(spec),
     )
+    step_postprocess_value_function!(value_function, spec)
+    step_postprocess_strategy_cache!(strategy_cache)
+end
+
+function bellman_update!(
+    ::GeneralizedSamplingbasedRobustDynamicProgramming,
+    workspace,
+    strategy_cache,
+    update_sequence,
+    value_function::StateValueFunction,
+    k,
+    mp,
+    spec,
+)
+    # Single-pass (s, a) sweep. `sa_sweep!` relaxes V[s] and the strategy
+    # cache in place as each (a, s) pair in `update_sequence` is visited.
+    # States not visited in this iteration retain `V_prev`.
+    sa_sweep!(
+        workspace,
+        select_strategy_cache(strategy_cache, k),
+        value_function.current,
+        value_function.previous,
+        select_model(mp, k),
+        update_sequence;
+        upper_bound = isoptimistic(spec),
+        maximize = ismaximize(spec),
+    )
+
     step_postprocess_value_function!(value_function, spec)
     step_postprocess_strategy_cache!(strategy_cache)
 end

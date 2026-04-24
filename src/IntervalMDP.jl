@@ -64,6 +64,7 @@ include("workspace.jl")
 include("strategy_cache.jl")
 include("bellman.jl")
 include("state_sampling.jl")
+public AllSampling, AllStatesSweep, RandomSubsetStateActions
 
 include("robust_value_iteration.jl")
 

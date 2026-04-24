@@ -298,6 +298,39 @@ exhaustive_state_sweep(model::FactoredRMDP) =
 exhaustive_state_sweep(model::IntervalAmbiguitySets) =
     StateIterator(CartesianIndices(source_shape(model)))
 
+# Random-subset sampler: yields `k` independent uniform samples of (a, s)
+# pairs per iteration. Primarily useful with
+# `GeneralizedSamplingbasedRobustDynamicProgramming` — only visited states
+# get their V and strategy relaxed; unvisited states retain V_prev.
+struct RandomSubsetStateActions <: SamplingStrategy
+    k::Int
+end
+
+struct RandomSubsetIterator{NA, NS} <: AbstractIterator
+    pairs::Vector{Tuple{CartesianIndex{NA}, CartesianIndex{NS}}}
+end
+
+Base.length(iter::RandomSubsetIterator) = length(iter.pairs)
+Base.firstindex(iter::RandomSubsetIterator) = firstindex(iter.pairs)
+Base.lastindex(iter::RandomSubsetIterator) = lastindex(iter.pairs)
+Base.getindex(iter::RandomSubsetIterator, i) = iter.pairs[i]
+Base.iterate(iter::RandomSubsetIterator) = iterate(iter.pairs)
+Base.iterate(iter::RandomSubsetIterator, state) = iterate(iter.pairs, state)
+
+sample(ss::RandomSubsetStateActions, model) = random_subset_sample(ss.k, model)
+sample(ss::RandomSubsetStateActions, model, ::AbstractStrategyCache) =
+    random_subset_sample(ss.k, model)
+
+function random_subset_sample(k::Int, model)
+    A = CartesianIndices(action_shape(model))
+    S = CartesianIndices(source_shape(model))
+    pairs = Vector{Tuple{eltype(A), eltype(S)}}(undef, k)
+    @inbounds for i in 1:k
+        pairs[i] = (rand(A), rand(S))
+    end
+    return RandomSubsetIterator(pairs)
+end
+
 struct GivenSequence <: SamplingStrategy end
 
 function sample(

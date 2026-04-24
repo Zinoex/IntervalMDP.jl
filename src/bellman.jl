@@ -446,7 +446,6 @@ function _expectation_helper!(
     upper_bound = false,
     maximize = true,
 )
-
     @inbounds expectation_precomputation!(workspace, V, upper_bound)
 
     marginal = marginals(model)[1]
@@ -458,7 +457,6 @@ function _expectation_helper!(
         @inbounds budget = ws.budget[sub2ind(marginal, jₐ, jₛ)]
         @inbounds Vres[jₐ, jₛ] =
             state_action_expectation(ws, V, ambiguity_set, budget, upper_bound)
-            
     end
 
     return Vres
@@ -477,7 +475,6 @@ function _expectation_helper!(
     upper_bound = false,
     maximize = true,
 )
-
     @inbounds expectation_precomputation!(workspace, V, upper_bound)
 
     marginal = marginals(model)[1]
@@ -489,7 +486,6 @@ function _expectation_helper!(
         @inbounds budget = ws.budget[sub2ind(marginal, jₐ, jₛ)]
         @inbounds Vres[jₛ] =
             state_action_expectation(ws, V, ambiguity_set, budget, upper_bound)
-            
     end
 
     return Vres
@@ -510,6 +506,69 @@ Base.@propagate_inbounds expectation_precomputation!(
     upper_bound,
 ) = nothing
 
+#############################################################################
+# State-action sweep (sa_sweep!)
+#
+# Walks a (jₐ, jₛ)-yielding update sequence and updates V[s] and the
+# strategy cache asynchronously via `relax!`. Unlike `_expectation_helper!`
+# this path never materializes a (action × state)-shaped Q buffer: each
+# per-(s, a) expectation is computed into a workspace-local scalar and
+# immediately consumed. States not visited by the sequence retain their
+# V_prev value.
+#############################################################################
+
+# Single-threaded dense / sparse flat IMDP
+function sa_sweep!(
+    workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
+    strategy_cache::AbstractStrategyCache,
+    Vres::AbstractArray,
+    V::AbstractArray,
+    model,
+    update_sequence;
+    upper_bound = false,
+    maximize = true,
+)
+    expectation_precomputation!(workspace, V, upper_bound)
+
+    marginal = marginals(model)[1]
+    visited = falses(size(Vres))
+    copy!(Vres, V)
+
+    @inbounds for (jₐ, jₛ) in update_sequence
+        ambiguity_set = marginal[jₐ, jₛ]
+        budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
+        q = state_action_expectation(workspace, V, ambiguity_set, budget, upper_bound)
+        relax!(strategy_cache, Vres, visited, jₛ, jₐ, q, maximize)
+    end
+
+    return Vres
+end
+
+# Threaded dense / sparse: Phase 2 does not thread the sa_sweep inner loop
+# (see plan §3 — parallelism is opt-in, capped, and off by default for
+# trajectory-based samplers). Fall back to thread 1's workspace.
+sa_sweep!(
+    workspace::Union{
+        ThreadedDenseIntervalOMaxWorkspace,
+        ThreadedSparseIntervalOMaxWorkspace,
+    },
+    strategy_cache::AbstractStrategyCache,
+    Vres::AbstractArray,
+    V::AbstractArray,
+    model,
+    update_sequence;
+    upper_bound = false,
+    maximize = true,
+) = sa_sweep!(
+    workspace[1],
+    strategy_cache,
+    Vres,
+    V,
+    model,
+    update_sequence;
+    upper_bound = upper_bound,
+    maximize = maximize,
+)
 
 Base.@propagate_inbounds function state_action_expectation(
     workspace::DenseIntervalOMaxWorkspace,
@@ -542,7 +601,6 @@ Base.@propagate_inbounds function gap_value(
 
     return res
 end
-
 
 Base.@propagate_inbounds function state_action_expectation(
     workspace::SparseIntervalOMaxWorkspace,
@@ -597,7 +655,16 @@ function _expectation_helper!(
     maximize = true,
 )
     @inbounds for jₛ in CartesianIndices(source_shape(model))
-        state_expectation!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
+        state_expectation!(
+            workspace,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
     end
 
     return Vres
@@ -838,8 +905,14 @@ Base.@propagate_inbounds function state_expectation!(
         inds = map(marginal -> sub2ind(marginal, jₐ, jₛ), marginals(model))
         budgets = getindex.(workspace.budgets, inds)
 
-        workspace.actions[jₐ] =
-            state_action_expectation(workspace, V, model, ambiguity_sets, budgets, upper_bound)
+        workspace.actions[jₐ] = state_action_expectation(
+            workspace,
+            V,
+            model,
+            ambiguity_sets,
+            budgets,
+            upper_bound,
+        )
     end
 
     Vres[jₛ] = extract_strategy!(
@@ -960,7 +1033,16 @@ function _expectation_helper!(
     maximize = true,
 )
     @inbounds for jₛ in CartesianIndices(source_shape(model))
-        state_expectation!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
+        state_expectation!(
+            workspace,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
     end
 
     return Vres
