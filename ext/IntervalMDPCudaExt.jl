@@ -4,7 +4,18 @@ import LLVM
 using LLVM.Interop: assume
 
 using CUDA, CUDA.CUSPARSE, Adapt, SparseArrays
-using GPUArrays: AbstractGPUArray, AbstractGPUVector, AbstractGPUMatrix
+# Sparse device-array types live in GPUArrays.jl now (the per-backend
+# `CuSparseDevice*` aliases that used to be exported from CUDA.CUSPARSE
+# were removed). Use the GPUArrays versions for kernel-side dispatch.
+using GPUArrays:
+    AbstractGPUArray,
+    AbstractGPUVector,
+    AbstractGPUMatrix,
+    GPUSparseDeviceMatrixCSC,
+    GPUSparseDeviceMatrixCSR,
+    GPUSparseDeviceMatrixCOO,
+    GPUSparseDeviceMatrixBSR,
+    GPUSparseDeviceVector
 
 using IntervalMDP, LinearAlgebra
 

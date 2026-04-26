@@ -25,7 +25,7 @@ IntervalMDP.supportsize(
 const CuSparseDeviceColumnView{Tv, Ti} = SubArray{
     Tv,
     1,
-    <:CuSparseDeviceMatrixCSC{Tv, Ti},
+    <:GPUSparseDeviceMatrixCSC{Tv, Ti},
     Tuple{Base.Slice{Base.OneTo{Int}}, Int32},
     false,
 }

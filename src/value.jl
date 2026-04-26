@@ -28,7 +28,6 @@ type for state-value functions in primitive APIs.
 struct StateValueArray{T, N, A <: AbstractArray{T, N}} <: AbstractArray{T, N}
     data::A
 end
-StateValueArray(a::AbstractArray) = StateValueArray{eltype(a), ndims(a), typeof(a)}(a)
 
 """
     StateActionValueArray{T,N,A} <: AbstractArray{T,N}
@@ -41,8 +40,6 @@ state-action-value functions in primitive APIs.
 struct StateActionValueArray{T, N, A <: AbstractArray{T, N}} <: AbstractArray{T, N}
     data::A
 end
-StateActionValueArray(a::AbstractArray) =
-    StateActionValueArray{eltype(a), ndims(a), typeof(a)}(a)
 
 # Forward AbstractArray interface to `.data` for both wrappers.
 for W in (:StateValueArray, :StateActionValueArray)
