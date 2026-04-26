@@ -178,6 +178,63 @@ end
 # at least stay below — the full-sweep fixed point on the same finite
 # horizon (sampling-based VI is monotone per visited state under
 # Pessimistic Maximize).
+# Phase 3 trait API: ParallelismHint, sequence_shape, touched_states,
+# partition. These are forward-facing scaffolding that future
+# parallel/partial-sweep solvers will consult — the test pins down the
+# contracts now so subsequent phases don't drift.
+@testset "ParallelismHint + sequence_shape + touched_states + partition" begin
+    prob = IntervalAmbiguitySets(;
+        lower = [
+            0 1//2 0
+            1//10 3//10 0
+            1//5 1//10 1
+        ],
+        upper = [
+            1//2 7//10 0
+            3//5 1//2 0
+            7//10 3//10 1
+        ],
+    )
+    mdp = IntervalMarkovDecisionProcess([prob, prob], [1])
+
+    # AllSampling yields (a, s) → StateActionUpdateSequence; threadable.
+    seq_all = IntervalMDP.sample(IntervalMDP.AllSampling(), mdp)
+    @test IntervalMDP.sequence_shape(seq_all) === IntervalMDP.StateActionUpdateSequence()
+    @test IntervalMDP.parallelism_hint(seq_all) === IntervalMDP.Threaded()
+
+    # AllStatesSweep yields s → StateUpdateSequence; threadable.
+    seq_states = IntervalMDP.sample(IntervalMDP.AllStatesSweep(), mdp)
+    @test IntervalMDP.sequence_shape(seq_states) === IntervalMDP.StateUpdateSequence()
+
+    # touched_states deduplicates the s-projection.
+    touched = IntervalMDP.touched_states(seq_all)
+    @test touched isa Set
+    @test length(touched) == length(CartesianIndices(IntervalMDP.source_shape(mdp)))
+
+    # touched_states on a state-only sequence is just the set.
+    touched_s = IntervalMDP.touched_states(seq_states)
+    @test length(touched_s) == length(CartesianIndices(IntervalMDP.source_shape(mdp)))
+
+    # partition yields chunks whose total length equals the input length.
+    chunks = IntervalMDP.partition(seq_all, 3)
+    @test sum(length, chunks) == length(seq_all)
+
+    # nworkers resolution honors the cap and the runtime thread pool.
+    @test IntervalMDP.effective_nworkers(IntervalMDP.Sequential()) == 1
+    @test IntervalMDP.effective_nworkers(IntervalMDP.Threaded(0)) == Threads.nthreads()
+    @test IntervalMDP.effective_nworkers(IntervalMDP.Threaded(2)) ==
+          min(2, Threads.nthreads())
+    # Cap exceeding available threads is clipped to the runtime pool.
+    @test IntervalMDP.effective_nworkers(IntervalMDP.Threaded(1024)) == Threads.nthreads()
+
+    # Sampling strategies expose the same hint API.
+    @test IntervalMDP.parallelism_hint(IntervalMDP.AllSampling()) === IntervalMDP.Threaded()
+    @test IntervalMDP.parallelism_hint(IntervalMDP.AllStatesSweep()) ===
+          IntervalMDP.Threaded()
+    @test IntervalMDP.parallelism_hint(IntervalMDP.RandomSubsetStateActions(5)) ===
+          IntervalMDP.Threaded()
+end
+
 @testset "RandomSubsetStateActions bounded + below full-sweep" for N in [Float32, Float64]
     using Random
     Random.seed!(123)

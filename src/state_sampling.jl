@@ -27,6 +27,90 @@ struct StateActionUpdateSequence <: SequenceShape end
 # Default: today's iterators all yield (a, s) pairs.
 sequence_shape(::AbstractIterator) = StateActionUpdateSequence()
 
+###################################
+# Parallelism hint trait           #
+###################################
+#
+# Samplers and iterators advertise whether their update sequence can be
+# processed in parallel. `Threaded(n)` caps worker count to `n` (zero means
+# "use all available threads"); `Sequential` forbids parallelism — the right
+# choice for trajectory-based samplers (BRTDP, on-policy rollout) where step
+# `i` depends on V/strategy updates from step `i-1`.
+#
+# `effective_nworkers` resolves a hint against the runtime thread pool so
+# callers get a single scalar worker count regardless of system config.
+# Phase 3 wires the trait into new samplers and the solver reads it for
+# future parallel-execution decisions; full integration with
+# `construct_workspace` is Phase 4 (per plan §3).
+
+abstract type ParallelismHint end
+struct Sequential <: ParallelismHint end
+struct Threaded <: ParallelismHint
+    nworkers::Int
+end
+# `Threaded()` = unlimited (cap to `Threads.nthreads()` at runtime).
+Threaded() = Threaded(0)
+
+effective_nworkers(::Sequential) = 1
+effective_nworkers(h::Threaded) =
+    h.nworkers <= 0 ? Threads.nthreads() : min(h.nworkers, Threads.nthreads())
+
+# Iterators get the default `Threaded()` so exhaustive sweeps keep their
+# existing behavior. Trajectory-type iterators (on-policy, future BRTDP
+# rollouts) opt out to `Sequential` because their element order encodes a
+# causal dependency.
+parallelism_hint(::AbstractIterator) = Threaded()
+# (Trajectory-style iterators with causal step-i-depends-on-step-(i-1)
+# should override to `Sequential`. None of the currently-defined iterators
+# have that property — on-policy and given-sequence iterators just
+# enumerate (a, s) pairs independently — so they stay at the default.)
+# `parallelism_hint(::SamplingStrategy)` lives later in this file, after
+# the `SamplingStrategy` abstract type is declared.
+
+# Projection + partitioning helpers for parallel execution over an update
+# sequence. `touched_states` returns a (deduped, ordered) iterable of the
+# state indices visited by `seq`; callers use it to decide which V entries
+# to refresh when the sweep is partial. `partition(seq, nchunks)` produces
+# `nchunks` sub-iterators with roughly equal length; each chunk is
+# independent under `Threaded` parallelism.
+#
+# Default implementations work for any iterable that yields either `s` or
+# `(a, s)` pairs. Specialized overrides for our concrete iterator types
+# avoid repeated set construction.
+
+# `touched_states` returns a `Set{CartesianIndex}` by default. Callers that
+# want an ordered walk can `sort!(collect(...))` — the partial-sweep
+# relax logic doesn't care about order.
+touched_states(seq) = _touched_states(sequence_shape(seq), seq)
+_touched_states(::StateUpdateSequence, seq) = Set(seq)
+_touched_states(::StateActionUpdateSequence, seq) = Set(s for (_, s) in seq)
+
+# Partition: default chunks by index range over `eachindex(seq)`. For our
+# index-based `AbstractIterator`s this is O(1) per chunk via `SubIterator`.
+# Non-indexable fallback collects — callers should prefer indexable
+# iterators for large sweeps.
+function partition(seq, nchunks::Integer)
+    nchunks <= 1 && return Any[seq]
+    n = length(seq)
+    n == 0 && return Any[seq]
+    chunks = Any[]
+    chunk_size, rem = divrem(n, nchunks)
+    start = firstindex(seq)
+    for i in 1:nchunks
+        extra = i <= rem ? 1 : 0
+        stop = start + chunk_size + extra - 1
+        stop < start && continue
+        push!(chunks, _view_iter(seq, start:stop))
+        start = stop + 1
+    end
+    return chunks
+end
+
+# `_view_iter` returns a lightweight view over `seq[range]`. Concrete
+# iterators that admit O(1) slicing should override this; the fallback
+# materializes a `Vector` of the iterator's element type.
+_view_iter(seq, range) = [seq[i] for i in range]
+
 struct ProductIterator{AI, SI} <: AbstractIterator
     A::AI
     S::SI
@@ -241,6 +325,13 @@ abstract type SamplingStrategy end
 
 function sample(::SamplingStrategy, model) end
 
+# Sampling strategies advertise a hint that the solver can consult when
+# choosing workspace layout / loop structure. Default is `Threaded()` so
+# exhaustive sweeps keep their existing behavior; trajectory-style
+# samplers (BRTDP rollouts, on-policy trajectories) should override to
+# `Sequential`.
+parallelism_hint(::SamplingStrategy) = Threaded()
+
 struct AllSampling <: SamplingStrategy end
 
 default_sampling_strategy() = AllSampling()
@@ -250,8 +341,25 @@ sample(::AllSampling, model) = exhaustive_cartesian(model)
 sample(::AllSampling, model, strategy_cache::AbstractStrategyCache) =
     exhaustive_cartesian(model, strategy_cache)
 
+# `ProductProcess` wraps a Markov process with a DFA. Iteration over the
+# (a, s) update sequence is identical to the underlying MDP — the DFA part
+# is handled by `_expectation_helper!(::ProductWorkspace, ...)` which
+# splits Vres along the DFA-state axis and recursively dispatches to the
+# inner Markov process for each DFA state.
+exhaustive_cartesian(proc::ProductProcess) = exhaustive_cartesian(markov_process(proc))
+exhaustive_cartesian(proc::ProductProcess, sc::AbstractStrategyCache) =
+    exhaustive_cartesian(markov_process(proc), sc)
+
 exhaustive_cartesian(model::FactoredRMDP) = exhaustive_cartesian(model, modeltype(model))
 exhaustive_cartesian(model::FactoredRMDP, ::IsIMDP) = ProductIterator(
+    CartesianIndices(action_shape(model)),
+    CartesianIndices(source_shape(model)),
+)
+# Factored interval MDPs (N marginals). `ProductIterator` works with any
+# N-dim `CartesianIndices`, so the iterator is identical in form — the
+# difference shows up in how the downstream `_expectation_helper!` interprets
+# the multi-dimensional (a, s) indices against each marginal's support.
+exhaustive_cartesian(model::FactoredRMDP, ::IsFIMDP) = ProductIterator(
     CartesianIndices(action_shape(model)),
     CartesianIndices(source_shape(model)),
 )

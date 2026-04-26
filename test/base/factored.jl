@@ -424,7 +424,11 @@ end
         end
 
         @testset "maximization" begin
-            Vexpected = IntervalMDP.expectation(V, imc; upper_bound = true) # Using O-maximization, should be equivalent
+            # Top-level `expectation` returns Q-shape (action × state). For the
+            # 1-action `imc` here that's (1, 3); the factored helpers below
+            # write V-shape (3,). `vec` flattens the singleton action axis so
+            # the comparison is meaningful.
+            Vexpected = vec(IntervalMDP.expectation(V, imc; upper_bound = true)) # Using O-maximization, should be equivalent
 
             ws = IntervalMDP.construct_workspace(imc, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
@@ -468,7 +472,7 @@ end
         end
 
         @testset "minimization" begin
-            Vexpected = IntervalMDP.expectation(V, imc; upper_bound = false) # Using O-maximization, should be equivalent
+            Vexpected = vec(IntervalMDP.expectation(V, imc; upper_bound = false)) # Using O-maximization, should be equivalent (see maximization comment)
 
             ws = IntervalMDP.construct_workspace(imc, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
@@ -584,7 +588,14 @@ end
             ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             V_vertex = zeros(N, 2, 3)
-            IntervalMDP.expectation!(ws, strategy_cache, V_vertex, V, mdp; upper_bound = true)
+            IntervalMDP.expectation!(
+                ws,
+                strategy_cache,
+                V_vertex,
+                V,
+                mdp;
+                upper_bound = true,
+            )
 
             @test V_vertex ≈ N[
                 1076//75 4279//300 167//15
@@ -659,7 +670,14 @@ end
             ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             V_vertex = zeros(N, 2, 3)
-            IntervalMDP.expectation!(ws, strategy_cache, V_vertex, V, mdp; upper_bound = false)
+            IntervalMDP.expectation!(
+                ws,
+                strategy_cache,
+                V_vertex,
+                V,
+                mdp;
+                upper_bound = false,
+            )
 
             @test V_vertex ≈ N[
                 4399//450 41//5 488//45
@@ -1333,7 +1351,14 @@ end
             ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             V_vertex = zeros(N, 3, 3, 3)
-            IntervalMDP.expectation!(ws, strategy_cache, V_vertex, V, mdp; upper_bound = true)
+            IntervalMDP.expectation!(
+                ws,
+                strategy_cache,
+                V_vertex,
+                V,
+                mdp;
+                upper_bound = true,
+            )
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
@@ -1403,7 +1428,14 @@ end
             ws = IntervalMDP.construct_workspace(mdp, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)
             V_vertex = zeros(N, 3, 3, 3)
-            IntervalMDP.expectation!(ws, strategy_cache, V_vertex, V, mdp; upper_bound = false)
+            IntervalMDP.expectation!(
+                ws,
+                strategy_cache,
+                V_vertex,
+                V,
+                mdp;
+                upper_bound = false,
+            )
 
             ws = IntervalMDP.construct_workspace(mdp, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(mdp)

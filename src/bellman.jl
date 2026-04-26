@@ -80,6 +80,11 @@ function expectation(
     maximize = true,
     prop = nothing,
 )
+    # Returns the per-(s, a) ambiguity-set expectation Q[a, s] = opt_γ E[V],
+    # *without* reducing over actions — the action max/min is the caller's
+    # responsibility (`strategy!`). For models with a single action variable
+    # the leading singleton dimension can be dropped via `vec`/`dropdims` if
+    # the user wants a state-indexed result.
     Vres = Array{eltype(V)}(undef, (action_values(model)..., size(V)...))
 
     return expectation!(
@@ -570,6 +575,81 @@ sa_sweep!(
     maximize = maximize,
 )
 
+#############################################################################
+# expectation_v! — V-shape (state-indexed) entry point.
+#
+# Top-level `expectation()` and any caller that wants a state-indexed result
+# (rather than the (action × state) Q-array used internally by
+# `RobustValueIteration`'s `bellman_update!`) goes through this dispatcher.
+# It picks the right per-workspace path:
+#
+#   - dense / sparse flat IMDP → `sa_sweep!` (writes V[s] directly via
+#     per-state action scratch + `relax!`; no global Q materialization).
+#   - factored McCormick / O-Max / Vertex → existing `_expectation_helper!`
+#     (already V-shape — they call `extract_strategy!` per state).
+#
+# `prop` is accepted but ignored at this layer — it's only meaningful for
+# `ProductWorkspace`, which has its own bespoke entry in `expectation!`.
+#############################################################################
+
+function expectation_v!(
+    workspace::Union{
+        DenseIntervalOMaxWorkspace,
+        SparseIntervalOMaxWorkspace,
+        ThreadedDenseIntervalOMaxWorkspace,
+        ThreadedSparseIntervalOMaxWorkspace,
+    },
+    strategy_cache,
+    Vres,
+    V,
+    model,
+    update_sequence;
+    upper_bound = false,
+    maximize = true,
+    prop = nothing,
+)
+    return sa_sweep!(
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        model,
+        update_sequence;
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
+end
+
+function expectation_v!(
+    workspace::Union{
+        FactoredIntervalMcCormickWorkspace,
+        ThreadedFactoredIntervalMcCormickWorkspace,
+        FactoredIntervalOMaxWorkspace,
+        ThreadedFactoredIntervalOMaxWorkspace,
+        FactoredVertexIteratorWorkspace,
+        ThreadedFactoredVertexIteratorWorkspace,
+    },
+    strategy_cache,
+    Vres,
+    V,
+    model,
+    update_sequence;
+    upper_bound = false,
+    maximize = true,
+    prop = nothing,
+)
+    return _expectation_helper!(
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        model,
+        update_sequence;
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
+end
+
 Base.@propagate_inbounds function state_action_expectation(
     workspace::DenseIntervalOMaxWorkspace,
     V,
@@ -650,7 +730,8 @@ function _expectation_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    _update_sequence;
     upper_bound = false,
     maximize = true,
 )
@@ -676,7 +757,8 @@ function _expectation_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    _update_sequence;
     upper_bound = false,
     maximize = true,
 )
@@ -841,7 +923,8 @@ function _expectation_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    _update_sequence;
     upper_bound = false,
     maximize = true,
 )
@@ -867,7 +950,8 @@ function _expectation_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    _update_sequence;
     upper_bound = false,
     maximize = true,
 )
@@ -1028,7 +1112,8 @@ function _expectation_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    _update_sequence;
     upper_bound = false,
     maximize = true,
 )
@@ -1054,7 +1139,8 @@ function _expectation_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    _update_sequence;
     upper_bound = false,
     maximize = true,
 )
