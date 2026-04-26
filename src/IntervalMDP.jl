@@ -62,8 +62,10 @@ include("utils.jl")
 include("threading.jl")
 include("workspace.jl")
 include("strategy_cache.jl")
-include("bellman.jl")
+# `state_sampling.jl` defines the `SequenceShape` trait that `bellman.jl`
+# dispatches on, so it must come first.
 include("state_sampling.jl")
+include("bellman.jl")
 public AllSampling, AllStatesSweep, RandomSubsetStateActions
 
 include("robust_value_iteration.jl")

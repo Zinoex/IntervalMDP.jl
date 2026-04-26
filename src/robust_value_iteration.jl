@@ -269,13 +269,17 @@ function bellman_update!(
     mp,
     spec,
 )
-
-    # 1. compute expectation for Q(s, a)
-    expectation!(
+    # `expectation_v!` writes V'[s] directly using per-state action scratch
+    # in `workspace.actions` — no `(action × state)` Q-array is allocated
+    # along the hot path. For RobustVI the update sequence is a
+    # `StateUpdateSequence` (yields `s`), so this dispatches to the
+    # state-outer + `extract_strategy!` path. The `StateValueArray`
+    # wrappers tag the buffers as state-value-shape at the type level.
+    expectation_v!(
         workspace,
         select_strategy_cache(strategy_cache, k),
-        value_function.intermediate_state_action_value,
-        value_function.previous,
+        StateValueArray(value_function.current),
+        StateValueArray(value_function.previous),
         select_model(mp, k), # For time-varying available and labelling functions
         update_sequence;
         upper_bound = isoptimistic(spec),
@@ -283,41 +287,8 @@ function bellman_update!(
         prop = system_property(spec),
     )
 
-    # 2. extract strategy and compute V'(s) = max_a Q(s, a)
-    strategy!(
-        select_strategy_cache(strategy_cache, k),
-        value_function.current,
-        value_function.intermediate_state_action_value,
-        select_model(mp, k),
-        ismaximize(spec),
-    )
-
-    # 3. post process to compute V(s) = g(s, V'(s)) where the definition of g depends on the objective
-    step_postprocess_value_function!(value_function, spec)
-    step_postprocess_strategy_cache!(strategy_cache)
-end
-
-function bellman_update!(
-    ::RobustValueIteration,
-    workspace,
-    strategy_cache::NonOptimizingStrategyCache,
-    update_sequence,
-    value_function::StateValueFunction,
-    k,
-    mp,
-    spec,
-)
-    expectation!(
-        workspace,
-        select_strategy_cache(strategy_cache, k),
-        value_function.current,
-        value_function.previous,
-        select_model(mp, k),  # For time-varying available and labelling functions
-        update_sequence;
-        upper_bound = isoptimistic(spec),
-        maximize = ismaximize(spec),
-        prop = system_property(spec),
-    )
+    # Post-process to compute V(s) = g(s, V'(s)) where the definition of g
+    # depends on the objective (reachability / safety / reward / discount).
     step_postprocess_value_function!(value_function, spec)
     step_postprocess_strategy_cache!(strategy_cache)
 end
@@ -332,14 +303,16 @@ function bellman_update!(
     mp,
     spec,
 )
-    # Single-pass (s, a) sweep. `sa_sweep!` relaxes V[s] and the strategy
-    # cache in place as each (a, s) pair in `update_sequence` is visited.
-    # States not visited in this iteration retain `V_prev`.
-    sa_sweep!(
+    # Use the V-shape primitive — for the sampling-based path the update
+    # sequence is a `StateActionUpdateSequence`, so this dispatches to
+    # `sa_sweep!`, which relaxes V[s] and the strategy cache in place as
+    # each (a, s) pair is visited. States not visited in this iteration
+    # retain `V_prev`.
+    expectation_v!(
         workspace,
         select_strategy_cache(strategy_cache, k),
-        value_function.current,
-        value_function.previous,
+        StateValueArray(value_function.current),
+        StateValueArray(value_function.previous),
         select_model(mp, k),
         update_sequence;
         upper_bound = isoptimistic(spec),

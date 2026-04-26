@@ -2,31 +2,86 @@
 isupper(mode::IntervalMode) = mode == Upper
 islower(mode::IntervalMode) = mode == Lower
 
+#######################################################################
+# Semantic array wrappers
+#
+# Many primitives in this package take a result array whose intended
+# meaning (a state-value V[s] or a state-action-value Q[a, s]) is not
+# expressible in plain `Array{T,N}`. These wrapper types make the
+# distinction explicit at the type level, so a primitive that must
+# write Q cannot silently accept a V-shaped buffer (and vice versa).
+#
+# Both wrappers are thin: they hold a single `data::AbstractArray` and
+# forward the AbstractArray interface. Users can construct them from
+# raw arrays via the unary constructor, or let the public
+# `expectation!` / `expectation` entry points do the lifting based on
+# the buffer's shape.
+#######################################################################
+
+"""
+    StateValueArray{T,N,A} <: AbstractArray{T,N}
+
+Wraps an array whose axes index *states only* (V-shape). Has the same
+shape and `ndims` as the system's state space. Used as the canonical
+type for state-value functions in primitive APIs.
+"""
+struct StateValueArray{T, N, A <: AbstractArray{T, N}} <: AbstractArray{T, N}
+    data::A
+end
+StateValueArray(a::AbstractArray) = StateValueArray{eltype(a), ndims(a), typeof(a)}(a)
+
+"""
+    StateActionValueArray{T,N,A} <: AbstractArray{T,N}
+
+Wraps an array whose axes index *both actions and states* (Q-shape):
+`(action_shape..., state_shape...)`. Has strictly more axes than the
+matching `StateValueArray`. Used as the canonical type for
+state-action-value functions in primitive APIs.
+"""
+struct StateActionValueArray{T, N, A <: AbstractArray{T, N}} <: AbstractArray{T, N}
+    data::A
+end
+StateActionValueArray(a::AbstractArray) =
+    StateActionValueArray{eltype(a), ndims(a), typeof(a)}(a)
+
+# Forward AbstractArray interface to `.data` for both wrappers.
+for W in (:StateValueArray, :StateActionValueArray)
+    @eval begin
+        Base.size(x::$W) = size(x.data)
+        Base.IndexStyle(::Type{$W{T, N, A}}) where {T, N, A} = IndexStyle(A)
+        Base.@propagate_inbounds Base.getindex(x::$W, I::Int...) = getindex(x.data, I...)
+        Base.@propagate_inbounds Base.getindex(x::$W, I::CartesianIndex) =
+            getindex(x.data, I)
+        Base.@propagate_inbounds Base.getindex(x::$W, I::Vararg{Any, M}) where {M} =
+            getindex(x.data, I...)
+        Base.@propagate_inbounds Base.setindex!(x::$W, v, I::Int...) =
+            (setindex!(x.data, v, I...); x)
+        Base.@propagate_inbounds Base.setindex!(x::$W, v, I::CartesianIndex) =
+            (setindex!(x.data, v, I); x)
+        Base.@propagate_inbounds Base.setindex!(x::$W, v, I::Vararg{Any, M}) where {M} =
+            (setindex!(x.data, v, I...); x)
+        Base.similar(x::$W, ::Type{S}, dims::Dims) where {S} = $W(similar(x.data, S, dims))
+    end
+end
+
+# `parent` lets primitives reach the underlying array for code paths
+# that need to interact with raw-array APIs (e.g. `selectdim`).
+Base.parent(x::StateValueArray) = x.data
+Base.parent(x::StateActionValueArray) = x.data
+
 abstract type ValueFunction end
 
-struct StateValueFunction{R, A1 <: AbstractArray{R}, A2 <: AbstractArray{R}} <:
-       ValueFunction
+# State-value (V) function: holds the per-state value array across iterations.
+# Per project convention there is no per-iteration Q-array on this type — the
+# `(action × state)` Q-values are transient, computed into per-thread
+# `workspace.actions` scratch on demand by `expectation_v!`. See plan §1.
+struct StateValueFunction{R, A1 <: AbstractArray{R}} <: ValueFunction
     previous::A1
     current::A1
-    intermediate_state_action_value::A2
     interval::IntervalMode
 end
 
-function StateValueFunction(problem::AbstractIntervalMDPProblem)
-    mp = system(problem)
-    previous = arrayfactory(mp, valuetype(mp), state_values(mp))
-    previous .= zero(valuetype(mp))
-    current = copy(previous)
-
-    dim = (action_values(mp)..., state_values(mp)...)
-    # concat gives shape: (a1, a2) , (s1, s2) => (a1, a2, s1, s2)
-    # (a, s) to access a more frequently due to column major
-    # TODO: works for IMDP, need to check for fIMDP
-    intermediate_state_action_value = arrayfactory(mp, valuetype(mp), dim)
-    intermediate_state_action_value .= zero(valuetype(mp))
-
-    return StateValueFunction(previous, current, intermediate_state_action_value, Lower)
-end
+StateValueFunction(problem::AbstractIntervalMDPProblem) = StateValueFunction(problem, Lower)
 
 function StateValueFunction(problem::AbstractIntervalMDPProblem, mode::IntervalMode)
     mp = system(problem)
@@ -34,14 +89,7 @@ function StateValueFunction(problem::AbstractIntervalMDPProblem, mode::IntervalM
     previous .= zero(valuetype(mp))
     current = copy(previous)
 
-    dim = (action_values(mp)..., state_values(mp)...)
-    # concat gives shape: (a1, a2) , (s1, s2) => (a1, a2, s1, s2)
-    # (a, s) to access a more frequently due to column major
-    # TODO: works for IMDP, need to check for fIMDP
-    intermediate_state_action_value = arrayfactory(mp, valuetype(mp), dim)
-    intermediate_state_action_value .= zero(valuetype(mp))
-
-    return StateValueFunction(previous, current, intermediate_state_action_value, mode)
+    return StateValueFunction(previous, current, mode)
 end
 
 function lastdiff!(V::StateValueFunction{R}) where {R}

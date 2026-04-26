@@ -207,8 +207,64 @@ end
 function expectation!(
     workspace,
     strategy_cache,
-    Vres::AbstractArray,
+    output::AbstractArray,
     V::AbstractArray,
+    model::IntervalMarkovProcess,
+    update_sequence = sample(default_sampling_strategy(), model, strategy_cache);
+    upper_bound = false,
+    maximize = true,
+    prop = nothing,
+)
+    # Public `expectation!` shape-dispatches: a buffer the same shape as
+    # `V` is taken to be V-shape (state-indexed); a buffer with strictly
+    # more axes is taken to be Q-shape (action × state). Internally we
+    # lift to the corresponding `StateValueArray` / `StateActionValueArray`
+    # wrapper and route to the typed primitive `expectation_v!` or
+    # `expectation_q!`. Raw-array callers therefore never need to wrap
+    # manually, but the type tag survives one hop deeper so the primitive
+    # can refuse a mismatched buffer.
+    if size(output) == size(V)
+        return expectation_v!(
+            workspace,
+            strategy_cache,
+            StateValueArray(output),
+            StateValueArray(V),
+            model,
+            update_sequence;
+            upper_bound = upper_bound,
+            maximize = maximize,
+            prop = prop,
+        )
+    elseif ndims(output) > ndims(V)
+        return expectation_q!(
+            workspace,
+            strategy_cache,
+            StateActionValueArray(output),
+            StateValueArray(V),
+            model,
+            update_sequence;
+            upper_bound = upper_bound,
+            maximize = maximize,
+            prop = prop,
+        )
+    else
+        throw(
+            ArgumentError(
+                "expectation!: output buffer has fewer dims than V (size(output)=$(size(output)), size(V)=$(size(V))). Pass a V-shape buffer (size == size(V)) or a Q-shape buffer (action axes prepended).",
+            ),
+        )
+    end
+end
+
+# Typed Q-shape primitive: writes Qres[a, s] = opt_γ E_γ[V(·)] for every
+# (a, s) the workspace iterates. Caller is responsible for the action
+# reduction (`strategy!`). NonOptimizing strategy caches don't fit this
+# shape (only one action per state is meaningful).
+function expectation_q!(
+    workspace,
+    strategy_cache::OptimizingStrategyCache,
+    Qres::StateActionValueArray,
+    V::StateValueArray,
     model::IntervalMarkovProcess,
     update_sequence = sample(default_sampling_strategy(), model, strategy_cache);
     upper_bound = false,
@@ -218,8 +274,51 @@ function expectation!(
     return _expectation_helper!(
         workspace,
         strategy_cache,
-        Vres,
-        V,
+        parent(Qres),
+        parent(V),
+        model,
+        update_sequence;
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
+end
+
+function expectation_q!(
+    ::Any,
+    ::NonOptimizingStrategyCache,
+    ::StateActionValueArray,
+    ::StateValueArray,
+    ::IntervalMarkovProcess,
+    args...;
+    kwargs...,
+)
+    throw(
+        ArgumentError(
+            "expectation_q!: NonOptimizingStrategyCache (given strategy) is not compatible with a Q-shape output — there is only one action per state. Use expectation_v! with a V-shape buffer.",
+        ),
+    )
+end
+
+# Typed V-shape primitive: writes Vres[s] = opt_a opt_γ E_γ[V(·)] for
+# every state the workspace visits. Both Optimizing and NonOptimizing
+# strategy caches are supported (the NonOptimizing case takes the action
+# from the cache).
+function expectation_v!(
+    workspace,
+    strategy_cache,
+    Vres::StateValueArray,
+    V::StateValueArray,
+    model::IntervalMarkovProcess,
+    update_sequence = sample(default_sampling_strategy(), model, strategy_cache);
+    upper_bound = false,
+    maximize = true,
+    prop = nothing,
+)
+    return _expectation_v_kernel!(
+        workspace,
+        strategy_cache,
+        parent(Vres),
+        parent(V),
         model,
         update_sequence;
         upper_bound = upper_bound,
@@ -233,7 +332,7 @@ function expectation!(
     Vres::AbstractArray,
     V::AbstractArray,
     model::ProductProcess,
-    update_sequence;
+    update_sequence = sample(default_sampling_strategy(), model, strategy_cache);
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -576,23 +675,29 @@ sa_sweep!(
 )
 
 #############################################################################
-# expectation_v! — V-shape (state-indexed) entry point.
+# expectation_v! — V-shape (state-indexed) primitive.
 #
-# Top-level `expectation()` and any caller that wants a state-indexed result
-# (rather than the (action × state) Q-array used internally by
-# `RobustValueIteration`'s `bellman_update!`) goes through this dispatcher.
-# It picks the right per-workspace path:
+# Always writes V[s], one value per state. No (action × state) Q-array is
+# ever materialized: per-state action scratch lives in `workspace.actions`,
+# is reused across states, and is reduced to V[s] either by
+# `extract_strategy!` (state-outer full sweep) or by `relax!` (per-(s, a)
+# asynchronous sweep). The choice is dispatched on the update sequence's
+# `sequence_shape`:
 #
-#   - dense / sparse flat IMDP → `sa_sweep!` (writes V[s] directly via
-#     per-state action scratch + `relax!`; no global Q materialization).
-#   - factored McCormick / O-Max / Vertex → existing `_expectation_helper!`
-#     (already V-shape — they call `extract_strategy!` per state).
+#   - `StateUpdateSequence` (yields bare `s`): per-state full sweep over
+#     `available(s)` — used by `RobustValueIteration`. Calls the workspace's
+#     existing `state_expectation_v!`.
+#   - `StateActionUpdateSequence` (yields `(a, s)`): per-(s, a) sweep, with
+#     `relax!` driving strictly-better updates over visited actions — used
+#     by sampling-based / partial-update algorithms like `GenSamplingDP`.
+#     Calls `sa_sweep!`.
 #
-# `prop` is accepted but ignored at this layer — it's only meaningful for
+# `prop` is accepted but ignored at this layer; it is only meaningful for
 # `ProductWorkspace`, which has its own bespoke entry in `expectation!`.
 #############################################################################
 
-function expectation_v!(
+# Dense / sparse flat IMDP: dispatch on `sequence_shape(update_sequence)`.
+function _expectation_v_kernel!(
     workspace::Union{
         DenseIntervalOMaxWorkspace,
         SparseIntervalOMaxWorkspace,
@@ -608,6 +713,31 @@ function expectation_v!(
     maximize = true,
     prop = nothing,
 )
+    return _expectation_v_dispatch!(
+        sequence_shape(update_sequence),
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        model,
+        update_sequence;
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
+end
+
+# `(a, s)` sequence — async sweep (sa_sweep! / relax! semantics).
+function _expectation_v_dispatch!(
+    ::StateActionUpdateSequence,
+    workspace,
+    strategy_cache,
+    Vres,
+    V,
+    model,
+    update_sequence;
+    upper_bound,
+    maximize,
+)
     return sa_sweep!(
         workspace,
         strategy_cache,
@@ -620,34 +750,291 @@ function expectation_v!(
     )
 end
 
-function expectation_v!(
-    workspace::Union{
-        FactoredIntervalMcCormickWorkspace,
-        ThreadedFactoredIntervalMcCormickWorkspace,
-        FactoredIntervalOMaxWorkspace,
-        ThreadedFactoredIntervalOMaxWorkspace,
-        FactoredVertexIteratorWorkspace,
-        ThreadedFactoredVertexIteratorWorkspace,
-    },
-    strategy_cache,
+# State sequence + Optimizing — per-state full sweep over available actions
+# into `ws.actions`, then `extract_strategy!` to reduce to V[s] and (if the
+# cache is a synthesis cache) record the argmax.
+function _expectation_v_dispatch!(
+    ::StateUpdateSequence,
+    workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
+    strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
     model,
     update_sequence;
+    upper_bound,
+    maximize,
+)
+    expectation_precomputation!(workspace, V, upper_bound)
+    marginal = marginals(model)[1]
+    @inbounds for jₛ in update_sequence
+        for jₐ in available(model, jₛ)
+            ambiguity_set = marginal[jₐ, jₛ]
+            budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
+            workspace.actions[jₐ] =
+                state_action_expectation(workspace, V, ambiguity_set, budget, upper_bound)
+        end
+        Vres[jₛ] = extract_strategy!(
+            strategy_cache,
+            workspace.actions,
+            available(model, jₛ),
+            jₛ,
+            maximize,
+        )
+    end
+    return Vres
+end
+
+# State sequence + NonOptimizing — given-strategy evaluation. Each state has
+# exactly one prescribed action `σ(s)`; compute its expectation directly.
+function _expectation_v_dispatch!(
+    ::StateUpdateSequence,
+    workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    update_sequence;
+    upper_bound,
+    maximize,
+)
+    expectation_precomputation!(workspace, V, upper_bound)
+    marginal = marginals(model)[1]
+    @inbounds for jₛ in update_sequence
+        jₐ = CartesianIndex(strategy_cache[jₛ])
+        ambiguity_set = marginal[jₐ, jₛ]
+        budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
+        Vres[jₛ] =
+            state_action_expectation(workspace, V, ambiguity_set, budget, upper_bound)
+    end
+    return Vres
+end
+
+# Threaded versions — partition states across threads; each thread reuses its
+# own `ws.actions` buffer.
+function _expectation_v_dispatch!(
+    ::StateUpdateSequence,
+    workspace::Union{
+        ThreadedDenseIntervalOMaxWorkspace,
+        ThreadedSparseIntervalOMaxWorkspace,
+    },
+    strategy_cache::OptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    update_sequence;
+    upper_bound,
+    maximize,
+)
+    @inbounds expectation_precomputation!(workspace, V, upper_bound)
+    marginal = marginals(model)[1]
+    @threadstid tid for jₛ in update_sequence
+        @inbounds ws = workspace[tid]
+        @inbounds for jₐ in available(model, jₛ)
+            ambiguity_set = marginal[jₐ, jₛ]
+            budget = ws.budget[sub2ind(marginal, jₐ, jₛ)]
+            ws.actions[jₐ] =
+                state_action_expectation(ws, V, ambiguity_set, budget, upper_bound)
+        end
+        @inbounds Vres[jₛ] = extract_strategy!(
+            strategy_cache,
+            ws.actions,
+            available(model, jₛ),
+            jₛ,
+            maximize,
+        )
+    end
+    return Vres
+end
+
+function _expectation_v_dispatch!(
+    ::StateUpdateSequence,
+    workspace::Union{
+        ThreadedDenseIntervalOMaxWorkspace,
+        ThreadedSparseIntervalOMaxWorkspace,
+    },
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    update_sequence;
+    upper_bound,
+    maximize,
+)
+    @inbounds expectation_precomputation!(workspace, V, upper_bound)
+    marginal = marginals(model)[1]
+    @threadstid tid for jₛ in update_sequence
+        @inbounds ws = workspace[tid]
+        @inbounds jₐ = CartesianIndex(strategy_cache[jₛ])
+        @inbounds ambiguity_set = marginal[jₐ, jₛ]
+        @inbounds budget = ws.budget[sub2ind(marginal, jₐ, jₛ)]
+        @inbounds Vres[jₛ] =
+            state_action_expectation(ws, V, ambiguity_set, budget, upper_bound)
+    end
+    return Vres
+end
+
+# `expectation_v!` always writes V-shape Vres[s]. For factored workspaces
+# the matching `_expectation_helper!` now writes Q-shape (so that
+# `expectation!` is shape-consistent across all workspace types), so the
+# V-shape entry point cannot delegate to it — it has to drive the
+# per-state V-reducing helper (`state_expectation_v!`) directly.
+function _expectation_v_kernel!(
+    workspace::FactoredIntervalMcCormickWorkspace,
+    strategy_cache,
+    Vres,
+    V,
+    model,
+    _update_sequence;
     upper_bound = false,
     maximize = true,
     prop = nothing,
 )
-    return _expectation_helper!(
-        workspace,
-        strategy_cache,
-        Vres,
-        V,
-        model,
-        update_sequence;
-        upper_bound = upper_bound,
-        maximize = maximize,
-    )
+    @inbounds for jₛ in CartesianIndices(source_shape(model))
+        state_expectation_v!(
+            workspace,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
+    end
+    return Vres
+end
+
+function _expectation_v_kernel!(
+    workspace::ThreadedFactoredIntervalMcCormickWorkspace,
+    strategy_cache,
+    Vres,
+    V,
+    model,
+    _update_sequence;
+    upper_bound = false,
+    maximize = true,
+    prop = nothing,
+)
+    @threadstid tid for jₛ in CartesianIndices(source_shape(model))
+        @inbounds ws = workspace[tid]
+        @inbounds state_expectation_v!(
+            ws,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
+    end
+    return Vres
+end
+
+function _expectation_v_kernel!(
+    workspace::FactoredIntervalOMaxWorkspace,
+    strategy_cache,
+    Vres,
+    V,
+    model,
+    _update_sequence;
+    upper_bound = false,
+    maximize = true,
+    prop = nothing,
+)
+    @inbounds for jₛ in CartesianIndices(source_shape(model))
+        state_expectation_v!(
+            workspace,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
+    end
+    return Vres
+end
+
+function _expectation_v_kernel!(
+    workspace::ThreadedFactoredIntervalOMaxWorkspace,
+    strategy_cache,
+    Vres,
+    V,
+    model,
+    _update_sequence;
+    upper_bound = false,
+    maximize = true,
+    prop = nothing,
+)
+    @threadstid tid for jₛ in CartesianIndices(source_shape(model))
+        @inbounds ws = workspace[tid]
+        @inbounds state_expectation_v!(
+            ws,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
+    end
+    return Vres
+end
+
+function _expectation_v_kernel!(
+    workspace::FactoredVertexIteratorWorkspace,
+    strategy_cache,
+    Vres,
+    V,
+    model,
+    _update_sequence;
+    upper_bound = false,
+    maximize = true,
+    prop = nothing,
+)
+    @inbounds for jₛ in CartesianIndices(source_shape(model))
+        state_expectation_v!(
+            workspace,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
+    end
+    return Vres
+end
+
+function _expectation_v_kernel!(
+    workspace::ThreadedFactoredVertexIteratorWorkspace,
+    strategy_cache,
+    Vres,
+    V,
+    model,
+    _update_sequence;
+    upper_bound = false,
+    maximize = true,
+    prop = nothing,
+)
+    @threadstid tid for jₛ in CartesianIndices(source_shape(model))
+        @inbounds ws = workspace[tid]
+        @inbounds state_expectation_v!(
+            ws,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
+    end
+    return Vres
 end
 
 Base.@propagate_inbounds function state_action_expectation(
@@ -724,10 +1111,13 @@ end
 # McCormick relaxation-based Bellman operator for fIMDPs #
 ##########################################################
 
-# Non-threaded
+# Non-threaded — Q-shape (default for OptimizingStrategyCache, including NoStrategyCache).
+# Writes Vres[a, s] for every available (a, s); the action reduction is the
+# caller's responsibility (`strategy!`). The matching V-shape primitive is
+# `expectation_v!`, which calls `state_expectation_v!` instead.
 function _expectation_helper!(
     workspace::FactoredIntervalMcCormickWorkspace,
-    strategy_cache::AbstractStrategyCache,
+    strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
     model,
@@ -736,7 +1126,7 @@ function _expectation_helper!(
     maximize = true,
 )
     @inbounds for jₛ in CartesianIndices(source_shape(model))
-        state_expectation!(
+        state_expectation_q!(
             workspace,
             strategy_cache,
             Vres,
@@ -751,10 +1141,9 @@ function _expectation_helper!(
     return Vres
 end
 
-# Threaded
 function _expectation_helper!(
     workspace::ThreadedFactoredIntervalMcCormickWorkspace,
-    strategy_cache::AbstractStrategyCache,
+    strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
     model,
@@ -764,7 +1153,7 @@ function _expectation_helper!(
 )
     @threadstid tid for jₛ in CartesianIndices(source_shape(model))
         @inbounds ws = workspace[tid]
-        @inbounds state_expectation!(
+        @inbounds state_expectation_q!(
             ws,
             strategy_cache,
             Vres,
@@ -779,7 +1168,97 @@ function _expectation_helper!(
     return Vres
 end
 
-Base.@propagate_inbounds function state_expectation!(
+# Non-optimizing (given strategy) — only the chosen action is computed, so
+# there is no Q-array to populate. Writes Vres[s] (V-shape).
+function _expectation_helper!(
+    workspace::FactoredIntervalMcCormickWorkspace,
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    _update_sequence;
+    upper_bound = false,
+    maximize = true,
+)
+    @inbounds for jₛ in CartesianIndices(source_shape(model))
+        state_expectation_v!(
+            workspace,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
+    end
+
+    return Vres
+end
+
+function _expectation_helper!(
+    workspace::ThreadedFactoredIntervalMcCormickWorkspace,
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    _update_sequence;
+    upper_bound = false,
+    maximize = true,
+)
+    @threadstid tid for jₛ in CartesianIndices(source_shape(model))
+        @inbounds ws = workspace[tid]
+        @inbounds state_expectation_v!(
+            ws,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
+    end
+
+    return Vres
+end
+
+# Common per-state inner loop: populate `workspace.actions[a]` for every
+# available action. Used by both Q-shape and V-shape paths; the difference
+# is what they do with `workspace.actions` afterward.
+Base.@propagate_inbounds function _populate_actions!(
+    workspace::FactoredIntervalMcCormickWorkspace,
+    V,
+    model,
+    jₛ,
+    upper_bound,
+)
+    for jₐ in available(model, jₛ)
+        ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
+        workspace.actions[jₐ] =
+            state_action_expectation(workspace, V, ambiguity_sets, upper_bound)
+    end
+end
+
+# Q-shape: copy per-action expectations into Vres[:, jₛ].
+Base.@propagate_inbounds function state_expectation_q!(
+    workspace::FactoredIntervalMcCormickWorkspace,
+    ::OptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    jₛ,
+    upper_bound,
+    maximize,
+)
+    _populate_actions!(workspace, V, model, jₛ, upper_bound)
+    @inbounds for jₐ in available(model, jₛ)
+        Vres[jₐ, jₛ] = workspace.actions[jₐ]
+    end
+end
+
+# V-shape: reduce per-action expectations to Vres[jₛ] via extract_strategy!.
+Base.@propagate_inbounds function state_expectation_v!(
     workspace::FactoredIntervalMcCormickWorkspace,
     strategy_cache::OptimizingStrategyCache,
     Vres,
@@ -789,12 +1268,7 @@ Base.@propagate_inbounds function state_expectation!(
     upper_bound,
     maximize,
 )
-    for jₐ in available(model, jₛ)
-        ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
-        workspace.actions[jₐ] =
-            state_action_expectation(workspace, V, ambiguity_sets, upper_bound)
-    end
-
+    _populate_actions!(workspace, V, model, jₛ, upper_bound)
     Vres[jₛ] = extract_strategy!(
         strategy_cache,
         workspace.actions,
@@ -804,7 +1278,7 @@ Base.@propagate_inbounds function state_expectation!(
     )
 end
 
-Base.@propagate_inbounds function state_expectation!(
+Base.@propagate_inbounds function state_expectation_v!(
     workspace::FactoredIntervalMcCormickWorkspace,
     strategy_cache::NonOptimizingStrategyCache,
     Vres,
@@ -920,7 +1394,7 @@ end
 ####################################################
 function _expectation_helper!(
     workspace::FactoredIntervalOMaxWorkspace,
-    strategy_cache::AbstractStrategyCache,
+    strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
     model,
@@ -928,9 +1402,8 @@ function _expectation_helper!(
     upper_bound = false,
     maximize = true,
 )
-    # For each source state
     @inbounds for jₛ in CartesianIndices(source_shape(model))
-        state_expectation!(
+        state_expectation_q!(
             workspace,
             strategy_cache,
             Vres,
@@ -947,7 +1420,7 @@ end
 
 function _expectation_helper!(
     workspace::ThreadedFactoredIntervalOMaxWorkspace,
-    strategy_cache::AbstractStrategyCache,
+    strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
     model,
@@ -955,11 +1428,9 @@ function _expectation_helper!(
     upper_bound = false,
     maximize = true,
 )
-    # For each source state
     @threadstid tid for jₛ in CartesianIndices(source_shape(model))
         @inbounds ws = workspace[tid]
-
-        @inbounds state_expectation!(
+        @inbounds state_expectation_q!(
             ws,
             strategy_cache,
             Vres,
@@ -974,16 +1445,66 @@ function _expectation_helper!(
     return Vres
 end
 
-Base.@propagate_inbounds function state_expectation!(
+function _expectation_helper!(
     workspace::FactoredIntervalOMaxWorkspace,
-    strategy_cache::OptimizingStrategyCache,
+    strategy_cache::NonOptimizingStrategyCache,
     Vres,
     V,
-    model::FactoredRMDP{N},
-    jₛ;
+    model,
+    _update_sequence;
+    upper_bound = false,
+    maximize = true,
+)
+    @inbounds for jₛ in CartesianIndices(source_shape(model))
+        state_expectation_v!(
+            workspace,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
+    end
+
+    return Vres
+end
+
+function _expectation_helper!(
+    workspace::ThreadedFactoredIntervalOMaxWorkspace,
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    _update_sequence;
+    upper_bound = false,
+    maximize = true,
+)
+    @threadstid tid for jₛ in CartesianIndices(source_shape(model))
+        @inbounds ws = workspace[tid]
+        @inbounds state_expectation_v!(
+            ws,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
+    end
+
+    return Vres
+end
+
+Base.@propagate_inbounds function _populate_actions!(
+    workspace::FactoredIntervalOMaxWorkspace,
+    V,
+    model,
+    jₛ,
     upper_bound,
-    maximize,
-) where {N}
+)
     for jₐ in available(model, jₛ)
         ambiguity_sets = map(marginal -> marginal[jₐ, jₛ], marginals(model))
         inds = map(marginal -> sub2ind(marginal, jₐ, jₛ), marginals(model))
@@ -998,7 +1519,35 @@ Base.@propagate_inbounds function state_expectation!(
             upper_bound,
         )
     end
+end
 
+Base.@propagate_inbounds function state_expectation_q!(
+    workspace::FactoredIntervalOMaxWorkspace,
+    ::OptimizingStrategyCache,
+    Vres,
+    V,
+    model::FactoredRMDP{N},
+    jₛ;
+    upper_bound,
+    maximize,
+) where {N}
+    _populate_actions!(workspace, V, model, jₛ, upper_bound)
+    @inbounds for jₐ in available(model, jₛ)
+        Vres[jₐ, jₛ] = workspace.actions[jₐ]
+    end
+end
+
+Base.@propagate_inbounds function state_expectation_v!(
+    workspace::FactoredIntervalOMaxWorkspace,
+    strategy_cache::OptimizingStrategyCache,
+    Vres,
+    V,
+    model::FactoredRMDP{N},
+    jₛ;
+    upper_bound,
+    maximize,
+) where {N}
+    _populate_actions!(workspace, V, model, jₛ, upper_bound)
     Vres[jₛ] = extract_strategy!(
         strategy_cache,
         workspace.actions,
@@ -1008,7 +1557,7 @@ Base.@propagate_inbounds function state_expectation!(
     )
 end
 
-Base.@propagate_inbounds function state_expectation!(
+Base.@propagate_inbounds function state_expectation_v!(
     workspace::FactoredIntervalOMaxWorkspace,
     strategy_cache::NonOptimizingStrategyCache,
     Vres,
@@ -1106,10 +1655,9 @@ end
 # Vertex enumeration-based Bellman operator for fIMDPs #
 ##########################################################
 
-# Non-threaded
 function _expectation_helper!(
     workspace::FactoredVertexIteratorWorkspace,
-    strategy_cache::AbstractStrategyCache,
+    strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
     model,
@@ -1118,7 +1666,7 @@ function _expectation_helper!(
     maximize = true,
 )
     @inbounds for jₛ in CartesianIndices(source_shape(model))
-        state_expectation!(
+        state_expectation_q!(
             workspace,
             strategy_cache,
             Vres,
@@ -1133,10 +1681,9 @@ function _expectation_helper!(
     return Vres
 end
 
-# Threaded
 function _expectation_helper!(
     workspace::ThreadedFactoredVertexIteratorWorkspace,
-    strategy_cache::AbstractStrategyCache,
+    strategy_cache::OptimizingStrategyCache,
     Vres,
     V,
     model,
@@ -1146,7 +1693,7 @@ function _expectation_helper!(
 )
     @threadstid tid for jₛ in CartesianIndices(source_shape(model))
         @inbounds ws = workspace[tid]
-        @inbounds state_expectation!(
+        @inbounds state_expectation_q!(
             ws,
             strategy_cache,
             Vres,
@@ -1161,7 +1708,90 @@ function _expectation_helper!(
     return Vres
 end
 
-Base.@propagate_inbounds function state_expectation!(
+function _expectation_helper!(
+    workspace::FactoredVertexIteratorWorkspace,
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    _update_sequence;
+    upper_bound = false,
+    maximize = true,
+)
+    @inbounds for jₛ in CartesianIndices(source_shape(model))
+        state_expectation_v!(
+            workspace,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
+    end
+
+    return Vres
+end
+
+function _expectation_helper!(
+    workspace::ThreadedFactoredVertexIteratorWorkspace,
+    strategy_cache::NonOptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    _update_sequence;
+    upper_bound = false,
+    maximize = true,
+)
+    @threadstid tid for jₛ in CartesianIndices(source_shape(model))
+        @inbounds ws = workspace[tid]
+        @inbounds state_expectation_v!(
+            ws,
+            strategy_cache,
+            Vres,
+            V,
+            model,
+            jₛ,
+            upper_bound,
+            maximize,
+        )
+    end
+
+    return Vres
+end
+
+Base.@propagate_inbounds function _populate_actions!(
+    workspace::FactoredVertexIteratorWorkspace,
+    V,
+    model,
+    jₛ,
+    upper_bound,
+)
+    for jₐ in available(model, jₛ)
+        ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
+        workspace.actions[jₐ] =
+            state_action_expectation(workspace, V, ambiguity_sets, upper_bound)
+    end
+end
+
+Base.@propagate_inbounds function state_expectation_q!(
+    workspace::FactoredVertexIteratorWorkspace,
+    ::OptimizingStrategyCache,
+    Vres,
+    V,
+    model,
+    jₛ,
+    upper_bound,
+    maximize,
+)
+    _populate_actions!(workspace, V, model, jₛ, upper_bound)
+    @inbounds for jₐ in available(model, jₛ)
+        Vres[jₐ, jₛ] = workspace.actions[jₐ]
+    end
+end
+
+Base.@propagate_inbounds function state_expectation_v!(
     workspace::FactoredVertexIteratorWorkspace,
     strategy_cache::OptimizingStrategyCache,
     Vres,
@@ -1171,12 +1801,7 @@ Base.@propagate_inbounds function state_expectation!(
     upper_bound,
     maximize,
 )
-    for jₐ in available(model, jₛ)
-        ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
-        workspace.actions[jₐ] =
-            state_action_expectation(workspace, V, ambiguity_sets, upper_bound)
-    end
-
+    _populate_actions!(workspace, V, model, jₛ, upper_bound)
     Vres[jₛ] = extract_strategy!(
         strategy_cache,
         workspace.actions,
@@ -1186,7 +1811,7 @@ Base.@propagate_inbounds function state_expectation!(
     )
 end
 
-Base.@propagate_inbounds function state_expectation!(
+Base.@propagate_inbounds function state_expectation_v!(
     workspace::FactoredVertexIteratorWorkspace,
     strategy_cache::NonOptimizingStrategyCache,
     Vres,

@@ -481,7 +481,10 @@ end
 # TODO: 
 
 ### Robust Value Iteration
-sampling_strategy(alg::RobustValueIteration) = AllSampling()
+# RobustVI does a full state-outer sweep — yields bare states so
+# `expectation_v!` dispatches to the state-outer path that uses
+# `workspace.actions` + `extract_strategy!` (no Q-array materialization).
+sampling_strategy(alg::RobustValueIteration) = AllStatesSweep()
 
 ### Generalized Sampling-based Robust Dynamic Programming
 sampling_strategy(alg::GeneralizedSamplingbasedRobustDynamicProgramming) =
