@@ -90,14 +90,11 @@ end
         end
 
         @testset "maximization" begin
-            # `expectation` returns Q-shape (action × state); flatten the
-            # 1-action singleton dim so it compares to the V-shape McCormick
-            # / vertex-iterator output below.
-            Vexpected = vec(IntervalMDP.expectation(V, imc; upper_bound = true)) # Using O-maximization, should be equivalent
+            Vexpected = IntervalMDP.expectation(V, imc; upper_bound = true) # Using O-maximization, should be equivalent
 
             ws = IntervalMDP.construct_workspace(imc, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
-            Vres = zeros(N, 3)
+            Vres = zeros(N, 1, 3)
             IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = true)
             @test Vres ≈ Vexpected
 
@@ -119,7 +116,7 @@ end
 
             ws = IntervalMDP.construct_workspace(imc, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
-            Vres = zeros(N, 3)
+            Vres = zeros(N, 1, 3)
             IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = true)
             @test Vres ≈ Vexpected
 
@@ -137,11 +134,11 @@ end
         end
 
         @testset "minimization" begin
-            Vexpected = vec(IntervalMDP.expectation(V, imc; upper_bound = false)) # Using O-maximization, should be equivalent (see maximization comment)
+            Vexpected = IntervalMDP.expectation(V, imc; upper_bound = false) # Using O-maximization, should be equivalent (see maximization comment)
 
             ws = IntervalMDP.construct_workspace(imc, LPMcCormickRelaxation())
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
-            Vres = zeros(N, 3)
+            Vres = zeros(N, 1, 3)
             IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = false)
             @test Vres ≈ Vexpected
 
@@ -163,7 +160,7 @@ end
 
             ws = IntervalMDP.construct_workspace(imc, VertexEnumeration())
             strategy_cache = IntervalMDP.construct_strategy_cache(imc)
-            Vres = zeros(N, 3)
+            Vres = zeros(N, 1, 3)
             IntervalMDP.expectation!(ws, strategy_cache, Vres, V, imc; upper_bound = false)
             @test Vres ≈ Vexpected
 
