@@ -674,6 +674,64 @@ sa_sweep!(
     maximize = maximize,
 )
 
+# Factored O-Max (single-threaded). Per-(s, a) ambiguity-set expectation
+# uses the workspace's existing `state_action_expectation` for factored
+# O-Max, which sequentially marginalizes the per-dim ambiguity sets via
+# `orthogonal_inner_bellman!`. The relax-based update is identical in
+# spirit to the flat path.
+function sa_sweep!(
+    workspace::FactoredIntervalOMaxWorkspace,
+    strategy_cache::AbstractStrategyCache,
+    Vres::AbstractArray,
+    V::AbstractArray,
+    model,
+    update_sequence;
+    upper_bound = false,
+    maximize = true,
+)
+    visited = falses(size(Vres))
+    copy!(Vres, V)
+
+    @inbounds for (jₐ, jₛ) in update_sequence
+        ambiguity_sets = map(marginal -> marginal[jₐ, jₛ], marginals(model))
+        inds = map(marginal -> sub2ind(marginal, jₐ, jₛ), marginals(model))
+        budgets = getindex.(workspace.budgets, inds)
+        q = state_action_expectation(
+            workspace,
+            V,
+            model,
+            ambiguity_sets,
+            budgets,
+            upper_bound,
+        )
+        relax!(strategy_cache, Vres, visited, jₛ, jₐ, q, maximize)
+    end
+
+    return Vres
+end
+
+# Threaded factored O-Max — same convention as flat (sequential by
+# default for trajectory-style samplers; thread 1's workspace).
+sa_sweep!(
+    workspace::ThreadedFactoredIntervalOMaxWorkspace,
+    strategy_cache::AbstractStrategyCache,
+    Vres::AbstractArray,
+    V::AbstractArray,
+    model,
+    update_sequence;
+    upper_bound = false,
+    maximize = true,
+) = sa_sweep!(
+    workspace[1],
+    strategy_cache,
+    Vres,
+    V,
+    model,
+    update_sequence;
+    upper_bound = upper_bound,
+    maximize = maximize,
+)
+
 #############################################################################
 # expectation_v! — V-shape (state-indexed) primitive.
 #

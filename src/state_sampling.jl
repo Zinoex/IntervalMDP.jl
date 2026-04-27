@@ -345,9 +345,16 @@ sample(::AllSampling, model, strategy_cache::AbstractStrategyCache) =
 # (a, s) update sequence is identical to the underlying MDP — the DFA part
 # is handled by `_expectation_helper!(::ProductWorkspace, ...)` which
 # splits Vres along the DFA-state axis and recursively dispatches to the
-# inner Markov process for each DFA state.
+# inner Markov process for each DFA state. The two cache-typed methods
+# below are split (rather than one `AbstractStrategyCache` method) so that
+# they don't tie with the generic
+# `exhaustive_cartesian(model, ::OptimizingStrategyCache)` / `(::NonOptimizingStrategyCache)`
+# fallbacks below — Julia would consider both equally specific and report
+# an ambiguity.
 exhaustive_cartesian(proc::ProductProcess) = exhaustive_cartesian(markov_process(proc))
-exhaustive_cartesian(proc::ProductProcess, sc::AbstractStrategyCache) =
+exhaustive_cartesian(proc::ProductProcess, sc::OptimizingStrategyCache) =
+    exhaustive_cartesian(markov_process(proc), sc)
+exhaustive_cartesian(proc::ProductProcess, sc::NonOptimizingStrategyCache) =
     exhaustive_cartesian(markov_process(proc), sc)
 
 exhaustive_cartesian(model::FactoredRMDP) = exhaustive_cartesian(model, modeltype(model))
@@ -401,6 +408,7 @@ struct AllStatesSweep <: SamplingStrategy end
 sample(::AllStatesSweep, model) = exhaustive_state_sweep(model)
 sample(::AllStatesSweep, model, ::AbstractStrategyCache) = exhaustive_state_sweep(model)
 
+exhaustive_state_sweep(proc::ProductProcess) = exhaustive_state_sweep(markov_process(proc))
 exhaustive_state_sweep(model::FactoredRMDP) =
     StateIterator(CartesianIndices(source_shape(model)))
 exhaustive_state_sweep(model::IntervalAmbiguitySets) =
