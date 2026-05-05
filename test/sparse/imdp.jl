@@ -20,14 +20,25 @@
         mdp = IntervalMarkovDecisionProcess(transition_probs)
         @testset "bellman" begin
             V = N[1, 2, 3]
-            Vres = IntervalMDP.expectation(V, mdp; upper_bound = false, maximize = true)
+            Vres = let
+    _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(mdp)..., size(V)...))
+    _ws = IntervalMDP.construct_workspace(mdp)
+    _sc = IntervalMDP.construct_strategy_cache(mdp)
+    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(_Qres), IntervalMDP.StateValueArray(V), mdp; upper_bound = false, maximize = true)
+    _Qres
+end
             @test Vres ≈ N[
                 1 // 2 * 1 + 3 // 10 * 2 + 1 // 5 * 3,
                 3 // 10 * 1 + 3 // 10 * 2 + 2 // 5 * 3,
                 1 * 3,
             ]
             Vres = similar(Vres)
-            IntervalMDP.expectation!(Vres, V, mdp; upper_bound = false, maximize = true)
+            let
+    _ws = IntervalMDP.construct_workspace(mdp)
+    _sc = IntervalMDP.construct_strategy_cache(mdp)
+    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), mdp; upper_bound = false, maximize = true)
+    Vres
+end
             @test Vres ≈ N[
                 1 // 2 * 1 + 3 // 10 * 2 + 1 // 5 * 3,
                 3 // 10 * 1 + 3 // 10 * 2 + 2 // 5 * 3,

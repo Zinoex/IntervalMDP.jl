@@ -1,9 +1,10 @@
-function IntervalMDP._expectation_helper!(
+function IntervalMDP._bellman_v!(
     workspace::CuFactoredOMaxWorkspace,
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres::AbstractArray{Tv},
     V::AbstractArray{Tv},
-    model::IntervalMDP.FactoredRMDP{N, M};
+    model::IntervalMDP.FactoredRMDP{N, M},
+    _update_sequence;
     upper_bound = false,
     maximize = true,
 ) where {Tv, N, M}

@@ -33,14 +33,7 @@
                     ws = IntervalMDP.construct_workspace(prob)
                     strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                     Vres = CUDA.zeros(N, 2)
-                    IntervalMDP._expectation_helper!(
-                        ws,
-                        strategy_cache,
-                        Vres,
-                        V,
-                        prob;
-                        upper_bound = true,
-                    )
+                    IntervalMDP.bellman_q!(ws, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prob; upper_bound = true,)
                     Vres = IntervalMDP.cpu(Vres)
                     @test Vres ≈ N[49 // 10, 53 // 15]
                 end
@@ -48,14 +41,7 @@
                     ws = IntervalMDP.construct_workspace(prob)
                     strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                     Vres = CUDA.zeros(N, 2)
-                    IntervalMDP._expectation_helper!(
-                        ws,
-                        strategy_cache,
-                        Vres,
-                        V,
-                        prob;
-                        upper_bound = false,
-                    )
+                    IntervalMDP.bellman_q!(ws, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prob; upper_bound = false,)
                     Vres = IntervalMDP.cpu(Vres)
                     @test Vres ≈ N[29 // 10, 16 // 5]
                 end
@@ -106,25 +92,11 @@
                 ws = IntervalMDP.construct_workspace(prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 V_cpu = zeros(Float64, m)
-                IntervalMDP._expectation_helper!(
-                    ws,
-                    strategy_cache,
-                    V_cpu,
-                    V,
-                    prob;
-                    upper_bound = false,
-                )
+                IntervalMDP.bellman_q!(ws, strategy_cache, IntervalMDP.StateActionValueArray(V_cpu), IntervalMDP.StateValueArray(V), prob; upper_bound = false,)
                 ws = IntervalMDP.construct_workspace(cuda_prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
                 V_gpu = CUDA.zeros(Float64, m)
-                IntervalMDP._expectation_helper!(
-                    ws,
-                    strategy_cache,
-                    V_gpu,
-                    cuda_V,
-                    cuda_prob;
-                    upper_bound = false,
-                )
+                IntervalMDP.bellman_q!(ws, strategy_cache, IntervalMDP.StateActionValueArray(V_gpu), IntervalMDP.StateValueArray(cuda_V), cuda_prob; upper_bound = false,)
                 V_gpu = IntervalMDP.cpu(V_gpu)
                 @test V_cpu ≈ V_gpu
             end
@@ -138,25 +110,11 @@
                 ws = IntervalMDP.construct_workspace(prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 V_cpu = zeros(Float64, m)
-                IntervalMDP._expectation_helper!(
-                    ws,
-                    strategy_cache,
-                    V_cpu,
-                    V,
-                    prob;
-                    upper_bound = false,
-                )
+                IntervalMDP.bellman_q!(ws, strategy_cache, IntervalMDP.StateActionValueArray(V_cpu), IntervalMDP.StateValueArray(V), prob; upper_bound = false,)
                 ws = IntervalMDP.construct_workspace(cuda_prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
                 V_gpu = CUDA.zeros(Float64, m)
-                IntervalMDP._expectation_helper!(
-                    ws,
-                    strategy_cache,
-                    V_gpu,
-                    cuda_V,
-                    cuda_prob;
-                    upper_bound = false,
-                )
+                IntervalMDP.bellman_q!(ws, strategy_cache, IntervalMDP.StateActionValueArray(V_gpu), IntervalMDP.StateValueArray(cuda_V), cuda_prob; upper_bound = false,)
                 V_gpu = IntervalMDP.cpu(V_gpu)
                 @test V_cpu ≈ V_gpu
             end
@@ -170,25 +128,11 @@
                 ws = IntervalMDP.construct_workspace(prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 V_cpu = zeros(Float64, m)
-                IntervalMDP._expectation_helper!(
-                    ws,
-                    strategy_cache,
-                    V_cpu,
-                    V,
-                    prob;
-                    upper_bound = false,
-                )
+                IntervalMDP.bellman_q!(ws, strategy_cache, IntervalMDP.StateActionValueArray(V_cpu), IntervalMDP.StateValueArray(V), prob; upper_bound = false,)
                 ws = IntervalMDP.construct_workspace(cuda_prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
                 V_gpu = CUDA.zeros(Float64, m)
-                IntervalMDP._expectation_helper!(
-                    ws,
-                    strategy_cache,
-                    V_gpu,
-                    cuda_V,
-                    cuda_prob;
-                    upper_bound = false,
-                )
+                IntervalMDP.bellman_q!(ws, strategy_cache, IntervalMDP.StateActionValueArray(V_gpu), IntervalMDP.StateValueArray(cuda_V), cuda_prob; upper_bound = false,)
                 V_gpu = IntervalMDP.cpu(V_gpu)
                 @test V_cpu ≈ V_gpu
             end
@@ -202,25 +146,11 @@
                 ws = IntervalMDP.construct_workspace(prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 V_cpu = zeros(Float64, m)
-                IntervalMDP._expectation_helper!(
-                    ws,
-                    strategy_cache,
-                    V_cpu,
-                    V,
-                    prob;
-                    upper_bound = false,
-                )
+                IntervalMDP.bellman_q!(ws, strategy_cache, IntervalMDP.StateActionValueArray(V_cpu), IntervalMDP.StateValueArray(V), prob; upper_bound = false,)
                 ws = IntervalMDP.construct_workspace(cuda_prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
                 V_gpu = CUDA.zeros(Float64, m)
-                IntervalMDP._expectation_helper!(
-                    ws,
-                    strategy_cache,
-                    V_gpu,
-                    cuda_V,
-                    cuda_prob;
-                    upper_bound = false,
-                )
+                IntervalMDP.bellman_q!(ws, strategy_cache, IntervalMDP.StateActionValueArray(V_gpu), IntervalMDP.StateValueArray(cuda_V), cuda_prob; upper_bound = false,)
                 V_gpu = IntervalMDP.cpu(V_gpu)
                 @test V_cpu ≈ V_gpu
             end
@@ -234,25 +164,11 @@
                 ws = IntervalMDP.construct_workspace(prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(prob)
                 V_cpu = zeros(Float64, m)
-                IntervalMDP._expectation_helper!(
-                    ws,
-                    strategy_cache,
-                    V_cpu,
-                    V,
-                    prob;
-                    upper_bound = false,
-                )
+                IntervalMDP.bellman_q!(ws, strategy_cache, IntervalMDP.StateActionValueArray(V_cpu), IntervalMDP.StateValueArray(V), prob; upper_bound = false,)
                 ws = IntervalMDP.construct_workspace(cuda_prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
                 V_gpu = CUDA.zeros(Float64, m)
-                IntervalMDP._expectation_helper!(
-                    ws,
-                    strategy_cache,
-                    V_gpu,
-                    cuda_V,
-                    cuda_prob;
-                    upper_bound = false,
-                )
+                IntervalMDP.bellman_q!(ws, strategy_cache, IntervalMDP.StateActionValueArray(V_gpu), IntervalMDP.StateValueArray(cuda_V), cuda_prob; upper_bound = false,)
                 V_gpu = IntervalMDP.cpu(V_gpu)
                 @test V_cpu ≈ V_gpu
             end
@@ -266,14 +182,7 @@
                 ws = IntervalMDP.construct_workspace(cuda_prob)
                 strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
                 V_gpu = CUDA.zeros(Float64, m)
-                @test_throws IntervalMDP.OutOfSharedMemory IntervalMDP._expectation_helper!(
-                    ws,
-                    strategy_cache,
-                    V_gpu,
-                    cuda_V,
-                    cuda_prob;
-                    upper_bound = false,
-                )
+                @test_throws IntervalMDP.OutOfSharedMemory IntervalMDP.bellman_q!(ws, strategy_cache, IntervalMDP.StateActionValueArray(V_gpu), IntervalMDP.StateValueArray(cuda_V), cuda_prob; upper_bound = false,)
             end
         end
     end

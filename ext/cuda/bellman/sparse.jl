@@ -1,9 +1,10 @@
-function IntervalMDP._expectation_helper!(
+function IntervalMDP._bellman_v!(
     workspace::CuSparseOMaxWorkspace,
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres::AbstractVector{Tv},
     V::AbstractVector{Tv},
-    model;
+    model,
+    _update_sequence;
     upper_bound = false,
     maximize = true,
 ) where {Tv}

@@ -105,43 +105,6 @@ end
     end
 end
 
-@testitem "ParallelismHint + sequence_shape + touched_states + partition" tags =
-    [:base, :parallelismhint_sequence_shape_touched_states_partition] begin
-    using IntervalMDP
-    @testset "ParallelismHint + sequence_shape + touched_states + partition" begin
-        prob = IntervalAmbiguitySets(;
-            lower = [0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
-            upper = [1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
-        )
-        mdp = IntervalMarkovDecisionProcess([prob, prob], [1])
-        seq_all = IntervalMDP.sample(IntervalMDP.AllSampling(), mdp)
-        @test IntervalMDP.sequence_shape(seq_all) ===
-              IntervalMDP.StateActionUpdateSequence()
-        @test IntervalMDP.parallelism_hint(seq_all) === IntervalMDP.Threaded()
-        seq_states = IntervalMDP.sample(IntervalMDP.AllStatesSweep(), mdp)
-        @test IntervalMDP.sequence_shape(seq_states) === IntervalMDP.StateUpdateSequence()
-        touched = IntervalMDP.touched_states(seq_all)
-        @test touched isa Set
-        @test length(touched) == length(CartesianIndices(IntervalMDP.source_shape(mdp)))
-        touched_s = IntervalMDP.touched_states(seq_states)
-        @test length(touched_s) == length(CartesianIndices(IntervalMDP.source_shape(mdp)))
-        chunks = IntervalMDP.partition(seq_all, 3)
-        @test sum(length, chunks) == length(seq_all)
-        @test IntervalMDP.effective_nworkers(IntervalMDP.Sequential()) == 1
-        @test IntervalMDP.effective_nworkers(IntervalMDP.Threaded(0)) == Threads.nthreads()
-        @test IntervalMDP.effective_nworkers(IntervalMDP.Threaded(2)) ==
-              min(2, Threads.nthreads())
-        @test IntervalMDP.effective_nworkers(IntervalMDP.Threaded(1024)) ==
-              Threads.nthreads()
-        @test IntervalMDP.parallelism_hint(IntervalMDP.AllSampling()) ===
-              IntervalMDP.Threaded()
-        @test IntervalMDP.parallelism_hint(IntervalMDP.AllStatesSweep()) ===
-              IntervalMDP.Threaded()
-        @test IntervalMDP.parallelism_hint(IntervalMDP.RandomSubsetStateActions(5)) ===
-              IntervalMDP.Threaded()
-    end
-end
-
 @testitem "RandomSubsetStateActions bounded + below full-sweep" tags =
     [:base, :randomsubsetstateactions_bounded_below_full_sweep] begin
     using IntervalMDP

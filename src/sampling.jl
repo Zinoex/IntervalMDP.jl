@@ -26,53 +26,6 @@ struct StateActionUpdateSequence <: SequenceShape end
 
 # Default: today's iterators all yield (a, s) pairs.
 sequence_shape(::AbstractIterator) = StateActionUpdateSequence()
-
-###################################
-# Parallelism hint trait           #
-###################################
-#
-# Samplers and iterators advertise whether their update sequence can be
-# processed in parallel. `Threaded(n)` caps worker count to `n` (zero means
-# "use all available threads"); `Sequential` forbids parallelism — the right
-# choice for trajectory-based samplers (BRTDP, on-policy rollout) where step
-# `i` depends on V/strategy updates from step `i-1`.
-#
-# `effective_nworkers` resolves a hint against the runtime thread pool so
-# callers get a single scalar worker count regardless of system config.
-# Phase 3 wires the trait into new samplers and the solver reads it for
-# future parallel-execution decisions; full integration with
-# `construct_workspace` is Phase 4 (per plan §3).
-
-abstract type ParallelismHint end
-struct Sequential <: ParallelismHint end
-struct Threaded <: ParallelismHint
-    nworkers::Int
-end
-# `Threaded()` = unlimited (cap to `Threads.nthreads()` at runtime).
-Threaded() = Threaded(0)
-
-effective_nworkers(::Sequential) = 1
-effective_nworkers(h::Threaded) =
-    h.nworkers <= 0 ? Threads.nthreads() : min(h.nworkers, Threads.nthreads())
-
-# Iterators get the default `Threaded()` so exhaustive sweeps keep their
-# existing behavior. Trajectory-type iterators (on-policy, future BRTDP
-# rollouts) opt out to `Sequential` because their element order encodes a
-# causal dependency.
-parallelism_hint(::AbstractIterator) = Threaded()
-# (Trajectory-style iterators with causal step-i-depends-on-step-(i-1)
-# should override to `Sequential`. None of the currently-defined iterators
-# have that property — on-policy and given-sequence iterators just
-# enumerate (a, s) pairs independently — so they stay at the default.)
-# `parallelism_hint(::SamplingStrategy)` lives later in this file, after
-# the `SamplingStrategy` abstract type is declared.
-
-# Projection + partitioning helpers for parallel execution over an update
-# sequence. `touched_states` returns a (deduped, ordered) iterable of the
-# state indices visited by `seq`; callers use it to decide which V entries
-# to refresh when the sweep is partial. `partition(seq, nchunks)` produces
-# `nchunks` sub-iterators with roughly equal length; each chunk is
-# independent under `Threaded` parallelism.
 #
 # Default implementations work for any iterable that yields either `s` or
 # `(a, s)` pairs. Specialized overrides for our concrete iterator types
@@ -325,12 +278,6 @@ abstract type SamplingStrategy end
 
 function sample(::SamplingStrategy, model) end
 
-# Sampling strategies advertise a hint that the solver can consult when
-# choosing workspace layout / loop structure. Default is `Threaded()` so
-# exhaustive sweeps keep their existing behavior; trajectory-style
-# samplers (BRTDP rollouts, on-policy trajectories) should override to
-# `Sequential`.
-parallelism_hint(::SamplingStrategy) = Threaded()
 
 struct AllSampling <: SamplingStrategy end
 

@@ -62,13 +62,24 @@ include("utils.jl")
 include("threading.jl")
 include("workspace.jl")
 include("strategy_cache.jl")
-# `state_sampling.jl` defines the `SequenceShape` trait that `bellman.jl`
-# dispatches on, so it must come first.
-include("state_sampling.jl")
-include("bellman.jl")
-public AllSampling, AllStatesSweep, RandomSubsetStateActions
+include("termination.jl")
+
+# Bellman primitives: scalar kernels in `bellman_kernels.jl`, then the
+# state-shape (`bellman_v!`) and state-action-shape (`bellman_q!`) sweeps
+# in their own files. Both call into the kernels.
+include("bellman_kernels.jl")
+include("state_bellman.jl")
+include("state_action_bellman.jl")
+include("product_bellman.jl")
 
 include("robust_value_iteration.jl")
+include("gsrdp.jl")
+
+# `sampling.jl` defines `SamplingStrategy`s and the `sample` dispatcher.
+# Comes after the algorithm-defining files because `sampling_strategy`
+# methods dispatch on the algorithm types.
+include("sampling.jl")
+public AllSampling, AllStatesSweep, RandomSubsetStateActions
 
 ### Saving and loading models
 include("Data/Data.jl")

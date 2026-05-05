@@ -12,7 +12,7 @@ struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm, S
     sampling_strategy::S
 end
 GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg::BellmanAlgorithm) =
-    GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, AllSampling())
+    GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, AllStatesSweep())
 bellman_algorithm(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.bellman_alg
 termination_criteria(::GeneralizedSamplingbasedRobustDynamicProgramming, spec) =
     termination_criteria(spec)
@@ -96,9 +96,13 @@ function _gsrdp!(
         k += 1
     end
 
-    res = residual(value_function.current, mp, spec)
+    postprocess_value_function!(value_function, spec)
 
-    return value_function.current, k, res, strategy_cache
+    # `lastdiff!` was last called inside the `while` condition above and
+    # has stored `V_prev - V_cur` into `value_function.previous`. Reuse it
+    # as the residual return value, matching the contract used by
+    # `_robust_value_iteration!`.
+    return value_function.current, k, value_function.previous, strategy_cache
 end
 
 function bellman_update!(
@@ -111,12 +115,14 @@ function bellman_update!(
     mp,
     spec,
 )
-    # Use the V-shape primitive — for the sampling-based path the update
-    # sequence is a `StateActionUpdateSequence`, so this dispatches to
-    # `sa_sweep!`, which relaxes V[s] and the strategy cache in place as
-    # each (a, s) pair is visited. States not visited in this iteration
-    # retain `V_prev`.
-    expectation_v!(
+    # Until the `IntervalValueFunction{StateActionValueFunction}` redesign
+    # (Problem 2 of the gsrdp refactor) lands, this algorithm reuses
+    # `StateValueFunction` and just calls `bellman_v!` over a state
+    # sequence — it's effectively identical to `RobustValueIteration` for
+    # the full-sweep case. Sampling strategies that yield `(a, s)` pairs
+    # (e.g. `RandomSubsetStateActions`) won't be honoured here yet because
+    # the value function is V-shape.
+    bellman_v!(
         workspace,
         select_strategy_cache(strategy_cache, k),
         StateValueArray(value_function.current),

@@ -56,3 +56,23 @@ function showbellmanalg(io::IO, prefix, _, ::BellmanAlgorithm)
 end
 
 abstract type ModelCheckingAlgorithm end
+
+# `showmcalgorithm` for the model-pretty-print path. Concrete algorithms
+# (`RobustValueIteration`, `GeneralizedSamplingbasedRobustDynamicProgramming`)
+# overload these in their own files; the fallback below covers
+# any future algorithm that hasn't yet supplied a show.
+function showmcalgorithm(io::IO, prefix, ::ModelCheckingAlgorithm)
+    println(io, prefix, "├─", styled"Default model checking algorithm: {green:None}")
+end
+
+# `solve(problem)` (no algorithm) defaults to `RobustValueIteration` with
+# the model's default Bellman algorithm. Defined here as a forward
+# declaration so this file can be `include`d before `RobustValueIteration`
+# is defined; the actual `default_algorithm` body refers to types that
+# come later, but it's only resolved at call time.
+default_algorithm(problem::AbstractIntervalMDPProblem) = default_algorithm(system(problem))
+default_algorithm(system::StochasticProcess) =
+    RobustValueIteration(default_bellman_algorithm(system))
+
+solve(problem::AbstractIntervalMDPProblem; kwargs...) =
+    solve(problem, default_algorithm(problem); kwargs...)

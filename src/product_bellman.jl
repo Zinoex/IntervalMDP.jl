@@ -1,28 +1,38 @@
+# Bellman primitives for `ProductProcess` (an `IntervalMarkovProcess`
+# composed with a DFA via a labelling function). The product expectation
+# splits along the DFA axis: for each DFA state, we project the value
+# function via the labelling function and recurse into the underlying
+# Markov process's Bellman primitive on a slice of the result buffer.
+#
+# Both `bellman_v!` (V-shape) and `bellman_q!` (Q-shape) are supported.
+# In each case the DFA axis is the last axis of the corresponding result
+# buffer (so a V-shape Vres has shape `(state_shape..., dfa_states)`,
+# and a Q-shape Qres has shape
+# `(action_shape..., state_shape..., dfa_states)`).
 
+###############################################################################
+# Q-shape: bellman_q!                                                         #
+###############################################################################
 
-function bellman!(
+function bellman_q!(
     workspace::ProductWorkspace,
-    strategy_cache,
-    Vres::AbstractArray,
-    V::AbstractArray,
+    strategy_cache::OptimizingStrategyCache,
+    Qres::StateActionValueArray,
+    V::StateValueArray,
     model::ProductProcess,
     update_sequence = sample(default_sampling_strategy(), model, strategy_cache);
     upper_bound = false,
     maximize = true,
     prop = nothing,
 )
-    mp = markov_process(model)
-    lf = labelling_function(model)
-    dfa = automaton(model)
-
-    return _bellman_helper!(
+    return _bellman_q_product!(
         workspace,
         strategy_cache,
-        Vres,
-        V,
-        dfa,
-        lf,
-        mp,
+        parent(Qres),
+        parent(V),
+        automaton(model),
+        labelling_function(model),
+        markov_process(model),
         update_sequence;
         upper_bound = upper_bound,
         maximize = maximize,
@@ -30,108 +40,198 @@ function bellman!(
     )
 end
 
-function _bellman_helper!(
+function _bellman_q_product!(
     workspace::ProductWorkspace,
-    strategy_cache::AbstractStrategyCache,
+    strategy_cache,
+    Qres,
+    V,
+    dfa::DFA,
+    lf::DeterministicLabelling,
+    mp::IntervalMarkovProcess,
+    update_sequence;
+    upper_bound,
+    maximize,
+    prop,
+)
+    W = workspace.intermediate_values
+
+    @inbounds for state in dfa
+        if !isnothing(prop) && state ∈ terminal(prop)
+            continue
+        end
+        local_sc = localize_strategy_cache(strategy_cache, state)
+        # Project V to the underlying-MDP V[s] for this DFA state.
+        map!(W, CartesianIndices(state_values(mp))) do idx
+            return V[idx, dfa[state, lf[idx]]]
+        end
+        bellman_q!(
+            workspace.underlying_workspace,
+            local_sc,
+            StateActionValueArray(selectdim(Qres, ndims(Qres), state)),
+            StateValueArray(W),
+            mp,
+            update_sequence;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
+    end
+    return Qres
+end
+
+function _bellman_q_product!(
+    workspace::ProductWorkspace,
+    strategy_cache,
+    Qres,
+    V::AbstractArray{R},
+    dfa::DFA,
+    lf::ProbabilisticLabelling,
+    mp::IntervalMarkovProcess,
+    update_sequence;
+    upper_bound,
+    maximize,
+    prop,
+) where {R}
+    W = workspace.intermediate_values
+
+    @inbounds for state in dfa
+        if !isnothing(prop) && state ∈ terminal(prop)
+            continue
+        end
+        local_sc = localize_strategy_cache(strategy_cache, state)
+        map!(W, CartesianIndices(state_values(mp))) do idx
+            v = zero(R)
+            for (label, prob) in enumerate(lf[idx])
+                v += prob * V[idx, dfa[state, label]]
+            end
+            return v
+        end
+        bellman_q!(
+            workspace.underlying_workspace,
+            local_sc,
+            StateActionValueArray(selectdim(Qres, ndims(Qres), state)),
+            StateValueArray(W),
+            mp,
+            update_sequence;
+            upper_bound = upper_bound,
+            maximize = maximize,
+        )
+    end
+    return Qres
+end
+
+###############################################################################
+# V-shape: bellman_v!                                                         #
+###############################################################################
+
+function bellman_v!(
+    workspace::ProductWorkspace,
+    strategy_cache,
+    Vres::StateValueArray,
+    V::StateValueArray,
+    model::ProductProcess,
+    update_sequence = sample(default_sampling_strategy(), model, strategy_cache);
+    upper_bound = false,
+    maximize = true,
+    prop = nothing,
+)
+    return _bellman_v_product!(
+        workspace,
+        strategy_cache,
+        parent(Vres),
+        parent(V),
+        automaton(model),
+        labelling_function(model),
+        markov_process(model),
+        update_sequence;
+        upper_bound = upper_bound,
+        maximize = maximize,
+        prop = prop,
+    )
+end
+
+function _bellman_v_product!(
+    workspace::ProductWorkspace,
+    strategy_cache,
     Vres,
     V,
     dfa::DFA,
     lf::DeterministicLabelling,
     mp::IntervalMarkovProcess,
     update_sequence;
-    upper_bound = false,
-    maximize = true,
-    prop = nothing,
+    upper_bound,
+    maximize,
+    prop,
 )
     W = workspace.intermediate_values
 
     @inbounds for state in dfa
-        # If a DFA property is given, skip terminal states
         if !isnothing(prop) && state ∈ terminal(prop)
             continue
         end
-
-        local_strategy_cache = localize_strategy_cache(strategy_cache, state)
-
-        # Select the value function for the current DFA state
-        # according to the appropriate DFA transition function
+        local_sc = localize_strategy_cache(strategy_cache, state)
         map!(W, CartesianIndices(state_values(mp))) do idx
             return V[idx, dfa[state, lf[idx]]]
         end
-
-        # For each state in the product process, compute the Bellman operator
-        # for the corresponding Markov process
-        bellman!(
+        bellman_v!(
             workspace.underlying_workspace,
-            local_strategy_cache,
-            selectdim(Vres, ndims(Vres), state),
-            W,
+            local_sc,
+            StateValueArray(selectdim(Vres, ndims(Vres), state)),
+            StateValueArray(W),
             mp,
-            update_sequence; #TODO: need to separate automata states
+            update_sequence;
             upper_bound = upper_bound,
             maximize = maximize,
         )
     end
-
     return Vres
 end
 
-function _bellman_helper!(
+function _bellman_v_product!(
     workspace::ProductWorkspace,
-    strategy_cache::AbstractStrategyCache,
+    strategy_cache,
     Vres,
     V::AbstractArray{R},
     dfa::DFA,
     lf::ProbabilisticLabelling,
     mp::IntervalMarkovProcess,
     update_sequence;
-    upper_bound = false,
-    maximize = true,
-    prop = nothing,
+    upper_bound,
+    maximize,
+    prop,
 ) where {R}
     W = workspace.intermediate_values
 
     @inbounds for state in dfa
-        # If a DFA property is given, skip terminal states
         if !isnothing(prop) && state ∈ terminal(prop)
             continue
         end
-
-        local_strategy_cache = localize_strategy_cache(strategy_cache, state)
-
-        # Select the value function for the current DFA state
-        # according to the appropriate DFA transition function
+        local_sc = localize_strategy_cache(strategy_cache, state)
         map!(W, CartesianIndices(state_values(mp))) do idx
             v = zero(R)
-
             for (label, prob) in enumerate(lf[idx])
-                new_dfa_state = dfa[state, label]
-                v += prob * V[idx, new_dfa_state]
+                v += prob * V[idx, dfa[state, label]]
             end
-
             return v
         end
-
-        # For each state in the product process, compute the Bellman operator
-        # for the corresponding Markov process
-        bellman!(
+        bellman_v!(
             workspace.underlying_workspace,
-            local_strategy_cache,
-            selectdim(Vres, ndims(Vres), state),
-            W,
+            local_sc,
+            StateValueArray(selectdim(Vres, ndims(Vres), state)),
+            StateValueArray(W),
             mp,
-            update_sequence; #TODO: need to separate automata states
+            update_sequence;
             upper_bound = upper_bound,
             maximize = maximize,
         )
     end
-
     return Vres
 end
 
-function localize_strategy_cache(strategy_cache::NoStrategyCache, dfa_state)
-    return strategy_cache
-end
+###############################################################################
+# Strategy cache localisation (per DFA state)                                 #
+###############################################################################
+
+localize_strategy_cache(strategy_cache::NoStrategyCache, dfa_state) = strategy_cache
 
 function localize_strategy_cache(strategy_cache::TimeVaryingStrategyCache, dfa_state)
     return TimeVaryingStrategyCache(

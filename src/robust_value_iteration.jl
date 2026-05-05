@@ -12,6 +12,15 @@ bellman_algorithm(alg::RobustValueIteration) = alg.bellman_alg
 termination_criteria(::RobustValueIteration, spec) = termination_criteria(spec)
 construct_value_function(::RobustValueIteration, problem) = StateValueFunction(problem)
 
+function showmcalgorithm(io::IO, prefix, ::RobustValueIteration)
+    println(
+        io,
+        prefix,
+        "├─",
+        styled"Default model checking algorithm: {green:Robust Value Iteration}",
+    )
+end
+
 """
     solve(problem::AbstractIntervalMDPProblem, alg::RobustValueIteration; callback=nothing)
 
@@ -234,13 +243,15 @@ function bellman_update!(
     # `StateUpdateSequence` (yields `s`), so this dispatches to the
     # state-outer + `extract_strategy!` path. The `StateValueArray`
     # wrappers tag the buffers as state-value-shape at the type level.
+    sc = select_strategy_cache(strategy_cache, k)
+    model = select_model(mp, k) # For time-varying available and labelling functions
     bellman_v!(
         workspace,
-        select_strategy_cache(strategy_cache, k),
+        sc,
         StateValueArray(value_function.current),
         StateValueArray(value_function.previous),
-        select_model(mp, k), # For time-varying available and labelling functions
-        AllStates();
+        model,
+        sample(AllStatesSweep(), model, sc);
         upper_bound = isoptimistic(spec),
         maximize = ismaximize(spec),
         prop = system_property(spec),
