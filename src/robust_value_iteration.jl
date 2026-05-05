@@ -228,13 +228,13 @@ function bellman_update!(
     mp,
     spec,
 )
-    # `expectation_v!` writes V'[s] directly using per-state action scratch
+    # `bellman_v!` writes V'[s] directly using per-state action scratch
     # in `workspace.actions` — no `(action × state)` Q-array is allocated
     # along the hot path. For RobustVI the update sequence is a
     # `StateUpdateSequence` (yields `s`), so this dispatches to the
     # state-outer + `extract_strategy!` path. The `StateValueArray`
     # wrappers tag the buffers as state-value-shape at the type level.
-    expectation_v!(
+    bellman_v!(
         workspace,
         select_strategy_cache(strategy_cache, k),
         StateValueArray(value_function.current),
