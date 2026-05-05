@@ -2,6 +2,10 @@ abstract type AbstractStrategyCache end
 abstract type NonOptimizingStrategyCache <: AbstractStrategyCache end
 abstract type OptimizingStrategyCache <: AbstractStrategyCache end
 
+select_strategy_cache(strategy_cache::OptimizingStrategyCache, k) = strategy_cache
+select_strategy_cache(strategy_cache::NonOptimizingStrategyCache, k) =
+    strategy_cache[time_length(strategy_cache) - k]
+
 """
     construct_strategy_cache(mp_or_problem)
 

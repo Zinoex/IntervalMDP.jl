@@ -1,31 +1,16 @@
-abstract type TerminationCriteria end
-function termination_criteria(spec::Specification)
-    prop = system_property(spec)
-    ft = isfinitetime(prop)
-    return termination_criteria(prop, Val(ft))
-end
+"""
+    RobustValueIteration
 
-struct FixedIterationsCriteria{T <: Integer} <: TerminationCriteria
-    n::T
+A robust value iteration algorithm for solving interval Markov decision processes (IMDPs) with interval ambiguity sets.
+This algorithm is designed to handle both finite and infinite time specifications, optimizing for either the maximum or
+minimum expected value based on the given specification.
+"""
+struct RobustValueIteration{B <: BellmanAlgorithm} <: ModelCheckingAlgorithm
+    bellman_alg::B
 end
-(f::FixedIterationsCriteria)(V, k, u) = k >= f.n
-termination_criteria(prop, finitetime::Val{true}) =
-    FixedIterationsCriteria(time_horizon(prop))
-
-struct CovergenceCriteria{T <: Real} <: TerminationCriteria
-    tol::T
-end
-(f::CovergenceCriteria)(V, k, u) = maximum(abs, u) < f.tol
-termination_criteria(prop, finitetime::Val{false}) =
-    CovergenceCriteria(convergence_eps(prop))
-
-function initialize!(value_function::ValueFunction, prop::AbstractReachability)
-    initialize!(value_function, prop, Val(isupper(value_function)))
-end
-
+bellman_algorithm(alg::RobustValueIteration) = alg.bellman_alg
 termination_criteria(::RobustValueIteration, spec) = termination_criteria(spec)
-termination_criteria(::GeneralizedSamplingbasedRobustDynamicProgramming, spec) =
-    termination_criteria(spec)
+construct_value_function(::RobustValueIteration, problem) = StateValueFunction(problem)
 
 """
     solve(problem::AbstractIntervalMDPProblem, alg::RobustValueIteration; callback=nothing)
@@ -164,40 +149,20 @@ IntervalMDP.ControlSynthesisSolution{TimeVaryingStrategy{1, Vector{Tuple{Int32}}
 ```
 """
 function solve(problem::VerificationProblem, alg::RobustValueIteration; kwargs...)
-    V, k, res, _ = _value_iteration!(problem, alg; kwargs...)
+    V, k, res, _ = _robust_value_iteration!(problem, alg; kwargs...)
     return VerificationSolution(V, res, k)
 end
 
 function solve(problem::ControlSynthesisProblem, alg::RobustValueIteration; kwargs...)
-    V, k, res, strategy_cache = _value_iteration!(problem, alg; kwargs...)
+    V, k, res, strategy_cache = _robust_value_iteration!(problem, alg; kwargs...)
     strategy = cachetostrategy(strategy_cache)
 
     return ControlSynthesisSolution(strategy, V, res, k)
 end
 
-function solve(
-    problem::VerificationProblem,
-    alg::GeneralizedSamplingbasedRobustDynamicProgramming;
-    kwargs...,
-)
-    V, k, res, _ = _value_iteration!(problem, alg; kwargs...)
-    return VerificationSolution(V, res, k)
-end
-
-function solve(
-    problem::ControlSynthesisProblem,
-    alg::GeneralizedSamplingbasedRobustDynamicProgramming;
-    kwargs...,
-)
-    V, k, res, strategy_cache = _value_iteration!(problem, alg; kwargs...)
-    strategy = cachetostrategy(strategy_cache)
-
-    return ControlSynthesisSolution(strategy, V, res, k)
-end
-
-function _value_iteration!(
+function _robust_value_iteration!(
     problem::AbstractIntervalMDPProblem,
-    alg::ModelCheckingAlgorithm;
+    alg::RobustValueIteration;
     callback = nothing,
 )
     mp = system(problem)
@@ -213,12 +178,10 @@ function _value_iteration!(
     initialize!(value_function, spec)
     nextiteration!(value_function)
 
-    update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, 0))
     bellman_update!(
         alg,
         workspace,
         strategy_cache,
-        update_sequence,
         value_function,
         0,
         mp,
@@ -233,13 +196,10 @@ function _value_iteration!(
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
 
-        update_sequence =
-            sample(sampling_strat, mp, select_strategy_cache(strategy_cache, k))
         bellman_update!(
             alg,
             workspace,
             strategy_cache,
-            update_sequence,
             value_function,
             k,
             mp,
@@ -263,7 +223,6 @@ function bellman_update!(
     ::RobustValueIteration,
     workspace,
     strategy_cache,
-    update_sequence,
     value_function::StateValueFunction,
     k,
     mp,
@@ -281,7 +240,7 @@ function bellman_update!(
         StateValueArray(value_function.current),
         StateValueArray(value_function.previous),
         select_model(mp, k), # For time-varying available and labelling functions
-        update_sequence;
+        AllStates();
         upper_bound = isoptimistic(spec),
         maximize = ismaximize(spec),
         prop = system_property(spec),
@@ -292,61 +251,3 @@ function bellman_update!(
     step_postprocess_value_function!(value_function, spec)
     step_postprocess_strategy_cache!(strategy_cache)
 end
-
-function bellman_update!(
-    ::GeneralizedSamplingbasedRobustDynamicProgramming,
-    workspace,
-    strategy_cache,
-    update_sequence,
-    value_function::StateValueFunction,
-    k,
-    mp,
-    spec,
-)
-    # Use the V-shape primitive — for the sampling-based path the update
-    # sequence is a `StateActionUpdateSequence`, so this dispatches to
-    # `sa_sweep!`, which relaxes V[s] and the strategy cache in place as
-    # each (a, s) pair is visited. States not visited in this iteration
-    # retain `V_prev`.
-    expectation_v!(
-        workspace,
-        select_strategy_cache(strategy_cache, k),
-        StateValueArray(value_function.current),
-        StateValueArray(value_function.previous),
-        select_model(mp, k),
-        update_sequence;
-        upper_bound = isoptimistic(spec),
-        maximize = ismaximize(spec),
-    )
-
-    step_postprocess_value_function!(value_function, spec)
-    step_postprocess_strategy_cache!(strategy_cache)
-end
-
-select_strategy_cache(strategy_cache::OptimizingStrategyCache, k) = strategy_cache
-select_strategy_cache(strategy_cache::NonOptimizingStrategyCache, k) =
-    strategy_cache[time_length(strategy_cache) - k]
-
-select_model(mp::IntervalMarkovProcess, k) = FactoredRMDP(
-    state_values(mp),
-    action_values(mp),
-    source_shape(mp),
-    marginals(mp),
-    select_available_actions(available_actions(mp), k),
-    initial_states(mp),
-    Val(false),
-)
-
-select_available_actions(aa::SingleTimeStepAvailableActions, k) = aa
-select_available_actions(aa::TimeVaryingAvailableActions, k) =
-    aa.actions[time_length(aa) - k]
-
-select_model(mp::ProductProcess, k) = ProductProcess(
-    select_model(markov_process(mp), k),
-    automaton(mp),
-    select_labelling_function(labelling_function(mp), k),
-)
-
-select_labelling_function(lf::AbstractSingleStepLabelling, k) = lf
-select_labelling_function(lf::TimeVaryingLabelling, k) =
-    lf.labelling_functions[time_length(lf) - k]

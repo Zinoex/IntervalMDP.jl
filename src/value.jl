@@ -187,13 +187,3 @@ function initialize!(value_function::IntervalValueFunction, prop::AbstractReacha
     initialize!(value_function.upper, prop, Val(true))
 end
 
-#################
-# Algorithms    #
-#################
-construct_value_function(::RobustValueIteration, problem) = StateValueFunction(problem)
-construct_value_function(::IntervalValueIteration, problem) = IntervalValueFunction(
-    lower = StateValueFunction(problem),
-    upper = StateValueFunction(problem),
-)
-construct_value_function(::GeneralizedSamplingbasedRobustDynamicProgramming, problem) =
-    StateValueFunction(problem)

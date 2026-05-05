@@ -52,12 +52,12 @@ include("cuda.jl")
 public cu, cpu
 
 ### Solving
+include("value.jl")
 include("algorithms.jl")
 export OMaximization, LPMcCormickRelaxation, VertexEnumeration
 export RobustValueIteration, GeneralizedSamplingbasedRobustDynamicProgramming
 export default_algorithm, default_bellman_algorithm, bellman_algorithm
 
-include("value.jl")
 include("utils.jl")
 include("threading.jl")
 include("workspace.jl")
