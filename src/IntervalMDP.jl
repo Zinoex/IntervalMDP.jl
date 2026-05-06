@@ -64,13 +64,13 @@ include("workspace.jl")
 include("strategy_cache.jl")
 include("termination.jl")
 
-# Bellman primitives: scalar kernels in `bellman_kernels.jl`, then the
+# Bellman primitives: scalar kernels in `bellman/kernels.jl`, then the
 # state-shape (`bellman_v!`) and state-action-shape (`bellman_q!`) sweeps
 # in their own files. Both call into the kernels.
-include("bellman_kernels.jl")
-include("state_bellman.jl")
-include("state_action_bellman.jl")
-include("product_bellman.jl")
+include("bellman/kernels.jl")
+include("bellman/state.jl")
+include("bellman/state_action.jl")
+include("bellman/product.jl")
 
 include("robust_value_iteration.jl")
 include("gsrdp.jl")
