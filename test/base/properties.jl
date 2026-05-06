@@ -136,7 +136,6 @@ end
         seed = Data.Integers{UInt32}(),
         n_states = Data.Integers(2, 4),
         n_actions = Data.Integers(1, 3),
-        horizon = Data.Integers(1, 5),
     )
         rng = MersenneTwister(seed)
         lower, upper = _valid_bounds(rng, n_states, n_states * n_actions)
@@ -148,7 +147,8 @@ end
         ]
         mdp = IntervalMarkovDecisionProcess(transition_probs, [1])
 
-        prop = FiniteTimeReachability([n_states], horizon)
+        eps = 1e-6
+        prop = InfiniteTimeReachability([n_states], eps)
         spec = Specification(prop, Pessimistic, Maximize)
         problem = VerificationProblem(mdp, spec)
 
@@ -159,7 +159,13 @@ end
         V_rvi, _, _ = solve(problem, rvi)
         V_gsdp, _, _ = solve(problem, gsdp)
 
-        V_rvi == V_gsdp
+        # Both algorithms compute monotone lower bounds on V* (the true
+        # robust max-reach value) for Pessimistic+Maximize. RVI's
+        # `||V_cur - V_prev|| < eps` does not bound the distance to V* for
+        # undiscounted reachability, while GSRDP's gap criterion does.
+        # GSRDP therefore runs longer and produces a tighter (higher)
+        # lower bound: V_rvi[s] <= V_gsdp[s] + eps.
+        all(V_rvi .<= V_gsdp .+ eps)
     end
 end
 

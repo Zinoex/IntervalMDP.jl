@@ -1,10 +1,27 @@
-
 """
     GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, sampling_strategy)
 
-Generalized sampling-based robust dynamic programming. The `sampling_strategy`
-field controls which state (or state-action) pairs are updated each iteration.
-Defaults to `AllSampling()` for parity with [`RobustValueIteration`](@ref).
+Generalized sampling-based robust dynamic programming. Drives an
+[`IntervalValueFunction`](@ref) — i.e. simultaneous lower and upper
+bounds on the value — and terminates when the gap `V_upper - V_lower`
+falls below `convergence_eps(prop)`.
+
+Restrictions:
+
+* Only infinite-horizon (convergence-based) properties are accepted.
+  Finite-horizon properties have a fixed-iteration termination criterion
+  that's incompatible with gap-based convergence.
+
+The optimal action at each visited state is picked from the *primary*
+bound (lower for `Pessimistic`, upper for `Optimistic`) using the
+specification's `Maximize`/`Minimize` mode. The chosen action is then
+applied to the *secondary* bound through a `NonOptimizingStrategyCache`
+so both bounds track the same policy.
+
+`sampling_strategy` controls which states (or `(a, s)` pairs) are
+relaxed each iteration. State-action samplers are projected to their
+unique state set via [`project_to_state_sequence`](@ref) — visited states
+get a full action sweep, unvisited states retain `V_prev`.
 """
 struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm, S} <:
        ModelCheckingAlgorithm
@@ -13,11 +30,42 @@ struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm, S
 end
 GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg::BellmanAlgorithm) =
     GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, AllStatesSweep())
+
 bellman_algorithm(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.bellman_alg
-termination_criteria(::GeneralizedSamplingbasedRobustDynamicProgramming, spec) =
-    termination_criteria(spec)
+
 construct_value_function(::GeneralizedSamplingbasedRobustDynamicProgramming, problem) =
-    StateValueFunction(problem)
+    IntervalValueFunction(
+        StateValueFunction(problem, Lower),
+        StateValueFunction(problem, Upper),
+    )
+
+"""
+    GapTerminationCriteria(tol)
+
+Terminates when `maximum(abs, gap) < tol` over the elementwise gap
+`V_upper - V_lower`. Used by
+[`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref).
+"""
+struct GapTerminationCriteria{T <: Real} <: TerminationCriteria
+    tol::T
+end
+(f::GapTerminationCriteria)(_, _, gap_residual) = maximum(abs, gap_residual) < f.tol
+
+function termination_criteria(
+    ::GeneralizedSamplingbasedRobustDynamicProgramming,
+    spec::Specification,
+)
+    prop = system_property(spec)
+    if isfinitetime(prop)
+        throw(
+            ArgumentError(
+                "GeneralizedSamplingbasedRobustDynamicProgramming requires an " *
+                "infinite-horizon property; got $(typeof(prop)).",
+            ),
+        )
+    end
+    return GapTerminationCriteria(convergence_eps(prop))
+end
 
 function solve(
     problem::VerificationProblem,
@@ -46,15 +94,15 @@ function _gsrdp!(
 )
     mp = system(problem)
     spec = specification(problem)
+    prop = system_property(spec)
     term_criteria = termination_criteria(alg, spec)
 
-    # It is more efficient to use allocate first and reuse across iterations
     workspace = construct_workspace(mp, bellman_algorithm(alg))
-    strategy_cache = construct_strategy_cache(problem)
+    strategy_cache = _gsrdp_strategy_cache(problem)
     sampling_strat = sampling_strategy(alg)
 
     value_function = construct_value_function(alg, problem)
-    initialize!(value_function, spec)
+    _gsrdp_initialize!(value_function, prop)
     nextiteration!(value_function)
 
     update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, 0))
@@ -71,10 +119,10 @@ function _gsrdp!(
     k = 1
 
     if !isnothing(callback)
-        callback(value_function.current, k)
+        callback(_solution_value(value_function, spec), k)
     end
 
-    while !term_criteria(value_function.current, k, lastdiff!(value_function))
+    while !term_criteria(value_function, k, gap(value_function))
         nextiteration!(value_function)
 
         update_sequence =
@@ -91,49 +139,99 @@ function _gsrdp!(
         )
 
         if !isnothing(callback)
-            callback(value_function.current, k)
+            callback(_solution_value(value_function, spec), k + 1)
         end
 
         k += 1
     end
 
-    postprocess_value_function!(value_function, spec)
+    postprocess_value_function!(value_function.lower, prop)
+    postprocess_value_function!(value_function.upper, prop)
 
-    # `lastdiff!` was last called inside the `while` condition above and
-    # has stored `V_prev - V_cur` into `value_function.previous`. Reuse it
-    # as the residual return value, matching the contract used by
-    # `_robust_value_iteration!`.
-    return value_function.current, k, value_function.previous, strategy_cache
+    return _solution_value(value_function, spec), k, gap(value_function), strategy_cache
 end
+
+# Pessimistic returns the lower bound, Optimistic returns the upper bound —
+# matching `RobustValueIteration`'s single-bound output for parity.
+_solution_value(V::IntervalValueFunction, spec) =
+    ispessimistic(spec) ? V.lower.current : V.upper.current
+
+# Initialise both bounds from the property. Reachability splits upper/lower
+# differently (lower starts at 0/1, upper starts at 1 everywhere); other
+# properties initialise both bounds identically.
+function _gsrdp_initialize!(V::IntervalValueFunction, prop::AbstractReachability)
+    initialize!(V.lower, prop, Val(false))
+    initialize!(V.upper, prop, Val(true))
+end
+
+# GSRDP always allocates a fresh `StationaryStrategyCache`. The algorithm
+# is infinite-horizon, so the optimal policy under a fixed model is
+# stationary; using the same cache type for both `VerificationProblem`
+# and `ControlSynthesisProblem` keeps the upper/lower coordination
+# uniform. For verification, the cache is scratch and discarded; for
+# synthesis, `cachetostrategy` extracts the final policy.
+function _gsrdp_strategy_cache(problem::AbstractIntervalMDPProblem)
+    mp = system(problem)
+    N = length(action_values(mp))
+    strategy_arr = arrayfactory(mp, NTuple{N, Int32}, source_shape(mp))
+    strategy_arr .= (ntuple(_ -> 0, N),)
+    return StationaryStrategyCache(strategy_arr)
+end
+
+# Wrap the primary bellman call's strategy cache as a non-optimizing
+# follower for the secondary bellman call. After `bellman_v!` with the
+# stationary cache, `cache.strategy` holds the chosen action per state;
+# we expose it as an `ActiveGivenStrategyCache` for the secondary call.
+_follow_strategy_cache(cache::StationaryStrategyCache) =
+    ActiveGivenStrategyCache(cache.strategy)
 
 function bellman_update!(
     ::GeneralizedSamplingbasedRobustDynamicProgramming,
     workspace,
     strategy_cache,
     update_sequence,
-    value_function::StateValueFunction,
+    value_function::IntervalValueFunction,
     k,
     mp,
     spec,
 )
-    # Until the `IntervalValueFunction{StateActionValueFunction}` redesign
-    # (Problem 2) lands, gsrdp drives a `StateValueFunction` and calls
-    # `bellman_v!`. State-action samplers are projected to their unique
-    # state set (semantics weakened: visited states get a full action
-    # sweep, unvisited states retain `V_prev`).
     state_seq = project_to_state_sequence(update_sequence)
+    model = select_model(mp, k)
 
+    # Primary drives action selection; secondary follows.
+    primary, secondary = if ispessimistic(spec)
+        value_function.lower, value_function.upper
+    else
+        value_function.upper, value_function.lower
+    end
+
+    primary_sc = select_strategy_cache(strategy_cache, k)
     bellman_v!(
         workspace,
-        select_strategy_cache(strategy_cache, k),
-        StateValueArray(value_function.current),
-        StateValueArray(value_function.previous),
-        select_model(mp, k),
+        primary_sc,
+        StateValueArray(primary.current),
+        StateValueArray(primary.previous),
+        model,
         state_seq;
-        upper_bound = isoptimistic(spec),
+        upper_bound = isupper(primary),
         maximize = ismaximize(spec),
+        prop = system_property(spec),
     )
 
-    step_postprocess_value_function!(value_function, spec)
+    secondary_sc = _follow_strategy_cache(primary_sc)
+    bellman_v!(
+        workspace,
+        secondary_sc,
+        StateValueArray(secondary.current),
+        StateValueArray(secondary.previous),
+        model,
+        state_seq;
+        upper_bound = isupper(secondary),
+        maximize = ismaximize(spec),
+        prop = system_property(spec),
+    )
+
+    step_postprocess_value_function!(value_function.lower, spec)
+    step_postprocess_value_function!(value_function.upper, spec)
     step_postprocess_strategy_cache!(strategy_cache)
 end
