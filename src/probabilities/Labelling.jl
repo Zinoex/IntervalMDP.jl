@@ -6,7 +6,6 @@ An abstract type for labelling functions.
 abstract type AbstractLabelling end
 abstract type AbstractSingleStepLabelling <: AbstractLabelling end
 
-
 select_labelling_function(lf::AbstractSingleStepLabelling, k) = lf
 
 struct TimeVaryingLabelling{L <: AbstractSingleStepLabelling} <: AbstractLabelling

@@ -1,5 +1,4 @@
-@testitem "implicit sink state" tags =
-    [:cuda, :implicit_sink_state] begin
+@testitem "implicit sink state" tags = [:cuda, :implicit_sink_state] begin
     using IntervalMDP, CUDA
     if CUDA.functional()
         prob1 = IntervalAmbiguitySets(;

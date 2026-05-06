@@ -16,7 +16,8 @@ GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg::BellmanAlgorithm) 
 bellman_algorithm(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.bellman_alg
 termination_criteria(::GeneralizedSamplingbasedRobustDynamicProgramming, spec) =
     termination_criteria(spec)
-construct_value_function(::GeneralizedSamplingbasedRobustDynamicProgramming, problem) = StateValueFunction(problem)
+construct_value_function(::GeneralizedSamplingbasedRobustDynamicProgramming, problem) =
+    StateValueFunction(problem)
 
 function solve(
     problem::VerificationProblem,
@@ -116,19 +117,19 @@ function bellman_update!(
     spec,
 )
     # Until the `IntervalValueFunction{StateActionValueFunction}` redesign
-    # (Problem 2 of the gsrdp refactor) lands, this algorithm reuses
-    # `StateValueFunction` and just calls `bellman_v!` over a state
-    # sequence — it's effectively identical to `RobustValueIteration` for
-    # the full-sweep case. Sampling strategies that yield `(a, s)` pairs
-    # (e.g. `RandomSubsetStateActions`) won't be honoured here yet because
-    # the value function is V-shape.
+    # (Problem 2) lands, gsrdp drives a `StateValueFunction` and calls
+    # `bellman_v!`. State-action samplers are projected to their unique
+    # state set (semantics weakened: visited states get a full action
+    # sweep, unvisited states retain `V_prev`).
+    state_seq = project_to_state_sequence(update_sequence)
+
     bellman_v!(
         workspace,
         select_strategy_cache(strategy_cache, k),
         StateValueArray(value_function.current),
         StateValueArray(value_function.previous),
         select_model(mp, k),
-        update_sequence;
+        state_seq;
         upper_bound = isoptimistic(spec),
         maximize = ismaximize(spec),
     )

@@ -21,12 +21,20 @@
         @testset "bellman" begin
             V = N[1, 2, 3]
             Vres = let
-    _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(mdp)..., size(V)...))
-    _ws = IntervalMDP.construct_workspace(mdp)
-    _sc = IntervalMDP.construct_strategy_cache(mdp)
-    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(_Qres), IntervalMDP.StateValueArray(V), mdp; upper_bound = false, maximize = true)
-    _Qres
-end
+                _Vres = Array{eltype(V)}(undef, size(V))
+                _ws = IntervalMDP.construct_workspace(mdp)
+                _sc = IntervalMDP.construct_strategy_cache(mdp)
+                IntervalMDP.bellman_v!(
+                    _ws,
+                    _sc,
+                    IntervalMDP.StateValueArray(_Vres),
+                    IntervalMDP.StateValueArray(V),
+                    mdp;
+                    upper_bound = false,
+                    maximize = true,
+                )
+                _Vres
+            end
             @test Vres ≈ N[
                 1 // 2 * 1 + 3 // 10 * 2 + 1 // 5 * 3,
                 3 // 10 * 1 + 3 // 10 * 2 + 2 // 5 * 3,
@@ -34,11 +42,19 @@ end
             ]
             Vres = similar(Vres)
             let
-    _ws = IntervalMDP.construct_workspace(mdp)
-    _sc = IntervalMDP.construct_strategy_cache(mdp)
-    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), mdp; upper_bound = false, maximize = true)
-    Vres
-end
+                _ws = IntervalMDP.construct_workspace(mdp)
+                _sc = IntervalMDP.construct_strategy_cache(mdp)
+                IntervalMDP.bellman_v!(
+                    _ws,
+                    _sc,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    mdp;
+                    upper_bound = false,
+                    maximize = true,
+                )
+                Vres
+            end
             @test Vres ≈ N[
                 1 // 2 * 1 + 3 // 10 * 2 + 1 // 5 * 3,
                 3 // 10 * 1 + 3 // 10 * 2 + 2 // 5 * 3,

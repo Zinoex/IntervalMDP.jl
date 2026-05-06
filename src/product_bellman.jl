@@ -129,7 +129,7 @@ function bellman_v!(
     Vres::StateValueArray,
     V::StateValueArray,
     model::ProductProcess,
-    update_sequence = sample(default_sampling_strategy(), model, strategy_cache);
+    update_sequence = sample(AllStatesSweep(), model, strategy_cache);
     upper_bound = false,
     maximize = true,
     prop = nothing,

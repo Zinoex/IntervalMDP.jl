@@ -144,14 +144,8 @@ function _bellman_q!(
         ambiguity_sets = map(marginal -> marginal[jₐ, jₛ], marginals(model))
         inds = map(marginal -> sub2ind(marginal, jₐ, jₛ), marginals(model))
         budgets = getindex.(workspace.budgets, inds)
-        Qres[jₐ, jₛ] = state_action_bellman(
-            workspace,
-            V,
-            model,
-            ambiguity_sets,
-            budgets,
-            upper_bound,
-        )
+        Qres[jₐ, jₛ] =
+            state_action_bellman(workspace, V, model, ambiguity_sets, budgets, upper_bound)
     end
     return Qres
 end
@@ -171,14 +165,8 @@ function _bellman_q!(
         @inbounds ambiguity_sets = map(marginal -> marginal[jₐ, jₛ], marginals(model))
         @inbounds inds = map(marginal -> sub2ind(marginal, jₐ, jₛ), marginals(model))
         @inbounds budgets = getindex.(ws.budgets, inds)
-        @inbounds Qres[jₐ, jₛ] = state_action_bellman(
-            ws,
-            V,
-            model,
-            ambiguity_sets,
-            budgets,
-            upper_bound,
-        )
+        @inbounds Qres[jₐ, jₛ] =
+            state_action_bellman(ws, V, model, ambiguity_sets, budgets, upper_bound)
     end
     return Qres
 end
@@ -205,8 +193,7 @@ function _bellman_q!(
 )
     @inbounds for (jₐ, jₛ) in update_sequence
         ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
-        Qres[jₐ, jₛ] =
-            state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
+        Qres[jₐ, jₛ] = state_action_bellman(workspace, V, ambiguity_sets, upper_bound)
     end
     return Qres
 end
@@ -227,8 +214,7 @@ function _bellman_q!(
     @threadstid tid for (jₐ, jₛ) in update_sequence
         @inbounds ws = workspace[tid]
         @inbounds ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
-        @inbounds Qres[jₐ, jₛ] =
-            state_action_bellman(ws, V, ambiguity_sets, upper_bound)
+        @inbounds Qres[jₐ, jₛ] = state_action_bellman(ws, V, ambiguity_sets, upper_bound)
     end
     return Qres
 end

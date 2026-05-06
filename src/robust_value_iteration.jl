@@ -187,15 +187,7 @@ function _robust_value_iteration!(
     initialize!(value_function, spec)
     nextiteration!(value_function)
 
-    bellman_update!(
-        alg,
-        workspace,
-        strategy_cache,
-        value_function,
-        0,
-        mp,
-        spec,
-    )
+    bellman_update!(alg, workspace, strategy_cache, value_function, 0, mp, spec)
     k = 1
 
     if !isnothing(callback)
@@ -205,15 +197,7 @@ function _robust_value_iteration!(
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
 
-        bellman_update!(
-            alg,
-            workspace,
-            strategy_cache,
-            value_function,
-            k,
-            mp,
-            spec,
-        )
+        bellman_update!(alg, workspace, strategy_cache, value_function, k, mp, spec)
         k += 1
 
         if !isnothing(callback)

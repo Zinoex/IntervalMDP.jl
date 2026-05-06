@@ -1,5 +1,4 @@
-@testitem "DeterministicLabelling" tags =
-    [:base, :deterministiclabelling] begin
+@testitem "DeterministicLabelling" tags = [:base, :deterministiclabelling] begin
     using IntervalMDP
     @testset "DeterministicLabelling" begin
         @testset "1d" begin
@@ -42,8 +41,7 @@
     end
 end
 
-@testitem "ProbabilisticLabelling" tags =
-    [:base, :probabilisticlabelling] begin
+@testitem "ProbabilisticLabelling" tags = [:base, :probabilisticlabelling] begin
     using IntervalMDP
     @testset "ProbabilisticLabelling" begin
         @testset "good case 1d" begin

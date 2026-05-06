@@ -372,14 +372,8 @@ Base.@propagate_inbounds function _populate_actions!(
         ambiguity_sets = map(marginal -> marginal[jₐ, jₛ], marginals(model))
         inds = map(marginal -> sub2ind(marginal, jₐ, jₛ), marginals(model))
         budgets = getindex.(workspace.budgets, inds)
-        workspace.actions[jₐ] = state_action_bellman(
-            workspace,
-            V,
-            model,
-            ambiguity_sets,
-            budgets,
-            upper_bound,
-        )
+        workspace.actions[jₐ] =
+            state_action_bellman(workspace, V, model, ambiguity_sets, budgets, upper_bound)
     end
 end
 

@@ -198,20 +198,33 @@ end
         V = rand(rng, n_states)
         upd = IntervalMDP.sample(IntervalMDP.default_sampling_strategy(), mdp)
         Q_omax = let
-    _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(mdp)..., size(V)...))
-    _ws = IntervalMDP.construct_workspace(mdp)
-    _sc = IntervalMDP.construct_strategy_cache(mdp)
-    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(_Qres), IntervalMDP.StateValueArray(V), mdp; upper_bound = false)
-    _Qres
-end
-        Q_vertex =
-            let
-    _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(mdp)..., size(V)...))
-    _ws = IntervalMDP.construct_workspace(mdp)
-    _sc = IntervalMDP.construct_strategy_cache(mdp)
-    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(_Qres), IntervalMDP.StateValueArray(V), mdp; upper_bound = false)
-    _Qres
-end
+            _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(mdp)..., size(V)...))
+            _ws = IntervalMDP.construct_workspace(mdp)
+            _sc = IntervalMDP.construct_strategy_cache(mdp)
+            IntervalMDP.bellman_q!(
+                _ws,
+                _sc,
+                IntervalMDP.StateActionValueArray(_Qres),
+                IntervalMDP.StateValueArray(V),
+                mdp;
+                upper_bound = false,
+            )
+            _Qres
+        end
+        Q_vertex = let
+            _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(mdp)..., size(V)...))
+            _ws = IntervalMDP.construct_workspace(mdp)
+            _sc = IntervalMDP.construct_strategy_cache(mdp)
+            IntervalMDP.bellman_q!(
+                _ws,
+                _sc,
+                IntervalMDP.StateActionValueArray(_Qres),
+                IntervalMDP.StateValueArray(V),
+                mdp;
+                upper_bound = false,
+            )
+            _Qres
+        end
 
         tol = 1e-9
         all(Q_omax .<= Q_vertex .+ tol)

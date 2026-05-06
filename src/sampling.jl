@@ -38,6 +38,16 @@ touched_states(seq) = _touched_states(sequence_shape(seq), seq)
 _touched_states(::StateUpdateSequence, seq) = Set(seq)
 _touched_states(::StateActionUpdateSequence, seq) = Set(s for (_, s) in seq)
 
+# Project an update sequence down to its unique-state set, preserving order.
+# Used by V-shape consumers (e.g. gsrdp's `bellman_update!`) that can't
+# honour per-(s, a) sampling without a Q-buffer; the resulting state set
+# triggers a full action sweep at each visited state.
+project_to_state_sequence(seq) = _project_to_state_sequence(sequence_shape(seq), seq)
+_project_to_state_sequence(::StateUpdateSequence, seq) = seq
+function _project_to_state_sequence(::StateActionUpdateSequence, seq)
+    return StateIterator(unique(s for (_, s) in seq))
+end
+
 # Partition: default chunks by index range over `eachindex(seq)`. For our
 # index-based `AbstractIterator`s this is O(1) per chunk via `SubIterator`.
 # Non-indexable fallback collects — callers should prefer indexable
@@ -277,7 +287,6 @@ sequence_shape(::StateIterator) = StateUpdateSequence()
 abstract type SamplingStrategy end
 
 function sample(::SamplingStrategy, model) end
-
 
 struct AllSampling <: SamplingStrategy end
 

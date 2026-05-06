@@ -34,7 +34,6 @@ Return the number of actions.
 """
 function num_actions end
 
-
 select_model(mp::IntervalMarkovProcess, k) = FactoredRMDP(
     state_values(mp),
     action_values(mp),

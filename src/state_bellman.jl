@@ -31,7 +31,7 @@ function bellman_v!(
     Vres::StateValueArray,
     V::StateValueArray,
     model::Union{IntervalMarkovProcess, AbstractAmbiguitySets},
-    update_sequence = sample(default_sampling_strategy(), model, strategy_cache);
+    update_sequence = sample(AllStatesSweep(), model, strategy_cache);
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -100,8 +100,7 @@ function _bellman_v!(
         jₐ = CartesianIndex(strategy_cache[jₛ])
         ambiguity_set = marginal[jₐ, jₛ]
         budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
-        Vres[jₛ] =
-            state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)
+        Vres[jₛ] = state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)
     end
     return Vres
 end
@@ -158,8 +157,7 @@ function _bellman_v!(
         @inbounds jₐ = CartesianIndex(strategy_cache[jₛ])
         @inbounds ambiguity_set = marginal[jₐ, jₛ]
         @inbounds budget = ws.budget[sub2ind(marginal, jₐ, jₛ)]
-        @inbounds Vres[jₛ] =
-            state_action_bellman(ws, V, ambiguity_set, budget, upper_bound)
+        @inbounds Vres[jₛ] = state_action_bellman(ws, V, ambiguity_set, budget, upper_bound)
     end
     return Vres
 end
@@ -258,14 +256,8 @@ function _bellman_v!(
         @inbounds ambiguity_sets = map(marginal -> marginal[jₐ, jₛ], marginals(model))
         @inbounds inds = map(marginal -> sub2ind(marginal, jₐ, jₛ), marginals(model))
         @inbounds budgets = getindex.(ws.budgets, inds)
-        @inbounds Vres[jₛ] = state_action_bellman(
-            ws,
-            V,
-            model,
-            ambiguity_sets,
-            budgets,
-            upper_bound,
-        )
+        @inbounds Vres[jₛ] =
+            state_action_bellman(ws, V, model, ambiguity_sets, budgets, upper_bound)
     end
     return Vres
 end
@@ -357,8 +349,7 @@ function _bellman_v!(
         @inbounds ws = workspace[tid]
         @inbounds jₐ = CartesianIndex(strategy_cache[jₛ])
         @inbounds ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)
-        @inbounds Vres[jₛ] =
-            state_action_bellman(ws, V, ambiguity_sets, upper_bound)
+        @inbounds Vres[jₛ] = state_action_bellman(ws, V, ambiguity_sets, upper_bound)
     end
     return Vres
 end

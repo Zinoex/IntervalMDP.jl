@@ -1,8 +1,11 @@
 @testitem "IMDP verification parity (Pessimistic, Maximize)" tags =
     [:base, :imdp_verification_parity_pessimistic_maximize] begin
     using IntervalMDP
-    @testset "IMDP verification parity (Pessimistic, Maximize)" for N in
-        [Float32, Float64, Rational{BigInt}]
+    @testset "IMDP verification parity (Pessimistic, Maximize)" for N in [
+        Float32,
+        Float64,
+        Rational{BigInt},
+    ]
         prob = IntervalAmbiguitySets(;
             lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
             upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
@@ -58,7 +61,7 @@ end
     [:base, :imdp_control_synthesis_parity_pessimistic_maximize] begin
     using IntervalMDP
     @testset "IMDP control synthesis parity (Pessimistic, Maximize)" for N in
-        [Float32, Float64]
+                                                                         [Float32, Float64]
         prob = IntervalAmbiguitySets(;
             lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
             upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
@@ -109,7 +112,7 @@ end
     [:base, :randomsubsetstateactions_bounded_below_full_sweep] begin
     using IntervalMDP
     @testset "RandomSubsetStateActions bounded + below full-sweep" for N in
-        [Float32, Float64]
+                                                                       [Float32, Float64]
         using Random
         Random.seed!(123)
         prob = IntervalAmbiguitySets(;

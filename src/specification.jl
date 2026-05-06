@@ -575,7 +575,6 @@ function checkdisjoint(reach, avoid)
     end
 end
 
-
 function initialize!(value_function, prop::AbstractReachAvoid, upper::Val{true})
     value_function.current .= 1.0
     @inbounds value_function.current[reach(prop)] .= 1.0

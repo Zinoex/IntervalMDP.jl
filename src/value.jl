@@ -186,4 +186,3 @@ function initialize!(value_function::IntervalValueFunction, prop::AbstractReacha
     initialize!(value_function.lower, prop, Val(false))
     initialize!(value_function.upper, prop, Val(true))
 end
-

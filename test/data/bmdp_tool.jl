@@ -1,5 +1,4 @@
-@testitem "write/read model,tstates" tags =
-    [:data, :write_read_model_tstates] begin
+@testitem "write/read model,tstates" tags = [:data, :write_read_model_tstates] begin
     using IntervalMDP, IntervalMDP.Data, SparseArrays
     (mdp, tstates) = read_bmdp_tool_file(joinpath(@__DIR__(), "multiObj_robotIMDP.txt"))
     marginal = (marginals(mdp))[1]

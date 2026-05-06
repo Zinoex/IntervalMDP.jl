@@ -90,6 +90,5 @@ function check_available_actions(
 end
 time_length(aa::TimeVaryingAvailableActions) = length(aa.actions)
 
-
 select_available_actions(aa::TimeVaryingAvailableActions, k) =
     aa.actions[time_length(aa) - k]

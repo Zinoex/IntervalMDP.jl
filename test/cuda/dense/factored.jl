@@ -263,8 +263,7 @@ end
     end
 end
 
-@testitem "bellman 2d partial dependence" tags =
-    [:cuda, :bellman_2d_partial_dependence] begin
+@testitem "bellman 2d partial dependence" tags = [:cuda, :bellman_2d_partial_dependence] begin
     using IntervalMDP, CUDA
     using Random: MersenneTwister
     if CUDA.functional()
@@ -615,8 +614,7 @@ end
     end
 end
 
-@testitem "implicit sink state" tags =
-    [:cuda, :implicit_sink_state] begin
+@testitem "implicit sink state" tags = [:cuda, :implicit_sink_state] begin
     using IntervalMDP, CUDA
     using Random: MersenneTwister
     if CUDA.functional()

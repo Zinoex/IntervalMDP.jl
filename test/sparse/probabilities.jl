@@ -74,8 +74,7 @@ end
     end
 end
 
-@testitem "dimension mismatch" tags =
-    [:sparse, :dimension_mismatch] begin
+@testitem "dimension mismatch" tags = [:sparse, :dimension_mismatch] begin
     using IntervalMDP, SparseArrays
     @testset for N in [Float32, Float64, Rational{BigInt}]
         @testset "dimension mismatch" begin
@@ -92,8 +91,7 @@ end
     end
 end
 
-@testitem "structure mismatch" tags =
-    [:sparse, :structure_mismatch] begin
+@testitem "structure mismatch" tags = [:sparse, :structure_mismatch] begin
     using IntervalMDP, SparseArrays
     @testset for N in [Float32, Float64, Rational{BigInt}]
         @testset "structure mismatch" begin
@@ -107,8 +105,7 @@ end
     end
 end
 
-@testitem "negative lower bound" tags =
-    [:sparse, :negative_lower_bound] begin
+@testitem "negative lower bound" tags = [:sparse, :negative_lower_bound] begin
     using IntervalMDP, SparseArrays
     @testset for N in [Float32, Float64, Rational{BigInt}]
         @testset "negative lower bound" begin
@@ -119,8 +116,7 @@ end
     end
 end
 
-@testitem "lower bound greater than one" tags =
-    [:sparse, :lower_bound_greater_than_one] begin
+@testitem "lower bound greater than one" tags = [:sparse, :lower_bound_greater_than_one] begin
     using IntervalMDP, SparseArrays
     @testset for N in [Float32, Float64, Rational{BigInt}]
         @testset "lower bound greater than one" begin
@@ -131,8 +127,7 @@ end
     end
 end
 
-@testitem "lower greater than upper" tags =
-    [:sparse, :lower_greater_than_upper] begin
+@testitem "lower greater than upper" tags = [:sparse, :lower_greater_than_upper] begin
     using IntervalMDP, SparseArrays
     @testset for N in [Float32, Float64, Rational{BigInt}]
         @testset "lower greater than upper" begin
@@ -143,8 +138,7 @@ end
     end
 end
 
-@testitem "upper bound greater than one" tags =
-    [:sparse, :upper_bound_greater_than_one] begin
+@testitem "upper bound greater than one" tags = [:sparse, :upper_bound_greater_than_one] begin
     using IntervalMDP, SparseArrays
     @testset for N in [Float32, Float64, Rational{BigInt}]
         @testset "upper bound greater than one" begin
@@ -155,8 +149,7 @@ end
     end
 end
 
-@testitem "sum lower greater than one" tags =
-    [:sparse, :sum_lower_greater_than_one] begin
+@testitem "sum lower greater than one" tags = [:sparse, :sum_lower_greater_than_one] begin
     using IntervalMDP, SparseArrays
     @testset for N in [Float32, Float64, Rational{BigInt}]
         @testset "sum lower greater than one" begin
@@ -167,8 +160,7 @@ end
     end
 end
 
-@testitem "sum upper less than one" tags =
-    [:sparse, :sum_upper_less_than_one] begin
+@testitem "sum upper less than one" tags = [:sparse, :sum_upper_less_than_one] begin
     using IntervalMDP, SparseArrays
     @testset for N in [Float32, Float64, Rational{BigInt}]
         @testset "sum upper less than one" begin

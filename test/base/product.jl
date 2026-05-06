@@ -1,5 +1,4 @@
-@testitem "construction product IMDP/DFA" tags =
-    [:base, :construction_product_imdp_dfa] begin
+@testitem "construction product IMDP/DFA" tags = [:base, :construction_product_imdp_dfa] begin
     using IntervalMDP
     @testset "construction product IMDP/DFA" begin
         T = UInt16[1 3 3; 2 1 3; 3 3 3; 1 1 1]
@@ -31,10 +30,7 @@
             @test occursin("ProductProcess", str)
             @test occursin("Underlying process", str)
             @test occursin("Automaton", str)
-            @test occursin(
-                "Labelling type: DeterministicLabelling{UInt16, Vector{UInt16}}",
-                str,
-            )
+            @test occursin("DeterministicLabelling{UInt16, Vector{UInt16}}", str)
         end
         @testset "IMDP state labelling func input mismatch" begin
             map = UInt16[1, 2]
@@ -54,8 +50,7 @@
     end
 end
 
-@testitem "bellman deterministic labelling" tags =
-    [:base, :bellman_deterministic_labelling] begin
+@testitem "bellman deterministic labelling" tags = [:base, :bellman_deterministic_labelling] begin
     using IntervalMDP
     @testset "bellman deterministic labelling" begin
         for N in [Float32, Float64, Rational{BigInt}]
@@ -73,12 +68,22 @@ end
                 prod_proc = ProductProcess(mc, dfa, labelling)
                 V = N[4 1; 2 3; 0 5]
                 Vres = let
-    _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(prod_proc)..., size(V)...))
-    _ws = IntervalMDP.construct_workspace(prod_proc)
-    _sc = IntervalMDP.construct_strategy_cache(prod_proc)
-    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(_Qres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
-    _Qres
-end
+                    _Qres = Array{eltype(V)}(
+                        undef,
+                        (IntervalMDP.action_values(prod_proc)..., size(V)...),
+                    )
+                    _ws = IntervalMDP.construct_workspace(prod_proc)
+                    _sc = IntervalMDP.construct_strategy_cache(prod_proc)
+                    IntervalMDP.bellman_q!(
+                        _ws,
+                        _sc,
+                        IntervalMDP.StateActionValueArray(_Qres),
+                        IntervalMDP.StateValueArray(V),
+                        prod_proc;
+                        upper_bound = false,
+                    )
+                    _Qres
+                end
                 Vtar = N[30 // 10 24 // 10; 33 // 10 2; 5 5]
                 Vtar = reshape(Vtar, 1, size(Vtar)...)
                 @test Vres ≈ Vtar
@@ -118,12 +123,19 @@ end
                 eps = one(N) / N(1000)
                 Vtar = N[34 // 10 24 // 10; 36 // 10 32 // 10; 5 5]
                 Vres = let
-    _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(prod_proc)..., size(V)...))
-    _ws = IntervalMDP.construct_workspace(prod_proc)
-    _sc = IntervalMDP.construct_strategy_cache(prod_proc)
-    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(_Qres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
-    _Qres
-end
+                    _Vres = Array{eltype(V)}(undef, size(V))
+                    _ws = IntervalMDP.construct_workspace(prod_proc)
+                    _sc = IntervalMDP.construct_strategy_cache(prod_proc)
+                    IntervalMDP.bellman_v!(
+                        _ws,
+                        _sc,
+                        IntervalMDP.StateValueArray(_Vres),
+                        IntervalMDP.StateValueArray(V),
+                        prod_proc;
+                        upper_bound = false,
+                    )
+                    _Vres
+                end
                 @test Vtar ≈ Vres atol = eps
                 strategy_cache = IntervalMDP.TimeVaryingStrategyCache(
                     fill(ntuple((_->begin
@@ -131,7 +143,14 @@ end
                     end), 1), 3, 2),
                 )
                 Vres = copy(V)
-                Vres = IntervalMDP.bellman_q!(workspace, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
+                Vres = IntervalMDP.bellman_v!(
+                    workspace,
+                    strategy_cache,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    prod_proc;
+                    upper_bound = false,
+                )
                 @test Vtar ≈ Vres atol = eps
                 strategy_cache = IntervalMDP.TimeVaryingStrategyCache(
                     [
@@ -141,7 +160,14 @@ end
                     ],
                 )
                 Vres = copy(V)
-                Vres = IntervalMDP.bellman_q!(workspace, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
+                Vres = IntervalMDP.bellman_v!(
+                    workspace,
+                    strategy_cache,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    prod_proc;
+                    upper_bound = false,
+                )
                 @test Vtar ≈ Vres atol = eps
                 strategy_cache = IntervalMDP.TimeVaryingStrategyCache(
                     [
@@ -151,7 +177,14 @@ end
                     ],
                 )
                 Vres = copy(V)
-                Vres = IntervalMDP.bellman_q!(workspace, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
+                Vres = IntervalMDP.bellman_v!(
+                    workspace,
+                    strategy_cache,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    prod_proc;
+                    upper_bound = false,
+                )
                 @test Vtar ≈ Vres atol = eps
                 strategy_cache = IntervalMDP.StationaryStrategyCache(
                     fill(ntuple((_->begin
@@ -159,7 +192,14 @@ end
                     end), 1), 3, 2),
                 )
                 Vres = copy(V)
-                Vres = IntervalMDP.bellman_q!(workspace, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
+                Vres = IntervalMDP.bellman_v!(
+                    workspace,
+                    strategy_cache,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    prod_proc;
+                    upper_bound = false,
+                )
                 @test Vtar ≈ Vres atol = eps
                 strategy_cache = IntervalMDP.StationaryStrategyCache(
                     [
@@ -169,7 +209,14 @@ end
                     ],
                 )
                 Vres = copy(V)
-                Vres = IntervalMDP.bellman_q!(workspace, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
+                Vres = IntervalMDP.bellman_v!(
+                    workspace,
+                    strategy_cache,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    prod_proc;
+                    upper_bound = false,
+                )
                 @test Vtar ≈ Vres atol = eps
                 strategy_cache = IntervalMDP.StationaryStrategyCache(
                     [
@@ -179,7 +226,14 @@ end
                     ],
                 )
                 Vres = copy(V)
-                Vres = IntervalMDP.bellman_q!(workspace, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
+                Vres = IntervalMDP.bellman_v!(
+                    workspace,
+                    strategy_cache,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    prod_proc;
+                    upper_bound = false,
+                )
                 @test Vtar ≈ Vres atol = eps
                 strategy_cache = IntervalMDP.ActiveGivenStrategyCache(
                     [
@@ -189,15 +243,21 @@ end
                     ],
                 )
                 Vres = copy(V)
-                Vres = IntervalMDP.bellman_q!(workspace, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
+                Vres = IntervalMDP.bellman_v!(
+                    workspace,
+                    strategy_cache,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    prod_proc;
+                    upper_bound = false,
+                )
                 @test Vres ≈ N[30 // 10 24 // 10; 33 // 10 2; 5 5] atol = eps
             end
         end
     end
 end
 
-@testitem "bellman probabilistic labelling" tags =
-    [:base, :bellman_probabilistic_labelling] begin
+@testitem "bellman probabilistic labelling" tags = [:base, :bellman_probabilistic_labelling] begin
     using IntervalMDP
     @testset "bellman probabilistic labelling" begin
         for N in [Float32, Float64, Rational{BigInt}]
@@ -217,12 +277,19 @@ end
                 V = N[4 1; 2 3; 0 5]
                 Vtar = N[302 // 100 24 // 10; 322 // 100 2; 45 // 10 5]
                 Vres = let
-    _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(prod_proc)..., size(V)...))
-    _ws = IntervalMDP.construct_workspace(prod_proc)
-    _sc = IntervalMDP.construct_strategy_cache(prod_proc)
-    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(_Qres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
-    _Qres
-end
+                    _Vres = Array{eltype(V)}(undef, size(V))
+                    _ws = IntervalMDP.construct_workspace(prod_proc)
+                    _sc = IntervalMDP.construct_strategy_cache(prod_proc)
+                    IntervalMDP.bellman_v!(
+                        _ws,
+                        _sc,
+                        IntervalMDP.StateValueArray(_Vres),
+                        IntervalMDP.StateValueArray(V),
+                        prod_proc;
+                        upper_bound = false,
+                    )
+                    _Vres
+                end
                 @test Vres ≈ Vtar
             end
         end
@@ -261,12 +328,19 @@ end
                 eps = one(N) / N(1000)
                 Vtar = N[33 // 10 24 // 10; 346 // 100 32 // 10; 45 // 10 5]
                 Vres = let
-    _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(prod_proc)..., size(V)...))
-    _ws = IntervalMDP.construct_workspace(prod_proc)
-    _sc = IntervalMDP.construct_strategy_cache(prod_proc)
-    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(_Qres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
-    _Qres
-end
+                    _Vres = Array{eltype(V)}(undef, size(V))
+                    _ws = IntervalMDP.construct_workspace(prod_proc)
+                    _sc = IntervalMDP.construct_strategy_cache(prod_proc)
+                    IntervalMDP.bellman_v!(
+                        _ws,
+                        _sc,
+                        IntervalMDP.StateValueArray(_Vres),
+                        IntervalMDP.StateValueArray(V),
+                        prod_proc;
+                        upper_bound = false,
+                    )
+                    _Vres
+                end
                 @test Vtar ≈ Vres atol = eps
                 strategy_cache = IntervalMDP.TimeVaryingStrategyCache(
                     fill(ntuple((_->begin
@@ -274,7 +348,14 @@ end
                     end), 1), 3, 2),
                 )
                 Vres = copy(V)
-                Vres = IntervalMDP.bellman_q!(workspace, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
+                Vres = IntervalMDP.bellman_v!(
+                    workspace,
+                    strategy_cache,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    prod_proc;
+                    upper_bound = false,
+                )
                 @test Vtar ≈ Vres atol = eps
                 strategy_cache = IntervalMDP.TimeVaryingStrategyCache(
                     [
@@ -284,7 +365,14 @@ end
                     ],
                 )
                 Vres = copy(V)
-                Vres = IntervalMDP.bellman_q!(workspace, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
+                Vres = IntervalMDP.bellman_v!(
+                    workspace,
+                    strategy_cache,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    prod_proc;
+                    upper_bound = false,
+                )
                 @test Vtar ≈ Vres atol = eps
                 strategy_cache = IntervalMDP.TimeVaryingStrategyCache(
                     [
@@ -294,7 +382,14 @@ end
                     ],
                 )
                 Vres = copy(V)
-                Vres = IntervalMDP.bellman_q!(workspace, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
+                Vres = IntervalMDP.bellman_v!(
+                    workspace,
+                    strategy_cache,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    prod_proc;
+                    upper_bound = false,
+                )
                 @test Vtar ≈ Vres atol = eps
                 strategy_cache = IntervalMDP.StationaryStrategyCache(
                     fill(ntuple((_->begin
@@ -302,7 +397,14 @@ end
                     end), 1), 3, 2),
                 )
                 Vres = copy(V)
-                Vres = IntervalMDP.bellman_q!(workspace, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
+                Vres = IntervalMDP.bellman_v!(
+                    workspace,
+                    strategy_cache,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    prod_proc;
+                    upper_bound = false,
+                )
                 @test Vtar ≈ Vres atol = eps
                 strategy_cache = IntervalMDP.StationaryStrategyCache(
                     [
@@ -312,7 +414,14 @@ end
                     ],
                 )
                 Vres = copy(V)
-                Vres = IntervalMDP.bellman_q!(workspace, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
+                Vres = IntervalMDP.bellman_v!(
+                    workspace,
+                    strategy_cache,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    prod_proc;
+                    upper_bound = false,
+                )
                 @test Vtar ≈ Vres atol = eps
                 strategy_cache = IntervalMDP.StationaryStrategyCache(
                     [
@@ -322,7 +431,14 @@ end
                     ],
                 )
                 Vres = copy(V)
-                Vres = IntervalMDP.bellman_q!(workspace, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
+                Vres = IntervalMDP.bellman_v!(
+                    workspace,
+                    strategy_cache,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    prod_proc;
+                    upper_bound = false,
+                )
                 @test Vtar ≈ Vres atol = eps
                 strategy_cache = IntervalMDP.ActiveGivenStrategyCache(
                     [
@@ -332,7 +448,14 @@ end
                     ],
                 )
                 Vres = copy(V)
-                Vres = IntervalMDP.bellman_q!(workspace, strategy_cache, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), prod_proc; upper_bound = false)
+                Vres = IntervalMDP.bellman_v!(
+                    workspace,
+                    strategy_cache,
+                    IntervalMDP.StateValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    prod_proc;
+                    upper_bound = false,
+                )
                 @test Vres ≈ N[302 // 100 24 // 10; 322 // 100 2; 45 // 10 5] atol = eps
             end
         end

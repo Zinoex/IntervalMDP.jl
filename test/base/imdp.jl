@@ -18,36 +18,68 @@
         @testset "bellman" begin
             V = N[1, 2, 3]
             Vres = let
-    _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(mdp)..., size(V)...))
-    _ws = IntervalMDP.construct_workspace(mdp)
-    _sc = IntervalMDP.construct_strategy_cache(mdp)
-    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(_Qres), IntervalMDP.StateValueArray(V), mdp; upper_bound = false, maximize = true)
-    _Qres
-end
+                _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(mdp)..., size(V)...))
+                _ws = IntervalMDP.construct_workspace(mdp)
+                _sc = IntervalMDP.construct_strategy_cache(mdp)
+                IntervalMDP.bellman_q!(
+                    _ws,
+                    _sc,
+                    IntervalMDP.StateActionValueArray(_Qres),
+                    IntervalMDP.StateValueArray(V),
+                    mdp;
+                    upper_bound = false,
+                    maximize = true,
+                )
+                _Qres
+            end
             @test Vres ≈ N[17 // 10 18 // 10 3 // 1; 15 // 10 21 // 10 3 // 1]
             Vres = Array{N}(undef, (2, 3))
             let
-    _ws = IntervalMDP.construct_workspace(mdp)
-    _sc = IntervalMDP.construct_strategy_cache(mdp)
-    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), mdp; upper_bound = false, maximize = true)
-    Vres
-end
+                _ws = IntervalMDP.construct_workspace(mdp)
+                _sc = IntervalMDP.construct_strategy_cache(mdp)
+                IntervalMDP.bellman_q!(
+                    _ws,
+                    _sc,
+                    IntervalMDP.StateActionValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    mdp;
+                    upper_bound = false,
+                    maximize = true,
+                )
+                Vres
+            end
             @test Vres ≈ N[17 // 10 18 // 10 3 // 1; 15 // 10 21 // 10 3 // 1]
             Vres = let
-    _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(mdp)..., size(V)...))
-    _ws = IntervalMDP.construct_workspace(mdp)
-    _sc = IntervalMDP.construct_strategy_cache(mdp)
-    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(_Qres), IntervalMDP.StateValueArray(V), mdp; upper_bound = true, maximize = false)
-    _Qres
-end
+                _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(mdp)..., size(V)...))
+                _ws = IntervalMDP.construct_workspace(mdp)
+                _sc = IntervalMDP.construct_strategy_cache(mdp)
+                IntervalMDP.bellman_q!(
+                    _ws,
+                    _sc,
+                    IntervalMDP.StateActionValueArray(_Qres),
+                    IntervalMDP.StateValueArray(V),
+                    mdp;
+                    upper_bound = true,
+                    maximize = false,
+                )
+                _Qres
+            end
             @test Vres ≈ N[27 // 10 23 // 10 3 // 1; 17 // 10 22 // 10 3 // 1]
             Vres = Array{N}(undef, (2, 3))
             let
-    _ws = IntervalMDP.construct_workspace(mdp)
-    _sc = IntervalMDP.construct_strategy_cache(mdp)
-    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(Vres), IntervalMDP.StateValueArray(V), mdp; upper_bound = true, maximize = false)
-    Vres
-end
+                _ws = IntervalMDP.construct_workspace(mdp)
+                _sc = IntervalMDP.construct_strategy_cache(mdp)
+                IntervalMDP.bellman_q!(
+                    _ws,
+                    _sc,
+                    IntervalMDP.StateActionValueArray(Vres),
+                    IntervalMDP.StateValueArray(V),
+                    mdp;
+                    upper_bound = true,
+                    maximize = false,
+                )
+                Vres
+            end
             @test Vres ≈ N[27 // 10 23 // 10 3 // 1; 17 // 10 22 // 10 3 // 1]
         end
     end

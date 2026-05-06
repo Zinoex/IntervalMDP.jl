@@ -22,12 +22,23 @@
             @testset "bellman" begin
                 V = IntervalMDP.cu(N[1, 2, 3])
                 Vres = let
-    _Qres = Array{eltype(V)}(undef, (IntervalMDP.action_values(mdp)..., size(V)...))
-    _ws = IntervalMDP.construct_workspace(mdp)
-    _sc = IntervalMDP.construct_strategy_cache(mdp)
-    IntervalMDP.bellman_q!(_ws, _sc, IntervalMDP.StateActionValueArray(_Qres), IntervalMDP.StateValueArray(V), mdp; upper_bound = false, maximize = true)
-    _Qres
-end
+                    _Qres = Array{eltype(V)}(
+                        undef,
+                        (IntervalMDP.action_values(mdp)..., size(V)...),
+                    )
+                    _ws = IntervalMDP.construct_workspace(mdp)
+                    _sc = IntervalMDP.construct_strategy_cache(mdp)
+                    IntervalMDP.bellman_q!(
+                        _ws,
+                        _sc,
+                        IntervalMDP.StateActionValueArray(_Qres),
+                        IntervalMDP.StateValueArray(V),
+                        mdp;
+                        upper_bound = false,
+                        maximize = true,
+                    )
+                    _Qres
+                end
                 Vres = IntervalMDP.cpu(Vres)
                 @test Vres ≈ N[
                     1 // 2 * 1 + 3 // 10 * 2 + 1 // 5 * 3,
