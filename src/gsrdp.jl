@@ -105,6 +105,11 @@ function _gsrdp!(
     _gsrdp_initialize!(value_function, prop)
     nextiteration!(value_function)
 
+    # Initial callback before any updates for debug
+    if !isnothing(callback)
+        callback(value_function, 0)
+    end
+
     update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, 0))
     bellman_update!(
         alg,
@@ -119,7 +124,7 @@ function _gsrdp!(
     k = 1
 
     if !isnothing(callback)
-        callback(_solution_value(value_function, spec), k)
+        callback(value_function, k)
     end
 
     while !term_criteria(value_function, k, gap(value_function))
@@ -139,7 +144,7 @@ function _gsrdp!(
         )
 
         if !isnothing(callback)
-            callback(_solution_value(value_function, spec), k + 1)
+            callback(value_function, k + 1)
         end
 
         k += 1
@@ -213,7 +218,7 @@ function bellman_update!(
         StateValueArray(primary.previous),
         model,
         state_seq;
-        upper_bound = isupper(primary),
+        upper_bound = ispessimistic(spec),
         maximize = ismaximize(spec),
         prop = system_property(spec),
     )
@@ -226,7 +231,7 @@ function bellman_update!(
         StateValueArray(secondary.previous),
         model,
         state_seq;
-        upper_bound = isupper(secondary),
+        upper_bound = ispessimistic(spec),
         maximize = ismaximize(spec),
         prop = system_property(spec),
     )
