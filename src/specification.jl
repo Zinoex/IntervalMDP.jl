@@ -717,6 +717,96 @@ function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachAvoid
 end
 
 """
+    InfiniteTimeReachAvoidInitial{VT <: Vector{<:CartesianIndex}, IT <: Vector{<:CartesianIndex}, R <: Real}
+
+`InfiniteTimeReachAvoidInitial` is similar to [`InfiniteTimeReachAvoid`](@ref) except that it stores an explicit set of initial states.
+The explicit initial-state set is used by GSRDP termination to check the gap only on those states.
+"""
+struct InfiniteTimeReachAvoidInitial{VT <: Vector{<:CartesianIndex}, R <: Real} <:
+       AbstractReachAvoid
+    reach::VT
+    avoid::VT
+    initial::VT
+    convergence_eps::R
+end
+
+function InfiniteTimeReachAvoidInitial(
+    reach::Vector{<:UnionIndex},
+    avoid::Vector{<:UnionIndex},
+    initial::Vector{<:UnionIndex},
+    convergence_eps,
+)
+    reach = CartesianIndex.(reach)
+    avoid = CartesianIndex.(avoid)
+    initial = CartesianIndex.(initial)
+    if isempty(initial)
+        throw(
+            ArgumentError(
+                "InfiniteTimeReachAvoidInitial requires at least one initial state.",
+            ),
+        )
+    end
+    return InfiniteTimeReachAvoidInitial(reach, avoid, initial, convergence_eps)
+end
+
+InfiniteTimeReachAvoidInitial(prop::InfiniteTimeReachAvoid, initial::Vector{<:UnionIndex}) =
+    InfiniteTimeReachAvoidInitial(reach(prop), avoid(prop), initial, convergence_eps(prop))
+
+function checkproperty(prop::InfiniteTimeReachAvoidInitial, system, strategy)
+    checkconvergence(prop, strategy)
+    checkproperty(prop, system)
+end
+
+function checkproperty(prop::InfiniteTimeReachAvoidInitial, system)
+    checkstatebounds(reach(prop), system)
+    checkstatebounds(avoid(prop), system)
+    checkstatebounds(initial(prop), system)
+    checkdisjoint(reach(prop), avoid(prop))
+end
+
+isfinitetime(prop::InfiniteTimeReachAvoidInitial) = false
+
+"""
+    convergence_eps(prop::InfiniteTimeReachAvoidInitial)
+
+Return the convergence threshold of an infinite time reach-avoid property with explicit initial states.
+"""
+convergence_eps(prop::InfiniteTimeReachAvoidInitial) = prop.convergence_eps
+
+"""
+    reach(prop::InfiniteTimeReachAvoidInitial)
+
+Return the set of target states.
+"""
+reach(prop::InfiniteTimeReachAvoidInitial) = prop.reach
+
+"""
+    avoid(prop::InfiniteTimeReachAvoidInitial)
+
+Return the set of states to avoid.
+"""
+avoid(prop::InfiniteTimeReachAvoidInitial) = prop.avoid
+
+"""
+    initial(prop::InfiniteTimeReachAvoidInitial)
+
+Return the explicit initial-state subset used by GSRDP termination.
+"""
+initial(prop::InfiniteTimeReachAvoidInitial) = prop.initial
+
+function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachAvoidInitial)
+    println(io, first_prefix, styled"{code:InfiniteTimeReachAvoidInitial}")
+    println(
+        io,
+        prefix,
+        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
+    )
+    println(io, prefix, styled"├─ Reach states: {magenta:$(reach(prop))}")
+    println(io, prefix, styled"├─ Avoid states: {magenta:$(avoid(prop))}")
+    println(io, prefix, styled"└─ Initial states: {magenta:$(initial(prop))}")
+end
+
+"""
     ExactTimeReachAvoid{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}}, T <: Integer}
 
 Exact time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.

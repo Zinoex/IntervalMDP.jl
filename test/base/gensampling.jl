@@ -41,14 +41,38 @@ end
         problem = VerificationProblem(mdp, spec)
 
         callback_counts = Int[]
-        (_, k, _) = solve(problem, gsdp; callback = (V, bellman_updates) ->
-            push!(callback_counts, bellman_updates))
+        (_, k, _) = solve(
+            problem,
+            gsdp;
+            callback = (V, bellman_updates) -> push!(callback_counts, bellman_updates),
+        )
 
         expected_increment = num_states(mdp) * (num_actions(mdp) + 1)
         @test !isempty(callback_counts)
         @test first(callback_counts) == 0
         @test all(diff(callback_counts) .== expected_increment)
         @test last(callback_counts) == k * expected_increment
+    end
+end
+
+@testitem "GSRDP initial-state gap termination" tags =
+    [:base, :gsrdp_initial_state_gap_termination] begin
+    using IntervalMDP
+    @testset "GSRDP initial-state gap termination" for N in [Float32, Float64]
+        prob = IntervalAmbiguitySets(;
+            lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
+            upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
+        )
+        mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
+        gsdp =
+            GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp))
+        prop = InfiniteTimeReachAvoidInitial([3], [2], [1], N(1 // 1000))
+        spec = Specification(prop, Pessimistic, Maximize)
+
+        term = IntervalMDP.termination_criteria(gsdp, spec)
+        @test term.initial == [CartesianIndex(1)]
+        @test term(nothing, nothing, N[1 // 10000, 1, 1])
+        @test !term(nothing, nothing, N[1, 1 // 10000, 1])
     end
 end
 

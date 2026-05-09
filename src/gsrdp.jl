@@ -51,6 +51,20 @@ struct GapTerminationCriteria{T <: Real} <: TerminationCriteria
 end
 (f::GapTerminationCriteria)(_, _, gap_residual) = maximum(abs, gap_residual) < f.tol
 
+"""
+    GapTerminationCriteriaInitial(tol)
+
+Terminates when `maximum(abs, gap) < tol` over the elementwise gap
+`V_upper - V_lower`. Used by
+[`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref).
+"""
+struct GapTerminationCriteriaInitial{T <: Real, I} <: TerminationCriteria
+    tol::T
+    initial::I
+end
+(f::GapTerminationCriteriaInitial)(_, _, gap_residual) =
+    maximum(abs, gap_residual[f.initial]) < f.tol
+
 function termination_criteria(
     ::GeneralizedSamplingbasedRobustDynamicProgramming,
     spec::Specification,
@@ -64,8 +78,13 @@ function termination_criteria(
             ),
         )
     end
-    return GapTerminationCriteria(convergence_eps(prop))
+    return termination_criteria(prop)
 end
+
+termination_criteria(prop::InfiniteTimeReachAvoidInitial) =
+    GapTerminationCriteriaInitial(convergence_eps(prop), initial(prop))
+
+termination_criteria(prop) = GapTerminationCriteria(convergence_eps(prop))
 
 function solve(
     problem::VerificationProblem,
@@ -159,7 +178,8 @@ function _gsrdp!(
     return _solution_value(value_function, spec), k, gap(value_function), strategy_cache
 end
 
-_bellman_update_count(update_sequence, mp) = length(project_to_state_sequence(update_sequence)) * (num_actions(mp) + 1)
+_bellman_update_count(update_sequence, mp) =
+    length(project_to_state_sequence(update_sequence)) * (num_actions(mp) + 1)
 
 # Pessimistic returns the lower bound, Optimistic returns the upper bound —
 # matching `RobustValueIteration`'s single-bound output for parity.
