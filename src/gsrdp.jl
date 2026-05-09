@@ -104,13 +104,15 @@ function _gsrdp!(
     value_function = construct_value_function(alg, problem)
     _gsrdp_initialize!(value_function, prop)
     nextiteration!(value_function)
+    bellman_updates = 0
 
     # Initial callback before any updates for debug
     if !isnothing(callback)
-        callback(value_function, 0)
+        callback(value_function, bellman_updates)
     end
 
     update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, 0))
+    bellman_updates += _bellman_update_count(update_sequence, mp)
     bellman_update!(
         alg,
         workspace,
@@ -124,7 +126,7 @@ function _gsrdp!(
     k = 1
 
     if !isnothing(callback)
-        callback(value_function, k)
+        callback(value_function, bellman_updates)
     end
 
     while !term_criteria(value_function, k, gap(value_function))
@@ -132,6 +134,7 @@ function _gsrdp!(
 
         update_sequence =
             sample(sampling_strat, mp, select_strategy_cache(strategy_cache, k))
+        bellman_updates += _bellman_update_count(update_sequence, mp)
         bellman_update!(
             alg,
             workspace,
@@ -144,7 +147,7 @@ function _gsrdp!(
         )
 
         if !isnothing(callback)
-            callback(value_function, k + 1)
+            callback(value_function, bellman_updates)
         end
 
         k += 1
@@ -155,6 +158,8 @@ function _gsrdp!(
 
     return _solution_value(value_function, spec), k, gap(value_function), strategy_cache
 end
+
+_bellman_update_count(update_sequence, mp) = length(project_to_state_sequence(update_sequence)) * (num_actions(mp) + 1)
 
 # Pessimistic returns the lower bound, Optimistic returns the upper bound —
 # matching `RobustValueIteration`'s single-bound output for parity.

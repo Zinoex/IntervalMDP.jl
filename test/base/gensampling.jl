@@ -20,6 +20,38 @@
     end
 end
 
+@testitem "GSRDP callback reports cumulative bellman updates" tags =
+    [:base, :gsrdp_callback_reports_cumulative_bellman_updates] begin
+    using IntervalMDP
+    @testset "GSRDP callback reports cumulative bellman updates" for N in [Float32, Float64]
+        prob = IntervalAmbiguitySets(;
+            lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
+            upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
+        )
+        prob2 = IntervalAmbiguitySets(;
+            lower = N[1 // 10 1 // 5 0; 1 // 5 1 // 5 0; 3 // 10 2 // 5 1],
+            upper = N[1 // 2 1 // 2 0; 1 // 2 2 // 5 0; 2 // 5 2 // 5 1],
+        )
+        mdp = IntervalMarkovDecisionProcess([prob, prob2, prob2], [1])
+        gsdp =
+            GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp))
+        eps = N(1 // 1000000)
+        prop = InfiniteTimeReachability([3], eps)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = VerificationProblem(mdp, spec)
+
+        callback_counts = Int[]
+        (_, k, _) = solve(problem, gsdp; callback = (V, bellman_updates) ->
+            push!(callback_counts, bellman_updates))
+
+        expected_increment = num_states(mdp) * (num_actions(mdp) + 1)
+        @test !isempty(callback_counts)
+        @test first(callback_counts) == 0
+        @test all(diff(callback_counts) .== expected_increment)
+        @test last(callback_counts) == k * expected_increment
+    end
+end
+
 @testitem "IMDP verification parity (Pessimistic, Maximize)" tags =
     [:base, :gsrdp_imdp_verification_parity_pessimistic_maximize] begin
     using IntervalMDP
