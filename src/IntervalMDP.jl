@@ -80,7 +80,7 @@ include("gsrdp.jl")
 # Comes after the algorithm-defining files because `sampling_strategy`
 # methods dispatch on the algorithm types.
 include("sampling.jl")
-public AllSampling, AllStatesSweep, RandomSubsetStateActions
+public AllSampling, AllStatesSweep, RandomSubsetStateActions, RandomSubsetState
 
 ### Saving and loading models
 include("Data/Data.jl")

@@ -378,29 +378,62 @@ struct RandomSubsetStateActions <: SamplingStrategy
     k::Int
 end
 
-struct RandomSubsetIterator{NA, NS} <: AbstractIterator
+struct RandomSubsetState <: SamplingStrategy
+    k::Int
+end
+
+struct RandomSubsetStateActionIterator{NA, NS} <: AbstractIterator
     pairs::Vector{Tuple{CartesianIndex{NA}, CartesianIndex{NS}}}
 end
 
-Base.length(iter::RandomSubsetIterator) = length(iter.pairs)
-Base.firstindex(iter::RandomSubsetIterator) = firstindex(iter.pairs)
-Base.lastindex(iter::RandomSubsetIterator) = lastindex(iter.pairs)
-Base.getindex(iter::RandomSubsetIterator, i) = iter.pairs[i]
-Base.iterate(iter::RandomSubsetIterator) = iterate(iter.pairs)
-Base.iterate(iter::RandomSubsetIterator, state) = iterate(iter.pairs, state)
+Base.length(iter::RandomSubsetStateActionIterator) = length(iter.pairs)
+Base.firstindex(iter::RandomSubsetStateActionIterator) = firstindex(iter.pairs)
+Base.lastindex(iter::RandomSubsetStateActionIterator) = lastindex(iter.pairs)
+Base.getindex(iter::RandomSubsetStateActionIterator, i) = iter.pairs[i]
+Base.iterate(iter::RandomSubsetStateActionIterator) = iterate(iter.pairs)
+Base.iterate(iter::RandomSubsetStateActionIterator, state) = iterate(iter.pairs, state)
 
-sample(ss::RandomSubsetStateActions, model) = random_subset_sample(ss.k, model)
+sample(ss::RandomSubsetStateActions, model) = random_subset_state_action_sample(ss.k, model)
 sample(ss::RandomSubsetStateActions, model, ::AbstractStrategyCache) =
-    random_subset_sample(ss.k, model)
+    random_subset_state_action_sample(ss.k, model)
 
-function random_subset_sample(k::Int, model)
+function random_subset_state_action_sample(k::Int, model)
     A = CartesianIndices(action_shape(model))
     S = CartesianIndices(source_shape(model))
     pairs = Vector{Tuple{eltype(A), eltype(S)}}(undef, k)
     @inbounds for i in 1:k
         pairs[i] = (rand(A), rand(S))
     end
-    return RandomSubsetIterator(pairs)
+    return RandomSubsetStateActionIterator(pairs)
+end
+
+struct RandomSubsetStateIterator{NS} <: AbstractIterator
+    states::Vector{CartesianIndex{NS}}
+end
+
+Base.length(iter::RandomSubsetStateIterator) = length(iter.states)
+Base.firstindex(iter::RandomSubsetStateIterator) = firstindex(iter.states)
+Base.lastindex(iter::RandomSubsetStateIterator) = lastindex(iter.states)
+Base.getindex(iter::RandomSubsetStateIterator, i) = iter.states[i]
+Base.iterate(iter::RandomSubsetStateIterator) = iterate(iter.states)
+Base.iterate(iter::RandomSubsetStateIterator, state) = iterate(iter.states, state)
+
+sequence_shape(::RandomSubsetStateIterator) = StateUpdateSequence()
+
+sample(ss::RandomSubsetState, model) = random_subset_state_sample(ss.k, model)
+sample(ss::RandomSubsetState, model, ::AbstractStrategyCache) =
+    random_subset_state_sample(ss.k, model)
+
+random_subset_state_sample(k::Int, proc::ProductProcess) =
+    random_subset_state_sample(k, markov_process(proc))
+
+function random_subset_state_sample(k::Int, model)
+    S = CartesianIndices(source_shape(model))
+    states = Vector{eltype(S)}(undef, k)
+    @inbounds for i in 1:k
+        states[i] = rand(S)
+    end
+    return RandomSubsetStateIterator(states)
 end
 
 struct GivenSequence <: SamplingStrategy end

@@ -55,6 +55,24 @@ end
     end
 end
 
+@testitem "Random subset state sampling yields states" tags =
+    [:base, :gsrdp_random_subset_state_sampling] begin
+    using IntervalMDP
+
+    prob = IntervalAmbiguitySets(;
+        lower = [0.0 0.5 0.0; 0.1 0.3 0.0; 0.2 0.1 1.0],
+        upper = [0.5 0.7 0.0; 0.6 0.5 0.0; 0.7 0.3 1.0],
+    )
+    mdp = IntervalMarkovDecisionProcess([prob, prob], [1])
+
+    seq = IntervalMDP.sample(IntervalMDP.RandomSubsetState(5), mdp)
+
+    @test IntervalMDP.sequence_shape(seq) === IntervalMDP.StateUpdateSequence()
+    @test length(seq) == 5
+    @test all(s -> s in CartesianIndices(IntervalMDP.source_shape(mdp)), seq)
+    @test IntervalMDP.touched_states(seq) == Set(seq)
+end
+
 @testitem "GSRDP initial-state gap termination" tags =
     [:base, :gsrdp_initial_state_gap_termination] begin
     using IntervalMDP
