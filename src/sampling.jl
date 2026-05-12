@@ -378,29 +378,62 @@ struct RandomSubsetStateActions <: SamplingStrategy
     k::Int
 end
 
-struct RandomSubsetIterator{NA, NS} <: AbstractIterator
+struct RandomSubsetState <: SamplingStrategy
+    k::Int
+end
+
+struct RandomSubsetStateActionIterator{NA, NS} <: AbstractIterator
     pairs::Vector{Tuple{CartesianIndex{NA}, CartesianIndex{NS}}}
 end
 
-Base.length(iter::RandomSubsetIterator) = length(iter.pairs)
-Base.firstindex(iter::RandomSubsetIterator) = firstindex(iter.pairs)
-Base.lastindex(iter::RandomSubsetIterator) = lastindex(iter.pairs)
-Base.getindex(iter::RandomSubsetIterator, i) = iter.pairs[i]
-Base.iterate(iter::RandomSubsetIterator) = iterate(iter.pairs)
-Base.iterate(iter::RandomSubsetIterator, state) = iterate(iter.pairs, state)
+Base.length(iter::RandomSubsetStateActionIterator) = length(iter.pairs)
+Base.firstindex(iter::RandomSubsetStateActionIterator) = firstindex(iter.pairs)
+Base.lastindex(iter::RandomSubsetStateActionIterator) = lastindex(iter.pairs)
+Base.getindex(iter::RandomSubsetStateActionIterator, i) = iter.pairs[i]
+Base.iterate(iter::RandomSubsetStateActionIterator) = iterate(iter.pairs)
+Base.iterate(iter::RandomSubsetStateActionIterator, state) = iterate(iter.pairs, state)
 
-sample(ss::RandomSubsetStateActions, model) = random_subset_sample(ss.k, model)
+sample(ss::RandomSubsetStateActions, model) = random_subset_state_action_sample(ss.k, model)
 sample(ss::RandomSubsetStateActions, model, ::AbstractStrategyCache) =
-    random_subset_sample(ss.k, model)
+    random_subset_state_action_sample(ss.k, model)
 
-function random_subset_sample(k::Int, model)
+function random_subset_state_action_sample(k::Int, model)
     A = CartesianIndices(action_shape(model))
     S = CartesianIndices(source_shape(model))
     pairs = Vector{Tuple{eltype(A), eltype(S)}}(undef, k)
     @inbounds for i in 1:k
         pairs[i] = (rand(A), rand(S))
     end
-    return RandomSubsetIterator(pairs)
+    return RandomSubsetStateActionIterator(pairs)
+end
+
+struct RandomSubsetStateIterator{NS} <: AbstractIterator
+    states::Vector{CartesianIndex{NS}}
+end
+
+Base.length(iter::RandomSubsetStateIterator) = length(iter.states)
+Base.firstindex(iter::RandomSubsetStateIterator) = firstindex(iter.states)
+Base.lastindex(iter::RandomSubsetStateIterator) = lastindex(iter.states)
+Base.getindex(iter::RandomSubsetStateIterator, i) = iter.states[i]
+Base.iterate(iter::RandomSubsetStateIterator) = iterate(iter.states)
+Base.iterate(iter::RandomSubsetStateIterator, state) = iterate(iter.states, state)
+
+sequence_shape(::RandomSubsetStateIterator) = StateUpdateSequence()
+
+sample(ss::RandomSubsetState, model) = random_subset_state_sample(ss.k, model)
+sample(ss::RandomSubsetState, model, ::AbstractStrategyCache) =
+    random_subset_state_sample(ss.k, model)
+
+random_subset_state_sample(k::Int, proc::ProductProcess) =
+    random_subset_state_sample(k, markov_process(proc))
+
+function random_subset_state_sample(k::Int, model)
+    S = CartesianIndices(source_shape(model))
+    states = Vector{eltype(S)}(undef, k)
+    @inbounds for i in 1:k
+        states[i] = rand(S)
+    end
+    return RandomSubsetStateIterator(states)
 end
 
 struct GivenSequence <: SamplingStrategy end
@@ -434,6 +467,67 @@ function custom_sequence(
     end
 
     return GivenSequenceIterator(sequence)
+end
+
+# Value-function-ordered sampler: applies an operation (e.g., gap) to the
+# current IntervalValueFunction, sorts states by the resulting values in a
+# specified order, and yields the top k states. Yields bare states; the inner
+# loop of `bellman_update!` is expected to sweep all available actions per
+# visited state.
+struct ValueFunctionOrderedSampling <: SamplingStrategy
+    operation::Function  # e.g., gap; takes IntervalValueFunction, returns array
+    ascending::Bool      # true for ascending (low-to-high), false for descending
+    k::Int               # number of top states to select
+end
+
+struct ValueFunctionOrderedStateIterator{NS} <: AbstractIterator
+    states::Vector{CartesianIndex{NS}}
+end
+
+Base.length(iter::ValueFunctionOrderedStateIterator) = length(iter.states)
+Base.firstindex(iter::ValueFunctionOrderedStateIterator) = firstindex(iter.states)
+Base.lastindex(iter::ValueFunctionOrderedStateIterator) = lastindex(iter.states)
+Base.getindex(iter::ValueFunctionOrderedStateIterator, i) = iter.states[i]
+Base.iterate(iter::ValueFunctionOrderedStateIterator) = iterate(iter.states)
+Base.iterate(iter::ValueFunctionOrderedStateIterator, state) = iterate(iter.states, state)
+
+sequence_shape(::ValueFunctionOrderedStateIterator) = StateUpdateSequence()
+
+sample(ss::ValueFunctionOrderedSampling, model) =
+    error("ValueFunctionOrderedSampling requires a value_function argument")
+sample(ss::ValueFunctionOrderedSampling, model, strategy_cache) =
+    error("ValueFunctionOrderedSampling requires a value_function argument")
+
+function sample(
+    ss::ValueFunctionOrderedSampling,
+    model,
+    strategy_cache,
+    value_function,
+)
+    return value_function_ordered_sample(ss.operation, ss.ascending, ss.k, value_function)
+end
+
+function value_function_ordered_sample(operation::Function, ascending::Bool, k::Int, value_function)
+    # Apply the operation to get values
+    values = operation(value_function)
+    
+    # Flatten to 1D and create index mapping
+    flat_values = vec(values)
+    indices = CartesianIndices(values)
+    
+    # Sort indices by values
+    sorted_perm = if ascending
+        sortperm(flat_values)
+    else
+        sortperm(flat_values, rev=true)
+    end
+    
+    # Select top k indices
+    k_selected = min(k, length(sorted_perm))
+    selected_linear_indices = sorted_perm[1:k_selected]
+    selected_states = [indices[i] for i in selected_linear_indices]
+    
+    return ValueFunctionOrderedStateIterator(selected_states)
 end
 
 # TODO: 1. random sampling of states, with or without replacement, with or without weighting (e.g. based on current value function)
