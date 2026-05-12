@@ -182,12 +182,12 @@ end
             lower_array::AbstractArray
             upper_array::AbstractArray
         end
-        
+
         lower_vals = N[0.1, 0.3, 0.5]
         upper_vals = N[0.3, 0.5, 0.6]  # gaps: [0.2, 0.2, 0.1]
         vf = MockVF(lower_vals, upper_vals)
         gap_op = (vf) -> abs.(vf.upper_array .- vf.lower_array)
-        
+
         # Create a mock model (just needs to work with the iterator)
         struct MockModel end
         mdp = MockModel()
@@ -211,15 +211,16 @@ end
         states_asc = collect(seq_asc)
         @test all(s -> isa(s, CartesianIndex), states_asc)
         # States with smallest gaps should be included (lowest gap is 0.1 at index 3)
-        @test CartesianIndex(3,) ∈ states_asc
+        @test CartesianIndex(3) ∈ states_asc
     end
 
-    @testset "ValueFunctionOrderedSampling k larger than state space" for N in [Float32, Float64]
+    @testset "ValueFunctionOrderedSampling k larger than state space" for N in
+                                                                          [Float32, Float64]
         struct MockVF
             lower_array::AbstractArray
             upper_array::AbstractArray
         end
-        
+
         vf = MockVF(fill(N(0.1), 3), fill(N(0.3), 3))
         gap_op = (vf) -> abs.(vf.upper_array .- vf.lower_array)
 

@@ -469,12 +469,14 @@ function custom_sequence(
     return GivenSequenceIterator(sequence)
 end
 
+abstract type ValueBasedSamplingStrategy <: SamplingStrategy end
+
 # Value-function-ordered sampler: applies an operation (e.g., gap) to the
 # current IntervalValueFunction, sorts states by the resulting values in a
 # specified order, and yields the top k states. Yields bare states; the inner
 # loop of `bellman_update!` is expected to sweep all available actions per
 # visited state.
-struct ValueFunctionOrderedSampling <: SamplingStrategy
+struct ValueFunctionOrderedSampling <: ValueBasedSamplingStrategy
     operation::Function  # e.g., gap; takes IntervalValueFunction, returns array
     ascending::Bool      # true for ascending (low-to-high), false for descending
     k::Int               # number of top states to select
@@ -498,35 +500,35 @@ sample(ss::ValueFunctionOrderedSampling, model) =
 sample(ss::ValueFunctionOrderedSampling, model, strategy_cache) =
     error("ValueFunctionOrderedSampling requires a value_function argument")
 
-function sample(
-    ss::ValueFunctionOrderedSampling,
-    model,
-    strategy_cache,
-    value_function,
-)
+function sample(ss::ValueFunctionOrderedSampling, model, strategy_cache, value_function)
     return value_function_ordered_sample(ss.operation, ss.ascending, ss.k, value_function)
 end
 
-function value_function_ordered_sample(operation::Function, ascending::Bool, k::Int, value_function)
+function value_function_ordered_sample(
+    operation::Function,
+    ascending::Bool,
+    k::Int,
+    value_function,
+)
     # Apply the operation to get values
     values = operation(value_function)
-    
+
     # Flatten to 1D and create index mapping
     flat_values = vec(values)
     indices = CartesianIndices(values)
-    
+
     # Sort indices by values
     sorted_perm = if ascending
         sortperm(flat_values)
     else
-        sortperm(flat_values, rev=true)
+        sortperm(flat_values; rev = true)
     end
-    
+
     # Select top k indices
     k_selected = min(k, length(sorted_perm))
     selected_linear_indices = sorted_perm[1:k_selected]
     selected_states = [indices[i] for i in selected_linear_indices]
-    
+
     return ValueFunctionOrderedStateIterator(selected_states)
 end
 
@@ -537,13 +539,3 @@ end
 # TODO: 2. (epsilon) greedy on policy trajectory simulation
 # TODO: 3. BRTDP gap based trajectory simulation
 # TODO: 
-
-### Robust Value Iteration
-# RobustVI does a full state-outer sweep — yields bare states so
-# `expectation_v!` dispatches to the state-outer path that uses
-# `workspace.actions` + `extract_strategy!` (no Q-array materialization).
-sampling_strategy(alg::RobustValueIteration) = AllStatesSweep()
-
-### Generalized Sampling-based Robust Dynamic Programming
-sampling_strategy(alg::GeneralizedSamplingbasedRobustDynamicProgramming) =
-    alg.sampling_strategy

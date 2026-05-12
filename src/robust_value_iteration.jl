@@ -246,3 +246,9 @@ function bellman_update!(
     step_postprocess_value_function!(value_function, spec)
     step_postprocess_strategy_cache!(strategy_cache)
 end
+
+### Robust Value Iteration
+# RobustVI does a full state-outer sweep — yields bare states so
+# `expectation_v!` dispatches to the state-outer path that uses
+# `workspace.actions` + `extract_strategy!` (no Q-array materialization).
+sampling_strategy(alg::RobustValueIteration) = AllStatesSweep()

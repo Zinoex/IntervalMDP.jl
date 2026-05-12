@@ -74,14 +74,19 @@ include("bellman/state.jl")
 include("bellman/state_action.jl")
 include("bellman/product.jl")
 
-include("robust_value_iteration.jl")
-include("gsrdp.jl")
-
 # `sampling.jl` defines `SamplingStrategy`s and the `sample` dispatcher.
 # Comes after the algorithm-defining files because `sampling_strategy`
 # methods dispatch on the algorithm types.
 include("sampling.jl")
-public AllSampling, AllStatesSweep, RandomSubsetStateActions, RandomSubsetState
+export SamplingStrategy, ValuebasedSamplingStrategy
+public AllSampling,
+    AllStatesSweep,
+    RandomSubsetStateActions,
+    RandomSubsetState,
+    ValueFunctionOrderedSampling
+
+include("robust_value_iteration.jl")
+include("gsrdp.jl")
 
 ### Saving and loading models
 include("Data/Data.jl")

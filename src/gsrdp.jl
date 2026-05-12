@@ -96,6 +96,17 @@ function solve(
     return VerificationSolution(V, res, k)
 end
 
+# Sampling dispatcher for GSRDP.
+# Prefer samplers that accept a `value_function` argument (4-arg `sample`).
+# Fall back to older 3-arg or 2-arg `sample` signatures for backwards compatibility.
+function _gsrdp_sample(ss::ValueBasedSamplingStrategy, mp, strategy_cache, value_function)
+    return sample(ss, mp, strategy_cache, value_function)
+end
+
+function _gsrdp_sample(ss::SamplingStrategy, mp, strategy_cache, value_function)
+    return sample(ss, mp, strategy_cache)
+end
+
 function solve(
     problem::ControlSynthesisProblem,
     alg::GeneralizedSamplingbasedRobustDynamicProgramming;
@@ -143,7 +154,12 @@ function _gsrdp!(
         callback(value_function, bellman_updates)
     end
 
-    update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, 0))
+    update_sequence = _gsrdp_sample(
+        sampling_strat,
+        mp,
+        select_strategy_cache(strategy_cache, 0),
+        value_function,
+    )
     bellman_updates += _bellman_update_count(update_sequence, mp)
     bellman_update!(
         alg,
@@ -164,8 +180,12 @@ function _gsrdp!(
     while !term_criteria(value_function, k, gap(value_function))
         nextiteration!(value_function)
 
-        update_sequence =
-            sample(sampling_strat, mp, select_strategy_cache(strategy_cache, k))
+        update_sequence = _gsrdp_sample(
+            sampling_strat,
+            mp,
+            select_strategy_cache(strategy_cache, k),
+            value_function,
+        )
         bellman_updates += _bellman_update_count(update_sequence, mp)
         bellman_update!(
             alg,
@@ -278,3 +298,7 @@ function bellman_update!(
     step_postprocess_value_function!(value_function.upper, spec)
     step_postprocess_strategy_cache!(strategy_cache)
 end
+
+### Generalized Sampling-based Robust Dynamic Programming
+sampling_strategy(alg::GeneralizedSamplingbasedRobustDynamicProgramming) =
+    alg.sampling_strategy
