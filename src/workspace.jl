@@ -53,6 +53,10 @@ struct DenseIntervalOMaxWorkspace{T <: Real}
     budget::Vector{T}
     scratch::Vector{Int32}
     permutation::Vector{Int32}
+    # Per-state action scratch — populated state-by-state during a Bellman
+    # sweep so we never materialize a global (action × state) Q-array. Sized
+    # `nactions` and reused across all states. The factored workspaces use
+    # the same convention.
     actions::Vector{T}
 end
 
@@ -82,6 +86,8 @@ function ThreadedDenseIntervalOMaxWorkspace(
     scratch = Vector{Int32}(undef, num_target(ambiguity_set))
     perm = Vector{Int32}(undef, num_target(ambiguity_set))
 
+    # Permutation/scratch can be shared, but the per-state `actions` buffer
+    # cannot: every thread is updating its own state's Q-values.
     workspaces = [
         DenseIntervalOMaxWorkspace(budget, scratch, perm, Vector{R}(undef, nactions))
         for _ in 1:Threads.nthreads()

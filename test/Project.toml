@@ -10,7 +10,10 @@ Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+Supposition = "5a0628fe-1738-4658-9b6d-0b7605a9755b"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+TestItemRunner = "f8b46487-2199-4994-9208-9a1283c18c0a"
+TestItems = "1c621080-faea-4a02-84b6-bbd5e436b8fe"
 
 [sources]
 IntervalMDP = {path = ".."}
@@ -18,4 +21,7 @@ IntervalMDP = {path = ".."}
 [compat]
 CUDA = "5.9.4"
 StatsBase = "0.34.2"
+Supposition = "0.3"
+TestItemRunner = "1"
+TestItems = "1"
 julia = "1.9"

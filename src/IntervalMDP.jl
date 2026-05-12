@@ -32,12 +32,13 @@ export Property, BasicProperty, ProductProperty
 export FiniteTimeDFAReachability, InfiniteTimeDFAReachability
 export FiniteTimeDFASafety, InfiniteTimeDFASafety
 export FiniteTimeReachability, InfiniteTimeReachability, ExactTimeReachability
-export FiniteTimeReachAvoid, InfiniteTimeReachAvoid, ExactTimeReachAvoid
+export FiniteTimeReachAvoid,
+    InfiniteTimeReachAvoid, InfiniteTimeReachAvoidInitial, ExactTimeReachAvoid
 export FiniteTimeSafety, InfiniteTimeSafety
 export FiniteTimeReward, InfiniteTimeReward
 export ExpectedExitTime
 
-export reach, avoid, safe, time_horizon, convergence_eps, reward, discount
+export reach, avoid, initial, safe, time_horizon, convergence_eps, reward, discount
 
 export SatisfactionMode, Pessimistic, Optimistic, ispessimistic, isoptimistic
 export StrategyMode, Maximize, Minimize, ismaximize, isminimize
@@ -52,18 +53,34 @@ include("cuda.jl")
 public cu, cpu
 
 ### Solving
+include("value.jl")
 include("algorithms.jl")
 export OMaximization, LPMcCormickRelaxation, VertexEnumeration
-export RobustValueIteration
+export RobustValueIteration, GeneralizedSamplingbasedRobustDynamicProgramming
 export default_algorithm, default_bellman_algorithm, bellman_algorithm
 
 include("utils.jl")
 include("threading.jl")
 include("workspace.jl")
 include("strategy_cache.jl")
-include("bellman.jl")
+include("termination.jl")
+
+# Bellman primitives: scalar kernels in `bellman/kernels.jl`, then the
+# state-shape (`bellman_v!`) and state-action-shape (`bellman_q!`) sweeps
+# in their own files. Both call into the kernels.
+include("bellman/kernels.jl")
+include("bellman/state.jl")
+include("bellman/state_action.jl")
+include("bellman/product.jl")
 
 include("robust_value_iteration.jl")
+include("gsrdp.jl")
+
+# `sampling.jl` defines `SamplingStrategy`s and the `sample` dispatcher.
+# Comes after the algorithm-defining files because `sampling_strategy`
+# methods dispatch on the algorithm types.
+include("sampling.jl")
+public AllSampling, AllStatesSweep, RandomSubsetStateActions, RandomSubsetState
 
 ### Saving and loading models
 include("Data/Data.jl")

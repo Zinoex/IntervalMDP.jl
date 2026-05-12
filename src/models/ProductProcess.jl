@@ -85,6 +85,12 @@ source_shape(proc::ProductProcess) =
     (source_shape(markov_process(proc))..., num_states(automaton(proc)))
 action_values(proc::ProductProcess) = action_values(markov_process(proc))
 
+select_model(mp::ProductProcess, k) = ProductProcess(
+    select_model(markov_process(mp), k),
+    automaton(mp),
+    select_labelling_function(labelling_function(mp), k),
+)
+
 Base.show(io::IO, proc::ProductProcess) = showsystem(io, "", "", proc)
 
 function showsystem(

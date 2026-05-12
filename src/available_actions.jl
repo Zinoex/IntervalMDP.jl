@@ -1,5 +1,8 @@
 abstract type AbstractAvailableActions end
+
 abstract type SingleTimeStepAvailableActions <: AbstractAvailableActions end
+
+select_available_actions(aa::SingleTimeStepAvailableActions, k) = aa
 
 # All actions are available at all states
 struct AllAvailableActions{M} <: SingleTimeStepAvailableActions
@@ -86,3 +89,6 @@ function check_available_actions(
     end
 end
 time_length(aa::TimeVaryingAvailableActions) = length(aa.actions)
+
+select_available_actions(aa::TimeVaryingAvailableActions, k) =
+    aa.actions[time_length(aa) - k]

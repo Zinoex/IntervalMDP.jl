@@ -1,23 +1,25 @@
-abstract type TerminationCriteria end
-function termination_criteria(spec::Specification)
-    prop = system_property(spec)
-    ft = isfinitetime(prop)
-    return termination_criteria(prop, Val(ft))
-end
+"""
+    RobustValueIteration
 
-struct FixedIterationsCriteria{T <: Integer} <: TerminationCriteria
-    n::T
+A robust value iteration algorithm for solving interval Markov decision processes (IMDPs) with interval ambiguity sets.
+This algorithm is designed to handle both finite and infinite time specifications, optimizing for either the maximum or
+minimum expected value based on the given specification.
+"""
+struct RobustValueIteration{B <: BellmanAlgorithm} <: ModelCheckingAlgorithm
+    bellman_alg::B
 end
-(f::FixedIterationsCriteria)(V, k, u) = k >= f.n
-termination_criteria(prop, finitetime::Val{true}) =
-    FixedIterationsCriteria(time_horizon(prop))
+bellman_algorithm(alg::RobustValueIteration) = alg.bellman_alg
+termination_criteria(::RobustValueIteration, spec) = termination_criteria(spec)
+construct_value_function(::RobustValueIteration, problem) = StateValueFunction(problem)
 
-struct CovergenceCriteria{T <: Real} <: TerminationCriteria
-    tol::T
+function showmcalgorithm(io::IO, prefix, ::RobustValueIteration)
+    println(
+        io,
+        prefix,
+        "├─",
+        styled"Default model checking algorithm: {green:Robust Value Iteration}",
+    )
 end
-(f::CovergenceCriteria)(V, k, u) = maximum(abs, u) < f.tol
-termination_criteria(prop, finitetime::Val{false}) =
-    CovergenceCriteria(convergence_eps(prop))
 
 """
     solve(problem::AbstractIntervalMDPProblem, alg::RobustValueIteration; callback=nothing)
@@ -156,31 +158,36 @@ IntervalMDP.ControlSynthesisSolution{TimeVaryingStrategy{1, Vector{Tuple{Int32}}
 ```
 """
 function solve(problem::VerificationProblem, alg::RobustValueIteration; kwargs...)
-    V, k, res, _ = _value_iteration!(problem, alg; kwargs...)
+    V, k, res, _ = _robust_value_iteration!(problem, alg; kwargs...)
     return VerificationSolution(V, res, k)
 end
 
 function solve(problem::ControlSynthesisProblem, alg::RobustValueIteration; kwargs...)
-    V, k, res, strategy_cache = _value_iteration!(problem, alg; kwargs...)
+    V, k, res, strategy_cache = _robust_value_iteration!(problem, alg; kwargs...)
     strategy = cachetostrategy(strategy_cache)
 
     return ControlSynthesisSolution(strategy, V, res, k)
 end
 
-function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = nothing)
+function _robust_value_iteration!(
+    problem::AbstractIntervalMDPProblem,
+    alg::RobustValueIteration;
+    callback = nothing,
+)
     mp = system(problem)
     spec = specification(problem)
-    term_criteria = termination_criteria(spec)
+    term_criteria = termination_criteria(alg, spec)
 
     # It is more efficient to use allocate first and reuse across iterations
     workspace = construct_workspace(mp, bellman_algorithm(alg))
     strategy_cache = construct_strategy_cache(problem)
+    sampling_strat = sampling_strategy(alg)
 
-    value_function = ValueFunction(problem)
+    value_function = construct_value_function(alg, problem)
     initialize!(value_function, spec)
     nextiteration!(value_function)
 
-    step!(workspace, strategy_cache, value_function, 0, mp, spec)
+    bellman_update!(alg, workspace, strategy_cache, value_function, 0, mp, spec)
     k = 1
 
     if !isnothing(callback)
@@ -190,7 +197,7 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     while !term_criteria(value_function.current, k, lastdiff!(value_function))
         nextiteration!(value_function)
 
-        step!(workspace, strategy_cache, value_function, k, mp, spec)
+        bellman_update!(alg, workspace, strategy_cache, value_function, k, mp, spec)
         k += 1
 
         if !isnothing(callback)
@@ -205,73 +212,37 @@ function _value_iteration!(problem::AbstractIntervalMDPProblem, alg; callback = 
     return value_function.current, k, value_function.previous, strategy_cache
 end
 
-struct ValueFunction{R, A <: AbstractArray{R}}
-    previous::A
-    current::A
-end
-
-function ValueFunction(problem::AbstractIntervalMDPProblem)
-    mp = system(problem)
-    previous = arrayfactory(mp, valuetype(mp), state_values(mp))
-    previous .= zero(valuetype(mp))
-    current = copy(previous)
-
-    return ValueFunction(previous, current)
-end
-
-function lastdiff!(V::ValueFunction{R}) where {R}
-    # Reuse prev to store the latest difference
-    V.previous .-= V.current
-    rmul!(V.previous, -one(R))
-
-    return V.previous
-end
-
-function nextiteration!(V)
-    copy!(V.previous, V.current)
-
-    return V
-end
-
-function step!(workspace, strategy_cache, value_function, k, mp, spec)
-    bellman!(
+function bellman_update!(
+    ::RobustValueIteration,
+    workspace,
+    strategy_cache,
+    value_function::StateValueFunction,
+    k,
+    mp,
+    spec,
+)
+    # `bellman_v!` writes V'[s] directly using per-state action scratch
+    # in `workspace.actions` — no `(action × state)` Q-array is allocated
+    # along the hot path. For RobustVI the update sequence is a
+    # `StateUpdateSequence` (yields `s`), so this dispatches to the
+    # state-outer + `extract_strategy!` path. The `StateValueArray`
+    # wrappers tag the buffers as state-value-shape at the type level.
+    sc = select_strategy_cache(strategy_cache, k)
+    model = select_model(mp, k) # For time-varying available and labelling functions
+    bellman_v!(
         workspace,
-        select_strategy_cache(strategy_cache, k),
-        value_function.current,
-        value_function.previous,
-        select_model(mp, k);  # For time-varying available and labelling functions
+        sc,
+        StateValueArray(value_function.current),
+        StateValueArray(value_function.previous),
+        model,
+        sample(AllStatesSweep(), model, sc);
         upper_bound = isoptimistic(spec),
         maximize = ismaximize(spec),
         prop = system_property(spec),
     )
+
+    # Post-process to compute V(s) = g(s, V'(s)) where the definition of g
+    # depends on the objective (reachability / safety / reward / discount).
     step_postprocess_value_function!(value_function, spec)
     step_postprocess_strategy_cache!(strategy_cache)
 end
-
-select_strategy_cache(strategy_cache::OptimizingStrategyCache, k) = strategy_cache
-select_strategy_cache(strategy_cache::NonOptimizingStrategyCache, k) =
-    strategy_cache[time_length(strategy_cache) - k]
-
-select_model(mp::IntervalMarkovProcess, k) = FactoredRMDP(
-    state_values(mp),
-    action_values(mp),
-    source_shape(mp),
-    marginals(mp),
-    select_available_actions(available_actions(mp), k),
-    initial_states(mp),
-    Val(false),
-)
-
-select_available_actions(aa::SingleTimeStepAvailableActions, k) = aa
-select_available_actions(aa::TimeVaryingAvailableActions, k) =
-    aa.actions[time_length(aa) - k]
-
-select_model(mp::ProductProcess, k) = ProductProcess(
-    select_model(markov_process(mp), k),
-    automaton(mp),
-    select_labelling_function(labelling_function(mp), k),
-)
-
-select_labelling_function(lf::AbstractSingleStepLabelling, k) = lf
-select_labelling_function(lf::TimeVaryingLabelling, k) =
-    lf.labelling_functions[time_length(lf) - k]

@@ -2,6 +2,10 @@ abstract type AbstractStrategyCache end
 abstract type NonOptimizingStrategyCache <: AbstractStrategyCache end
 abstract type OptimizingStrategyCache <: AbstractStrategyCache end
 
+select_strategy_cache(strategy_cache::OptimizingStrategyCache, k) = strategy_cache
+select_strategy_cache(strategy_cache::NonOptimizingStrategyCache, k) =
+    strategy_cache[time_length(strategy_cache) - k]
+
 """
     construct_strategy_cache(mp_or_problem)
 
@@ -158,4 +162,24 @@ function _extract_strategy!(cur_strategy, values, available_actions, neutral, j�
 
     @inbounds cur_strategy[jₛ] = opt_index
     return opt_val
+end
+
+function strategy!(
+    strategy_cache::OptimizingStrategyCache,
+    Vres::AbstractArray{R},
+    Q::AbstractArray{R},
+    model,
+    maximize,
+) where {R <: Real}
+
+    #TODO: can be threaded?
+    @inbounds for jₛ in CartesianIndices(source_shape(model))
+        Vres[jₛ] = extract_strategy!(
+            strategy_cache,
+            @view(Q[:, jₛ]),
+            available(model, jₛ),
+            jₛ,
+            maximize,
+        )
+    end
 end

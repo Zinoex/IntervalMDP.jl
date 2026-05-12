@@ -57,47 +57,22 @@ end
 
 abstract type ModelCheckingAlgorithm end
 
-##########################
-# Robust Value Iteration #
-##########################
-"""
-    RobustValueIteration
-
-A robust value iteration algorithm for solving interval Markov decision processes (IMDPs) with interval ambiguity sets.
-This algorithm is designed to handle both finite and infinite time specifications, optimizing for either the maximum or
-minimum expected value based on the given specification.
-"""
-struct RobustValueIteration{B <: BellmanAlgorithm} <: ModelCheckingAlgorithm
-    bellman_alg::B
+# `showmcalgorithm` for the model-pretty-print path. Concrete algorithms
+# (`RobustValueIteration`, `GeneralizedSamplingbasedRobustDynamicProgramming`)
+# overload these in their own files; the fallback below covers
+# any future algorithm that hasn't yet supplied a show.
+function showmcalgorithm(io::IO, prefix, ::ModelCheckingAlgorithm)
+    println(io, prefix, "├─", styled"Default model checking algorithm: {green:None}")
 end
-bellman_algorithm(alg::RobustValueIteration) = alg.bellman_alg
 
-############################
-# Interval Value Iteration #
-############################
-
-# TODO: Provide implementation for this algorithm. When provided, consider changing the default algorithm.
-struct IntervalValueIteration <: ModelCheckingAlgorithm end
-
-# TODO: Consider topological value iteration as an alternative algorithm (infinite time only).
-
-##### Default algorithm for solving Interval MDP problems
+# `solve(problem)` (no algorithm) defaults to `RobustValueIteration` with
+# the model's default Bellman algorithm. Defined here as a forward
+# declaration so this file can be `include`d before `RobustValueIteration`
+# is defined; the actual `default_algorithm` body refers to types that
+# come later, but it's only resolved at call time.
 default_algorithm(problem::AbstractIntervalMDPProblem) = default_algorithm(system(problem))
 default_algorithm(system::StochasticProcess) =
     RobustValueIteration(default_bellman_algorithm(system))
 
 solve(problem::AbstractIntervalMDPProblem; kwargs...) =
     solve(problem, default_algorithm(problem); kwargs...)
-
-function showmcalgorithm(io::IO, prefix, ::RobustValueIteration)
-    println(
-        io,
-        prefix,
-        "├─",
-        styled"Default model checking algorithm: {green:Robust Value Iteration}",
-    )
-end
-
-function showmcalgorithm(io::IO, prefix, ::ModelCheckingAlgorithm)
-    println(io, prefix, "├─", styled"Default model checking algorithm: {green:None}")
-end
