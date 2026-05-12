@@ -89,18 +89,20 @@ termination_criteria(prop) = GapTerminationCriteria(convergence_eps(prop))
 function solve(
     problem::VerificationProblem,
     alg::GeneralizedSamplingbasedRobustDynamicProgramming;
+    config::Union{Nothing, Config} = nothing,
     kwargs...,
 )
-    V, k, res, _ = _gsrdp!(problem, alg; kwargs...)
+    V, k, res, _ = _gsrdp!(problem, alg; config = config, kwargs...)
     return VerificationSolution(V, res, k)
 end
 
 function solve(
     problem::ControlSynthesisProblem,
     alg::GeneralizedSamplingbasedRobustDynamicProgramming;
+    config::Union{Nothing, Config} = nothing,
     kwargs...,
 )
-    V, k, res, strategy_cache = _gsrdp!(problem, alg; kwargs...)
+    V, k, res, strategy_cache = _gsrdp!(problem, alg; config = config, kwargs...)
     strategy = cachetostrategy(strategy_cache)
 
     return ControlSynthesisSolution(strategy, V, res, k)
@@ -109,16 +111,27 @@ end
 function _gsrdp!(
     problem::AbstractIntervalMDPProblem,
     alg::GeneralizedSamplingbasedRobustDynamicProgramming;
+    config::Union{Nothing, Config} = nothing,
     callback = nothing,
 )
     mp = system(problem)
     spec = specification(problem)
     prop = system_property(spec)
-    term_criteria = termination_criteria(alg, spec)
+
+    # Apply config overrides if provided
+    term_criteria = if !isnothing(config) && !isnothing(config.term_criteria)
+        config.term_criteria
+    else
+        termination_criteria(alg, spec)
+    end
 
     workspace = construct_workspace(mp, bellman_algorithm(alg))
     strategy_cache = _gsrdp_strategy_cache(problem)
-    sampling_strat = sampling_strategy(alg)
+    sampling_strat = if !isnothing(config) && !isnothing(config.sampling_strategy)
+        config.sampling_strategy
+    else
+        sampling_strategy(alg)
+    end
 
     value_function = construct_value_function(alg, problem)
     _gsrdp_initialize!(value_function, prop)

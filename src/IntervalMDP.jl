@@ -54,9 +54,10 @@ public cu, cpu
 
 ### Solving
 include("value.jl")
+include("config.jl")
 include("algorithms.jl")
 export OMaximization, LPMcCormickRelaxation, VertexEnumeration
-export RobustValueIteration, GeneralizedSamplingbasedRobustDynamicProgramming
+export RobustValueIteration, GeneralizedSamplingbasedRobustDynamicProgramming, Config
 export default_algorithm, default_bellman_algorithm, bellman_algorithm
 
 include("utils.jl")
