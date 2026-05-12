@@ -469,6 +469,67 @@ function custom_sequence(
     return GivenSequenceIterator(sequence)
 end
 
+# Value-function-ordered sampler: applies an operation (e.g., gap) to the
+# current IntervalValueFunction, sorts states by the resulting values in a
+# specified order, and yields the top k states. Yields bare states; the inner
+# loop of `bellman_update!` is expected to sweep all available actions per
+# visited state.
+struct ValueFunctionOrderedSampling <: SamplingStrategy
+    operation::Function  # e.g., gap; takes IntervalValueFunction, returns array
+    ascending::Bool      # true for ascending (low-to-high), false for descending
+    k::Int               # number of top states to select
+end
+
+struct ValueFunctionOrderedStateIterator{NS} <: AbstractIterator
+    states::Vector{CartesianIndex{NS}}
+end
+
+Base.length(iter::ValueFunctionOrderedStateIterator) = length(iter.states)
+Base.firstindex(iter::ValueFunctionOrderedStateIterator) = firstindex(iter.states)
+Base.lastindex(iter::ValueFunctionOrderedStateIterator) = lastindex(iter.states)
+Base.getindex(iter::ValueFunctionOrderedStateIterator, i) = iter.states[i]
+Base.iterate(iter::ValueFunctionOrderedStateIterator) = iterate(iter.states)
+Base.iterate(iter::ValueFunctionOrderedStateIterator, state) = iterate(iter.states, state)
+
+sequence_shape(::ValueFunctionOrderedStateIterator) = StateUpdateSequence()
+
+sample(ss::ValueFunctionOrderedSampling, model) =
+    error("ValueFunctionOrderedSampling requires a value_function argument")
+sample(ss::ValueFunctionOrderedSampling, model, strategy_cache) =
+    error("ValueFunctionOrderedSampling requires a value_function argument")
+
+function sample(
+    ss::ValueFunctionOrderedSampling,
+    model,
+    strategy_cache,
+    value_function,
+)
+    return value_function_ordered_sample(ss.operation, ss.ascending, ss.k, value_function)
+end
+
+function value_function_ordered_sample(operation::Function, ascending::Bool, k::Int, value_function)
+    # Apply the operation to get values
+    values = operation(value_function)
+    
+    # Flatten to 1D and create index mapping
+    flat_values = vec(values)
+    indices = CartesianIndices(values)
+    
+    # Sort indices by values
+    sorted_perm = if ascending
+        sortperm(flat_values)
+    else
+        sortperm(flat_values, rev=true)
+    end
+    
+    # Select top k indices
+    k_selected = min(k, length(sorted_perm))
+    selected_linear_indices = sorted_perm[1:k_selected]
+    selected_states = [indices[i] for i in selected_linear_indices]
+    
+    return ValueFunctionOrderedStateIterator(selected_states)
+end
+
 # TODO: 1. random sampling of states, with or without replacement, with or without weighting (e.g. based on current value function)
 # TODO:     - subset of states each iteration?
 # TODO:     - one state per iteration?
