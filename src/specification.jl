@@ -534,6 +534,24 @@ function step_postprocess_value_function!(value_function, prop::AbstractReachAvo
     @inbounds value_function.current[avoid(prop)] .= 0.0
 end
 
+# IntervalValueIteration is only defined for reach-avoid properties.
+checkivisupported(prop) = throw(
+    ArgumentError(
+        "IntervalValueIteration is only defined for reach-avoid properties, got $(typeof(prop))",
+    ),
+)
+checkivisupported(::AbstractReachAvoid) = nothing
+
+function initialize_ivi!(V_lower, V_upper, prop::AbstractReachAvoid)
+    R = eltype(V_lower.current)
+
+    fill!(V_lower.current, zero(R))
+    @inbounds V_lower.current[reach(prop)] .= one(R)
+
+    fill!(V_upper.current, one(R))
+    @inbounds V_upper.current[avoid(prop)] .= zero(R)
+end
+
 function checkstatebounds(states, system::IntervalMarkovProcess)
     pns = state_values(system)
     for j in states
@@ -1193,6 +1211,8 @@ Specification(prop::Property, satisfaction::SatisfactionMode) =
 
 initialize!(value_function, spec::Specification) =
     initialize!(value_function, system_property(spec))
+initialize_ivi!(V_lower, V_upper, spec::Specification) =
+    initialize_ivi!(V_lower, V_upper, system_property(spec))
 step_postprocess_value_function!(value_function, spec::Specification) =
     step_postprocess_value_function!(value_function, system_property(spec))
 postprocess_value_function!(value_function, spec::Specification) =
