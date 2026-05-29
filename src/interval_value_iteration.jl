@@ -191,3 +191,73 @@ function ivi_step!(workspace, strategy_cache, V_lower, V_upper, k, mp, spec)
     step_postprocess_value_function!(V_upper, spec)
     step_postprocess_strategy_cache!(strategy_cache)
 end
+
+# =============================================================================
+# TODO (design note): extend IVI to reachability and safety via MEC deflation
+# =============================================================================
+#
+# IVI is currently fenced to reach-avoid (see `checkivisupported` in
+# specification.jl). The reason is the end-component (EC) problem: the lower
+# bound iterates *up* from the goal indicator to the least fixed point and is
+# always fine, but the upper bound iterates *down* from 1 to the *greatest*
+# fixed point, which exceeds the true value V* exactly on end components. The
+# gap `V_upper - V_lower` then never closes (IVIInitialGapCriteria never trips).
+# For plain reachability/safety this bites; even reach-avoid is unsound if an EC
+# sits entirely in the don't-care region (neither `reach` nor `avoid`).
+#
+# Fix: maximal-end-component (MEC) decomposition + in-loop deflation of the
+# from-above bound. This was proved sound (see below) provided the MEC is
+# defined over STATE-ACTION pairs and the exit/internal split uses the
+# *upper-bound support* graph. The naive "nature can keep it inside" (∃p stays)
+# split is UNSOUND for the optimistic bound — do not use it.
+#
+# --- MEC decomposition (mode-independent) ------------------------------------
+# An EC is a sub-MDP (S', α') with α' a set of state-action pairs:
+#   (i)  for all s ∈ S' and a ∈ A(s) ∩ α':  Supp(δ(s,a)) ⊆ S'      (internal)
+#   (ii) the retained-action graph G_(S',α') is strongly connected
+# Lift to IMDPs by the edge relation  s -a-> s'  iff  P̄(s'|s,a) > 0  (some
+# feasible p ∈ Γ_{s,a} puts mass on s'). Then (i) becomes P̄(S∖S'|s,a) = 0, i.e.
+# ALL feasible p stay inside — the sound "internal action" test. This edge
+# relation depends only on the supports of the ambiguity sets, so the MEC
+# partition is independent of BOTH the satisfaction mode and the strategy mode.
+# Standard MEC algorithm (strip actions leaking out of S', recompute SCCs,
+# recurse) runs unchanged on this graph.
+#
+# Classify per MEC C (with C ∩ goal = ∅):
+#   internal actions  = α' ∩ A(s)            (kept by (i))
+#   exit actions      = A(s) ∖ α'            (some feasible p leaves C)
+#   bex(C, U) = max_{s∈C} max_{a∈exit(s)} min_p Σ p(s') U(s')     [best-exit val]
+#               (inner op matches the Bellman nature: min_p pessimistic /
+#                max_p optimistic; max∅ = the absorbing value, i.e. 0 for reach)
+#
+# --- Deflation step (mode handling lives HERE, not in the partition) ---------
+# After the two bellman! calls in ivi_step!, for each non-goal MEC C set the
+# from-above bound on C to:
+#   Maximize: U(s) ← min(U(s), bex(C, U)).  Capping to 0 would break U ≥ V* —
+#             best-exit is mandatory.
+#   Minimize: U(s) ← 0.  The controller can elect to stay (internal action vs
+#             every nature), so V* ≡ 0 on every non-goal MEC. This is the
+#             "treat non-goal MECs as avoid" reduction, exact for Minimize and
+#             exact for Maximize only when C is a BMEC (no exit actions).
+# Which bound is deflated is selected by the satisfaction mode (the gfp side).
+#
+# --- Reductions to set up reach/avoid ----------------------------------------
+# Reachability → reach-avoid with avoid = prob0(reach) = BMECs (+ their basins)
+#   that cannot reach the goal; remaining S_k MECs handled by deflation above.
+# Safety → dual: goal = prob0(avoid) get the "guaranteed safe forever" value
+#   (0 in the shifted encoding, before the +1 in postprocess), deflate the
+#   under-approximation of safety.
+#
+# --- Soundness (why deflation preserves U ≥ V*) ------------------------------
+# Key Lemma: for a non-goal MEC C, bex(C, V*) ≥ max_{s∈C} V*(s). Proof: a
+# positive value cannot come from confined (internal-only) play — that reaches
+# the goal w.p. 0 — so the max value in C must be realized through an exit
+# action, whose robust one-step value already has nature's pull-back baked into
+# its min_p. bex is monotone in U, so U ≥ V* ⇒ bex(C,U) ≥ bex(C,V*) ≥ V*(s),
+# hence min(U(s), bex(C,U)) ≥ V*(s). Φ preserves the invariant separately, and
+# the lower bound is untouched. Convergence: deflation caps each MEC at its
+# best-exit value every round, removing the spurious gfp mass (standard
+# interval-iteration-with-deflation argument, e.g. Baier et al. 2017).
+#
+# BMECs (α' = ∪ A(s), no exits) are the prob-0 sinks where "treat as avoid" is
+# unconditional in either strategy mode; trivial MECs {t} need no deflation.
