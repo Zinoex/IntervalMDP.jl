@@ -61,6 +61,8 @@ include("utils.jl")
 include("threading.jl")
 include("workspace.jl")
 include("strategy_cache.jl")
+include("update_sequence.jl")
+export AbstractUpdateSequence, FullUpdateSequence
 include("bellman.jl")
 
 include("robust_value_iteration.jl")

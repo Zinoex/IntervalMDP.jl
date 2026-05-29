@@ -3,14 +3,15 @@ function IntervalMDP._bellman_helper!(
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres::AbstractVector{Tv},
     V::AbstractVector{Tv},
-    model;
+    model,
+    states::IntervalMDP.AbstractUpdateSequence;
     upper_bound = false,
     maximize = true,
 ) where {Tv}
     n_actions =
         isa(strategy_cache, IntervalMDP.OptimizingStrategyCache) ? workspace.num_actions : 1
     marginal = marginals(model)[1]
-    n_states = source_shape(marginal)[1]
+    n_states = length(states)
 
     if IntervalMDP.valuetype(marginal) != Tv
         throw(
@@ -39,6 +40,7 @@ function IntervalMDP._bellman_helper!(
         Vres,
         V,
         marginal,
+        states,
         upper_bound ? (>=) : (<=),
         maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv)),
     )
@@ -64,6 +66,7 @@ function IntervalMDP._bellman_helper!(
         Vres,
         V,
         marginal,
+        states,
         upper_bound ? (>=) : (<=),
         maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv));
         blocks = blocks,
@@ -80,6 +83,7 @@ function dense_bellman_kernel!(
     Vres::AbstractVector{Tv},
     V,
     marginal,
+    states,
     value_lt,
     action_reduce,
 ) where {Tv}
@@ -102,6 +106,7 @@ function dense_bellman_kernel!(
         Vres,
         V,
         marginal,
+        states,
         value,
         perm,
         action_reduce,
@@ -183,6 +188,7 @@ Base.@propagate_inbounds function dense_omaximization!(
     Vres,
     V,
     marginal,
+    states,
     value,
     perm,
     action_reduce,
@@ -190,8 +196,9 @@ Base.@propagate_inbounds function dense_omaximization!(
     assume(warpsize() == 32)
     nwarps = div(blockDim().x, warpsize())
     wid = fld1(threadIdx().x, warpsize())
-    jₛ = wid + (blockIdx().x - one(Int32)) * nwarps
-    while jₛ <= source_shape(marginal)[1]  # Grid-stride loop
+    linear_jₛ = wid + (blockIdx().x - one(Int32)) * nwarps
+    while linear_jₛ <= length(states)  # Grid-stride loop
+        jₛ = Int32(@inbounds states[linear_jₛ][1])
         state_dense_omaximization!(
             action_workspace,
             strategy_cache,
@@ -203,7 +210,7 @@ Base.@propagate_inbounds function dense_omaximization!(
             jₛ,
             action_reduce,
         )
-        jₛ += gridDim().x * nwarps
+        linear_jₛ += gridDim().x * nwarps
     end
 
     return nothing
