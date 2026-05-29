@@ -228,7 +228,7 @@ function bellman!(
     Vres::AbstractArray,
     V::AbstractArray,
     model::ProductProcess,
-    states::AbstractUpdateSequence = default_update_sequence(model);
+    states::ProductUpdateSequence = default_update_sequence(model);
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -260,20 +260,23 @@ function _bellman_helper!(
     dfa::DFA,
     lf::DeterministicLabelling,
     mp::IntervalMarkovProcess,
-    states::AbstractUpdateSequence;
+    states::ProductUpdateSequence;
     upper_bound = false,
     maximize = true,
     prop = nothing,
 )
     W = workspace.intermediate_values
 
-    @inbounds for state in dfa
+    @inbounds for dfa_state_ci in states.dfa_states
+        state = Int32(dfa_state_ci[1])
+
         # If a DFA property is given, skip terminal states
         if !isnothing(prop) && state ∈ terminal(prop)
             continue
         end
 
         local_strategy_cache = localize_strategy_cache(strategy_cache, state)
+        mp_states = mp_sequence(states, state)
 
         # Select the value function for the current DFA state
         # according to the appropriate DFA transition function
@@ -289,7 +292,7 @@ function _bellman_helper!(
             selectdim(Vres, ndims(Vres), state),
             W,
             mp,
-            states;
+            mp_states;
             upper_bound = upper_bound,
             maximize = maximize,
         )
@@ -306,20 +309,23 @@ function _bellman_helper!(
     dfa::DFA,
     lf::ProbabilisticLabelling,
     mp::IntervalMarkovProcess,
-    states::AbstractUpdateSequence;
+    states::ProductUpdateSequence;
     upper_bound = false,
     maximize = true,
     prop = nothing,
 ) where {R}
     W = workspace.intermediate_values
 
-    @inbounds for state in dfa
+    @inbounds for dfa_state_ci in states.dfa_states
+        state = Int32(dfa_state_ci[1])
+
         # If a DFA property is given, skip terminal states
         if !isnothing(prop) && state ∈ terminal(prop)
             continue
         end
 
         local_strategy_cache = localize_strategy_cache(strategy_cache, state)
+        mp_states = mp_sequence(states, state)
 
         # Select the value function for the current DFA state
         # according to the appropriate DFA transition function
@@ -342,7 +348,7 @@ function _bellman_helper!(
             selectdim(Vres, ndims(Vres), state),
             W,
             mp,
-            states;
+            mp_states;
             upper_bound = upper_bound,
             maximize = maximize,
         )
