@@ -30,10 +30,23 @@ struct FullUpdateSequence{N, R <: NTuple{N, AbstractUnitRange{<:Integer}}} <:
     indices::CartesianIndices{N, R}
 end
 
-FullUpdateSequence(shape::NTuple{N, <:Integer}) where {N} =
+FullUpdateSequence(shape::Tuple{Vararg{Integer}}) =
     FullUpdateSequence(CartesianIndices(map(Base.OneTo, shape)))
 FullUpdateSequence(model) = FullUpdateSequence(source_shape(model))
 
-Base.size(s::FullUpdateSequence) = size(s.indices)
+Base.size(s::FullUpdateSequence) = (length(s.indices),)
 Base.IndexStyle(::Type{<:FullUpdateSequence}) = IndexLinear()
 Base.@propagate_inbounds Base.getindex(s::FullUpdateSequence, i::Int) = s.indices[i]
+
+"""
+    default_update_sequence(model)
+
+Default `AbstractUpdateSequence` used by `bellman!` when the caller does not pass one.
+The fallback is `FullUpdateSequence(model)` (every source state). For `ProductProcess`
+the default is the full source-state sweep of the *underlying* Markov process — the
+DFA-state dimension is handled by the product-process bellman helper itself, so the
+sweep argument controls only the underlying mp.
+"""
+default_update_sequence(model) = FullUpdateSequence(model)
+default_update_sequence(model::ProductProcess) =
+    FullUpdateSequence(markov_process(model))

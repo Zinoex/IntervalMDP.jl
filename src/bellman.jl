@@ -75,7 +75,7 @@ function bellman(
     V,
     model,
     alg::BellmanAlgorithm = default_bellman_algorithm(model),
-    states::AbstractUpdateSequence = FullUpdateSequence(model);
+    states::AbstractUpdateSequence = default_update_sequence(model);
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -178,7 +178,7 @@ function bellman!(
     V::AbstractArray,
     model,
     alg::BellmanAlgorithm = default_bellman_algorithm(model),
-    states::AbstractUpdateSequence = FullUpdateSequence(model);
+    states::AbstractUpdateSequence = default_update_sequence(model);
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -205,7 +205,7 @@ function bellman!(
     Vres::AbstractArray,
     V::AbstractArray,
     model::IntervalMarkovProcess,
-    states::AbstractUpdateSequence = FullUpdateSequence(model);
+    states::AbstractUpdateSequence = default_update_sequence(model);
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -228,7 +228,7 @@ function bellman!(
     Vres::AbstractArray,
     V::AbstractArray,
     model::ProductProcess,
-    states::AbstractUpdateSequence = FullUpdateSequence(markov_process(model));
+    states::AbstractUpdateSequence = default_update_sequence(model);
     upper_bound = false,
     maximize = true,
     prop = nothing,
