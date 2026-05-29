@@ -237,7 +237,7 @@ end
 Base.@propagate_inbounds function initialize_prealloc_workspace(
     marginal_size,
     marginal::Marginal{
-        <:IntervalAmbiguitySets{Tv, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+        <:IntervalAmbiguitySets{Tv, <:GPUSparseDeviceMatrixCSC},
     },
     offset,
 ) where {Tv}
@@ -937,7 +937,7 @@ end
 Base.@propagate_inbounds function budget(
     ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
         Tv,
-        <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+        <:SubArray{Tv, 1, <:GPUSparseDeviceMatrixCSC},
     },
 ) where {Tv}
     used = zero(Tv)
@@ -1366,7 +1366,7 @@ Base.@propagate_inbounds function add_lower_mul_V_norem_warp(
     V::AbstractVector{Tv},
     ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
         Tv,
-        <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+        <:SubArray{Tv, 1, <:GPUSparseDeviceMatrixCSC},
     },
 ) where {Tv}
     assume(warpsize() == 32)
@@ -1411,7 +1411,7 @@ end
 Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory!(
     ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
         Tv,
-        <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+        <:SubArray{Tv, 1, <:GPUSparseDeviceMatrixCSC},
     },
     prob,
 ) where {Tv}
@@ -1457,7 +1457,7 @@ Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory
     V,
     ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
         Tv,
-        <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+        <:SubArray{Tv, 1, <:GPUSparseDeviceMatrixCSC},
     },
     value,
     prob,

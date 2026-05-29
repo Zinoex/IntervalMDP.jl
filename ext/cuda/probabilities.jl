@@ -22,22 +22,22 @@ IntervalMDP.supportsize(
     p::IntervalMDP.IntervalAmbiguitySet{R, <:CuDeviceColumnView{R}},
 ) where {R} = unsafe_trunc(Int32, length(p.gap))
 
-const CuSparseDeviceColumnView{Tv, Ti} = SubArray{
+const GPUSparseDeviceColumnView{Tv, Ti} = SubArray{
     Tv,
     1,
-    <:CuSparseDeviceMatrixCSC{Tv, Ti},
+    <:GPUSparseDeviceMatrixCSC{Tv, Ti},
     Tuple{Base.Slice{Base.OneTo{Int}}, Int32},
     false,
 }
 Base.@propagate_inbounds IntervalMDP.support(
-    p::IntervalMDP.IntervalAmbiguitySet{R, <:CuSparseDeviceColumnView{R}},
+    p::IntervalMDP.IntervalAmbiguitySet{R, <:GPUSparseDeviceColumnView{R}},
 ) where {R} = rowvals(p.gap)
 Base.@propagate_inbounds IntervalMDP.support(
-    p::IntervalMDP.IntervalAmbiguitySet{R, <:CuSparseDeviceColumnView{R}},
+    p::IntervalMDP.IntervalAmbiguitySet{R, <:GPUSparseDeviceColumnView{R}},
     s,
 ) where {R} = support(p)[s]
 Base.@propagate_inbounds IntervalMDP.supportsize(
-    p::IntervalMDP.IntervalAmbiguitySet{R, <:CuSparseDeviceColumnView{R}},
+    p::IntervalMDP.IntervalAmbiguitySet{R, <:GPUSparseDeviceColumnView{R}},
 ) where {R} = unsafe_trunc(Int32, nnz(p.gap))
 
 IntervalMDP.maxsupportsize(
