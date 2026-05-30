@@ -1,8 +1,7 @@
-using Revise, Test
-using IntervalMDP, SparseArrays
+@testitem "sparse/probabilities: getters" begin
+    using SparseArrays
 
-@testset for N in [Float32, Float64, Rational{BigInt}]
-    @testset "getters" begin
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         l = sparse(N[0 1//2; 1//10 3//10; 2//10 1//10])
         u = sparse(N[5//10 7//10; 6//10 5//10; 7//10 3//10])
 
@@ -26,8 +25,12 @@ using IntervalMDP, SparseArrays
         @test occursin("Maximum support size: 3", str)
         @test occursin("Number of non-zeros: 6", str)
     end
+end
 
-    @testset "vertex enumerator" begin
+@testitem "sparse/probabilities: vertex enumerator" begin
+    using SparseArrays
+
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = sparse(N[0 1//2; 1//10 3//10; 2//10 1//10])
         upper = sparse(N[5//10 7//10; 6//10 5//10; 7//10 3//10])
 
@@ -50,7 +53,7 @@ using IntervalMDP, SparseArrays
 
         ambiguity_set = prob[2] # Second ambiguity set
         verts = IntervalMDP.vertices(ambiguity_set)
-        @test length(verts) <= 6  # = number of permutations of 3 elements 
+        @test length(verts) <= 6  # = number of permutations of 3 elements
 
         expected_verts = N[  # duplicates due to budget < gap for all elements
             6 // 10 3//10 1//10
@@ -60,8 +63,12 @@ using IntervalMDP, SparseArrays
         @test length(verts) ≥ size(expected_verts, 1)  # at least the unique ones
         @test all(any(v2 -> v1 ≈ v2, verts) for v1 in eachrow(expected_verts))
     end
+end
 
-    @testset "check vs no check" begin
+@testitem "sparse/probabilities: check vs no check" begin
+    using SparseArrays
+
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = sparse(N[0 1//2; 1//10 3//10; 2//10 1//10])
         upper = sparse(N[5//10 7//10; 6//10 5//10; 7//10 3//10])
         gap = upper - lower
@@ -72,8 +79,12 @@ using IntervalMDP, SparseArrays
         @test prob.lower == prob_no_check.lower
         @test prob.gap == prob_no_check.gap
     end
+end
 
-    @testset "dimension mismatch" begin
+@testitem "sparse/probabilities: dimension mismatch" begin
+    using SparseArrays
+
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = sparse(N[0 1//2; 1//10 3//10; 2//10 1//10])
         upper = sparse(N[5//10 7//10; 6//10 5//10]) # Wrong size
 
@@ -84,8 +95,12 @@ using IntervalMDP, SparseArrays
 
         @test_throws DimensionMismatch IntervalAmbiguitySets(lower, gap)
     end
+end
 
-    @testset "structure mismatch" begin
+@testitem "sparse/probabilities: structure mismatch" begin
+    using SparseArrays
+
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = sparse(N[0 1//2; 1//10 3//10; 2//10 1//10])
         gap = sparse(N[5//10 7//10; 6//10 5//10; 0 0]) # Different colptr
 
@@ -96,43 +111,67 @@ using IntervalMDP, SparseArrays
 
         @test_throws DimensionMismatch IntervalAmbiguitySets(lower, gap)
     end
+end
 
-    @testset "negative lower bound" begin
+@testitem "sparse/probabilities: negative lower bound" begin
+    using SparseArrays
+
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = sparse(N[0 1//2; -1//10 3//10; 2//10 1//10]) # Negative entry
         upper = sparse(N[5//10 7//10; 6//10 5//10; 7//10 3//10])
 
         @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
+end
 
-    @testset "lower bound greater than one" begin
+@testitem "sparse/probabilities: lower bound greater than one" begin
+    using SparseArrays
+
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = sparse(N[0 1//2; 1//10 3//10; 2//10 11//10])
         upper = sparse(N[5//10 7//10; 6//10 5//10; 7//10 3//10])
 
         @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
+end
 
-    @testset "lower greater than upper" begin
+@testitem "sparse/probabilities: lower greater than upper" begin
+    using SparseArrays
+
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = sparse(N[0 1//2; 1//10 3//10; 2//10 1//10])
         upper = sparse(N[5//10 7//10; 6//10 2//10; 7//10 3//10]) # Lower bound greater than upper bound
 
         @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
+end
 
-    @testset "upper bound greater than one" begin
+@testitem "sparse/probabilities: upper bound greater than one" begin
+    using SparseArrays
+
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = sparse(N[0 1//2; 1//10 3//10; 2//10 1//10])
         upper = sparse(N[5//10 7//10; 6//10 5//10; 7//10 13//10]) # Entry greater than 1
 
         @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
+end
 
-    @testset "sum lower greater than one" begin
+@testitem "sparse/probabilities: sum lower greater than one" begin
+    using SparseArrays
+
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = sparse(N[0 1//2; 1//10 3//10; 6//10 1//2]) # Column sums to more than 1
         upper = sparse(N[5//10 7//10; 6//10 5//10; 7//10 1//2])
 
         @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
+end
 
-    @testset "sum upper less than one" begin
+@testitem "sparse/probabilities: sum upper less than one" begin
+    using SparseArrays
+
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = sparse(N[0 1//2; 1//10 3//10; 2//10 1//10])
         upper = sparse(N[1//10 7//10; 2//10 5//10; 3//10 6//10]) # Column sums to less than 1
 

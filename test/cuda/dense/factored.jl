@@ -1,8 +1,6 @@
-using Revise, Test
-using IntervalMDP, CUDA
-using Random: MersenneTwister
+@testitem "cuda/dense/factored: show 1d" tags = [:cuda] begin
+    using CUDA
 
-@testset "show 1d" begin
     N = Float64
     ambiguity_sets = IntervalAmbiguitySets(;
         lower = N[
@@ -40,7 +38,9 @@ using Random: MersenneTwister
     @test occursin("Default Bellman operator algorithm: O-Maximization", str)
 end
 
-@testset "show 3d" begin
+@testitem "cuda/dense/factored: show 3d" tags = [:cuda] begin
+    using CUDA
+
     N = Float64
     state_indices = (1, 2, 3)
     action_indices = (1,)
@@ -135,8 +135,10 @@ end
     @test occursin("Default Bellman operator algorithm: Recursive O-Maximization", str)
 end
 
-@testset for N in [Float32, Float64]
-    @testset "bellman 2d" begin
+@testitem "cuda/dense/factored: bellman 2d" tags = [:cuda] begin
+    using CUDA
+
+    @testset for N in [Float32, Float64]
         state_indices = (1, 2)
         action_indices = (1,)
         state_vars = (2, 3)
@@ -233,8 +235,12 @@ end
             @test IntervalMDP.cpu(Vres) ≈ Vexpected
         end
     end
+end
 
-    @testset "bellman 2d partial dependence" begin
+@testitem "cuda/dense/factored: bellman 2d partial dependence" tags = [:cuda] begin
+    using CUDA
+
+    @testset for N in [Float32, Float64]
         state_vars = (2, 3)
         action_vars = (1, 2)
 
@@ -413,8 +419,12 @@ end
             @test IntervalMDP.cpu(Vres) ≈ Vexpected atol=epsilon
         end
     end
+end
 
-    @testset "bellman 3d" begin
+@testitem "cuda/dense/factored: bellman 3d" tags = [:cuda] begin
+    using CUDA
+
+    @testset for N in [Float32, Float64]
         state_indices = (1, 2, 3)
         action_indices = (1,)
         state_vars = (3, 3, 3)
@@ -562,9 +572,13 @@ end
             @test IntervalMDP.cpu(Vres) ≈ Vexpected atol=epsilon
         end
     end
+end
 
-    alg = RobustValueIteration(OMaximization())
-    @testset "implicit sink state" begin
+@testitem "cuda/dense/factored: implicit sink state" tags = [:cuda] begin
+    using CUDA
+
+    @testset for N in [Float32, Float64]
+        alg = RobustValueIteration(OMaximization())
         @testset "first dimension" begin
             state_indices = (1, 2, 3)
             action_indices = (1,)
@@ -1015,9 +1029,15 @@ end
             @test res ≈ IntervalMDP.cpu(res_implicit)
         end
     end
+end
 
-    # 4-D rand
-    @testset "4D rand" begin
+@testitem "cuda/dense/factored: 4D rand" tags = [:cuda] begin
+    using CUDA
+    using Random: MersenneTwister
+
+    @testset for N in [Float32, Float64]
+        alg = RobustValueIteration(OMaximization())
+
         rng = MersenneTwister(995)
 
         prob_lower = [rand(rng, N, 3, 81) ./ N(3) for _ in 1:4]
@@ -1045,9 +1065,15 @@ end
         @test it == it_cuda
         @test res ≈ IntervalMDP.cpu(res_cuda)
     end
+end
 
-    # 5-D rand
-    @testset "5D rand" begin
+@testitem "cuda/dense/factored: 5D rand" tags = [:cuda] begin
+    using CUDA
+    using Random: MersenneTwister
+
+    @testset for N in [Float32, Float64]
+        alg = RobustValueIteration(OMaximization())
+
         rng = MersenneTwister(995)
 
         prob_lower = [rand(rng, N, 5, 3125) ./ N(5) for _ in 1:5]
@@ -1076,8 +1102,15 @@ end
         @test it == it_cuda
         @test res ≈ IntervalMDP.cpu(res_cuda)
     end
+end
 
-    @testset "synthesis" begin
+@testitem "cuda/dense/factored: synthesis" tags = [:cuda] begin
+    using CUDA
+    using Random: MersenneTwister
+
+    @testset for N in [Float32, Float64]
+        alg = RobustValueIteration(OMaximization())
+
         rng = MersenneTwister(3286)
 
         num_states_per_axis = 3

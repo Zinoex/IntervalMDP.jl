@@ -1,13 +1,13 @@
-using Revise, Test
-using IntervalMDP, IntervalMDP.Data, SparseArrays
+@testitem "data/bmdp_tool: write/read model,tstates" begin
+    using IntervalMDP.Data
+    using SparseArrays
 
-# Read MDP
-mdp, tstates = read_bmdp_tool_file("data/multiObj_robotIMDP.txt")
+    # Read MDP
+    mdp, tstates = read_bmdp_tool_file("multiObj_robotIMDP.txt")
 
-marginal = marginals(mdp)[1]
-as = ambiguity_sets(marginal)
+    marginal = marginals(mdp)[1]
+    as = ambiguity_sets(marginal)
 
-@testset "write/read model,tstates" begin
     # Write model
     new_path = tempname() * ".txt"
     write_bmdp_tool_file(new_path, mdp, tstates)
@@ -36,7 +36,16 @@ as = ambiguity_sets(marginal)
     @test tstates == new_tstates
 end
 
-@testset "write/read problem" begin
+@testitem "data/bmdp_tool: write/read problem" begin
+    using IntervalMDP.Data
+    using SparseArrays
+
+    # Read MDP
+    mdp, tstates = read_bmdp_tool_file("multiObj_robotIMDP.txt")
+
+    marginal = marginals(mdp)[1]
+    as = ambiguity_sets(marginal)
+
     # Write problem
     tstates = [CartesianIndex(207)]
     prop = FiniteTimeReachability(tstates, 10)

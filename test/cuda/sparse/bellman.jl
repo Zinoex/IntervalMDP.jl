@@ -1,10 +1,9 @@
-using Revise, Test
-using IntervalMDP, SparseArrays, CUDA
-using StatsBase
-using Random: MersenneTwister
+@testmodule CudaSparseBellmanModels begin
+    using IntervalMDP, SparseArrays, CUDA
+    using StatsBase
+    using Random: MersenneTwister
 
-for N in [Float32, Float64]
-    @testset "N = $N" begin
+    function build(N)
         prob = IntervalAmbiguitySets(;
             lower = sparse(
                 N[
@@ -31,46 +30,9 @@ for N in [Float32, Float64]
 
         V = IntervalMDP.cu(N[1, 2, 3, 4, 5, 6])
 
-        #### Maximization
-        @testset "maximization" begin
-            ws = IntervalMDP.construct_workspace(prob)
-            strategy_cache = IntervalMDP.construct_strategy_cache(prob)
-            Vres = CUDA.zeros(N, 2)
-            IntervalMDP._bellman_helper!(
-                ws,
-                strategy_cache,
-                Vres,
-                V,
-                prob;
-                upper_bound = true,
-            )
-            Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
-            # [2//10 * 6 + 1//10 * 5 + 2//10 * 3 + 1//10 * 2 + 4//10 * 6, 1//10 * 6 + 2//10 * 5 + 1//6 * 4 + 1//10 * 3 + 2//10 * 2 + 1//6 * 1 + 1//15 * 6]
-            @test Vres ≈ N[49 // 10, 53 // 15]
-        end
-
-        #### Minimization
-        @testset "minimization" begin
-            ws = IntervalMDP.construct_workspace(prob)
-            strategy_cache = IntervalMDP.construct_strategy_cache(prob)
-            Vres = CUDA.zeros(N, 2)
-            IntervalMDP._bellman_helper!(
-                ws,
-                strategy_cache,
-                Vres,
-                V,
-                prob;
-                upper_bound = false,
-            )
-            Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
-            # [2//10 * 6 + 1//10 * 5 + 2//10 * 3 + 1//10 * 2 + 4//10 * 1, 1//10 * 6 + 2//10 * 5 + 1//6 * 4 + 1//10 * 3 + 2//10 * 2 + 1//6 * 1 + 1//15 * 1]
-            @test Vres ≈ N[29 // 10, 16 // 5]
-        end
+        return (; prob, V)
     end
-end
 
-#### Large matrices
-@testset "large matrices" begin
     function sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
         prob_split = 1 / nnz_per_column
 
@@ -99,217 +61,299 @@ end
 
         return prob, V, cuda_prob, cuda_V
     end
+end
 
-    # Many columns
-    @testset "many columns" begin
-        rng = MersenneTwister(55392)
+@testitem "cuda/sparse/bellman: maximization" setup = [CudaSparseBellmanModels] tags =
+    [:cuda] begin
+    using CUDA
+    using SparseArrays
 
-        n = 100
-        m = 5000000  # It has to be greater than 32 * 2^16 = 2^21 to exceed maximum grid size
-        nnz_per_column = 10
-        prob, V, cuda_prob, cuda_V =
-            sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+    @testset for N in [Float32, Float64]
+        (; prob, V) = CudaSparseBellmanModels.build(N)
 
+        #### Maximization
         ws = IntervalMDP.construct_workspace(prob)
         strategy_cache = IntervalMDP.construct_strategy_cache(prob)
-        V_cpu = zeros(Float64, m)
+        Vres = CUDA.zeros(N, 2)
         IntervalMDP._bellman_helper!(
             ws,
             strategy_cache,
-            V_cpu,
+            Vres,
+            V,
+            prob;
+            upper_bound = true,
+        )
+        Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
+        # [2//10 * 6 + 1//10 * 5 + 2//10 * 3 + 1//10 * 2 + 4//10 * 6, 1//10 * 6 + 2//10 * 5 + 1//6 * 4 + 1//10 * 3 + 2//10 * 2 + 1//6 * 1 + 1//15 * 6]
+        @test Vres ≈ N[49 // 10, 53 // 15]
+    end
+end
+
+@testitem "cuda/sparse/bellman: minimization" setup = [CudaSparseBellmanModels] tags =
+    [:cuda] begin
+    using CUDA
+    using SparseArrays
+
+    @testset for N in [Float32, Float64]
+        (; prob, V) = CudaSparseBellmanModels.build(N)
+
+        #### Minimization
+        ws = IntervalMDP.construct_workspace(prob)
+        strategy_cache = IntervalMDP.construct_strategy_cache(prob)
+        Vres = CUDA.zeros(N, 2)
+        IntervalMDP._bellman_helper!(
+            ws,
+            strategy_cache,
+            Vres,
             V,
             prob;
             upper_bound = false,
         )
-
-        ws = IntervalMDP.construct_workspace(cuda_prob)
-        strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
-        V_gpu = CUDA.zeros(Float64, m)
-        IntervalMDP._bellman_helper!(
-            ws,
-            strategy_cache,
-            V_gpu,
-            cuda_V,
-            cuda_prob;
-            upper_bound = false,
-        )
-        V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
-
-        @test V_cpu ≈ V_gpu
+        Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
+        # [2//10 * 6 + 1//10 * 5 + 2//10 * 3 + 1//10 * 2 + 4//10 * 1, 1//10 * 6 + 2//10 * 5 + 1//6 * 4 + 1//10 * 3 + 2//10 * 2 + 1//6 * 1 + 1//15 * 1]
+        @test Vres ≈ N[29 // 10, 16 // 5]
     end
+end
 
-    # Many non-zeros
-    @testset "many non-zeros" begin
-        rng = MersenneTwister(55392)
+@testitem "cuda/sparse/bellman: large matrices — many columns" setup =
+    [CudaSparseBellmanModels] tags = [:cuda] begin
+    using CUDA
+    using SparseArrays
+    using StatsBase
+    using Random: MersenneTwister
 
-        n = 100000
-        m = 10
-        nnz_per_column = 800   # It has to be greater than 767 to fill shared memory, with 4 warps per block.
-        prob, V, cuda_prob, cuda_V =
-            sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+    rng = MersenneTwister(55392)
 
-        ws = IntervalMDP.construct_workspace(prob)
-        strategy_cache = IntervalMDP.construct_strategy_cache(prob)
-        V_cpu = zeros(Float64, m)
-        IntervalMDP._bellman_helper!(
-            ws,
-            strategy_cache,
-            V_cpu,
-            V,
-            prob;
-            upper_bound = false,
-        )
+    n = 100
+    m = 5000000  # It has to be greater than 32 * 2^16 = 2^21 to exceed maximum grid size
+    nnz_per_column = 10
+    prob, V, cuda_prob, cuda_V =
+        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
 
-        ws = IntervalMDP.construct_workspace(cuda_prob)
-        strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
-        V_gpu = CUDA.zeros(Float64, m)
-        IntervalMDP._bellman_helper!(
-            ws,
-            strategy_cache,
-            V_gpu,
-            cuda_V,
-            cuda_prob;
-            upper_bound = false,
-        )
-        V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
+    ws = IntervalMDP.construct_workspace(prob)
+    strategy_cache = IntervalMDP.construct_strategy_cache(prob)
+    V_cpu = zeros(Float64, m)
+    IntervalMDP._bellman_helper!(
+        ws,
+        strategy_cache,
+        V_cpu,
+        V,
+        prob;
+        upper_bound = false,
+    )
 
-        @test V_cpu ≈ V_gpu
-    end
+    ws = IntervalMDP.construct_workspace(cuda_prob)
+    strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
+    V_gpu = CUDA.zeros(Float64, m)
+    IntervalMDP._bellman_helper!(
+        ws,
+        strategy_cache,
+        V_gpu,
+        cuda_V,
+        cuda_prob;
+        upper_bound = false,
+    )
+    V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
 
-    # More non-zeros
-    @testset "more non-zeros" begin
-        rng = MersenneTwister(55392)
+    @test V_cpu ≈ V_gpu
+end
 
-        n = 100000
-        m = 10
-        nnz_per_column = 4000   # It has to be greater than 3100 to exceed shared memory for ff implementation
-        prob, V, cuda_prob, cuda_V =
-            sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+@testitem "cuda/sparse/bellman: large matrices — many non-zeros" setup =
+    [CudaSparseBellmanModels] tags = [:cuda] begin
+    using CUDA
+    using SparseArrays
+    using StatsBase
+    using Random: MersenneTwister
 
-        ws = IntervalMDP.construct_workspace(prob)
-        strategy_cache = IntervalMDP.construct_strategy_cache(prob)
-        V_cpu = zeros(Float64, m)
-        IntervalMDP._bellman_helper!(
-            ws,
-            strategy_cache,
-            V_cpu,
-            V,
-            prob;
-            upper_bound = false,
-        )
+    rng = MersenneTwister(55392)
 
-        ws = IntervalMDP.construct_workspace(cuda_prob)
-        strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
-        V_gpu = CUDA.zeros(Float64, m)
-        IntervalMDP._bellman_helper!(
-            ws,
-            strategy_cache,
-            V_gpu,
-            cuda_V,
-            cuda_prob;
-            upper_bound = false,
-        )
-        V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
+    n = 100000
+    m = 10
+    nnz_per_column = 800   # It has to be greater than 767 to fill shared memory, with 4 warps per block.
+    prob, V, cuda_prob, cuda_V =
+        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
 
-        @test V_cpu ≈ V_gpu
-    end
+    ws = IntervalMDP.construct_workspace(prob)
+    strategy_cache = IntervalMDP.construct_strategy_cache(prob)
+    V_cpu = zeros(Float64, m)
+    IntervalMDP._bellman_helper!(
+        ws,
+        strategy_cache,
+        V_cpu,
+        V,
+        prob;
+        upper_bound = false,
+    )
 
-    # Even more non-zeros
-    @testset "even more non-zeros" begin
-        rng = MersenneTwister(55392)
+    ws = IntervalMDP.construct_workspace(cuda_prob)
+    strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
+    V_gpu = CUDA.zeros(Float64, m)
+    IntervalMDP._bellman_helper!(
+        ws,
+        strategy_cache,
+        V_gpu,
+        cuda_V,
+        cuda_prob;
+        upper_bound = false,
+    )
+    V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
 
-        n = 100000
-        m = 10
-        nnz_per_column = 6000   # It has to be greater than 4100 to exceed shared memory for fi implementation
-        prob, V, cuda_prob, cuda_V =
-            sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+    @test V_cpu ≈ V_gpu
+end
 
-        ws = IntervalMDP.construct_workspace(prob)
-        strategy_cache = IntervalMDP.construct_strategy_cache(prob)
-        V_cpu = zeros(Float64, m)
-        IntervalMDP._bellman_helper!(
-            ws,
-            strategy_cache,
-            V_cpu,
-            V,
-            prob;
-            upper_bound = false,
-        )
+@testitem "cuda/sparse/bellman: large matrices — more non-zeros" setup =
+    [CudaSparseBellmanModels] tags = [:cuda] begin
+    using CUDA
+    using SparseArrays
+    using StatsBase
+    using Random: MersenneTwister
 
-        ws = IntervalMDP.construct_workspace(cuda_prob)
-        strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
-        V_gpu = CUDA.zeros(Float64, m)
-        IntervalMDP._bellman_helper!(
-            ws,
-            strategy_cache,
-            V_gpu,
-            cuda_V,
-            cuda_prob;
-            upper_bound = false,
-        )
-        V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
+    rng = MersenneTwister(55392)
 
-        @test V_cpu ≈ V_gpu
-    end
+    n = 100000
+    m = 10
+    nnz_per_column = 4000   # It has to be greater than 3100 to exceed shared memory for ff implementation
+    prob, V, cuda_prob, cuda_V =
+        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
 
-    # Most non-zeros
-    @testset "most non-zeros" begin
-        rng = MersenneTwister(55392)
+    ws = IntervalMDP.construct_workspace(prob)
+    strategy_cache = IntervalMDP.construct_strategy_cache(prob)
+    V_cpu = zeros(Float64, m)
+    IntervalMDP._bellman_helper!(
+        ws,
+        strategy_cache,
+        V_cpu,
+        V,
+        prob;
+        upper_bound = false,
+    )
 
-        n = 100000
-        m = 10
-        nnz_per_column = 8000   # It has to be greater than 6144 to exceed shared memory for ii implementation
-        prob, V, cuda_prob, cuda_V =
-            sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+    ws = IntervalMDP.construct_workspace(cuda_prob)
+    strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
+    V_gpu = CUDA.zeros(Float64, m)
+    IntervalMDP._bellman_helper!(
+        ws,
+        strategy_cache,
+        V_gpu,
+        cuda_V,
+        cuda_prob;
+        upper_bound = false,
+    )
+    V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
 
-        ws = IntervalMDP.construct_workspace(prob)
-        strategy_cache = IntervalMDP.construct_strategy_cache(prob)
-        V_cpu = zeros(Float64, m)
-        IntervalMDP._bellman_helper!(
-            ws,
-            strategy_cache,
-            V_cpu,
-            V,
-            prob;
-            upper_bound = false,
-        )
+    @test V_cpu ≈ V_gpu
+end
 
-        ws = IntervalMDP.construct_workspace(cuda_prob)
-        strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
-        V_gpu = CUDA.zeros(Float64, m)
-        IntervalMDP._bellman_helper!(
-            ws,
-            strategy_cache,
-            V_gpu,
-            cuda_V,
-            cuda_prob;
-            upper_bound = false,
-        )
-        V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
+@testitem "cuda/sparse/bellman: large matrices — even more non-zeros" setup =
+    [CudaSparseBellmanModels] tags = [:cuda] begin
+    using CUDA
+    using SparseArrays
+    using StatsBase
+    using Random: MersenneTwister
 
-        @test V_cpu ≈ V_gpu
-    end
+    rng = MersenneTwister(55392)
 
-    # Too many non-zeros
-    @testset "too many non-zeros" begin
-        rng = MersenneTwister(55392)
+    n = 100000
+    m = 10
+    nnz_per_column = 6000   # It has to be greater than 4100 to exceed shared memory for fi implementation
+    prob, V, cuda_prob, cuda_V =
+        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
 
-        n = 100000
-        m = 10
-        nnz_per_column = 16000   # It has to be greater than 12300 to exceed shared memory for i implementation
-        prob, V, cuda_prob, cuda_V =
-            sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+    ws = IntervalMDP.construct_workspace(prob)
+    strategy_cache = IntervalMDP.construct_strategy_cache(prob)
+    V_cpu = zeros(Float64, m)
+    IntervalMDP._bellman_helper!(
+        ws,
+        strategy_cache,
+        V_cpu,
+        V,
+        prob;
+        upper_bound = false,
+    )
 
-        ws = IntervalMDP.construct_workspace(cuda_prob)
-        strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
-        V_gpu = CUDA.zeros(Float64, m)
-        @test_throws IntervalMDP.OutOfSharedMemory IntervalMDP._bellman_helper!(
-            ws,
-            strategy_cache,
-            V_gpu,
-            cuda_V,
-            cuda_prob;
-            upper_bound = false,
-        )
-    end
+    ws = IntervalMDP.construct_workspace(cuda_prob)
+    strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
+    V_gpu = CUDA.zeros(Float64, m)
+    IntervalMDP._bellman_helper!(
+        ws,
+        strategy_cache,
+        V_gpu,
+        cuda_V,
+        cuda_prob;
+        upper_bound = false,
+    )
+    V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
+
+    @test V_cpu ≈ V_gpu
+end
+
+@testitem "cuda/sparse/bellman: large matrices — most non-zeros" setup =
+    [CudaSparseBellmanModels] tags = [:cuda] begin
+    using CUDA
+    using SparseArrays
+    using StatsBase
+    using Random: MersenneTwister
+
+    rng = MersenneTwister(55392)
+
+    n = 100000
+    m = 10
+    nnz_per_column = 8000   # It has to be greater than 6144 to exceed shared memory for ii implementation
+    prob, V, cuda_prob, cuda_V =
+        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+
+    ws = IntervalMDP.construct_workspace(prob)
+    strategy_cache = IntervalMDP.construct_strategy_cache(prob)
+    V_cpu = zeros(Float64, m)
+    IntervalMDP._bellman_helper!(
+        ws,
+        strategy_cache,
+        V_cpu,
+        V,
+        prob;
+        upper_bound = false,
+    )
+
+    ws = IntervalMDP.construct_workspace(cuda_prob)
+    strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
+    V_gpu = CUDA.zeros(Float64, m)
+    IntervalMDP._bellman_helper!(
+        ws,
+        strategy_cache,
+        V_gpu,
+        cuda_V,
+        cuda_prob;
+        upper_bound = false,
+    )
+    V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
+
+    @test V_cpu ≈ V_gpu
+end
+
+@testitem "cuda/sparse/bellman: large matrices — too many non-zeros" setup =
+    [CudaSparseBellmanModels] tags = [:cuda] begin
+    using CUDA
+    using SparseArrays
+    using StatsBase
+    using Random: MersenneTwister
+
+    rng = MersenneTwister(55392)
+
+    n = 100000
+    m = 10
+    nnz_per_column = 16000   # It has to be greater than 12300 to exceed shared memory for i implementation
+    prob, V, cuda_prob, cuda_V =
+        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+
+    ws = IntervalMDP.construct_workspace(cuda_prob)
+    strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
+    V_gpu = CUDA.zeros(Float64, m)
+    @test_throws IntervalMDP.OutOfSharedMemory IntervalMDP._bellman_helper!(
+        ws,
+        strategy_cache,
+        V_gpu,
+        cuda_V,
+        cuda_prob;
+        upper_bound = false,
+    )
 end
