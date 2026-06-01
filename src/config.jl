@@ -1,6 +1,6 @@
 struct Config
-    sampling_strategy::Union{Nothing, Any}
-    term_criteria::Union{Nothing, Any}
+    sampling_strategy::Union{Nothing, SamplingStrategy}
+    term_criteria::Union{Nothing, TerminationCriteria}
 end
 
 Config(; sampling_strategy = nothing, term_criteria = nothing) =

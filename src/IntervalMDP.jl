@@ -54,7 +54,6 @@ public cu, cpu
 
 ### Solving
 include("value.jl")
-include("config.jl")
 include("algorithms.jl")
 export OMaximization, LPMcCormickRelaxation, VertexEnumeration
 export RobustValueIteration, GeneralizedSamplingbasedRobustDynamicProgramming, Config
@@ -84,6 +83,8 @@ public AllSampling,
     RandomSubsetStateActions,
     RandomSubsetState,
     ValueFunctionOrderedSampling
+
+include("config.jl")
 
 include("robust_value_iteration.jl")
 include("gsrdp.jl")

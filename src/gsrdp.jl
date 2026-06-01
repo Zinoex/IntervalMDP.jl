@@ -1,5 +1,5 @@
 """
-    GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, sampling_strategy)
+    GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, sampling_strategy, config)
 
 Generalized sampling-based robust dynamic programming. Drives an
 [`IntervalValueFunction`](@ref) — i.e. simultaneous lower and upper
@@ -22,14 +22,32 @@ so both bounds track the same policy.
 relaxed each iteration. State-action samplers are projected to their
 unique state set via [`project_to_state_sequence`](@ref) — visited states
 get a full action sweep, unvisited states retain `V_prev`.
+
+`config` stores optional solver overrides such as a custom sampling
+strategy or termination criteria. When a field is left as `nothing`, the
+algorithm falls back to the default behavior derived from the problem.
 """
 struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm, S} <:
        ModelCheckingAlgorithm
     bellman_alg::B
     sampling_strategy::S
+    config::Union{Config, Nothing}
+
+    function GeneralizedSamplingbasedRobustDynamicProgramming(
+        bellman_alg::B,
+        sampling_strategy::S,
+        config::Union{Config, Nothing} = nothing,
+    ) where {B <: BellmanAlgorithm, S}
+        new{B, S}(bellman_alg, sampling_strategy, config)
+    end
 end
 GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg::BellmanAlgorithm) =
     GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, AllStatesSweep())
+
+GeneralizedSamplingbasedRobustDynamicProgramming(
+    bellman_alg::BellmanAlgorithm,
+    sampling_strategy,
+) = GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, sampling_strategy, nothing)
 
 bellman_algorithm(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.bellman_alg
 
@@ -65,10 +83,7 @@ end
 (f::GapTerminationCriteriaInitial)(_, _, gap_residual) =
     maximum(abs, gap_residual[f.initial]) < f.tol
 
-function termination_criteria(
-    ::GeneralizedSamplingbasedRobustDynamicProgramming,
-    spec::Specification,
-)
+function _termination_criteria(spec::Specification)
     prop = system_property(spec)
     if isfinitetime(prop)
         throw(
@@ -81,18 +96,32 @@ function termination_criteria(
     return termination_criteria(prop)
 end
 
+function termination_criteria(
+    alg::GeneralizedSamplingbasedRobustDynamicProgramming,
+    spec::Specification,
+)
+    if !isnothing(alg.config) && !isnothing(alg.config.term_criteria)
+        return alg.config.term_criteria
+    end
+
+    return _termination_criteria(spec)
+end
+
 termination_criteria(prop::InfiniteTimeReachAvoidInitial) =
     GapTerminationCriteriaInitial(convergence_eps(prop), initial(prop))
 
 termination_criteria(prop) = GapTerminationCriteria(convergence_eps(prop))
 
+sampling_strategy(alg::GeneralizedSamplingbasedRobustDynamicProgramming) =
+    isnothing(alg.config) || isnothing(alg.config.sampling_strategy) ?
+    alg.sampling_strategy : alg.config.sampling_strategy
+    
 function solve(
     problem::VerificationProblem,
     alg::GeneralizedSamplingbasedRobustDynamicProgramming;
-    config::Union{Nothing, Config} = nothing,
     kwargs...,
 )
-    V, k, res, _ = _gsrdp!(problem, alg; config = config, kwargs...)
+    V, k, res, _ = _gsrdp!(problem, alg; kwargs...)
     return VerificationSolution(V, res, k)
 end
 
@@ -110,10 +139,9 @@ end
 function solve(
     problem::ControlSynthesisProblem,
     alg::GeneralizedSamplingbasedRobustDynamicProgramming;
-    config::Union{Nothing, Config} = nothing,
     kwargs...,
 )
-    V, k, res, strategy_cache = _gsrdp!(problem, alg; config = config, kwargs...)
+    V, k, res, strategy_cache = _gsrdp!(problem, alg; kwargs...)
     strategy = cachetostrategy(strategy_cache)
 
     return ControlSynthesisSolution(strategy, V, res, k)
@@ -122,27 +150,16 @@ end
 function _gsrdp!(
     problem::AbstractIntervalMDPProblem,
     alg::GeneralizedSamplingbasedRobustDynamicProgramming;
-    config::Union{Nothing, Config} = nothing,
     callback = nothing,
 )
     mp = system(problem)
     spec = specification(problem)
     prop = system_property(spec)
 
-    # Apply config overrides if provided
-    term_criteria = if !isnothing(config) && !isnothing(config.term_criteria)
-        config.term_criteria
-    else
-        termination_criteria(alg, spec)
-    end
-
     workspace = construct_workspace(mp, bellman_algorithm(alg))
     strategy_cache = _gsrdp_strategy_cache(problem)
-    sampling_strat = if !isnothing(config) && !isnothing(config.sampling_strategy)
-        config.sampling_strategy
-    else
-        sampling_strategy(alg)
-    end
+    term_criteria = termination_criteria(alg, spec)
+    sampling_strat = sampling_strategy(alg)
 
     value_function = construct_value_function(alg, problem)
     _gsrdp_initialize!(value_function, prop)
@@ -299,6 +316,3 @@ function bellman_update!(
     step_postprocess_strategy_cache!(strategy_cache)
 end
 
-### Generalized Sampling-based Robust Dynamic Programming
-sampling_strategy(alg::GeneralizedSamplingbasedRobustDynamicProgramming) =
-    alg.sampling_strategy
