@@ -1,5 +1,5 @@
 """
-    GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, sampling_strategy, config)
+    GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg; sampling_strategy, term_criteria)
 
 Generalized sampling-based robust dynamic programming. Drives an
 [`IntervalValueFunction`](@ref) — i.e. simultaneous lower and upper
@@ -19,35 +19,33 @@ applied to the *secondary* bound through a `NonOptimizingStrategyCache`
 so both bounds track the same policy.
 
 `sampling_strategy` controls which states (or `(a, s)` pairs) are
-relaxed each iteration. State-action samplers are projected to their
-unique state set via [`project_to_state_sequence`](@ref) — visited states
-get a full action sweep, unvisited states retain `V_prev`.
+relaxed each iteration; defaults to [`AllStatesSweep`](@ref). State-action
+samplers are projected to their unique state set via
+[`project_to_state_sequence`](@ref) — visited states get a full action
+sweep, unvisited states retain `V_prev`.
 
-`config` stores optional solver overrides such as a custom sampling
-strategy or termination criteria. When a field is left as `nothing`, the
-algorithm falls back to the default behavior derived from the problem.
+`term_criteria` overrides the default termination criterion derived from
+the property. When omitted, the algorithm uses the gap-based criterion
+from `convergence_eps(prop)`.
 """
-struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm, S} <:
+struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm} <:
        ModelCheckingAlgorithm
     bellman_alg::B
-    sampling_strategy::S
-    config::Union{Config, Nothing}
+    sampling_strategy::SamplingStrategy
+    term_criteria::TerminationCriteria
 
     function GeneralizedSamplingbasedRobustDynamicProgramming(
-        bellman_alg::B,
-        sampling_strategy::S,
-        config::Union{Config, Nothing} = nothing,
-    ) where {B <: BellmanAlgorithm, S}
-        new{B, S}(bellman_alg, sampling_strategy, config)
+        bellman_alg::B;
+        sampling_strategy::Union{Nothing, SamplingStrategy} = nothing,
+        term_criteria::Union{Nothing, TerminationCriteria} = nothing,
+    ) where {B <: BellmanAlgorithm}
+        new{B}(
+            bellman_alg,
+            isnothing(sampling_strategy) ? AllStatesSweep() : sampling_strategy,
+            isnothing(term_criteria) ? AutoTerminationCriteria() : term_criteria,
+        )
     end
 end
-GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg::BellmanAlgorithm) =
-    GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, AllStatesSweep())
-
-GeneralizedSamplingbasedRobustDynamicProgramming(
-    bellman_alg::BellmanAlgorithm,
-    sampling_strategy,
-) = GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, sampling_strategy, nothing)
 
 bellman_algorithm(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.bellman_alg
 
@@ -56,6 +54,17 @@ construct_value_function(::GeneralizedSamplingbasedRobustDynamicProgramming, pro
         StateValueFunction(problem, Lower),
         StateValueFunction(problem, Upper),
     )
+
+"""
+    AutoTerminationCriteria()
+
+Sentinel stored in [`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref) when
+no explicit `term_criteria` is provided. Resolved to [`GapTerminationCriteria`](@ref)
+or [`GapTerminationCriteriaInitial`](@ref) at solve time once the specification is known.
+"""
+struct AutoTerminationCriteria <: TerminationCriteria end
+(::AutoTerminationCriteria)(_, _, _) = throw(ArgumentError("AutoTerminationCriteria should have been resolved to GapTerminationCriteria at solve time."))
+
 
 """
     GapTerminationCriteria(tol)
@@ -83,6 +92,15 @@ end
 (f::GapTerminationCriteriaInitial)(_, _, gap_residual) =
     maximum(abs, gap_residual[f.initial]) < f.tol
 
+    
+termination_criteria(
+    alg::GeneralizedSamplingbasedRobustDynamicProgramming{B},
+    spec::Specification,
+) where {B} = _resolve_term_criteria(alg.term_criteria, spec)
+
+_resolve_term_criteria(::AutoTerminationCriteria, spec) = _termination_criteria(spec)
+_resolve_term_criteria(tc::TerminationCriteria, _) = tc
+
 function _termination_criteria(spec::Specification)
     prop = system_property(spec)
     if isfinitetime(prop)
@@ -96,25 +114,13 @@ function _termination_criteria(spec::Specification)
     return termination_criteria(prop)
 end
 
-function termination_criteria(
-    alg::GeneralizedSamplingbasedRobustDynamicProgramming,
-    spec::Specification,
-)
-    if !isnothing(alg.config) && !isnothing(alg.config.term_criteria)
-        return alg.config.term_criteria
-    end
-
-    return _termination_criteria(spec)
-end
 
 termination_criteria(prop::InfiniteTimeReachAvoidInitial) =
     GapTerminationCriteriaInitial(convergence_eps(prop), initial(prop))
 
 termination_criteria(prop) = GapTerminationCriteria(convergence_eps(prop))
 
-sampling_strategy(alg::GeneralizedSamplingbasedRobustDynamicProgramming) =
-    isnothing(alg.config) || isnothing(alg.config.sampling_strategy) ?
-    alg.sampling_strategy : alg.config.sampling_strategy
+sampling_strategy(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.sampling_strategy
     
 function solve(
     problem::VerificationProblem,

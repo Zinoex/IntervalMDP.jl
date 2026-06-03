@@ -56,7 +56,7 @@ public cu, cpu
 include("value.jl")
 include("algorithms.jl")
 export OMaximization, LPMcCormickRelaxation, VertexEnumeration
-export RobustValueIteration, GeneralizedSamplingbasedRobustDynamicProgramming, Config
+export RobustValueIteration, GeneralizedSamplingbasedRobustDynamicProgramming
 export default_algorithm, default_bellman_algorithm, bellman_algorithm
 
 include("utils.jl")
@@ -83,8 +83,6 @@ public AllSampling,
     RandomSubsetStateActions,
     RandomSubsetState,
     ValueFunctionOrderedSampling
-
-include("config.jl")
 
 include("robust_value_iteration.jl")
 include("gsrdp.jl")
