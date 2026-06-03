@@ -107,6 +107,19 @@ end
         @test reach(new_prop) == [CartesianIndex(3)]
         @test avoid(new_prop) == [CartesianIndex(2)]
         @test convergence_eps(new_prop) ≈ 1.0e-6
+        prop = InfiniteTimeReachAvoidInitial([3], [2], [1], 1.0e-6)
+        spec = Specification(prop, Pessimistic, Maximize)
+        new_path = tempname() * ".json"
+        write_intervalmdp_jl_spec(new_path, spec)
+        @test isfile(new_path)
+        new_spec = read_intervalmdp_jl_spec(new_path)
+        rm(new_path)
+        new_prop = system_property(new_spec)
+        @test new_prop isa InfiniteTimeReachAvoidInitial
+        @test reach(new_prop) == [CartesianIndex(3)]
+        @test avoid(new_prop) == [CartesianIndex(2)]
+        @test initial(new_prop) == [CartesianIndex(1)]
+        @test convergence_eps(new_prop) ≈ 1.0e-6
         prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 10)
         spec = Specification(prop, Pessimistic, Minimize)
         new_path = tempname() * ".json"

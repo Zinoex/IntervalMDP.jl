@@ -117,6 +117,8 @@ function read_intervalmdp_jl_property(prop_dict)
         return read_intervalmdp_jl_reachability_property(prop_dict)
     elseif prop_dict["type"] == "reach-avoid"
         return read_intervalmdp_jl_reach_avoid_property(prop_dict)
+    elseif prop_dict["type"] == "reach-avoid-initial"
+        return read_intervalmdp_jl_reach_avoid_initial_property(prop_dict)
     elseif prop_dict["type"] == "reward"
         return read_intervalmdp_jl_reward_property(prop_dict)
     else
@@ -151,6 +153,17 @@ function read_intervalmdp_jl_reach_avoid_property(prop_dict)
     else
         return FiniteTimeReachAvoid(reach, avoid, prop_dict["time_horizon"])
     end
+end
+
+function read_intervalmdp_jl_reach_avoid_initial_property(prop_dict)
+    @assert prop_dict["type"] == "reach-avoid-initial"
+    @assert prop_dict["infinite_time"]
+
+    reach = vector2tuple.(prop_dict["reach"])
+    avoid = vector2tuple.(prop_dict["avoid"])
+    initial = vector2tuple.(prop_dict["initial"])
+
+    return InfiniteTimeReachAvoidInitial(reach, avoid, initial, prop_dict["eps"])
 end
 
 function read_intervalmdp_jl_reward_property(prop_dict)
@@ -338,6 +351,17 @@ function intervalmdp_jl_property_dict(prop::InfiniteTimeReachAvoid)
         "type" => "reach-avoid",
         "reach" => cartesian2tuple.(reach(prop)),
         "avoid" => cartesian2tuple.(avoid(prop)),
+        "eps" => convergence_eps(prop),
+        "infinite_time" => true,
+    )
+end
+
+function intervalmdp_jl_property_dict(prop::InfiniteTimeReachAvoidInitial)
+    return Dict(
+        "type" => "reach-avoid-initial",
+        "reach" => cartesian2tuple.(reach(prop)),
+        "avoid" => cartesian2tuple.(avoid(prop)),
+        "initial" => cartesian2tuple.(initial(prop)),
         "eps" => convergence_eps(prop),
         "infinite_time" => true,
     )
