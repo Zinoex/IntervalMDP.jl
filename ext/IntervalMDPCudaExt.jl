@@ -3,7 +3,7 @@ module IntervalMDPCudaExt
 import LLVM
 using LLVM.Interop: assume
 
-using CUDA, CUDA.CUSPARSE, Adapt, SparseArrays
+using CUDA, cuSPARSE, Adapt, SparseArrays
 using GPUArrays
 
 using IntervalMDP, LinearAlgebra
