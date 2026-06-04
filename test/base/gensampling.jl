@@ -84,11 +84,11 @@ end
         mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
         gsdp =
             GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp))
-        prop = InfiniteTimeReachAvoidInitial([3], [2], [1], N(1 // 1000))
+        prop = InfiniteTimeReachAvoidInitial([3], [2], N(1 // 1000))
         spec = Specification(prop, Pessimistic, Maximize)
 
-        term = IntervalMDP.termination_criteria(gsdp, spec)
-        @test term.initial == [CartesianIndex(1)]
+        term = IntervalMDP.termination_criteria(prop, mdp)
+        @test term.initial == [1]
         @test term(nothing, nothing, N[1 // 10000, 1, 1])
         @test !term(nothing, nothing, N[1, 1 // 10000, 1])
     end

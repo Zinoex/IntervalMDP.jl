@@ -32,38 +32,26 @@ struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm} <
        ModelCheckingAlgorithm
     bellman_alg::B
     sampling_strategy::SamplingStrategy
-    term_criteria::TerminationCriteria
 
     function GeneralizedSamplingbasedRobustDynamicProgramming(
         bellman_alg::B;
         sampling_strategy::Union{Nothing, SamplingStrategy} = nothing,
-        term_criteria::Union{Nothing, TerminationCriteria} = nothing,
     ) where {B <: BellmanAlgorithm}
         new{B}(
             bellman_alg,
             isnothing(sampling_strategy) ? AllStatesSweep() : sampling_strategy,
-            isnothing(term_criteria) ? AutoTerminationCriteria() : term_criteria,
         )
     end
 end
 
 bellman_algorithm(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.bellman_alg
+sampling_strategy(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.sampling_strategy
 
 construct_value_function(::GeneralizedSamplingbasedRobustDynamicProgramming, problem) =
     IntervalValueFunction(
         StateValueFunction(problem, Lower),
         StateValueFunction(problem, Upper),
     )
-
-"""
-    AutoTerminationCriteria()
-
-Sentinel stored in [`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref) when
-no explicit `term_criteria` is provided. Resolved to [`GapTerminationCriteria`](@ref)
-or [`GapTerminationCriteriaInitial`](@ref) at solve time once the specification is known.
-"""
-struct AutoTerminationCriteria <: TerminationCriteria end
-(::AutoTerminationCriteria)(_, _, _) = throw(ArgumentError("AutoTerminationCriteria should have been resolved to GapTerminationCriteria at solve time."))
 
 
 """
@@ -93,16 +81,7 @@ end
     maximum(abs, gap_residual[f.initial]) < f.tol
 
     
-termination_criteria(
-    alg::GeneralizedSamplingbasedRobustDynamicProgramming{B},
-    spec::Specification,
-) where {B} = _resolve_term_criteria(alg.term_criteria, spec)
-
-_resolve_term_criteria(::AutoTerminationCriteria, spec) = _termination_criteria(spec)
-_resolve_term_criteria(tc::TerminationCriteria, _) = tc
-
-function _termination_criteria(spec::Specification)
-    prop = system_property(spec)
+function termination_criteria(prop::Property, ::StochasticProcess)
     if isfinitetime(prop)
         throw(
             ArgumentError(
@@ -111,16 +90,17 @@ function _termination_criteria(spec::Specification)
             ),
         )
     end
-    return termination_criteria(prop)
+    return GapTerminationCriteria(convergence_eps(prop))
 end
 
+function termination_criteria(prop::InfiniteTimeReachAvoidInitial, mp::StochasticProcess)
+    if isa(initial_states(mp), AllStates)
+        return GapTerminationCriteria(convergence_eps(prop))
+    else
+        return GapTerminationCriteriaInitial(convergence_eps(prop), initial_states(mp))
+    end
+end
 
-termination_criteria(prop::InfiniteTimeReachAvoidInitial) =
-    GapTerminationCriteriaInitial(convergence_eps(prop), initial(prop))
-
-termination_criteria(prop) = GapTerminationCriteria(convergence_eps(prop))
-
-sampling_strategy(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.sampling_strategy
     
 function solve(
     problem::VerificationProblem,
@@ -164,7 +144,7 @@ function _gsrdp!(
 
     workspace = construct_workspace(mp, bellman_algorithm(alg))
     strategy_cache = _gsrdp_strategy_cache(problem)
-    term_criteria = termination_criteria(alg, spec)
+    term_criteria = termination_criteria(prop, mp)
     sampling_strat = sampling_strategy(alg)
 
     value_function = construct_value_function(alg, problem)
@@ -321,4 +301,3 @@ function bellman_update!(
     step_postprocess_value_function!(value_function.upper, spec)
     step_postprocess_strategy_cache!(strategy_cache)
 end
-

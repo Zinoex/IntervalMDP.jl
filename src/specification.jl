@@ -726,31 +726,22 @@ struct InfiniteTimeReachAvoidInitial{VT <: Vector{<:CartesianIndex}, R <: Real} 
        AbstractReachAvoid
     reach::VT
     avoid::VT
-    initial::VT
     convergence_eps::R
 end
 
 function InfiniteTimeReachAvoidInitial(
     reach::Vector{<:UnionIndex},
     avoid::Vector{<:UnionIndex},
-    initial::Vector{<:UnionIndex},
     convergence_eps,
 )
     reach = CartesianIndex.(reach)
     avoid = CartesianIndex.(avoid)
-    initial = CartesianIndex.(initial)
-    if isempty(initial)
-        throw(
-            ArgumentError(
-                "InfiniteTimeReachAvoidInitial requires at least one initial state.",
-            ),
-        )
-    end
-    return InfiniteTimeReachAvoidInitial(reach, avoid, initial, convergence_eps)
+
+    return InfiniteTimeReachAvoidInitial(reach, avoid, convergence_eps)
 end
 
-InfiniteTimeReachAvoidInitial(prop::InfiniteTimeReachAvoid, initial::Vector{<:UnionIndex}) =
-    InfiniteTimeReachAvoidInitial(reach(prop), avoid(prop), initial, convergence_eps(prop))
+InfiniteTimeReachAvoidInitial(prop::InfiniteTimeReachAvoid) =
+    InfiniteTimeReachAvoidInitial(reach(prop), avoid(prop), convergence_eps(prop))
 
 function checkproperty(prop::InfiniteTimeReachAvoidInitial, system, strategy)
     checkconvergence(prop, strategy)
@@ -760,7 +751,6 @@ end
 function checkproperty(prop::InfiniteTimeReachAvoidInitial, system)
     checkstatebounds(reach(prop), system)
     checkstatebounds(avoid(prop), system)
-    checkstatebounds(initial(prop), system)
     checkdisjoint(reach(prop), avoid(prop))
 end
 
@@ -787,12 +777,7 @@ Return the set of states to avoid.
 """
 avoid(prop::InfiniteTimeReachAvoidInitial) = prop.avoid
 
-"""
-    initial(prop::InfiniteTimeReachAvoidInitial)
 
-Return the explicit initial-state subset used by GSRDP termination.
-"""
-initial(prop::InfiniteTimeReachAvoidInitial) = prop.initial
 
 function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachAvoidInitial)
     println(io, first_prefix, styled"{code:InfiniteTimeReachAvoidInitial}")
@@ -802,8 +787,7 @@ function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachAvoid
         styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
     )
     println(io, prefix, styled"├─ Reach states: {magenta:$(reach(prop))}")
-    println(io, prefix, styled"├─ Avoid states: {magenta:$(avoid(prop))}")
-    println(io, prefix, styled"└─ Initial states: {magenta:$(initial(prop))}")
+    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
 end
 
 """
