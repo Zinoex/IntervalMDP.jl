@@ -35,6 +35,31 @@ function IntervalMDP._bellman_helper!(
     # - The data divergence should also be minimal for the same reason, with the exception of the first level, which will 
     #   access different ranges of V (global mem). However, since the threads in a warp access contiguous elements of V, this will still be coalesced.
 
+    value_lt = upper_bound ? (>=) : (<=)
+    action_reduce = maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv))
+
+    Vres = _factored_bellman_helper!(
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        model,
+        value_lt,
+        action_reduce,
+    )
+
+    return Vres
+end
+
+function _factored_bellman_helper!(
+    workspace::CuFactoredOMaxWorkspace,
+    strategy_cache::IntervalMDP.AbstractStrategyCache,
+    Vres::AbstractArray{Tv},
+    V::AbstractArray{Tv},
+    model::IntervalMDP.FactoredRMDP{N, M},
+    value_lt::VF,
+    action_reduce::AR,
+) where {Tv, N, M, VF, AR}
     n_actions =
         isa(strategy_cache, IntervalMDP.OptimizingStrategyCache) ? num_actions(model) : 1
 
@@ -53,8 +78,8 @@ function IntervalMDP._bellman_helper!(
         Vres,
         V,
         model,
-        upper_bound ? (>=) : (<=),
-        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv)),
+        value_lt,
+        action_reduce,
     )
 
     config = launch_configuration(kernel.fun; shmem = shmem_func)
@@ -72,8 +97,8 @@ function IntervalMDP._bellman_helper!(
         Vres,
         V,
         model,
-        upper_bound ? (>=) : (<=),
-        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv));
+        value_lt,
+        action_reduce;
         blocks = blocks,
         threads = threads,
         shmem = shmem,
@@ -237,7 +262,7 @@ end
 Base.@propagate_inbounds function initialize_prealloc_workspace(
     marginal_size,
     marginal::Marginal{
-        <:IntervalAmbiguitySets{Tv, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+        <:IntervalAmbiguitySets{Tv, <:GPUSparseDeviceMatrixCSC},
     },
     offset,
 ) where {Tv}
@@ -937,7 +962,7 @@ end
 Base.@propagate_inbounds function budget(
     ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
         Tv,
-        <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+        <:SubArray{Tv, 1, <:GPUSparseDeviceMatrixCSC},
     },
 ) where {Tv}
     used = zero(Tv)
@@ -1366,7 +1391,7 @@ Base.@propagate_inbounds function add_lower_mul_V_norem_warp(
     V::AbstractVector{Tv},
     ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
         Tv,
-        <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+        <:SubArray{Tv, 1, <:GPUSparseDeviceMatrixCSC},
     },
 ) where {Tv}
     assume(warpsize() == 32)
@@ -1411,7 +1436,7 @@ end
 Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory!(
     ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
         Tv,
-        <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+        <:SubArray{Tv, 1, <:GPUSparseDeviceMatrixCSC},
     },
     prob,
 ) where {Tv}
@@ -1457,7 +1482,7 @@ Base.@propagate_inbounds function factored_initialize_warp_sorting_shared_memory
     V,
     ambiguity_set::IntervalMDP.IntervalAmbiguitySet{
         Tv,
-        <:SubArray{Tv, 1, <:CUDA.CUSPARSE.CuSparseDeviceMatrixCSC},
+        <:SubArray{Tv, 1, <:GPUSparseDeviceMatrixCSC},
     },
     value,
     prob,

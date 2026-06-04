@@ -1,7 +1,7 @@
 name = "IntervalMDP"
 uuid = "051c988a-e73c-45a4-90ec-875cac0402c7"
-authors = ["Frederik Baymler Mathiesen <frederik@baymler.com> and contributors"]
 version = "0.7.0"
+authors = ["Frederik Baymler Mathiesen <frederik@baymler.com> and contributors"]
 
 [deps]
 CommonSolve = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
@@ -15,7 +15,6 @@ StyledStrings = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 
 [weakdeps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
 
@@ -24,9 +23,9 @@ IntervalMDPCudaExt = ["Adapt", "CUDA", "GPUArrays", "LLVM"]
 
 [compat]
 Adapt = "4"
-CUDA = "5.9.4"
+CUDA = "5.9.6, 6.0"
 CommonSolve = "0.2.4"
-GPUArrays = "10, 11"
+GPUArrays = "11.4"
 HiGHS = "1.19.0"
 JSON = "1.2"
 JuMP = "1.29.0"

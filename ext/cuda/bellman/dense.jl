@@ -7,10 +7,7 @@ function IntervalMDP._bellman_helper!(
     upper_bound = false,
     maximize = true,
 ) where {Tv}
-    n_actions =
-        isa(strategy_cache, IntervalMDP.OptimizingStrategyCache) ? workspace.num_actions : 1
     marginal = marginals(model)[1]
-    n_states = source_shape(marginal)[1]
 
     if IntervalMDP.valuetype(marginal) != Tv
         throw(
@@ -28,6 +25,35 @@ function IntervalMDP._bellman_helper!(
         )
     end
 
+    value_lt = upper_bound ? (>=) : (<=)
+    action_reduce = maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv))
+
+    Vres = _dense_bellman_helper!(
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        marginal,
+        value_lt,
+        action_reduce,
+    )
+
+    return Vres
+end
+
+function _dense_bellman_helper!(
+    workspace::CuDenseOMaxWorkspace,
+    strategy_cache::IntervalMDP.AbstractStrategyCache,
+    Vres::AbstractVector{Tv},
+    V::AbstractVector{Tv},
+    marginal,
+    value_lt::VF,
+    action_reduce::AR,
+) where {Tv, VF, AR}
+    n_actions =
+        isa(strategy_cache, IntervalMDP.OptimizingStrategyCache) ? workspace.num_actions : 1
+    n_states = source_shape(marginal)[1]
+
     function variable_shmem(threads)
         warps = div(threads, 32)
         return length(V) * (sizeof(Int32) + sizeof(Tv)) + warps * n_actions * sizeof(Tv)
@@ -39,8 +65,8 @@ function IntervalMDP._bellman_helper!(
         Vres,
         V,
         marginal,
-        upper_bound ? (>=) : (<=),
-        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv)),
+        value_lt,
+        action_reduce,
     )
 
     config = launch_configuration(kernel.fun; shmem = variable_shmem)
@@ -64,8 +90,8 @@ function IntervalMDP._bellman_helper!(
         Vres,
         V,
         marginal,
-        upper_bound ? (>=) : (<=),
-        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv));
+        value_lt,
+        action_reduce;
         blocks = blocks,
         threads = threads,
         shmem = shmem,

@@ -383,19 +383,12 @@ Return the gap between upper and lower bound transition probabilities of the amb
 gap(p::IntervalAmbiguitySet) = p.gap
 Base.@propagate_inbounds gap(p::IntervalAmbiguitySet, destination) = p.gap[destination]
 
-const ColumnView{Tv} =
-    SubArray{Tv, 1, <:AbstractMatrix{Tv}, Tuple{Base.Slice{Base.OneTo{Int}}, Int}, true}
+const ColumnView{Tv} = SubArray{Tv, 1, <:AbstractMatrix{Tv}}
 support(p::IntervalAmbiguitySet{R, <:ColumnView{R}}) where {R} = eachindex(p.gap)
 support(::IntervalAmbiguitySet{R, <:ColumnView{R}}, s) where {R} = s
 supportsize(p::IntervalAmbiguitySet{R, <:ColumnView{R}}) where {R} = Int32(length(p.gap))
 
-const SparseColumnView{Tv, Ti} = SubArray{
-    Tv,
-    1,
-    <:SparseArrays.AbstractSparseMatrixCSC{Tv, Ti},
-    Tuple{Base.Slice{Base.OneTo{Int}}, Int},
-    false,
-}
+const SparseColumnView{Tv} = SubArray{Tv, 1, <:SparseArrays.AbstractSparseMatrixCSC{Tv}}
 Base.@propagate_inbounds support(
     p::IntervalAmbiguitySet{R, <:SparseColumnView{R}},
 ) where {R} = rowvals(p.gap)
