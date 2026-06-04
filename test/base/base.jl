@@ -3,6 +3,7 @@ test_files = [
     "probabilities.jl",
     "bellman.jl",
     "vi.jl",
+    "ivi.jl",
     "imdp.jl",
     "synthesis.jl",
     "specification.jl",

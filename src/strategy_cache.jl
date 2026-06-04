@@ -142,6 +142,31 @@ function extract_strategy!(
 end
 step_postprocess_strategy_cache!(::StationaryStrategyCache) = nothing
 
+# IntervalValueIteration strategy caching
+#
+# IVI always needs to synthesize a strategy at each iteration in order to
+# apply it to the other bound. For control synthesis we reuse the regular
+# strategy cache; for verification we still allocate a stationary cache
+# internally — it is overwritten every iteration and not exposed in the
+# returned solution.
+construct_ivi_strategy_cache(problem::ControlSynthesisProblem) =
+    construct_strategy_cache(problem)
+
+function construct_ivi_strategy_cache(problem::VerificationProblem)
+    mp = system(problem)
+    N = length(action_values(mp))
+    strategy = arrayfactory(mp, NTuple{N, Int32}, source_shape(mp))
+    strategy .= (ntuple(_ -> 0, N),)
+    return StationaryStrategyCache(strategy)
+end
+
+# Wrap an optimizing strategy cache so the freshly synthesized strategy can be
+# applied to the other bound via the non-optimizing Bellman code path.
+applied_strategy_cache(cache::StationaryStrategyCache) =
+    ActiveGivenStrategyCache(cache.strategy)
+applied_strategy_cache(cache::TimeVaryingStrategyCache) =
+    ActiveGivenStrategyCache(cache.cur_strategy)
+
 # Shared between stationary and time-varying strategies
 function _extract_strategy!(cur_strategy, values, available_actions, neutral, jₛ, maximize)
     gt = maximize ? (>) : (<)

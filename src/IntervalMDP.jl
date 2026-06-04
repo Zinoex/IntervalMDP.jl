@@ -54,7 +54,7 @@ public cu, cpu
 ### Solving
 include("algorithms.jl")
 export OMaximization, LPMcCormickRelaxation, VertexEnumeration
-export RobustValueIteration
+export RobustValueIteration, IntervalValueIteration
 export default_algorithm, default_bellman_algorithm, bellman_algorithm
 
 include("utils.jl")
@@ -66,6 +66,7 @@ export AbstractUpdateSequence, FullUpdateSequence, ProductUpdateSequence
 include("bellman.jl")
 
 include("robust_value_iteration.jl")
+include("interval_value_iteration.jl")
 
 ### Saving and loading models
 include("Data/Data.jl")

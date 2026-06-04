@@ -75,9 +75,22 @@ bellman_algorithm(alg::RobustValueIteration) = alg.bellman_alg
 ############################
 # Interval Value Iteration #
 ############################
+"""
+    IntervalValueIteration
 
-# TODO: Provide implementation for this algorithm. When provided, consider changing the default algorithm.
-struct IntervalValueIteration <: ModelCheckingAlgorithm end
+An interval value iteration algorithm for solving reach-avoid problems on interval Markov decision
+processes. IVI propagates both a lower and an upper bound on the satisfaction probability and
+synthesizes the strategy with respect to one bound (lower for `Pessimistic`, upper for `Optimistic`)
+while applying the synthesized strategy directly to the other bound. For infinite-horizon problems,
+termination is based on the gap between the two bounds over the initial states.
+
+IVI is only defined for reach-avoid properties; see [`FiniteTimeReachAvoid`](@ref) and
+[`InfiniteTimeReachAvoid`](@ref).
+"""
+struct IntervalValueIteration{B <: BellmanAlgorithm} <: ModelCheckingAlgorithm
+    bellman_alg::B
+end
+bellman_algorithm(alg::IntervalValueIteration) = alg.bellman_alg
 
 # TODO: Consider topological value iteration as an alternative algorithm (infinite time only).
 
@@ -95,6 +108,15 @@ function showmcalgorithm(io::IO, prefix, ::RobustValueIteration)
         prefix,
         "├─",
         styled"Default model checking algorithm: {green:Robust Value Iteration}",
+    )
+end
+
+function showmcalgorithm(io::IO, prefix, ::IntervalValueIteration)
+    println(
+        io,
+        prefix,
+        "├─",
+        styled"Default model checking algorithm: {green:Interval Value Iteration}",
     )
 end
 
