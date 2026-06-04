@@ -9,8 +9,7 @@ function IntervalMDP.compute_gap(lower::M, upper::M) where {Tv, M <: CuSparseMat
     adapt(IntervalMDP.CuModelAdaptor{Tv}, gap)
 end
 
-const CuDeviceColumnView{Tv} =
-    SubArray{Tv, 1, <:CuDeviceMatrix{Tv}, Tuple{Base.Slice{Base.OneTo{Int}}, Int32}, true}
+const CuDeviceColumnView{Tv} = SubArray{Tv, 1, <:CuDeviceMatrix{Tv}}
 IntervalMDP.support(
     p::IntervalMDP.IntervalAmbiguitySet{R, <:CuDeviceColumnView{R}},
 ) where {R} = eachindex(p.gap)
@@ -22,13 +21,7 @@ IntervalMDP.supportsize(
     p::IntervalMDP.IntervalAmbiguitySet{R, <:CuDeviceColumnView{R}},
 ) where {R} = unsafe_trunc(Int32, length(p.gap))
 
-const GPUSparseDeviceColumnView{Tv, Ti} = SubArray{
-    Tv,
-    1,
-    <:GPUSparseDeviceMatrixCSC{Tv, Ti},
-    Tuple{Base.Slice{Base.OneTo{Int}}, Int32},
-    false,
-}
+const GPUSparseDeviceColumnView{Tv} = SubArray{Tv, 1, <:GPUSparseDeviceMatrixCSC{Tv}}
 Base.@propagate_inbounds IntervalMDP.support(
     p::IntervalMDP.IntervalAmbiguitySet{R, <:GPUSparseDeviceColumnView{R}},
 ) where {R} = rowvals(p.gap)

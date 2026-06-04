@@ -80,21 +80,22 @@ function IntervalMDP._bellman_helper!(
         return Vres
     end
 
-    # Try if we can fit permutation indices into shared memory (75% less memory relative to (Float64, Float64))
-    if try_large_sparse_bellman!(
-        Int32,
-        Nothing,
-        workspace,
-        strategy_cache,
-        Vres,
-        V,
-        model,
-        states;
-        upper_bound = upper_bound,
-        maximize = maximize,
-    )
-        return Vres
-    end
+    # Try if we can fit permutation indices into shared memory (75% less memory relative to (Float64, Float64)) 
+    # DISABLED because the new GPUSparseDeviceMatrixCSC implementation fails getindex
+    # if try_large_sparse_bellman!(
+    #     Int32,
+    #     Nothing,
+    #     workspace,
+    #     strategy_cache,
+    #     Vres,
+    #     V,
+    #     model,
+    #     states;
+    #     upper_bound = upper_bound,
+    #     maximize = maximize,
+    # )
+    #     return Vres
+    # end
 
     throw(
         IntervalMDP.OutOfSharedMemory(
@@ -120,10 +121,7 @@ function try_small_sparse_bellman!(
     # - use shared memory to store the values and gap probability
     # - use bitonic sort in a warp to sort values_gaps
 
-    n_actions =
-        isa(strategy_cache, IntervalMDP.OptimizingStrategyCache) ? workspace.num_actions : 1
     marginal = marginals(model)[1]
-    n_states = length(states)
 
     if IntervalMDP.valuetype(marginal) != Tv
         throw(
@@ -133,6 +131,35 @@ function try_small_sparse_bellman!(
         )
     end
 
+    value_lt = upper_bound ? (>=) : (<=)
+    action_reduce = maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv))
+
+    return _small_sparse_bellman_helper!(
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        marginal,
+        states,
+        value_lt,
+        action_reduce,
+    )
+end
+
+function _small_sparse_bellman_helper!(
+    workspace::CuSparseOMaxWorkspace,
+    strategy_cache::IntervalMDP.AbstractStrategyCache,
+    Vres::AbstractVector{Tv},
+    V::AbstractVector{Tv},
+    marginal,
+    states::IntervalMDP.AbstractUpdateSequence,
+    value_lt::VF,
+    action_reduce::AR,
+) where {Tv, VF, AR}
+    n_actions =
+        isa(strategy_cache, IntervalMDP.OptimizingStrategyCache) ? workspace.num_actions : 1
+    n_states = length(states)
+
     kernel = @cuda launch = false small_sparse_bellman_kernel!(
         workspace,
         active_cache(strategy_cache),
@@ -140,8 +167,8 @@ function try_small_sparse_bellman!(
         V,
         marginal,
         states,
-        upper_bound ? (>=) : (<=),
-        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv)),
+        value_lt,
+        action_reduce,
     )
 
     function variable_shmem(threads)
@@ -168,8 +195,8 @@ function try_small_sparse_bellman!(
         V,
         marginal,
         states,
-        upper_bound ? (>=) : (<=),
-        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv));
+        value_lt,
+        action_reduce;
         blocks = blocks,
         threads = threads,
         shmem = shmem,
@@ -507,9 +534,37 @@ function try_large_sparse_bellman!(
     # - use shared memory to store the values/value_perm and gap probability/gap_perm
     # - use bitonic sort in a block to sort the values
 
+    marginal = marginals(model)[1]
+
+    value_lt = upper_bound ? (>=) : (<=)
+    action_reduce = maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv))
+
+    return _large_sparse_bellman_helper!(
+        T1,
+        T2,
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        marginal,
+        value_lt,
+        action_reduce,
+    )
+end
+
+function _large_sparse_bellman_helper!(
+    ::Type{T1},
+    ::Type{T2},
+    workspace::CuSparseOMaxWorkspace,
+    strategy_cache::IntervalMDP.AbstractStrategyCache,
+    Vres::AbstractVector{Tv},
+    V::AbstractVector{Tv},
+    marginal,
+    value_lt::VF,
+    action_reduce::AR,
+) where {Tv, T1, T2, VF, AR}
     n_actions =
         isa(strategy_cache, IntervalMDP.OptimizingStrategyCache) ? workspace.num_actions : 1
-    marginal = marginals(model)[1]
     n_states = length(states)
 
     shmem = workspace.max_support * (sizeof(T1) + sizeof(T2)) + n_actions * sizeof(Tv)
@@ -527,8 +582,8 @@ function try_large_sparse_bellman!(
         V,
         marginal,
         states,
-        upper_bound ? (>=) : (<=),
-        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv)),
+        value_lt,
+        action_reduce,
     )
 
     config = launch_configuration(kernel.fun; shmem = shmem)
@@ -551,8 +606,8 @@ function try_large_sparse_bellman!(
         V,
         marginal,
         states,
-        upper_bound ? (>=) : (<=),
-        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv));
+        value_lt,
+        action_reduce;
         blocks = blocks,
         threads = threads,
         shmem = shmem,
@@ -1142,11 +1197,15 @@ Base.@propagate_inbounds function i_add_gap_mul_V_sparse(
     loop_length = nextmult(blockDim().x, IntervalMDP.supportsize(ambiguity_set))
     gap_value = zero(Tv)
 
+    # if laneid() == 1
+    #     s = 1
+
     # Block-strided loop and save into register `gap_value`
     s = threadIdx().x
     while s <= loop_length
         # Find index of the permutation, and lookup the corresponding gap
         g = if s <= length(perm)
+            @cuprintln "s: $s, perm: $(perm[s])"
             gap(ambiguity_set, perm[s])
         else
             # 0 gap is a neural element
