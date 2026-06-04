@@ -38,7 +38,7 @@ function reducediff_kernel!(op, colptr, neutral, retarr)
 end
 
 # This is type piracy - please port upstream to CUDA when FixedSparseCSC are stable.
-CUDA.CUSPARSE.CuSparseMatrixCSC{Tv, Ti}(M::SparseArrays.FixedSparseCSC) where {Tv, Ti} =
+cuSPARSE.CuSparseMatrixCSC{Tv, Ti}(M::SparseArrays.FixedSparseCSC) where {Tv, Ti} =
     CuSparseMatrixCSC{Tv, Ti}(
         CuVector{Ti}(M.colptr),
         CuVector{Ti}(M.rowval),
@@ -46,7 +46,7 @@ CUDA.CUSPARSE.CuSparseMatrixCSC{Tv, Ti}(M::SparseArrays.FixedSparseCSC) where {T
         size(M),
     )
 
-CUDA.CUSPARSE.CuSparseMatrixCSC{Tv, Ti}(M::SparseMatrixCSC) where {Tv, Ti} =
+cuSPARSE.CuSparseMatrixCSC{Tv, Ti}(M::SparseMatrixCSC) where {Tv, Ti} =
     CuSparseMatrixCSC{Tv, Ti}(
         CuVector{Ti}(M.colptr),
         CuVector{Ti}(M.rowval),
