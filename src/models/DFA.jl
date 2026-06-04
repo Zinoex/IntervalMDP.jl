@@ -123,6 +123,15 @@ Return the number of states ``|Q|`` of the Deterministic Finite Automaton.
 num_states(dfa::DFA) = num_states(transition(dfa))
 
 """
+    source_shape(dfa::DFA)
+
+Return the source shape of the DFA — a single-element `NTuple{1,Int32}` holding the number
+of DFA states. Defined so that `source_shape(::ProductProcess)` composes uniformly out of
+`Int32` tuples.
+"""
+source_shape(dfa::DFA) = (Int32(num_states(dfa)),)
+
+"""
     num_labels(dfa::DFA)
 Return the number of labels (DFA inputs) in the Deterministic Finite Automaton.
 """

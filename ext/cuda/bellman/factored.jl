@@ -3,7 +3,8 @@ function IntervalMDP._bellman_helper!(
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres::AbstractArray{Tv},
     V::AbstractArray{Tv},
-    model::IntervalMDP.FactoredRMDP{N, M};
+    model::IntervalMDP.FactoredRMDP{N, M},
+    states::IntervalMDP.AbstractUpdateSequence;
     upper_bound = false,
     maximize = true,
 ) where {Tv, N, M}
@@ -32,7 +33,7 @@ function IntervalMDP._bellman_helper!(
     # - Finally, use block-level reduction to find the optimal action and value
 
     # - The task divergence should be minimal as all warps operate on the same marginal synchronously (including sparsity patterns).
-    # - The data divergence should also be minimal for the same reason, with the exception of the first level, which will 
+    # - The data divergence should also be minimal for the same reason, with the exception of the first level, which will
     #   access different ranges of V (global mem). However, since the threads in a warp access contiguous elements of V, this will still be coalesced.
 
     value_lt = upper_bound ? (>=) : (<=)
@@ -44,6 +45,7 @@ function IntervalMDP._bellman_helper!(
         Vres,
         V,
         model,
+        states,
         value_lt,
         action_reduce,
     )
@@ -57,6 +59,7 @@ function _factored_bellman_helper!(
     Vres::AbstractArray{Tv},
     V::AbstractArray{Tv},
     model::IntervalMDP.FactoredRMDP{N, M},
+    states::IntervalMDP.AbstractUpdateSequence,
     value_lt::VF,
     action_reduce::AR,
 ) where {Tv, N, M, VF, AR}
@@ -78,6 +81,7 @@ function _factored_bellman_helper!(
         Vres,
         V,
         model,
+        states,
         value_lt,
         action_reduce,
     )
@@ -87,7 +91,7 @@ function _factored_bellman_helper!(
     max_threads = prevwarp(device(), config.threads)
     warps = div(max_threads, 32)
     threads = warps * 32
-    n_states = IntervalMDP.num_source(model)
+    n_states = length(states)
     blocks = min(2^16 - 1, fld1(n_states, warps))
     shmem = shmem_func(threads)
 
@@ -97,6 +101,7 @@ function _factored_bellman_helper!(
         Vres,
         V,
         model,
+        states,
         value_lt,
         action_reduce;
         blocks = blocks,
@@ -113,6 +118,7 @@ function factored_bellman_kernel!(
     Vres::AbstractArray{Tv},
     V::AbstractArray{Tv},
     model::IntervalMDP.FactoredRMDP{N, M},
+    states,
     value_lt,
     action_reduce,
 ) where {N, M, Tv}
@@ -134,6 +140,7 @@ function factored_bellman_kernel!(
         Vres,
         V,
         model,
+        states,
         action_workspace,
         value_ws,
         gap_ws,
@@ -299,6 +306,7 @@ Base.@propagate_inbounds function factored_omaximization!(
     Vres,
     V,
     model::IntervalMDP.FactoredRMDP{N, M},
+    states,
     action_workspace,
     value_ws,
     gap_ws,
@@ -306,13 +314,13 @@ Base.@propagate_inbounds function factored_omaximization!(
     value_lt,
     action_reduce,
 ) where {N, M}
-    n_states = IntervalMDP.num_source(model)
+    n_states = length(states)
     n_states_per_block = div(blockDim().x, warpsize())
     wid = fld1(threadIdx().x, warpsize())
 
-    jₛ = wid + (blockIdx().x - one(Int32)) * n_states_per_block
-    while jₛ <= n_states
-        I = ind2sub_gpu(source_shape(model), jₛ)
+    linear_jₛ = wid + (blockIdx().x - one(Int32)) * n_states_per_block
+    while linear_jₛ <= n_states
+        I = map(Int32, Tuple(@inbounds states[linear_jₛ]))
         state_factored_bellman!(
             workspace,
             strategy_cache,
@@ -329,7 +337,7 @@ Base.@propagate_inbounds function factored_omaximization!(
         )
 
         sync_warp()
-        jₛ += gridDim().x * n_states_per_block
+        linear_jₛ += gridDim().x * n_states_per_block
     end
 end
 

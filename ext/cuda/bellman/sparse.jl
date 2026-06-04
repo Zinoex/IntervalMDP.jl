@@ -3,7 +3,8 @@ function IntervalMDP._bellman_helper!(
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres::AbstractVector{Tv},
     V::AbstractVector{Tv},
-    model;
+    model,
+    states::IntervalMDP.AbstractUpdateSequence;
     upper_bound = false,
     maximize = true,
 ) where {Tv}
@@ -23,7 +24,8 @@ function IntervalMDP._bellman_helper!(
         strategy_cache,
         Vres,
         V,
-        model;
+        model,
+        states;
         upper_bound = upper_bound,
         maximize = maximize,
     )
@@ -38,14 +40,15 @@ function IntervalMDP._bellman_helper!(
         strategy_cache,
         Vres,
         V,
-        model;
+        model,
+        states;
         upper_bound = upper_bound,
         maximize = maximize,
     )
         return Vres
     end
 
-    # Try if we can fit all values and permutation indices into shared memory (25% less memory relative to (Float64, Float64)) 
+    # Try if we can fit all values and permutation indices into shared memory (25% less memory relative to (Float64, Float64))
     if try_large_sparse_bellman!(
         Tv,
         Int32,
@@ -53,14 +56,15 @@ function IntervalMDP._bellman_helper!(
         strategy_cache,
         Vres,
         V,
-        model;
+        model,
+        states;
         upper_bound = upper_bound,
         maximize = maximize,
     )
         return Vres
     end
 
-    # Try if we can fit two permutation indices into shared memory (50% less memory relative to (Float64, Float64)) 
+    # Try if we can fit two permutation indices into shared memory (50% less memory relative to (Float64, Float64))
     if try_large_sparse_bellman!(
         Int32,
         Int32,
@@ -68,7 +72,8 @@ function IntervalMDP._bellman_helper!(
         strategy_cache,
         Vres,
         V,
-        model;
+        model,
+        states;
         upper_bound = upper_bound,
         maximize = maximize,
     )
@@ -84,7 +89,8 @@ function IntervalMDP._bellman_helper!(
     #     strategy_cache,
     #     Vres,
     #     V,
-    #     model;
+    #     model,
+    #     states;
     #     upper_bound = upper_bound,
     #     maximize = maximize,
     # )
@@ -104,7 +110,8 @@ function try_small_sparse_bellman!(
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres::AbstractVector{Tv},
     V::AbstractVector{Tv},
-    model;
+    model,
+    states::IntervalMDP.AbstractUpdateSequence;
     upper_bound = false,
     maximize = true,
 ) where {Tv}
@@ -133,6 +140,7 @@ function try_small_sparse_bellman!(
         Vres,
         V,
         marginal,
+        states,
         value_lt,
         action_reduce,
     )
@@ -144,12 +152,13 @@ function _small_sparse_bellman_helper!(
     Vres::AbstractVector{Tv},
     V::AbstractVector{Tv},
     marginal,
+    states::IntervalMDP.AbstractUpdateSequence,
     value_lt::VF,
     action_reduce::AR,
 ) where {Tv, VF, AR}
     n_actions =
         isa(strategy_cache, IntervalMDP.OptimizingStrategyCache) ? workspace.num_actions : 1
-    n_states = source_shape(marginal)[1]
+    n_states = length(states)
 
     kernel = @cuda launch = false small_sparse_bellman_kernel!(
         workspace,
@@ -157,6 +166,7 @@ function _small_sparse_bellman_helper!(
         Vres,
         V,
         marginal,
+        states,
         value_lt,
         action_reduce,
     )
@@ -184,6 +194,7 @@ function _small_sparse_bellman_helper!(
         Vres,
         V,
         marginal,
+        states,
         value_lt,
         action_reduce;
         blocks = blocks,
@@ -200,6 +211,7 @@ function small_sparse_bellman_kernel!(
     Vres::AbstractVector{Tv},
     V,
     marginal,
+    states,
     value_lt,
     action_reduce,
 ) where {Tv}
@@ -212,8 +224,9 @@ function small_sparse_bellman_kernel!(
 
     nwarps = div(blockDim().x, warpsize())
     wid = fld1(threadIdx().x, warpsize())
-    jₛ = wid + (blockIdx().x - one(Int32)) * nwarps
-    @inbounds while jₛ <= source_shape(marginal)[1]  # Grid-stride loop
+    linear_jₛ = wid + (blockIdx().x - one(Int32)) * nwarps
+    @inbounds while linear_jₛ <= length(states)  # Grid-stride loop
+        jₛ = Int32(@inbounds states[linear_jₛ][1])
         state_small_sparse_omaximization!(
             action_workspace,
             value_ws,
@@ -226,7 +239,7 @@ function small_sparse_bellman_kernel!(
             action_reduce,
             jₛ,
         )
-        jₛ += gridDim().x * nwarps
+        linear_jₛ += gridDim().x * nwarps
     end
 
     return nothing
@@ -511,7 +524,8 @@ function try_large_sparse_bellman!(
     strategy_cache::IntervalMDP.AbstractStrategyCache,
     Vres::AbstractVector{Tv},
     V::AbstractVector{Tv},
-    model;
+    model,
+    states::IntervalMDP.AbstractUpdateSequence;
     upper_bound = false,
     maximize = true,
 ) where {Tv, T1, T2}
@@ -549,9 +563,9 @@ function _large_sparse_bellman_helper!(
     value_lt::VF,
     action_reduce::AR,
 ) where {Tv, T1, T2, VF, AR}
-    n_states = source_shape(marginal)[1]
     n_actions =
         isa(strategy_cache, IntervalMDP.OptimizingStrategyCache) ? workspace.num_actions : 1
+    n_states = length(states)
 
     shmem = workspace.max_support * (sizeof(T1) + sizeof(T2)) + n_actions * sizeof(Tv)
 
@@ -567,6 +581,7 @@ function _large_sparse_bellman_helper!(
         Vres,
         V,
         marginal,
+        states,
         value_lt,
         action_reduce,
     )
@@ -590,6 +605,7 @@ function _large_sparse_bellman_helper!(
         Vres,
         V,
         marginal,
+        states,
         value_lt,
         action_reduce;
         blocks = blocks,
@@ -608,6 +624,7 @@ function large_sparse_bellman_kernel!(
     Vres::AbstractVector{Tv},
     V,
     marginal,
+    states,
     value_lt,
     action_reduce,
 ) where {Tv, T1, T2}
@@ -622,8 +639,9 @@ function large_sparse_bellman_kernel!(
         marginal,
     )
 
-    jₛ = blockIdx().x
-    @inbounds while jₛ <= source_shape(marginal)[1]  # Grid-stride loop
+    linear_jₛ = blockIdx().x
+    @inbounds while linear_jₛ <= length(states)  # Grid-stride loop
+        jₛ = Int32(@inbounds states[linear_jₛ][1])
         state_sparse_omaximization!(
             action_workspace,
             value_ws,
@@ -636,7 +654,7 @@ function large_sparse_bellman_kernel!(
             action_reduce,
             jₛ,
         )
-        jₛ += gridDim().x
+        linear_jₛ += gridDim().x
     end
 
     return nothing

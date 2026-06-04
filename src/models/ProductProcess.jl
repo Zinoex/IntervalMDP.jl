@@ -80,9 +80,9 @@ labelling_function(proc::ProductProcess) = proc.labelling_func
 available_actions(proc::ProductProcess) = available_actions(markov_process(proc))
 
 state_values(proc::ProductProcess) =
-    (state_values(markov_process(proc))..., num_states(automaton(proc)))
+    (state_values(markov_process(proc))..., Int32(num_states(automaton(proc))))
 source_shape(proc::ProductProcess) =
-    (source_shape(markov_process(proc))..., num_states(automaton(proc)))
+    (source_shape(markov_process(proc))..., source_shape(automaton(proc))...)
 action_values(proc::ProductProcess) = action_values(markov_process(proc))
 
 Base.show(io::IO, proc::ProductProcess) = showsystem(io, "", "", proc)

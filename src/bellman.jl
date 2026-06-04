@@ -74,7 +74,8 @@ Vcur = IntervalMDP.bellman(Vprev, model; upper_bound = false)
 function bellman(
     V,
     model,
-    alg::BellmanAlgorithm = default_bellman_algorithm(model);
+    alg::BellmanAlgorithm = default_bellman_algorithm(model),
+    states::AbstractUpdateSequence = default_update_sequence(model);
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -85,7 +86,8 @@ function bellman(
         Vres,
         V,
         model,
-        alg;
+        alg,
+        states;
         upper_bound = upper_bound,
         maximize = maximize,
         prop = prop,
@@ -175,7 +177,8 @@ function bellman!(
     Vres::AbstractArray,
     V::AbstractArray,
     model,
-    alg::BellmanAlgorithm = default_bellman_algorithm(model);
+    alg::BellmanAlgorithm = default_bellman_algorithm(model),
+    states::AbstractUpdateSequence = default_update_sequence(model);
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -188,7 +191,8 @@ function bellman!(
         strategy_cache,
         Vres,
         V,
-        model;
+        model,
+        states;
         upper_bound = upper_bound,
         maximize = maximize,
         prop = prop,
@@ -200,7 +204,8 @@ function bellman!(
     strategy_cache,
     Vres::AbstractArray,
     V::AbstractArray,
-    model::IntervalMarkovProcess;
+    model::IntervalMarkovProcess,
+    states::AbstractUpdateSequence = default_update_sequence(model);
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -210,7 +215,8 @@ function bellman!(
         strategy_cache,
         Vres,
         V,
-        model;
+        model,
+        states;
         upper_bound = upper_bound,
         maximize = maximize,
     )
@@ -221,7 +227,8 @@ function bellman!(
     strategy_cache,
     Vres::AbstractArray,
     V::AbstractArray,
-    model::ProductProcess;
+    model::ProductProcess,
+    states::ProductUpdateSequence = default_update_sequence(model);
     upper_bound = false,
     maximize = true,
     prop = nothing,
@@ -237,7 +244,8 @@ function bellman!(
         V,
         dfa,
         lf,
-        mp;
+        mp,
+        states;
         upper_bound = upper_bound,
         maximize = maximize,
         prop = prop,
@@ -251,20 +259,24 @@ function _bellman_helper!(
     V,
     dfa::DFA,
     lf::DeterministicLabelling,
-    mp::IntervalMarkovProcess;
+    mp::IntervalMarkovProcess,
+    states::ProductUpdateSequence;
     upper_bound = false,
     maximize = true,
     prop = nothing,
 )
     W = workspace.intermediate_values
 
-    @inbounds for state in dfa
+    @inbounds for dfa_state_ci in states.dfa_states
+        state = Int32(dfa_state_ci[1])
+
         # If a DFA property is given, skip terminal states
         if !isnothing(prop) && state ∈ terminal(prop)
             continue
         end
 
         local_strategy_cache = localize_strategy_cache(strategy_cache, state)
+        mp_states = mp_sequence(states, state)
 
         # Select the value function for the current DFA state
         # according to the appropriate DFA transition function
@@ -279,7 +291,8 @@ function _bellman_helper!(
             local_strategy_cache,
             selectdim(Vres, ndims(Vres), state),
             W,
-            mp;
+            mp,
+            mp_states;
             upper_bound = upper_bound,
             maximize = maximize,
         )
@@ -295,20 +308,24 @@ function _bellman_helper!(
     V::AbstractArray{R},
     dfa::DFA,
     lf::ProbabilisticLabelling,
-    mp::IntervalMarkovProcess;
+    mp::IntervalMarkovProcess,
+    states::ProductUpdateSequence;
     upper_bound = false,
     maximize = true,
     prop = nothing,
 ) where {R}
     W = workspace.intermediate_values
 
-    @inbounds for state in dfa
+    @inbounds for dfa_state_ci in states.dfa_states
+        state = Int32(dfa_state_ci[1])
+
         # If a DFA property is given, skip terminal states
         if !isnothing(prop) && state ∈ terminal(prop)
             continue
         end
 
         local_strategy_cache = localize_strategy_cache(strategy_cache, state)
+        mp_states = mp_sequence(states, state)
 
         # Select the value function for the current DFA state
         # according to the appropriate DFA transition function
@@ -330,7 +347,8 @@ function _bellman_helper!(
             local_strategy_cache,
             selectdim(Vres, ndims(Vres), state),
             W,
-            mp;
+            mp,
+            mp_states;
             upper_bound = upper_bound,
             maximize = maximize,
         )
@@ -375,13 +393,14 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    states::AbstractUpdateSequence;
     upper_bound = false,
     maximize = true,
 )
     bellman_precomputation!(workspace, V, upper_bound)
 
-    for jₛ in CartesianIndices(source_shape(model))
+    for jₛ in states
         state_bellman!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
 
@@ -397,13 +416,14 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    states::AbstractUpdateSequence;
     upper_bound = false,
     maximize = true,
 )
     @inbounds bellman_precomputation!(workspace, V, upper_bound)
 
-    @threadstid tid for jₛ in CartesianIndices(source_shape(model))
+    @threadstid tid for jₛ in states
         @inbounds ws = workspace[tid]
         @inbounds state_bellman!(
             ws,
@@ -561,11 +581,12 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    states::AbstractUpdateSequence;
     upper_bound = false,
     maximize = true,
 )
-    @inbounds for jₛ in CartesianIndices(source_shape(model))
+    @inbounds for jₛ in states
         state_bellman!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
 
@@ -578,11 +599,12 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    states::AbstractUpdateSequence;
     upper_bound = false,
     maximize = true,
 )
-    @threadstid tid for jₛ in CartesianIndices(source_shape(model))
+    @threadstid tid for jₛ in states
         @inbounds ws = workspace[tid]
         @inbounds state_bellman!(
             ws,
@@ -743,12 +765,13 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    states::AbstractUpdateSequence;
     upper_bound = false,
     maximize = true,
 )
     # For each source state
-    @inbounds for jₛ in CartesianIndices(source_shape(model))
+    @inbounds for jₛ in states
         state_bellman!(
             workspace,
             strategy_cache,
@@ -769,12 +792,13 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    states::AbstractUpdateSequence;
     upper_bound = false,
     maximize = true,
 )
     # For each source state
-    @threadstid tid for jₛ in CartesianIndices(source_shape(model))
+    @threadstid tid for jₛ in states
         @inbounds ws = workspace[tid]
 
         @inbounds state_bellman!(
@@ -924,11 +948,12 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    states::AbstractUpdateSequence;
     upper_bound = false,
     maximize = true,
 )
-    @inbounds for jₛ in CartesianIndices(source_shape(model))
+    @inbounds for jₛ in states
         state_bellman!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
 
@@ -941,11 +966,12 @@ function _bellman_helper!(
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
-    model;
+    model,
+    states::AbstractUpdateSequence;
     upper_bound = false,
     maximize = true,
 )
-    @threadstid tid for jₛ in CartesianIndices(source_shape(model))
+    @threadstid tid for jₛ in states
         @inbounds ws = workspace[tid]
         @inbounds state_bellman!(
             ws,
