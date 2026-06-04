@@ -32,7 +32,7 @@ IntervalMDP.construct_workspace(
     ::OMaximization = IntervalMDP.default_bellman_algorithm(prob);
     num_actions = 1,
     kwargs...,
-) where {R, MR <: AbstractCuSparseMatrix{R}} = CuSparseOMaxWorkspace(prob, num_actions)
+) where {R, MR <: CuSparseMatrixCSC{R}} = CuSparseOMaxWorkspace(prob, num_actions)
 
 ######################
 # Factored workspace #
@@ -65,4 +65,4 @@ IntervalMDP.construct_workspace(
     ::IntervalMDP.IsFIMDP,
     ::OMaximization;
     kwargs...,
-) where {R, MR <: AbstractCuSparseMatrix{R}} = CuFactoredOMaxWorkspace(sys)
+) where {R, MR <: CuSparseMatrixCSC{R}} = CuFactoredOMaxWorkspace(sys)

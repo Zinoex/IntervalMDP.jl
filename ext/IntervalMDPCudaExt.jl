@@ -4,8 +4,7 @@ import LLVM
 using LLVM.Interop: assume
 
 using CUDA, CUDA.CUSPARSE, Adapt, SparseArrays
-using GPUArrays:
-    AbstractGPUArray, AbstractGPUVector, AbstractGPUMatrix, GPUSparseDeviceMatrixCSC
+using GPUArrays
 
 using IntervalMDP, LinearAlgebra
 
