@@ -4,8 +4,7 @@ import LLVM
 using LLVM.Interop: assume
 
 using CUDA, CUDA.CUSPARSE, Adapt, SparseArrays
-using GPUArrays:
-    AbstractGPUArray, AbstractGPUVector, AbstractGPUMatrix, GPUSparseDeviceMatrixCSC
+using GPUArrays
 
 using IntervalMDP, LinearAlgebra
 
@@ -97,7 +96,7 @@ function IntervalMDP.checkdevice(::AbstractGPUArray, ::AbstractGPUMatrix)
     return nothing
 end
 
-function IntervalMDP.checkdevice(::AbstractGPUArray, ::AbstractCuSparseMatrix)
+function IntervalMDP.checkdevice(::AbstractGPUArray, ::GPUArrays.AbstractGPUSparseMatrix)
     # Both arguments are on the GPU.
     return nothing
 end
@@ -107,7 +106,7 @@ function IntervalMDP.checkdevice(b::AbstractArray, A::AbstractGPUMatrix)
     @assert false "The reward vector is a CPU array ($(typeof(b))) and the transition matrix is on the GPU ($(typeof(A)))."
 end
 
-function IntervalMDP.checkdevice(b::AbstractArray, A::AbstractCuSparseMatrix)
+function IntervalMDP.checkdevice(b::AbstractArray, A::GPUArrays.AbstractGPUSparseMatrix)
     # The first argument is on the CPU (technically in RAM) and the second is on the GPU.
     @assert false "The reward vector is a CPU array ($(typeof(b))) and the transition matrix is on the GPU ($(typeof(A)))."
 end

@@ -36,6 +36,33 @@ function IntervalMDP._bellman_helper!(
     # - The data divergence should also be minimal for the same reason, with the exception of the first level, which will
     #   access different ranges of V (global mem). However, since the threads in a warp access contiguous elements of V, this will still be coalesced.
 
+    value_lt = upper_bound ? (>=) : (<=)
+    action_reduce = maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv))
+
+    Vres = _factored_bellman_helper!(
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        model,
+        states,
+        value_lt,
+        action_reduce,
+    )
+
+    return Vres
+end
+
+function _factored_bellman_helper!(
+    workspace::CuFactoredOMaxWorkspace,
+    strategy_cache::IntervalMDP.AbstractStrategyCache,
+    Vres::AbstractArray{Tv},
+    V::AbstractArray{Tv},
+    model::IntervalMDP.FactoredRMDP{N, M},
+    states::IntervalMDP.AbstractUpdateSequence,
+    value_lt::VF,
+    action_reduce::AR,
+) where {Tv, N, M, VF, AR}
     n_actions =
         isa(strategy_cache, IntervalMDP.OptimizingStrategyCache) ? num_actions(model) : 1
 
@@ -55,8 +82,8 @@ function IntervalMDP._bellman_helper!(
         V,
         model,
         states,
-        upper_bound ? (>=) : (<=),
-        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv)),
+        value_lt,
+        action_reduce,
     )
 
     config = launch_configuration(kernel.fun; shmem = shmem_func)
@@ -75,8 +102,8 @@ function IntervalMDP._bellman_helper!(
         V,
         model,
         states,
-        upper_bound ? (>=) : (<=),
-        maximize ? (max, >, typemin(Tv)) : (min, <, typemax(Tv));
+        value_lt,
+        action_reduce;
         blocks = blocks,
         threads = threads,
         shmem = shmem,

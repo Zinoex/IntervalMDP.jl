@@ -2,7 +2,7 @@ function maxdiff(colptr::CuVector{Int32})
     return reducediff(max, colptr, typemin(Int32))
 end
 
-function reducediff(op, colptr::CuVector{Int32}, neutral)
+function reducediff(op::F, colptr::CuVector{Int32}, neutral) where {F}
     ret_arr = CuArray{Int32}(undef, 1)
     kernel = @cuda launch = false reducediff_kernel!(op, colptr, neutral, ret_arr)
 
