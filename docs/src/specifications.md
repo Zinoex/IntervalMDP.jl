@@ -24,6 +24,18 @@ spec = Specification(prop, Optimistic, Maximize)  # Unusual, but available
 spec = Specification(prop, Optimistic, Minimize)
 ```
 
+For infinite-horizon properties, the optional `restrict_to_initial` keyword makes the model checking
+algorithm check the convergence threshold only on the system's initial states (`initial_states(system)`)
+rather than on all states. This can terminate iteration earlier when only the value at the initial states
+is of interest. It applies to all infinite-horizon algorithms (e.g. [`RobustValueIteration`](@ref) and
+[`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref)) and has no effect when the system declares all
+states as initial.
+```@example
+using IntervalMDP # hide
+prop = InfiniteTimeReachAvoid([3], [10], 1e-8)
+spec = Specification(prop, Pessimistic, Maximize; restrict_to_initial = true)
+```
+
 
 ## Simple properties
 In the sections below, we will enumerate the possible simple properties (meaning no task automaton required), their equivalence to some value function, and how to construct them. For complex properties and how to construct task automata see [Complex properties](@ref),

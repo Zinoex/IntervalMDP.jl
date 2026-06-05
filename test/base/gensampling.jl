@@ -73,24 +73,37 @@ end
     @test IntervalMDP.touched_states(seq) == Set(seq)
 end
 
-@testitem "GSRDP initial-state gap termination" tags =
+@testitem "initial-state restricted termination" tags =
     [:base, :gsrdp_initial_state_gap_termination] begin
     using IntervalMDP
-    @testset "GSRDP initial-state gap termination" for N in [Float32, Float64]
+    @testset "initial-state restricted termination" for N in [Float32, Float64]
         prob = IntervalAmbiguitySets(;
             lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
             upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
         )
         mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
+        prop = InfiniteTimeReachAvoid([3], [2], N(1 // 1000))
+        spec = Specification(prop, Pessimistic, Maximize; restrict_to_initial = true)
+
+        # Both algorithms restrict the convergence check to the initial states.
         gsdp =
             GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp))
-        prop = InfiniteTimeReachAvoidInitial([3], [2], N(1 // 1000))
-        spec = Specification(prop, Pessimistic, Maximize)
+        rvi = RobustValueIteration(default_bellman_algorithm(mdp))
+        for alg in (gsdp, rvi)
+            term = IntervalMDP.termination_criteria(alg, spec, mdp)
+            @test term isa IntervalMDP.InitialStateCriteria
+            @test term.initial == [1]
+            @test term(nothing, nothing, N[1 // 10000, 1, 1])
+            @test !term(nothing, nothing, N[1, 1 // 10000, 1])
+        end
 
-        term = IntervalMDP.termination_criteria(prop, mdp)
-        @test term.initial == [1]
-        @test term(nothing, nothing, N[1 // 10000, 1, 1])
-        @test !term(nothing, nothing, N[1, 1 // 10000, 1])
+        # Without the flag, convergence is checked on all states.
+        spec_all = Specification(prop, Pessimistic, Maximize)
+        for alg in (gsdp, rvi)
+            term = IntervalMDP.termination_criteria(alg, spec_all, mdp)
+            @test !(term isa IntervalMDP.InitialStateCriteria)
+            @test !term(nothing, nothing, N[1 // 10000, 1, 1])
+        end
     end
 end
 

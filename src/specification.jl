@@ -717,80 +717,6 @@ function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachAvoid
 end
 
 """
-    InfiniteTimeReachAvoidInitial{VT <: Vector{<:CartesianIndex}, IT <: Vector{<:CartesianIndex}, R <: Real}
-
-`InfiniteTimeReachAvoidInitial` is similar to [`InfiniteTimeReachAvoid`](@ref) except that it stores an explicit set of initial states.
-The explicit initial-state set is used by GSRDP termination to check the gap only on those states.
-"""
-struct InfiniteTimeReachAvoidInitial{VT <: Vector{<:CartesianIndex}, R <: Real} <:
-       AbstractReachAvoid
-    reach::VT
-    avoid::VT
-    convergence_eps::R
-end
-
-function InfiniteTimeReachAvoidInitial(
-    reach::Vector{<:UnionIndex},
-    avoid::Vector{<:UnionIndex},
-    convergence_eps,
-)
-    reach = CartesianIndex.(reach)
-    avoid = CartesianIndex.(avoid)
-
-    return InfiniteTimeReachAvoidInitial(reach, avoid, convergence_eps)
-end
-
-InfiniteTimeReachAvoidInitial(prop::InfiniteTimeReachAvoid) =
-    InfiniteTimeReachAvoidInitial(reach(prop), avoid(prop), convergence_eps(prop))
-
-function checkproperty(prop::InfiniteTimeReachAvoidInitial, system, strategy)
-    checkconvergence(prop, strategy)
-    checkproperty(prop, system)
-end
-
-function checkproperty(prop::InfiniteTimeReachAvoidInitial, system)
-    checkstatebounds(reach(prop), system)
-    checkstatebounds(avoid(prop), system)
-    checkdisjoint(reach(prop), avoid(prop))
-end
-
-isfinitetime(prop::InfiniteTimeReachAvoidInitial) = false
-
-"""
-    convergence_eps(prop::InfiniteTimeReachAvoidInitial)
-
-Return the convergence threshold of an infinite time reach-avoid property with explicit initial states.
-"""
-convergence_eps(prop::InfiniteTimeReachAvoidInitial) = prop.convergence_eps
-
-"""
-    reach(prop::InfiniteTimeReachAvoidInitial)
-
-Return the set of target states.
-"""
-reach(prop::InfiniteTimeReachAvoidInitial) = prop.reach
-
-"""
-    avoid(prop::InfiniteTimeReachAvoidInitial)
-
-Return the set of states to avoid.
-"""
-avoid(prop::InfiniteTimeReachAvoidInitial) = prop.avoid
-
-
-
-function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachAvoidInitial)
-    println(io, first_prefix, styled"{code:InfiniteTimeReachAvoidInitial}")
-    println(
-        io,
-        prefix,
-        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
-    )
-    println(io, prefix, styled"├─ Reach states: {magenta:$(reach(prop))}")
-    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
-end
-
-"""
     ExactTimeReachAvoid{VT <: Vector{Union{<:Integer, <:Tuple, <:CartesianIndex}}}, T <: Integer}
 
 Exact time reach-avoid specified by a set of target/terminal states, a set of avoid states, and a time horizon.
@@ -1269,16 +1195,25 @@ The strategy  mode is either `Maxmize` or `Minimize`. See [`StrategyMode`](@ref)
 - `prop::F`: verification property (either temporal logic or reachability-like).
 - `satisfaction::SatisfactionMode`: satisfaction mode (either optimistic or pessimistic). Default is pessimistic.
 - `strategy::StrategyMode`: strategy mode (either maximize or minimize). Default is maximize.
+- `restrict_to_initial::Bool`: if `true`, the model checking algorithm checks convergence only on the system's
+  initial states (`initial_states(system)`) instead of all states. Only meaningful for infinite-time properties.
+  Default is `false`.
 """
 struct Specification{F <: Property}
     prop::F
     satisfaction::SatisfactionMode
     strategy::StrategyMode
+    restrict_to_initial::Bool
 end
 
-Specification(prop::Property) = Specification(prop, Pessimistic)
-Specification(prop::Property, satisfaction::SatisfactionMode) =
-    Specification(prop, satisfaction, Maximize)
+function Specification(
+    prop::Property,
+    satisfaction::SatisfactionMode = Pessimistic,
+    strategy::StrategyMode = Maximize;
+    restrict_to_initial::Bool = false,
+)
+    return Specification(prop, satisfaction, strategy, restrict_to_initial)
+end
 
 initialize!(value_function, spec::Specification) =
     initialize!(value_function, system_property(spec))
@@ -1289,12 +1224,25 @@ postprocess_value_function!(value_function, spec::Specification) =
 
 function checkspecification(spec::Specification, system, strategy)
     checkmodelpropertycompatibility(system_property(spec), system)
+    checkrestricttoinitial(spec)
     checkproperty(system_property(spec), system, strategy)
 end
 
 function checkspecification(spec::Specification, system)
     checkmodelpropertycompatibility(system_property(spec), system)
+    checkrestricttoinitial(spec)
     checkproperty(system_property(spec), system)
+end
+
+function checkrestricttoinitial(spec::Specification)
+    if restrict_to_initial(spec) && isfinitetime(system_property(spec))
+        throw(
+            ArgumentError(
+                "restrict_to_initial is only meaningful for infinite-time properties; " *
+                "got $(typeof(system_property(spec))).",
+            ),
+        )
+    end
 end
 
 """
@@ -1320,11 +1268,21 @@ strategy_mode(spec::Specification) = spec.strategy
 ismaximize(spec::Specification) = ismaximize(strategy_mode(spec))
 isminimize(spec::Specification) = isminimize(strategy_mode(spec))
 
+"""
+    restrict_to_initial(spec::Specification)
+
+Return whether convergence should be checked only on the system's initial states.
+"""
+restrict_to_initial(spec::Specification) = spec.restrict_to_initial
+
 Base.show(io::IO, spec::Specification) = showspecification(io, "", "", spec)
 
 function showspecification(io::IO, first_prefix, prefix, spec::Specification)
     println(io, first_prefix, styled"{code:Specification}")
     println(io, prefix, styled"├─ Satisfaction mode: {magenta:$(satisfaction_mode(spec))}")
     println(io, prefix, styled"├─ Strategy mode: {magenta:$(strategy_mode(spec))}")
+    if restrict_to_initial(spec)
+        println(io, prefix, styled"├─ Restrict to initial states: {magenta:true}")
+    end
     showproperty(io, prefix * "└─ Property: ", prefix * "   ", system_property(spec))
 end

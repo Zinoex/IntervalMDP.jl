@@ -32,18 +32,23 @@ export Property, BasicProperty, ProductProperty
 export FiniteTimeDFAReachability, InfiniteTimeDFAReachability
 export FiniteTimeDFASafety, InfiniteTimeDFASafety
 export FiniteTimeReachability, InfiniteTimeReachability, ExactTimeReachability
-export FiniteTimeReachAvoid,
-    InfiniteTimeReachAvoid, InfiniteTimeReachAvoidInitial, ExactTimeReachAvoid
+export FiniteTimeReachAvoid, InfiniteTimeReachAvoid, ExactTimeReachAvoid
 export FiniteTimeSafety, InfiniteTimeSafety
 export FiniteTimeReward, InfiniteTimeReward
 export ExpectedExitTime
 
-export reach, avoid, initial, safe, time_horizon, convergence_eps, reward, discount
+export reach, avoid, safe, time_horizon, convergence_eps, reward, discount
 
 export SatisfactionMode, Pessimistic, Optimistic, ispessimistic, isoptimistic
 export StrategyMode, Maximize, Minimize, ismaximize, isminimize
 export Specification
-export system, specification, system_property, strategy, satisfaction_mode, strategy_mode
+export system,
+    specification,
+    system_property,
+    strategy,
+    satisfaction_mode,
+    strategy_mode,
+    restrict_to_initial
 
 include("problem.jl")
 export VerificationProblem, ControlSynthesisProblem

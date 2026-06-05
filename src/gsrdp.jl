@@ -66,22 +66,12 @@ struct GapTerminationCriteria{T <: Real} <: TerminationCriteria
 end
 (f::GapTerminationCriteria)(_, _, gap_residual) = maximum(abs, gap_residual) < f.tol
 
-"""
-    GapTerminationCriteriaInitial(tol)
-
-Terminates when `maximum(abs, gap) < tol` over the elementwise gap
-`V_upper - V_lower`. Used by
-[`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref).
-"""
-struct GapTerminationCriteriaInitial{T <: Real, I} <: TerminationCriteria
-    tol::T
-    initial::I
-end
-(f::GapTerminationCriteriaInitial)(_, _, gap_residual) =
-    maximum(abs, gap_residual[f.initial]) < f.tol
-
-    
-function termination_criteria(prop::Property, ::StochasticProcess)
+function termination_criteria(
+    ::GeneralizedSamplingbasedRobustDynamicProgramming,
+    spec::Specification,
+    mp,
+)
+    prop = system_property(spec)
     if isfinitetime(prop)
         throw(
             ArgumentError(
@@ -90,18 +80,13 @@ function termination_criteria(prop::Property, ::StochasticProcess)
             ),
         )
     end
-    return GapTerminationCriteria(convergence_eps(prop))
+    return apply_initial_restriction(
+        GapTerminationCriteria(convergence_eps(prop)),
+        spec,
+        mp,
+    )
 end
 
-function termination_criteria(prop::InfiniteTimeReachAvoidInitial, mp::StochasticProcess)
-    if isa(initial_states(mp), AllStates)
-        return GapTerminationCriteria(convergence_eps(prop))
-    else
-        return GapTerminationCriteriaInitial(convergence_eps(prop), initial_states(mp))
-    end
-end
-
-    
 function solve(
     problem::VerificationProblem,
     alg::GeneralizedSamplingbasedRobustDynamicProgramming;
@@ -144,7 +129,7 @@ function _gsrdp!(
 
     workspace = construct_workspace(mp, bellman_algorithm(alg))
     strategy_cache = _gsrdp_strategy_cache(problem)
-    term_criteria = termination_criteria(prop, mp)
+    term_criteria = termination_criteria(alg, spec, mp)
     sampling_strat = sampling_strategy(alg)
 
     value_function = construct_value_function(alg, problem)
