@@ -82,7 +82,7 @@ include("bellman/product.jl")
 # Comes after the algorithm-defining files because `sampling_strategy`
 # methods dispatch on the algorithm types.
 include("sampling.jl")
-export SamplingStrategy, ValuebasedSamplingStrategy
+export SamplingStrategy, ValueBasedSamplingStrategy
 public AllSampling,
     AllStatesSweep,
     RandomSubsetStateActions,

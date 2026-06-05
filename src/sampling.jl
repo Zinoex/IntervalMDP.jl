@@ -284,10 +284,30 @@ sequence_shape(::StateIterator) = StateUpdateSequence()
 # Sampling Strategies             #
 ###################################
 
+"""
+    SamplingStrategy
+
+Abstract supertype for sampling strategies. A sampling strategy decides which
+states (or `(action, state)` pairs) are relaxed in each iteration of a
+sampling-based algorithm such as
+[`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref).
+
+Concrete strategies implement `sample(strategy, model)` (and, optionally,
+`sample(strategy, model, strategy_cache)`), returning an iterator over the
+update sequence for the current iteration. Strategies whose sampling depends on
+the current value function should subtype [`ValueBasedSamplingStrategy`](@ref).
+"""
 abstract type SamplingStrategy end
 
 function sample(::SamplingStrategy, model) end
 
+"""
+    AllSampling()
+
+Exhaustive sampler: relaxes every `(action, state)` pair in the model on each
+iteration (a full Cartesian sweep). This is the standard behaviour for full
+robust value iteration.
+"""
 struct AllSampling <: SamplingStrategy end
 
 default_sampling_strategy() = AllSampling()
@@ -357,8 +377,14 @@ function exhaustive_cartesian(
     return ZipIterator(A, S)
 end
 
-# State-sweep sampler. Yields bare states; the inner loop of `bellman_update!`
-# is expected to sweep all available actions per visited state.
+"""
+    AllStatesSweep()
+
+State-sweep sampler. Yields bare states (rather than `(action, state)` pairs);
+the inner loop of `bellman_update!` then sweeps all available actions per
+visited state. This is the default sampling strategy for
+[`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref).
+"""
 struct AllStatesSweep <: SamplingStrategy end
 
 sample(::AllStatesSweep, model) = exhaustive_state_sweep(model)
@@ -370,14 +396,27 @@ exhaustive_state_sweep(model::FactoredRMDP) =
 exhaustive_state_sweep(model::IntervalAmbiguitySets) =
     StateIterator(CartesianIndices(source_shape(model)))
 
-# Random-subset sampler: yields `k` independent uniform samples of (a, s)
-# pairs per iteration. Primarily useful with
-# `GeneralizedSamplingbasedRobustDynamicProgramming` — only visited states
-# get their V and strategy relaxed; unvisited states retain V_prev.
+"""
+    RandomSubsetStateActions(k)
+
+Random-subset sampler: yields `k` independent uniform samples of
+`(action, state)` pairs per iteration. Primarily useful with
+[`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref) — only visited
+states get their value and strategy relaxed; unvisited states retain their
+previous value.
+"""
 struct RandomSubsetStateActions <: SamplingStrategy
     k::Int
 end
 
+"""
+    RandomSubsetState(k)
+
+Random-subset sampler: yields `k` independent uniform samples of states per
+iteration (bare states, so all available actions are swept per visited state).
+Like [`RandomSubsetStateActions`](@ref), only visited states are relaxed each
+iteration; unvisited states retain their previous value.
+"""
 struct RandomSubsetState <: SamplingStrategy
     k::Int
 end
@@ -469,13 +508,30 @@ function custom_sequence(
     return GivenSequenceIterator(sequence)
 end
 
+"""
+    ValueBasedSamplingStrategy <: SamplingStrategy
+
+Abstract supertype for sampling strategies whose sampling depends on the current
+value function. Concrete subtypes implement the four-argument
+`sample(strategy, model, strategy_cache, value_function)` method, which
+[`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref) prefers over the
+two/three-argument `sample` used by a plain [`SamplingStrategy`](@ref).
+"""
 abstract type ValueBasedSamplingStrategy <: SamplingStrategy end
 
-# Value-function-ordered sampler: applies an operation (e.g., gap) to the
-# current IntervalValueFunction, sorts states by the resulting values in a
-# specified order, and yields the top k states. Yields bare states; the inner
-# loop of `bellman_update!` is expected to sweep all available actions per
-# visited state.
+"""
+    ValueFunctionOrderedSampling(operation, ascending, k)
+
+Value-function-ordered sampler: applies `operation` (e.g. `gap`) to the current
+`IntervalValueFunction`, sorts states by the resulting values, and yields the
+top `k` states. Yields bare states, so the inner loop of `bellman_update!`
+sweeps all available actions per visited state.
+
+# Fields
+- `operation::Function`: maps an `IntervalValueFunction` to a per-state array.
+- `ascending::Bool`: `true` for ascending (low-to-high), `false` for descending.
+- `k::Int`: number of top states to select.
+"""
 struct ValueFunctionOrderedSampling <: ValueBasedSamplingStrategy
     operation::Function  # e.g., gap; takes IntervalValueFunction, returns array
     ascending::Bool      # true for ascending (low-to-high), false for descending

@@ -2,7 +2,7 @@
     GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg; sampling_strategy, term_criteria)
 
 Generalized sampling-based robust dynamic programming. Drives an
-[`IntervalValueFunction`](@ref) — i.e. simultaneous lower and upper
+`IntervalValueFunction` — i.e. simultaneous lower and upper
 bounds on the value — and terminates when the gap `V_upper - V_lower`
 falls below `convergence_eps(prop)`.
 
@@ -21,7 +21,7 @@ so both bounds track the same policy.
 `sampling_strategy` controls which states (or `(a, s)` pairs) are
 relaxed each iteration; defaults to [`AllStatesSweep`](@ref). State-action
 samplers are projected to their unique state set via
-[`project_to_state_sequence`](@ref) — visited states get a full action
+`project_to_state_sequence` — visited states get a full action
 sweep, unvisited states retain `V_prev`.
 
 `term_criteria` overrides the default termination criterion derived from
