@@ -45,14 +45,14 @@ struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm} <
 end
 
 bellman_algorithm(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.bellman_alg
-sampling_strategy(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.sampling_strategy
+sampling_strategy(alg::GeneralizedSamplingbasedRobustDynamicProgramming) =
+    alg.sampling_strategy
 
 construct_value_function(::GeneralizedSamplingbasedRobustDynamicProgramming, problem) =
     IntervalValueFunction(
         StateValueFunction(problem, Lower),
         StateValueFunction(problem, Upper),
     )
-
 
 """
     GapTerminationCriteria(tol)
