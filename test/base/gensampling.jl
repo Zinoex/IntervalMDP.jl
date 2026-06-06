@@ -73,24 +73,38 @@ end
     @test IntervalMDP.touched_states(seq) == Set(seq)
 end
 
-@testitem "GSRDP initial-state gap termination" tags =
+@testitem "initial-state restricted termination" tags =
     [:base, :gsrdp_initial_state_gap_termination] begin
     using IntervalMDP
-    @testset "GSRDP initial-state gap termination" for N in [Float32, Float64]
+    @testset "initial-state restricted termination" for N in [Float32, Float64]
         prob = IntervalAmbiguitySets(;
             lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
             upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
         )
         mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
-        gsdp =
-            GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp))
-        prop = InfiniteTimeReachAvoidInitial([3], [2], [1], N(1 // 1000))
+        prop = InfiniteTimeReachAvoid([3], [2], N(1 // 1000); restrict_to_initial = true)
         spec = Specification(prop, Pessimistic, Maximize)
 
-        term = IntervalMDP.termination_criteria(gsdp, spec)
-        @test term.initial == [CartesianIndex(1)]
-        @test term(nothing, nothing, N[1 // 10000, 1, 1])
-        @test !term(nothing, nothing, N[1, 1 // 10000, 1])
+        # Both algorithms restrict the convergence check to the initial states.
+        gsdp =
+            GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp))
+        rvi = RobustValueIteration(default_bellman_algorithm(mdp))
+        for alg in (gsdp, rvi)
+            term = IntervalMDP.termination_criteria(alg, spec, mdp)
+            @test term isa IntervalMDP.InitialStateCriteria
+            @test term.initial == [1]
+            @test term(nothing, nothing, N[1 // 10000, 1, 1])
+            @test !term(nothing, nothing, N[1, 1 // 10000, 1])
+        end
+
+        # Without the flag, convergence is checked on all states.
+        prop_all = InfiniteTimeReachAvoid([3], [2], N(1 // 1000))
+        spec_all = Specification(prop_all, Pessimistic, Maximize)
+        for alg in (gsdp, rvi)
+            term = IntervalMDP.termination_criteria(alg, spec_all, mdp)
+            @test !(term isa IntervalMDP.InitialStateCriteria)
+            @test !term(nothing, nothing, N[1 // 10000, 1, 1])
+        end
     end
 end
 
@@ -182,12 +196,12 @@ end
             lower_array::AbstractArray
             upper_array::AbstractArray
         end
-        
+
         lower_vals = N[0.1, 0.3, 0.5]
         upper_vals = N[0.3, 0.5, 0.6]  # gaps: [0.2, 0.2, 0.1]
         vf = MockVF(lower_vals, upper_vals)
         gap_op = (vf) -> abs.(vf.upper_array .- vf.lower_array)
-        
+
         # Create a mock model (just needs to work with the iterator)
         struct MockModel end
         mdp = MockModel()
@@ -211,15 +225,16 @@ end
         states_asc = collect(seq_asc)
         @test all(s -> isa(s, CartesianIndex), states_asc)
         # States with smallest gaps should be included (lowest gap is 0.1 at index 3)
-        @test CartesianIndex(3,) ∈ states_asc
+        @test CartesianIndex(3) ∈ states_asc
     end
 
-    @testset "ValueFunctionOrderedSampling k larger than state space" for N in [Float32, Float64]
+    @testset "ValueFunctionOrderedSampling k larger than state space" for N in
+                                                                          [Float32, Float64]
         struct MockVF
             lower_array::AbstractArray
             upper_array::AbstractArray
         end
-        
+
         vf = MockVF(fill(N(0.1), 3), fill(N(0.3), 3))
         gap_op = (vf) -> abs.(vf.upper_array .- vf.lower_array)
 

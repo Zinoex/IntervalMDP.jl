@@ -12,6 +12,7 @@ satisfaction_mode
 SatisfactionMode
 strategy_mode
 StrategyMode
+restrict_to_initial
 ```
 
 ## Reachability
@@ -42,12 +43,6 @@ InfiniteTimeReachAvoid
 reach(prop::InfiniteTimeReachAvoid)
 avoid(prop::InfiniteTimeReachAvoid)
 convergence_eps(prop::InfiniteTimeReachAvoid)
-
-InfiniteTimeReachAvoidInitial
-reach(prop::InfiniteTimeReachAvoidInitial)
-avoid(prop::InfiniteTimeReachAvoidInitial)
-initial(prop::InfiniteTimeReachAvoidInitial)
-convergence_eps(prop::InfiniteTimeReachAvoidInitial)
 
 ExactTimeReachAvoid
 reach(prop::ExactTimeReachAvoid)

@@ -55,7 +55,7 @@
             str = String(take!(io))
             @test occursin("FiniteTimeReachability", str)
             @test occursin("Time horizon: 10", str)
-            @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+            @test occursin("Reach states: $(reach(prop))", str)
             prop = InfiniteTimeReachability([3], 1.0e-6)
             @test !(IntervalMDP.isfinitetime(prop))
             @test convergence_eps(prop) == 1.0e-6
@@ -65,7 +65,7 @@
             str = String(take!(io))
             @test occursin("InfiniteTimeReachability", str)
             @test occursin("Convergence threshold: 1.0e-6", str)
-            @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+            @test occursin("Reach states: $(reach(prop))", str)
             prop = ExactTimeReachability([3], 10)
             @test IntervalMDP.isfinitetime(prop)
             @test time_horizon(prop) == 10
@@ -75,7 +75,7 @@
             str = String(take!(io))
             @test occursin("ExactTimeReachability", str)
             @test occursin("Time horizon: 10", str)
-            @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+            @test occursin("Reach states: $(reach(prop))", str)
         end
         @testset "reach-avoid" begin
             prop = FiniteTimeReachAvoid([3], [4], 10)
@@ -88,8 +88,8 @@
             str = String(take!(io))
             @test occursin("FiniteTimeReachAvoid", str)
             @test occursin("Time horizon: 10", str)
-            @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
-            @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(4,)]", str)
+            @test occursin("Reach states: $(reach(prop))", str)
+            @test occursin("Avoid states: $(avoid(prop))", str)
             prop = InfiniteTimeReachAvoid([3], [4], 1.0e-6)
             @test !(IntervalMDP.isfinitetime(prop))
             @test convergence_eps(prop) == 1.0e-6
@@ -100,8 +100,8 @@
             str = String(take!(io))
             @test occursin("InfiniteTimeReachAvoid", str)
             @test occursin("Convergence threshold: 1.0e-6", str)
-            @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
-            @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(4,)]", str)
+            @test occursin("Reach states: $(reach(prop))", str)
+            @test occursin("Avoid states: $(avoid(prop))", str)
             prop = ExactTimeReachAvoid([3], [4], 10)
             @test IntervalMDP.isfinitetime(prop)
             @test time_horizon(prop) == 10
@@ -112,8 +112,8 @@
             str = String(take!(io))
             @test occursin("ExactTimeReachAvoid", str)
             @test occursin("Time horizon: 10", str)
-            @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
-            @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(4,)]", str)
+            @test occursin("Reach states: $(reach(prop))", str)
+            @test occursin("Avoid states: $(avoid(prop))", str)
         end
         @testset "safety" begin
             prop = FiniteTimeSafety([3], 10)
@@ -125,7 +125,7 @@
             str = String(take!(io))
             @test occursin("FiniteTimeSafety", str)
             @test occursin("Time horizon: 10", str)
-            @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+            @test occursin("Avoid states: $(avoid(prop))", str)
             prop = InfiniteTimeSafety([3], 1.0e-6)
             @test !(IntervalMDP.isfinitetime(prop))
             @test convergence_eps(prop) == 1.0e-6
@@ -135,7 +135,7 @@
             str = String(take!(io))
             @test occursin("InfiniteTimeSafety", str)
             @test occursin("Convergence threshold: 1.0e-6", str)
-            @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+            @test occursin("Avoid states: $(avoid(prop))", str)
         end
         @testset "reward" begin
             prop = FiniteTimeReward([1.0, 2.0, 3.0], 0.9, 10)

@@ -9,7 +9,6 @@ struct RobustValueIteration{B <: BellmanAlgorithm} <: ModelCheckingAlgorithm
     bellman_alg::B
 end
 bellman_algorithm(alg::RobustValueIteration) = alg.bellman_alg
-termination_criteria(::RobustValueIteration, spec) = termination_criteria(spec)
 construct_value_function(::RobustValueIteration, problem) = StateValueFunction(problem)
 
 function showmcalgorithm(io::IO, prefix, ::RobustValueIteration)
@@ -176,7 +175,7 @@ function _robust_value_iteration!(
 )
     mp = system(problem)
     spec = specification(problem)
-    term_criteria = termination_criteria(alg, spec)
+    term_criteria = termination_criteria(alg, spec, mp)
 
     # It is more efficient to use allocate first and reuse across iterations
     workspace = construct_workspace(mp, bellman_algorithm(alg))
@@ -246,3 +245,9 @@ function bellman_update!(
     step_postprocess_value_function!(value_function, spec)
     step_postprocess_strategy_cache!(strategy_cache)
 end
+
+### Robust Value Iteration
+# RobustVI does a full state-outer sweep — yields bare states so
+# `expectation_v!` dispatches to the state-outer path that uses
+# `workspace.actions` + `extract_strategy!` (no Q-array materialization).
+sampling_strategy(alg::RobustValueIteration) = AllStatesSweep()

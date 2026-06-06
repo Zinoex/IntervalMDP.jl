@@ -1,8 +1,8 @@
 """
-    GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, sampling_strategy)
+    GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg; sampling_strategy, term_criteria)
 
 Generalized sampling-based robust dynamic programming. Drives an
-[`IntervalValueFunction`](@ref) — i.e. simultaneous lower and upper
+`IntervalValueFunction` — i.e. simultaneous lower and upper
 bounds on the value — and terminates when the gap `V_upper - V_lower`
 falls below `convergence_eps(prop)`.
 
@@ -19,19 +19,34 @@ applied to the *secondary* bound through a `NonOptimizingStrategyCache`
 so both bounds track the same policy.
 
 `sampling_strategy` controls which states (or `(a, s)` pairs) are
-relaxed each iteration. State-action samplers are projected to their
-unique state set via [`project_to_state_sequence`](@ref) — visited states
-get a full action sweep, unvisited states retain `V_prev`.
+relaxed each iteration; defaults to [`AllStatesSweep`](@ref). State-action
+samplers are projected to their unique state set via
+`project_to_state_sequence` — visited states get a full action
+sweep, unvisited states retain `V_prev`.
+
+`term_criteria` overrides the default termination criterion derived from
+the property. When omitted, the algorithm uses the gap-based criterion
+from `convergence_eps(prop)`.
 """
-struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm, S} <:
+struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm} <:
        ModelCheckingAlgorithm
     bellman_alg::B
-    sampling_strategy::S
+    sampling_strategy::SamplingStrategy
+
+    function GeneralizedSamplingbasedRobustDynamicProgramming(
+        bellman_alg::B;
+        sampling_strategy::Union{Nothing, SamplingStrategy} = nothing,
+    ) where {B <: BellmanAlgorithm}
+        new{B}(
+            bellman_alg,
+            isnothing(sampling_strategy) ? AllStatesSweep() : sampling_strategy,
+        )
+    end
 end
-GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg::BellmanAlgorithm) =
-    GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg, AllStatesSweep())
 
 bellman_algorithm(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.bellman_alg
+sampling_strategy(alg::GeneralizedSamplingbasedRobustDynamicProgramming) =
+    alg.sampling_strategy
 
 construct_value_function(::GeneralizedSamplingbasedRobustDynamicProgramming, problem) =
     IntervalValueFunction(
@@ -51,23 +66,10 @@ struct GapTerminationCriteria{T <: Real} <: TerminationCriteria
 end
 (f::GapTerminationCriteria)(_, _, gap_residual) = maximum(abs, gap_residual) < f.tol
 
-"""
-    GapTerminationCriteriaInitial(tol)
-
-Terminates when `maximum(abs, gap) < tol` over the elementwise gap
-`V_upper - V_lower`. Used by
-[`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref).
-"""
-struct GapTerminationCriteriaInitial{T <: Real, I} <: TerminationCriteria
-    tol::T
-    initial::I
-end
-(f::GapTerminationCriteriaInitial)(_, _, gap_residual) =
-    maximum(abs, gap_residual[f.initial]) < f.tol
-
 function termination_criteria(
     ::GeneralizedSamplingbasedRobustDynamicProgramming,
     spec::Specification,
+    mp,
 )
     prop = system_property(spec)
     if isfinitetime(prop)
@@ -78,13 +80,12 @@ function termination_criteria(
             ),
         )
     end
-    return termination_criteria(prop)
+    return apply_initial_restriction(
+        GapTerminationCriteria(convergence_eps(prop)),
+        prop,
+        mp,
+    )
 end
-
-termination_criteria(prop::InfiniteTimeReachAvoidInitial) =
-    GapTerminationCriteriaInitial(convergence_eps(prop), initial(prop))
-
-termination_criteria(prop) = GapTerminationCriteria(convergence_eps(prop))
 
 function solve(
     problem::VerificationProblem,
@@ -93,6 +94,17 @@ function solve(
 )
     V, k, res, _ = _gsrdp!(problem, alg; kwargs...)
     return VerificationSolution(V, res, k)
+end
+
+# Sampling dispatcher for GSRDP.
+# Prefer samplers that accept a `value_function` argument (4-arg `sample`).
+# Fall back to older 3-arg or 2-arg `sample` signatures for backwards compatibility.
+function _gsrdp_sample(ss::ValueBasedSamplingStrategy, mp, strategy_cache, value_function)
+    return sample(ss, mp, strategy_cache, value_function)
+end
+
+function _gsrdp_sample(ss::SamplingStrategy, mp, strategy_cache, value_function)
+    return sample(ss, mp, strategy_cache)
 end
 
 function solve(
@@ -114,10 +126,10 @@ function _gsrdp!(
     mp = system(problem)
     spec = specification(problem)
     prop = system_property(spec)
-    term_criteria = termination_criteria(alg, spec)
 
     workspace = construct_workspace(mp, bellman_algorithm(alg))
     strategy_cache = _gsrdp_strategy_cache(problem)
+    term_criteria = termination_criteria(alg, spec, mp)
     sampling_strat = sampling_strategy(alg)
 
     value_function = construct_value_function(alg, problem)
@@ -130,7 +142,12 @@ function _gsrdp!(
         callback(value_function, bellman_updates)
     end
 
-    update_sequence = sample(sampling_strat, mp, select_strategy_cache(strategy_cache, 0))
+    update_sequence = _gsrdp_sample(
+        sampling_strat,
+        mp,
+        select_strategy_cache(strategy_cache, 0),
+        value_function,
+    )
     bellman_updates += _bellman_update_count(update_sequence, mp)
     bellman_update!(
         alg,
@@ -151,8 +168,12 @@ function _gsrdp!(
     while !term_criteria(value_function, k, gap(value_function))
         nextiteration!(value_function)
 
-        update_sequence =
-            sample(sampling_strat, mp, select_strategy_cache(strategy_cache, k))
+        update_sequence = _gsrdp_sample(
+            sampling_strat,
+            mp,
+            select_strategy_cache(strategy_cache, k),
+            value_function,
+        )
         bellman_updates += _bellman_update_count(update_sequence, mp)
         bellman_update!(
             alg,

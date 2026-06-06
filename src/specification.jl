@@ -2,6 +2,15 @@
 
 abstract type Property end
 
+"""
+    restrict_to_initial(prop::Property)
+
+Return whether the model checking algorithm should check convergence only on the system's
+initial states (`initial_states(system)`) instead of all states. This is always `false` for
+finite- and exact-time properties; infinite-time properties may set it to `true`.
+"""
+restrict_to_initial(::Property) = false
+
 function checkmodelpropertycompatibility(prop, system)
     throw(
         ArgumentError(
@@ -163,11 +172,16 @@ struct InfiniteTimeDFAReachability{VT <: Vector{<:Int32}, R <: Real} <:
        AbstractDFAReachability
     reach::VT
     convergence_eps::R
+    restrict_to_initial::Bool
 end
 
-function InfiniteTimeDFAReachability(reach::Vector{<:Integer}, convergence_eps)
+function InfiniteTimeDFAReachability(
+    reach::Vector{<:Integer},
+    convergence_eps;
+    restrict_to_initial::Bool = false,
+)
     reach = Int32.(reach)
-    return InfiniteTimeDFAReachability(reach, convergence_eps)
+    return InfiniteTimeDFAReachability(reach, convergence_eps, restrict_to_initial)
 end
 
 function checkproperty(prop::InfiniteTimeDFAReachability, system, strategy)
@@ -195,6 +209,7 @@ Return the set of DFA states with respect to which to compute reachbility for a 
 """
 reach(prop::InfiniteTimeDFAReachability) = prop.reach
 terminal(prop::InfiniteTimeDFAReachability) = reach(prop)
+restrict_to_initial(prop::InfiniteTimeDFAReachability) = prop.restrict_to_initial
 
 function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeDFAReachability)
     println(io, first_prefix, styled"{code:InfiniteTimeDFAReachability}")
@@ -203,7 +218,12 @@ function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeDFAReachab
         prefix,
         styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
     )
-    println(io, prefix, styled"└─ Reach states: {magenta:$(reach(prop))}")
+    if restrict_to_initial(prop)
+        println(io, prefix, styled"├─ Reach states: {magenta:$(reach(prop))}")
+        println(io, prefix, styled"└─ Restrict to initial states: {magenta:true}")
+    else
+        println(io, prefix, styled"└─ Reach states: {magenta:$(reach(prop))}")
+    end
 end
 
 ## DFA Safety
@@ -297,11 +317,16 @@ The convergence threshold is that the largest value of the most recent Bellman r
 struct InfiniteTimeDFASafety{VT <: Vector{<:Int32}, R <: Real} <: AbstractDFASafety
     avoid::VT
     convergence_eps::R
+    restrict_to_initial::Bool
 end
 
-function InfiniteTimeDFASafety(avoid::Vector{<:Integer}, convergence_eps)
+function InfiniteTimeDFASafety(
+    avoid::Vector{<:Integer},
+    convergence_eps;
+    restrict_to_initial::Bool = false,
+)
     avoid = Int32.(avoid)
-    return InfiniteTimeDFASafety(avoid, convergence_eps)
+    return InfiniteTimeDFASafety(avoid, convergence_eps, restrict_to_initial)
 end
 
 function checkproperty(prop::InfiniteTimeDFASafety, system, strategy)
@@ -329,6 +354,7 @@ Return the set of DFA states with respect to which to compute safety for a infin
 """
 avoid(prop::InfiniteTimeDFASafety) = prop.avoid
 terminal(prop::InfiniteTimeDFASafety) = avoid(prop)
+restrict_to_initial(prop::InfiniteTimeDFASafety) = prop.restrict_to_initial
 
 function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeDFASafety)
     println(io, first_prefix, styled"{code:InfiniteTimeDFASafety}")
@@ -337,7 +363,12 @@ function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeDFASafety)
         prefix,
         styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
     )
-    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+    if restrict_to_initial(prop)
+        println(io, prefix, styled"├─ Avoid states: {magenta:$(avoid(prop))}")
+        println(io, prefix, styled"└─ Restrict to initial states: {magenta:true}")
+    else
+        println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+    end
 end
 
 ## Reachability
@@ -431,11 +462,16 @@ struct InfiniteTimeReachability{VT <: Vector{<:CartesianIndex}, R <: Real} <:
        AbstractReachability
     reach::VT
     convergence_eps::R
+    restrict_to_initial::Bool
 end
 
-function InfiniteTimeReachability(reach::Vector{<:UnionIndex}, convergence_eps)
+function InfiniteTimeReachability(
+    reach::Vector{<:UnionIndex},
+    convergence_eps;
+    restrict_to_initial::Bool = false,
+)
     reach = CartesianIndex.(reach)
-    return InfiniteTimeReachability(reach, convergence_eps)
+    return InfiniteTimeReachability(reach, convergence_eps, restrict_to_initial)
 end
 
 function checkproperty(prop::InfiniteTimeReachability, system, strategy)
@@ -462,6 +498,7 @@ convergence_eps(prop::InfiniteTimeReachability) = prop.convergence_eps
 Return the set of states with which to compute reachbility for a infinite time reachability property.
 """
 reach(prop::InfiniteTimeReachability) = prop.reach
+restrict_to_initial(prop::InfiniteTimeReachability) = prop.restrict_to_initial
 
 function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachability)
     println(io, first_prefix, styled"{code:InfiniteTimeReachability}")
@@ -470,7 +507,12 @@ function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachabili
         prefix,
         styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
     )
-    println(io, prefix, styled"└─ Reach states: {magenta:$(reach(prop))}")
+    if restrict_to_initial(prop)
+        println(io, prefix, styled"├─ Reach states: {magenta:$(reach(prop))}")
+        println(io, prefix, styled"└─ Restrict to initial states: {magenta:true}")
+    else
+        println(io, prefix, styled"└─ Reach states: {magenta:$(reach(prop))}")
+    end
 end
 
 """
@@ -659,16 +701,18 @@ struct InfiniteTimeReachAvoid{VT <: Vector{<:CartesianIndex}, R <: Real} <:
     reach::VT
     avoid::VT
     convergence_eps::R
+    restrict_to_initial::Bool
 end
 
 function InfiniteTimeReachAvoid(
     reach::Vector{<:UnionIndex},
     avoid::Vector{<:UnionIndex},
-    convergence_eps,
+    convergence_eps;
+    restrict_to_initial::Bool = false,
 )
     reach = CartesianIndex.(reach)
     avoid = CartesianIndex.(avoid)
-    return InfiniteTimeReachAvoid(reach, avoid, convergence_eps)
+    return InfiniteTimeReachAvoid(reach, avoid, convergence_eps, restrict_to_initial)
 end
 
 function checkproperty(prop::InfiniteTimeReachAvoid, system, strategy)
@@ -704,6 +748,7 @@ reach(prop::InfiniteTimeReachAvoid) = prop.reach
 Return the set of states to avoid.
 """
 avoid(prop::InfiniteTimeReachAvoid) = prop.avoid
+restrict_to_initial(prop::InfiniteTimeReachAvoid) = prop.restrict_to_initial
 
 function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachAvoid)
     println(io, first_prefix, styled"{code:InfiniteTimeReachAvoid}")
@@ -713,97 +758,12 @@ function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachAvoid
         styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
     )
     println(io, prefix, styled"├─ Reach states: {magenta:$(reach(prop))}")
-    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
-end
-
-"""
-    InfiniteTimeReachAvoidInitial{VT <: Vector{<:CartesianIndex}, IT <: Vector{<:CartesianIndex}, R <: Real}
-
-`InfiniteTimeReachAvoidInitial` is similar to [`InfiniteTimeReachAvoid`](@ref) except that it stores an explicit set of initial states.
-The explicit initial-state set is used by GSRDP termination to check the gap only on those states.
-"""
-struct InfiniteTimeReachAvoidInitial{VT <: Vector{<:CartesianIndex}, R <: Real} <:
-       AbstractReachAvoid
-    reach::VT
-    avoid::VT
-    initial::VT
-    convergence_eps::R
-end
-
-function InfiniteTimeReachAvoidInitial(
-    reach::Vector{<:UnionIndex},
-    avoid::Vector{<:UnionIndex},
-    initial::Vector{<:UnionIndex},
-    convergence_eps,
-)
-    reach = CartesianIndex.(reach)
-    avoid = CartesianIndex.(avoid)
-    initial = CartesianIndex.(initial)
-    if isempty(initial)
-        throw(
-            ArgumentError(
-                "InfiniteTimeReachAvoidInitial requires at least one initial state.",
-            ),
-        )
+    if restrict_to_initial(prop)
+        println(io, prefix, styled"├─ Avoid states: {magenta:$(avoid(prop))}")
+        println(io, prefix, styled"└─ Restrict to initial states: {magenta:true}")
+    else
+        println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
     end
-    return InfiniteTimeReachAvoidInitial(reach, avoid, initial, convergence_eps)
-end
-
-InfiniteTimeReachAvoidInitial(prop::InfiniteTimeReachAvoid, initial::Vector{<:UnionIndex}) =
-    InfiniteTimeReachAvoidInitial(reach(prop), avoid(prop), initial, convergence_eps(prop))
-
-function checkproperty(prop::InfiniteTimeReachAvoidInitial, system, strategy)
-    checkconvergence(prop, strategy)
-    checkproperty(prop, system)
-end
-
-function checkproperty(prop::InfiniteTimeReachAvoidInitial, system)
-    checkstatebounds(reach(prop), system)
-    checkstatebounds(avoid(prop), system)
-    checkstatebounds(initial(prop), system)
-    checkdisjoint(reach(prop), avoid(prop))
-end
-
-isfinitetime(prop::InfiniteTimeReachAvoidInitial) = false
-
-"""
-    convergence_eps(prop::InfiniteTimeReachAvoidInitial)
-
-Return the convergence threshold of an infinite time reach-avoid property with explicit initial states.
-"""
-convergence_eps(prop::InfiniteTimeReachAvoidInitial) = prop.convergence_eps
-
-"""
-    reach(prop::InfiniteTimeReachAvoidInitial)
-
-Return the set of target states.
-"""
-reach(prop::InfiniteTimeReachAvoidInitial) = prop.reach
-
-"""
-    avoid(prop::InfiniteTimeReachAvoidInitial)
-
-Return the set of states to avoid.
-"""
-avoid(prop::InfiniteTimeReachAvoidInitial) = prop.avoid
-
-"""
-    initial(prop::InfiniteTimeReachAvoidInitial)
-
-Return the explicit initial-state subset used by GSRDP termination.
-"""
-initial(prop::InfiniteTimeReachAvoidInitial) = prop.initial
-
-function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReachAvoidInitial)
-    println(io, first_prefix, styled"{code:InfiniteTimeReachAvoidInitial}")
-    println(
-        io,
-        prefix,
-        styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
-    )
-    println(io, prefix, styled"├─ Reach states: {magenta:$(reach(prop))}")
-    println(io, prefix, styled"├─ Avoid states: {magenta:$(avoid(prop))}")
-    println(io, prefix, styled"└─ Initial states: {magenta:$(initial(prop))}")
 end
 
 """
@@ -960,11 +920,16 @@ The convergence threshold is that the largest value of the most recent Bellman r
 struct InfiniteTimeSafety{VT <: Vector{<:CartesianIndex}, R <: Real} <: AbstractSafety
     avoid::VT
     convergence_eps::R
+    restrict_to_initial::Bool
 end
 
-function InfiniteTimeSafety(avoid::Vector{<:UnionIndex}, convergence_eps)
+function InfiniteTimeSafety(
+    avoid::Vector{<:UnionIndex},
+    convergence_eps;
+    restrict_to_initial::Bool = false,
+)
     avoid = CartesianIndex.(avoid)
-    return InfiniteTimeSafety(avoid, convergence_eps)
+    return InfiniteTimeSafety(avoid, convergence_eps, restrict_to_initial)
 end
 
 function checkproperty(prop::InfiniteTimeSafety, system, strategy)
@@ -991,6 +956,7 @@ convergence_eps(prop::InfiniteTimeSafety) = prop.convergence_eps
 Return the set of states with which to compute safety for a infinite time safety property.
 """
 avoid(prop::InfiniteTimeSafety) = prop.avoid
+restrict_to_initial(prop::InfiniteTimeSafety) = prop.restrict_to_initial
 
 function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeSafety)
     println(io, first_prefix, styled"{code:InfiniteTimeSafety}")
@@ -999,7 +965,12 @@ function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeSafety)
         prefix,
         styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
     )
-    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+    if restrict_to_initial(prop)
+        println(io, prefix, styled"├─ Avoid states: {magenta:$(avoid(prop))}")
+        println(io, prefix, styled"└─ Restrict to initial states: {magenta:true}")
+    else
+        println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+    end
 end
 
 ## Reward
@@ -1107,6 +1078,16 @@ struct InfiniteTimeReward{R <: Real, AR <: AbstractArray{R}} <: AbstractReward{R
     reward::AR
     discount::R
     convergence_eps::R
+    restrict_to_initial::Bool
+end
+
+function InfiniteTimeReward(
+    reward::AbstractArray,
+    discount,
+    convergence_eps;
+    restrict_to_initial::Bool = false,
+)
+    return InfiniteTimeReward(reward, discount, convergence_eps, restrict_to_initial)
 end
 
 function checkproperty(prop::InfiniteTimeReward, system, strategy)
@@ -1152,6 +1133,7 @@ discount(prop::InfiniteTimeReward) = prop.discount
 Return the convergence threshold of an infinite time reward optimization.
 """
 convergence_eps(prop::InfiniteTimeReward) = prop.convergence_eps
+restrict_to_initial(prop::InfiniteTimeReward) = prop.restrict_to_initial
 
 function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReward)
     println(io, first_prefix, styled"{code:InfiniteTimeReward}")
@@ -1161,11 +1143,20 @@ function showproperty(io::IO, first_prefix, prefix, prop::InfiniteTimeReward)
         styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
     )
     println(io, prefix, styled"├─ Discount factor: {magenta:$(discount(prop))}")
-    println(
-        io,
-        prefix,
-        styled"└─ Reward storage: {magenta:$(eltype(reward(prop))), $(size(reward(prop)))}",
-    )
+    if restrict_to_initial(prop)
+        println(
+            io,
+            prefix,
+            styled"├─ Reward storage: {magenta:$(eltype(reward(prop))), $(size(reward(prop)))}",
+        )
+        println(io, prefix, styled"└─ Restrict to initial states: {magenta:true}")
+    else
+        println(
+            io,
+            prefix,
+            styled"└─ Reward storage: {magenta:$(eltype(reward(prop))), $(size(reward(prop)))}",
+        )
+    end
 end
 
 ## Hitting time
@@ -1194,11 +1185,16 @@ where ``\\omega = s_0 s_1 \\ldots s_k`` is a trace of the system.
 struct ExpectedExitTime{VT <: Vector{<:CartesianIndex}, R <: Real} <: AbstractHittingTime
     avoid_states::VT
     convergence_eps::R
+    restrict_to_initial::Bool
 end
 
-function ExpectedExitTime(avoid_states::Vector{<:UnionIndex}, convergence_eps)
+function ExpectedExitTime(
+    avoid_states::Vector{<:UnionIndex},
+    convergence_eps;
+    restrict_to_initial::Bool = false,
+)
     avoid_states = CartesianIndex.(avoid_states)
-    return ExpectedExitTime(avoid_states, convergence_eps)
+    return ExpectedExitTime(avoid_states, convergence_eps, restrict_to_initial)
 end
 
 function checkproperty(prop::ExpectedExitTime, system, strategy)
@@ -1235,6 +1231,7 @@ avoid(prop::ExpectedExitTime) = prop.avoid_states
 Return the convergence threshold of an expected exit time.
 """
 convergence_eps(prop::ExpectedExitTime) = prop.convergence_eps
+restrict_to_initial(prop::ExpectedExitTime) = prop.restrict_to_initial
 
 function showproperty(io::IO, first_prefix, prefix, prop::ExpectedExitTime)
     println(io, first_prefix, styled"{code:ExpectedExitTime}")
@@ -1243,7 +1240,12 @@ function showproperty(io::IO, first_prefix, prefix, prop::ExpectedExitTime)
         prefix,
         styled"├─ Convergence threshold: {magenta:$(convergence_eps(prop))}",
     )
-    println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+    if restrict_to_initial(prop)
+        println(io, prefix, styled"├─ Avoid states: {magenta:$(avoid(prop))}")
+        println(io, prefix, styled"└─ Restrict to initial states: {magenta:true}")
+    else
+        println(io, prefix, styled"└─ Avoid states: {magenta:$(avoid(prop))}")
+    end
 end
 
 ## Problem
@@ -1292,7 +1294,7 @@ struct Specification{F <: Property}
     strategy::StrategyMode
 end
 
-Specification(prop::Property) = Specification(prop, Pessimistic)
+Specification(prop::Property) = Specification(prop, Pessimistic, Maximize)
 Specification(prop::Property, satisfaction::SatisfactionMode) =
     Specification(prop, satisfaction, Maximize)
 

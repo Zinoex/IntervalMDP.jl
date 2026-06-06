@@ -15,3 +15,21 @@ TimeVaryingStrategy
 ```@docs
 RobustValueIteration
 ```
+
+## Sampling-based Algorithms
+
+```@docs
+GeneralizedSamplingbasedRobustDynamicProgramming
+```
+
+## Sampling strategies
+
+```@docs
+SamplingStrategy
+IntervalMDP.AllSampling
+IntervalMDP.AllStatesSweep
+IntervalMDP.RandomSubsetStateActions
+IntervalMDP.RandomSubsetState
+ValueBasedSamplingStrategy
+IntervalMDP.ValueFunctionOrderedSampling
+```

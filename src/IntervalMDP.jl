@@ -32,18 +32,23 @@ export Property, BasicProperty, ProductProperty
 export FiniteTimeDFAReachability, InfiniteTimeDFAReachability
 export FiniteTimeDFASafety, InfiniteTimeDFASafety
 export FiniteTimeReachability, InfiniteTimeReachability, ExactTimeReachability
-export FiniteTimeReachAvoid,
-    InfiniteTimeReachAvoid, InfiniteTimeReachAvoidInitial, ExactTimeReachAvoid
+export FiniteTimeReachAvoid, InfiniteTimeReachAvoid, ExactTimeReachAvoid
 export FiniteTimeSafety, InfiniteTimeSafety
 export FiniteTimeReward, InfiniteTimeReward
 export ExpectedExitTime
 
-export reach, avoid, initial, safe, time_horizon, convergence_eps, reward, discount
+export reach, avoid, safe, time_horizon, convergence_eps, reward, discount
 
 export SatisfactionMode, Pessimistic, Optimistic, ispessimistic, isoptimistic
 export StrategyMode, Maximize, Minimize, ismaximize, isminimize
 export Specification
-export system, specification, system_property, strategy, satisfaction_mode, strategy_mode
+export system,
+    specification,
+    system_property,
+    strategy,
+    satisfaction_mode,
+    strategy_mode,
+    restrict_to_initial
 
 include("problem.jl")
 export VerificationProblem, ControlSynthesisProblem
@@ -73,14 +78,19 @@ include("bellman/state.jl")
 include("bellman/state_action.jl")
 include("bellman/product.jl")
 
-include("robust_value_iteration.jl")
-include("gsrdp.jl")
-
 # `sampling.jl` defines `SamplingStrategy`s and the `sample` dispatcher.
 # Comes after the algorithm-defining files because `sampling_strategy`
 # methods dispatch on the algorithm types.
 include("sampling.jl")
-public AllSampling, AllStatesSweep, RandomSubsetStateActions, RandomSubsetState
+export SamplingStrategy, ValueBasedSamplingStrategy
+public AllSampling,
+    AllStatesSweep,
+    RandomSubsetStateActions,
+    RandomSubsetState,
+    ValueFunctionOrderedSampling
+
+include("robust_value_iteration.jl")
+include("gsrdp.jl")
 
 ### Saving and loading models
 include("Data/Data.jl")
