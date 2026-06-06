@@ -82,8 +82,8 @@ end
             upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
         )
         mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
-        prop = InfiniteTimeReachAvoid([3], [2], N(1 // 1000))
-        spec = Specification(prop, Pessimistic, Maximize; restrict_to_initial = true)
+        prop = InfiniteTimeReachAvoid([3], [2], N(1 // 1000); restrict_to_initial = true)
+        spec = Specification(prop, Pessimistic, Maximize)
 
         # Both algorithms restrict the convergence check to the initial states.
         gsdp =
@@ -98,7 +98,8 @@ end
         end
 
         # Without the flag, convergence is checked on all states.
-        spec_all = Specification(prop, Pessimistic, Maximize)
+        prop_all = InfiniteTimeReachAvoid([3], [2], N(1 // 1000))
+        spec_all = Specification(prop_all, Pessimistic, Maximize)
         for alg in (gsdp, rvi)
             term = IntervalMDP.termination_criteria(alg, spec_all, mdp)
             @test !(term isa IntervalMDP.InitialStateCriteria)

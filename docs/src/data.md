@@ -117,17 +117,17 @@ For a reachability-like specification, the specification is the following format
         "time_horizon": <positive int>,
         "eps": <positive float>,
         "reach": [<state_index:positive int>],
-        "avoid": [<state_index:positive int>]
+        "avoid": [<state_index:positive int>],
+        "restrict_to_initial": <true|false, default=false>
     },
     "satisfaction_mode": <"pessimistic"|"optimistic">,
-    "strategy_mode": <"minimize"|"maximize">,
-    "restrict_to_initial": <true|false>
+    "strategy_mode": <"minimize"|"maximize">
 }
 ```
 
 For a finite horizon property, `eps` is excluded, and similarly for an infinite horizon property, `time\_horizon` is excluded. 
 For a proper reachability property, the `avoid`-field is excluded.
-The `restrict_to_initial` field is optional (defaults to `false`); when `true`, convergence is checked only on the system's initial states.
+The `restrict_to_initial` field is optional, only applies to infinite horizon properties (defaults to `false`); when `true`, convergence is checked only on the system's initial states.
 
 If we instead want to optimize a reward, the format is the following
 
@@ -139,11 +139,11 @@ If we instead want to optimize a reward, the format is the following
         "time_horizon": <positive int>,
         "eps": <positive float>,
         "reward": [<reward_per_state_index:float>]
-        "discount" <float:0-1>
+        "discount" <float:0-1>,
+        "restrict_to_initial": <true|false>
     },
     "satisfaction_mode": <"pessimistic"|"optimistic">,
-    "strategy_mode": <"minimize"|"maximize">,
-    "restrict_to_initial": <true|false>
+    "strategy_mode": <"minimize"|"maximize">
 }
 ```
 

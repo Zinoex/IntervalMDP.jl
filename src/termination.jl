@@ -24,7 +24,7 @@ struct InitialStateCriteria{C <: TerminationCriteria, I} <: TerminationCriteria
     inner::C
     initial::I
 end
-(f::InitialStateCriteria)(V, k, u) = f.inner(V, k, u[f.initial])
+(f::InitialStateCriteria)(V, k, u) = f.inner(V, k, @view u[f.initial])
 
 # Base criterion for residual/iteration-based value iteration: fixed iterations
 # for finite-time properties, convergence on the residual for infinite-time.
@@ -33,10 +33,10 @@ base_termination_criteria(prop::Property) =
     CovergenceCriteria(convergence_eps(prop))
 
 # Wrap a base criterion so that convergence is checked only on the system's
-# initial states, iff the specification requests it and the model declares an
+# initial states, iff the property requests it and the model declares an
 # explicit (non-`AllStates`) initial-state set.
-function apply_initial_restriction(base::TerminationCriteria, spec::Specification, mp)
-    restrict_to_initial(spec) || return base
+function apply_initial_restriction(base::TerminationCriteria, prop::Property, mp)
+    restrict_to_initial(prop) || return base
     init = initial_states(mp)
     return init isa AllStates ? base : InitialStateCriteria(base, init)
 end
@@ -44,5 +44,7 @@ end
 # Default model checking algorithm termination: residual/iteration-based value
 # iteration. `GeneralizedSamplingbasedRobustDynamicProgramming` overrides this
 # with a gap-based base criterion (see `gsrdp.jl`).
-termination_criteria(::ModelCheckingAlgorithm, spec::Specification, mp) =
-    apply_initial_restriction(base_termination_criteria(system_property(spec)), spec, mp)
+function termination_criteria(::ModelCheckingAlgorithm, spec::Specification, mp)
+    prop = system_property(spec)
+    return apply_initial_restriction(base_termination_criteria(prop), prop, mp)
+end

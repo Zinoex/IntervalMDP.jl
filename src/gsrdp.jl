@@ -82,7 +82,7 @@ function termination_criteria(
     end
     return apply_initial_restriction(
         GapTerminationCriteria(convergence_eps(prop)),
-        spec,
+        prop,
         mp,
     )
 end

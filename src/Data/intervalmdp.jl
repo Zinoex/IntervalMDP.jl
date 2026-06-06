@@ -109,14 +109,7 @@ function read_intervalmdp_jl_spec(spec_path)
         )
     end
 
-    restrict_to_initial = get(data, "restrict_to_initial", false)
-
-    return Specification(
-        prop,
-        satisfaction_mode,
-        strategy_mode;
-        restrict_to_initial = restrict_to_initial,
-    )
+    return Specification(prop, satisfaction_mode, strategy_mode)
 end
 
 function read_intervalmdp_jl_property(prop_dict)
@@ -141,7 +134,11 @@ function read_intervalmdp_jl_reachability_property(prop_dict)
     reach = vector2tuple.(prop_dict["reach"])
 
     if prop_dict["infinite_time"]
-        return InfiniteTimeReachability(reach, prop_dict["eps"])
+        return InfiniteTimeReachability(
+            reach,
+            prop_dict["eps"];
+            restrict_to_initial = get(prop_dict, "restrict_to_initial", false),
+        )
     else
         return FiniteTimeReachability(reach, prop_dict["time_horizon"])
     end
@@ -154,7 +151,12 @@ function read_intervalmdp_jl_reach_avoid_property(prop_dict)
     avoid = vector2tuple.(prop_dict["avoid"])
 
     if prop_dict["infinite_time"]
-        return InfiniteTimeReachAvoid(reach, avoid, prop_dict["eps"])
+        return InfiniteTimeReachAvoid(
+            reach,
+            avoid,
+            prop_dict["eps"];
+            restrict_to_initial = get(prop_dict, "restrict_to_initial", false),
+        )
     else
         return FiniteTimeReachAvoid(reach, avoid, prop_dict["time_horizon"])
     end
@@ -167,7 +169,12 @@ function read_intervalmdp_jl_reward_property(prop_dict)
     discount = prop_dict["discount"]
 
     if prop_dict["infinite_time"]
-        return InfiniteTimeReward(reward, discount, prop_dict["eps"])
+        return InfiniteTimeReward(
+            reward,
+            discount,
+            prop_dict["eps"];
+            restrict_to_initial = get(prop_dict, "restrict_to_initial", false),
+        )
     else
         return FiniteTimeReward(reward, discount, prop_dict["time_horizon"])
     end
@@ -304,7 +311,6 @@ function write_intervalmdp_jl_spec(spec_path, spec::Specification; indent = 4)
         "satisfaction_mode" =>
             intervalmdp_jl_satisfaction_mode(satisfaction_mode(spec)),
         "strategy_mode" => intervalmdp_jl_strategy_mode(strategy_mode(spec)),
-        "restrict_to_initial" => restrict_to_initial(spec),
     )
 
     return JSON.json(spec_path, data; pretty = indent)
@@ -328,6 +334,7 @@ function intervalmdp_jl_property_dict(prop::InfiniteTimeReachability)
         "reach" => cartesian2tuple.(reach(prop)),
         "eps" => convergence_eps(prop),
         "infinite_time" => true,
+        "restrict_to_initial" => restrict_to_initial(prop),
     )
 end
 
@@ -348,6 +355,7 @@ function intervalmdp_jl_property_dict(prop::InfiniteTimeReachAvoid)
         "avoid" => cartesian2tuple.(avoid(prop)),
         "eps" => convergence_eps(prop),
         "infinite_time" => true,
+        "restrict_to_initial" => restrict_to_initial(prop),
     )
 end
 
@@ -368,6 +376,7 @@ function intervalmdp_jl_property_dict(prop::InfiniteTimeReward)
         "discount" => discount(prop),
         "eps" => convergence_eps(prop),
         "infinite_time" => true,
+        "restrict_to_initial" => restrict_to_initial(prop),
     )
 end
 
