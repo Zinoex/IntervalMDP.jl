@@ -287,9 +287,10 @@ function _write_intervalmdp_jl_model(
         )
         v[:] = l.nzval + g.nzval
 
-        defDim(dataset, "stateptr", source_shape(marginal)[1] + 1)
+        num_source_states = source_shape(marginal)[1]
+        defDim(dataset, "stateptr", num_source_states + 1)
         v = defVar(dataset, "stateptr", Int32, ("stateptr",))
-        v[:] = [[Int32(1)]; (1:num_states(mdp)) .* Int32(num_actions(mdp)) .+ 1]
+        v[:] = [[Int32(1)]; (1:num_source_states) .* Int32(num_actions(mdp)) .+ 1]
 
         return nothing
     end
