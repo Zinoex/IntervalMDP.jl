@@ -20,11 +20,12 @@ GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
 
 [extensions]
-IntervalMDPCudaExt = ["Adapt", "CUDA", "GPUArrays", "LLVM"]
+IntervalMDPCudaExt = ["Adapt", "CUDA", "cuSPARSE", "GPUArrays", "LLVM"]
 
 [compat]
 Adapt = "4"
-CUDA = "5.9.6, 6.0"
+CUDA = "6.0"
+cuSPARSE = "6.0"
 CommonSolve = "0.2.4"
 GPUArrays = "11.4"
 HiGHS = "1.19.0"
