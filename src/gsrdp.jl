@@ -196,7 +196,7 @@ function _gsrdp!(
     postprocess_value_function!(value_function.lower, prop)
     postprocess_value_function!(value_function.upper, prop)
 
-    return _solution_value(value_function, spec), k, gap(value_function), strategy_cache
+    return value_function.lower.current, k, gap(value_function), strategy_cache
 end
 
 _bellman_update_count(update_sequence, mp) =
@@ -249,12 +249,8 @@ function bellman_update!(
     state_seq = project_to_state_sequence(update_sequence)
     model = select_model(mp, k)
 
-    # Primary drives action selection; secondary follows.
-    primary, secondary = if ispessimistic(spec)
-        value_function.lower, value_function.upper
-    else
-        value_function.upper, value_function.lower
-    end
+    #TODO: Primary drives action selection; secondary follows.
+    primary, secondary = value_function.lower, value_function.upper
 
     primary_sc = select_strategy_cache(strategy_cache, k)
     bellman_v!(
