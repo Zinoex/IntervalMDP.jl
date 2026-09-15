@@ -266,6 +266,120 @@ end
     end
 end
 
+@testitem "_omax_distribution realizes the O-max greedy fill" tags =
+    [:base, :gsrdp_omax_distribution] begin
+    using IntervalMDP
+
+    prob = IntervalAmbiguitySets(;
+        lower = [0.0 0.5 0.0; 0.1 0.3 0.0; 0.2 0.1 1.0],
+        upper = [0.5 0.7 0.0; 0.6 0.5 0.0; 0.7 0.3 1.0],
+    )
+    mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
+    marginal = IntervalMDP.marginals(mdp)[1]
+    aset = marginal[CartesianIndex(1), CartesianIndex(1)]  # lower=[0,.1,.2], gap=[.5,.5,.5]
+    V = [1.0, 2.0, 3.0]
+
+    # Descending fill (upper_bound=true): target 3 (highest V) filled to its
+    # upper bound (0.7) first, remaining budget (0.2) goes to target 2.
+    p_upper = IntervalMDP._omax_distribution(aset, V, true)
+    @test p_upper ≈ [0.0, 0.3, 0.7]
+    @test sum(p_upper) ≈ 1.0
+
+    # Ascending fill (upper_bound=false): target 1 (lowest V) filled first.
+    p_lower = IntervalMDP._omax_distribution(aset, V, false)
+    @test p_lower ≈ [0.5, 0.3, 0.2]
+    @test sum(p_lower) ≈ 1.0
+
+    struct FakeFactoredModel end
+    IntervalMDP.marginals(::FakeFactoredModel) = (1, 2)
+    @test_throws ArgumentError IntervalMDP._omax_marginal(FakeFactoredModel())
+end
+
+@testitem "TrajectorySamplingStrategy shared rollout skeleton" tags =
+    [:base, :gsrdp_trajectory_sampling] begin
+    using IntervalMDP
+
+    # Every state's transition is a Dirac point mass on state 3, regardless
+    # of source state or action — makes the rollout fully deterministic
+    # (no flakiness from the random initial state / O-max tie-breaking)
+    # while still exercising the real O-max/categorical-sampling machinery.
+    prob = IntervalAmbiguitySets(;
+        lower = [0.0 0.0 0.0; 0.0 0.0 0.0; 1.0 1.0 1.0],
+        upper = [0.0 0.0 0.0; 0.0 0.0 0.0; 1.0 1.0 1.0],
+    )
+    mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
+
+    struct MockTrajectoryStrategy <: IntervalMDP.TrajectorySamplingStrategy
+        n::Int
+        terminate::Bool
+        rev::Bool
+    end
+    IntervalMDP.num_trajectories(ss::MockTrajectoryStrategy) = ss.n
+    IntervalMDP.terminate_sampling(ss::MockTrajectoryStrategy, current, trajectory, value_function, model, spec) =
+        ss.terminate
+    IntervalMDP.action_selection(ss::MockTrajectoryStrategy, current, value_function, model, spec) =
+        first(IntervalMDP.available(model, current))
+    IntervalMDP.target_state_sampling(
+        ss::MockTrajectoryStrategy,
+        current,
+        a,
+        probs,
+        value_function,
+        model,
+        spec,
+    ) = IntervalMDP._categorical_sample(probs)
+    IntervalMDP.reverse_trajectory(ss::MockTrajectoryStrategy) = ss.rev
+
+    function build_value_function(mdp, prop)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = VerificationProblem(mdp, spec)
+        alg = GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp))
+        V = IntervalMDP.construct_value_function(alg, problem)
+        IntervalMDP._gsrdp_initialize!(V, prop)
+        return V, spec
+    end
+
+    @testset "stops at a reach state, default (reversed) order" begin
+        prop = InfiniteTimeReachability([3], 1 // 1000)
+        V, spec = build_value_function(mdp, prop)
+        strat = MockTrajectoryStrategy(1, false, true)
+        seq = IntervalMDP.sample(strat, mdp, nothing, V, spec)
+
+        @test IntervalMDP.sequence_shape(seq) === IntervalMDP.StateUpdateSequence()
+        states = collect(seq)
+        @test all(s -> s in CartesianIndices(IntervalMDP.source_shape(mdp)), states)
+        @test 1 <= length(states) <= 2
+        @test first(states) == CartesianIndex(3)   # reversed: reach state first
+    end
+
+    @testset "forward (non-reversed) order" begin
+        prop = InfiniteTimeReachability([3], 1 // 1000)
+        V, spec = build_value_function(mdp, prop)
+        strat = MockTrajectoryStrategy(1, false, false)
+        states = collect(IntervalMDP.sample(strat, mdp, nothing, V, spec))
+        @test last(states) == CartesianIndex(3)
+    end
+
+    @testset "num_trajectories concatenates independent rollouts" begin
+        prop = InfiniteTimeReachability([3], 1 // 1000)
+        V, spec = build_value_function(mdp, prop)
+        strat = MockTrajectoryStrategy(3, false, true)
+        states = collect(IntervalMDP.sample(strat, mdp, nothing, V, spec))
+        @test 3 <= length(states) <= 6
+        # Every trajectory visits state 3 exactly once (either as the sole
+        # initial state, or as the one step taken to reach it).
+        @test count(==(CartesianIndex(3)), states) == 3
+    end
+
+    @testset "hard step cap bounds a non-terminating strategy" begin
+        prop = InfiniteTimeReachAvoid(Int[], Int[], 1 // 1000)  # no reach/avoid states
+        V, spec = build_value_function(mdp, prop)
+        strat = MockTrajectoryStrategy(1, false, true)  # terminate_sampling always false
+        states = collect(IntervalMDP.sample(strat, mdp, nothing, V, spec))
+        @test length(states) == 1 + IntervalMDP._trajectory_max_steps(mdp)
+    end
+end
+
 @testitem "Round-robin state sampling cycles deterministically" tags =
     [:base, :gsrdp_round_robin_state_sampling] begin
     using IntervalMDP

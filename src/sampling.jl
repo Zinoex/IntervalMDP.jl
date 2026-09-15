@@ -676,17 +676,23 @@ end
 
 Abstract supertype for trajectory-based sampling strategies: instead of
 sampling states independently, these simulate one or more trajectories
-through the model (e.g. following the current greedy policy, optionally with
-exploration) and relax the states visited along the way. No concrete
-strategy is implemented yet — this is a placeholder extension point for:
+through the model — starting from an initial state, repeatedly picking an
+action, realizing a concrete transition distribution via O-maximization
+against the upper value function, and sampling a next state from it — and
+relax the states visited along the way. A trajectory stops when it reaches a
+reach or avoid state, or when the strategy's own [`terminate_sampling`](@ref)
+says so (subject to a hard step cap regardless — see [`_trajectory_rollout`]).
 
-  * epsilon-greedy simulation of the current policy trajectory
-  * BRTDP-style gap-based trajectory simulation
+Concrete subtypes implement four functions — [`num_trajectories`](@ref),
+[`terminate_sampling`](@ref), [`action_selection`](@ref),
+[`target_state_sampling`](@ref) — and get the rollout, the O-max realization,
+initial-state selection, and reach/avoid checking for free (candidates for
+those four: epsilon-greedy simulation of the current policy trajectory;
+BRTDP-style gap-based trajectory simulation — no concrete strategy is
+implemented yet, only this shared skeleton).
 
-Concrete subtypes will need the current value function and `Specification`
-(reach/avoid states, `convergence_eps`, `ispessimistic`/`ismaximize`) to
-decide how a trajectory unrolls, so they implement
-`sample(strategy, model, strategy_cache, value_function, spec)`.
+Only flat (non-factored) models are supported — the O-max realization
+(`_omax_marginal`) requires a single `Marginal`.
 """
 abstract type TrajectorySamplingStrategy <: SamplingStrategy end
 
@@ -694,6 +700,208 @@ sampling_context_requirement(::TrajectorySamplingStrategy) = NeedsValueFunctionA
 
 sample(ss::TrajectorySamplingStrategy, model, strategy_cache, value_function) =
     sample(ss, model, strategy_cache, value_function, nothing)
+
+###################################
+# 4a. Concrete O-max realization   #
+###################################
+# `state_action_bellman`/`gap_value` (bellman/kernels.jl) already implement
+# O-maximization's sort-and-greedily-fill algorithm, but only accumulate the
+# scalar expectation `dot(V, p)` — the per-target realized probability `p[i]`
+# is computed inline and discarded. Reusing those means depending on
+# workspace-internal precomputed state (`permutation`, `budget`) sized for a
+# full per-iteration sweep. A trajectory step runs O(1) times per GSRDP
+# iteration (not the hot sweep loop), so it's simpler and safer to
+# self-contain the same algorithm here instead, off the public
+# `IntervalAmbiguitySet` accessors (`lower`, `gap`, `support`).
+
+function _omax_marginal(model)
+    ms = marginals(model)
+    length(ms) == 1 || throw(
+        ArgumentError(
+            "trajectory sampling only supports flat (non-factored) models; got $(length(ms)) marginals",
+        ),
+    )
+    return ms[1]
+end
+
+_omax_value_order(ambiguity_set, V, upper_bound::Bool) =
+    sort(collect(support(ambiguity_set)); by = i -> @inbounds(V[i]), rev = upper_bound)
+
+# Shared greedy fill: walk `order`, adding min(budget, gap[i]) to target i
+# until budget is exhausted. `f(i, Δ)` is called for each nonzero fill.
+function _omax_fill(f, ambiguity_set, order, budget)
+    for i in order
+        Δ = min(budget, gap(ambiguity_set, i))
+        Δ > zero(Δ) && f(i, Δ)
+        budget -= Δ
+        budget <= zero(budget) && break
+    end
+end
+
+"""
+    _omax_distribution(ambiguity_set, V, upper_bound) -> Vector
+
+The concrete transition distribution O-maximization realizes for one
+`(state, action)`'s `ambiguity_set` against value vector `V` — every target
+starts at its lower bound, then targets are filled greedily in `V`-sorted
+order (descending / optimistic if `upper_bound`, ascending otherwise) up to
+their upper bound until the probability budget `1 - sum(lower)` is
+exhausted. Always a full dense `Vector` over every target state, even for a
+sparse ambiguity set.
+"""
+function _omax_distribution(ambiguity_set, V, upper_bound::Bool)
+    p = Vector(lower(ambiguity_set))
+    order = _omax_value_order(ambiguity_set, V, upper_bound)
+    budget = one(eltype(p)) - sum(p)
+    _omax_fill(ambiguity_set, order, budget) do i, Δ
+        p[i] += Δ
+    end
+    return p
+end
+
+###################################
+# 4b. Reach/avoid, initial state   #
+###################################
+# `reach`/`avoid` (specification.jl) are only defined for
+# AbstractReachability/AbstractReachAvoid/AbstractSafety — not every
+# `Property`. These fall back to "no reach/avoid states" for anything else,
+# so trajectory sampling still runs (just never stops via goal/obstacle).
+
+_trajectory_reach_states(prop) = CartesianIndex[]
+_trajectory_reach_states(prop::AbstractReachability) = reach(prop)   # AbstractReachAvoid IS-A AbstractReachability
+
+_trajectory_avoid_states(prop) = CartesianIndex[]
+_trajectory_avoid_states(prop::AbstractReachAvoid) = avoid(prop)
+_trajectory_avoid_states(prop::AbstractSafety) = avoid(prop)
+
+# `initial_states(mp)` elements aren't normalized to `CartesianIndex` at
+# model-construction time (could be `Int`, `Tuple`, or `CartesianIndex`).
+_to_state_index(s::CartesianIndex) = s
+_to_state_index(s::Integer) = CartesianIndex(s)
+_to_state_index(s::Tuple) = CartesianIndex(s)
+
+# `AllStates()` (no restriction declared) samples uniformly over every
+# state; a concrete initial-states vector samples uniformly among them.
+function _trajectory_initial_state(model)
+    init = initial_states(model)
+    return init isa AllStates ? rand(CartesianIndices(source_shape(model))) :
+           _to_state_index(rand(init))
+end
+
+###################################
+# 4c. The four-function contract   #
+###################################
+
+"""
+    num_trajectories(strategy::TrajectorySamplingStrategy) -> Int
+
+Number of independent trajectories `sample` rolls out and concatenates per
+call. Must be implemented by every concrete subtype.
+"""
+function num_trajectories end
+
+"""
+    terminate_sampling(strategy, current_state, trajectory, value_function, model, spec) -> Bool
+
+Strategy-specific extra stopping condition (e.g. a max length, an
+uncertainty/gap threshold) — `trajectory` is the sequence of states visited
+so far (including `current_state`, its last entry). The shared rollout ALSO
+always stops when `current_state` is a reach or avoid state (checked
+independently, before this is called) and enforces its own hard step cap
+regardless of what this returns. Must be implemented by every concrete
+subtype.
+"""
+function terminate_sampling end
+
+"""
+    action_selection(strategy, current_state, value_function, model, spec) -> action::CartesianIndex
+
+Choose the action to take from `current_state`. `_omax_marginal(model)[a,
+current_state]` gives the `(current_state, a)` ambiguity set, and
+`_omax_value_order` the O-max value ordering, for strategies that want an
+O-max Q-value per available action (`available(model, current_state)`).
+Must be implemented by every concrete subtype.
+"""
+function action_selection end
+
+"""
+    target_state_sampling(strategy, current_state, action, probabilities, value_function, model, spec) -> next_state::CartesianIndex
+
+Choose the next state given the concrete O-max transition distribution
+`probabilities` (a dense `Vector` over every state, from [`_omax_distribution`](@ref))
+computed for `(current_state, action)` against the upper value function.
+[`_categorical_sample`](@ref) samples directly from a probability vector,
+for strategies that just want that. Must be implemented by every concrete
+subtype.
+"""
+function target_state_sampling end
+
+"""
+    reverse_trajectory(strategy::TrajectorySamplingStrategy) -> Bool
+
+Whether `sample` reverses each rollout before returning it — goal-first
+ordering (the default, `true`) means a Gauss-Seidel-style sweep propagates
+the newly-touched goal/obstacle-adjacent values backward through the rest of
+the trajectory in the same iteration. Override per strategy for
+forward/chronological order instead.
+"""
+reverse_trajectory(::TrajectorySamplingStrategy) = true
+
+# Hard safety cap, independent of `terminate_sampling` — guarantees a single
+# `sample` call can't hang GSRDP if a strategy's own termination logic never
+# fires (e.g. an absorbing-free transient region).
+_trajectory_max_steps(model) = 10 * num_states(model)
+
+function _trajectory_rollout(ss::TrajectorySamplingStrategy, model, value_function, spec)
+    prop = system_property(spec)
+    reach_set = Set(_trajectory_reach_states(prop))
+    avoid_set = Set(_trajectory_avoid_states(prop))
+    V_upper = value_function.upper.current
+    max_steps = _trajectory_max_steps(model)
+
+    current = _trajectory_initial_state(model)
+    trajectory = [current]
+    steps = 0
+    while !(current in reach_set) &&
+              !(current in avoid_set) &&
+              !terminate_sampling(ss, current, trajectory, value_function, model, spec) &&
+              steps < max_steps
+        a = action_selection(ss, current, value_function, model, spec)
+        ambiguity_set = _omax_marginal(model)[a, current]
+        probs = _omax_distribution(ambiguity_set, V_upper, true)
+        current = target_state_sampling(ss, current, a, probs, value_function, model, spec)
+        push!(trajectory, current)
+        steps += 1
+    end
+
+    return reverse_trajectory(ss) ? reverse(trajectory) : trajectory
+end
+
+function sample(ss::TrajectorySamplingStrategy, model, strategy_cache, value_function, spec)
+    states = reduce(
+        vcat,
+        (_trajectory_rollout(ss, model, value_function, spec) for _ in 1:num_trajectories(ss)),
+    )
+    return StateIterator(states)
+end
+
+"""
+    _categorical_sample(probs::AbstractVector) -> CartesianIndex
+
+Sample a linear target index from probability vector `probs` (not required
+to be normalized — sampled against `sum(probs)`), via cumulative-sum search.
+Available for [`target_state_sampling`](@ref) implementations that just want
+to sample directly from the O-max distribution.
+"""
+function _categorical_sample(probs::AbstractVector)
+    u = rand() * sum(probs)
+    acc = zero(eltype(probs))
+    for i in eachindex(probs)
+        acc += probs[i]
+        acc >= u && return CartesianIndex(i)
+    end
+    return CartesianIndex(lastindex(probs))   # floating-point fallback
+end
 
 ###################################
 # 5. Priority-queue sampling       #
