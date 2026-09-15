@@ -97,15 +97,26 @@ function solve(
 end
 
 # Sampling dispatcher for GSRDP.
-# Prefer samplers that accept a `value_function` argument (4-arg `sample`).
-# Fall back to older 3-arg or 2-arg `sample` signatures for backwards compatibility.
-function _gsrdp_sample(ss::ValueBasedSamplingStrategy, mp, strategy_cache, value_function)
-    return sample(ss, mp, strategy_cache, value_function)
+# Dispatches on `sampling_context_requirement(ss)` (a trait, since the
+# sampling-strategy category hierarchy is flat — see `sampling.jl`) to call
+# either the richest `sample(ss, mp, strategy_cache, value_function, spec)`
+# signature, or the plain `sample(ss, mp, strategy_cache)`.
+function _gsrdp_sample(ss::SamplingStrategy, mp, strategy_cache, value_function, spec)
+    return _gsrdp_sample(
+        sampling_context_requirement(ss),
+        ss,
+        mp,
+        strategy_cache,
+        value_function,
+        spec,
+    )
 end
 
-function _gsrdp_sample(ss::SamplingStrategy, mp, strategy_cache, value_function)
-    return sample(ss, mp, strategy_cache)
-end
+_gsrdp_sample(::NeedsModelOnly, ss, mp, strategy_cache, value_function, spec) =
+    sample(ss, mp, strategy_cache)
+
+_gsrdp_sample(::NeedsValueFunctionAndSpec, ss, mp, strategy_cache, value_function, spec) =
+    sample(ss, mp, strategy_cache, value_function, spec)
 
 function solve(
     problem::ControlSynthesisProblem,
@@ -131,6 +142,7 @@ function _gsrdp!(
     strategy_cache = _gsrdp_strategy_cache(problem)
     term_criteria = termination_criteria(alg, spec, mp)
     sampling_strat = sampling_strategy(alg)
+    reset_sampling_strategy!(sampling_strat)
 
     value_function = construct_value_function(alg, problem)
     _gsrdp_initialize!(value_function, prop)
@@ -147,6 +159,7 @@ function _gsrdp!(
         mp,
         select_strategy_cache(strategy_cache, 0),
         value_function,
+        spec,
     )
     bellman_updates += _bellman_update_count(update_sequence, mp)
     bellman_update!(
@@ -173,6 +186,7 @@ function _gsrdp!(
             mp,
             select_strategy_cache(strategy_cache, k),
             value_function,
+            spec,
         )
         bellman_updates += _bellman_update_count(update_sequence, mp)
         bellman_update!(
@@ -250,7 +264,8 @@ function bellman_update!(
     model = select_model(mp, k)
 
     #TODO: Primary drives action selection; secondary follows.
-    primary, secondary = value_function.lower, value_function.upper
+    # Upper bound drives optimistic action selection, lower bound follows. 
+    primary, secondary = value_function.upper, value_function.lower
 
     primary_sc = select_strategy_cache(strategy_cache, k)
     bellman_v!(

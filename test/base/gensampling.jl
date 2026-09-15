@@ -265,3 +265,199 @@ end
         @test_throws ErrorException IntervalMDP.sample(sampler, mdp, nothing)
     end
 end
+
+@testitem "Round-robin state sampling cycles deterministically" tags =
+    [:base, :gsrdp_round_robin_state_sampling] begin
+    using IntervalMDP
+
+    prob = IntervalAmbiguitySets(;
+        lower = [0.0 0.5 0.0; 0.1 0.3 0.0; 0.2 0.1 1.0],
+        upper = [0.5 0.7 0.0; 0.6 0.5 0.0; 0.7 0.3 1.0],
+    )
+    mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
+    S = CartesianIndices(IntervalMDP.source_shape(mdp))
+
+    rr = IntervalMDP.RoundRobinState(2)
+    seq1 = IntervalMDP.sample(rr, mdp)
+    @test IntervalMDP.sequence_shape(seq1) === IntervalMDP.StateUpdateSequence()
+    @test collect(seq1) == [S[1], S[2]]
+
+    seq2 = IntervalMDP.sample(rr, mdp)
+    @test collect(seq2) == [S[3], S[1]]
+
+    seq3 = IntervalMDP.sample(rr, mdp)
+    @test collect(seq3) == [S[2], S[3]]
+
+    # After 3 calls (6 = 2*3 total advance), the cursor is back at the start.
+    seq4 = IntervalMDP.sample(rr, mdp)
+    @test collect(seq4) == collect(seq1)
+
+    IntervalMDP.reset_sampling_strategy!(rr)
+    @test collect(IntervalMDP.sample(rr, mdp)) == collect(seq1)
+end
+
+@testitem "Round-robin state-action sampling cycles deterministically" tags =
+    [:base, :gsrdp_round_robin_state_action_sampling] begin
+    using IntervalMDP
+
+    prob = IntervalAmbiguitySets(;
+        lower = [0.0 0.5 0.0; 0.1 0.3 0.0; 0.2 0.1 1.0],
+        upper = [0.5 0.7 0.0; 0.6 0.5 0.0; 0.7 0.3 1.0],
+    )
+    mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
+    A = CartesianIndices(IntervalMDP.action_shape(mdp))
+    S = CartesianIndices(IntervalMDP.source_shape(mdp))
+    total = length(A) * length(S)
+
+    rr = IntervalMDP.RoundRobinStateActions(2)
+    seq1 = IntervalMDP.sample(rr, mdp)
+    @test IntervalMDP.sequence_shape(seq1) === IntervalMDP.StateActionUpdateSequence()
+    @test length(seq1) == 2
+    @test all(p -> p[1] in A && p[2] in S, seq1)
+
+    seen = Set{Tuple{eltype(A), eltype(S)}}()
+    union!(seen, seq1)
+    for _ in 1:cld(total, 2)
+        union!(seen, IntervalMDP.sample(rr, mdp))
+    end
+    @test length(seen) == total
+
+    IntervalMDP.reset_sampling_strategy!(rr)
+    @test collect(IntervalMDP.sample(rr, mdp)) == collect(seq1)
+end
+
+@testitem "IMDP verification parity (Pessimistic, Maximize) with round-robin sampling" tags =
+    [:base, :gsrdp_round_robin_parity] begin
+    using IntervalMDP
+    @testset "IMDP verification parity (Pessimistic, Maximize) with round-robin sampling" for N in
+                                                                                               [
+        Float32,
+        Float64,
+    ]
+        prob = IntervalAmbiguitySets(;
+            lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
+            upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
+        )
+        prob2 = IntervalAmbiguitySets(;
+            lower = N[1 // 10 1 // 5 0; 1 // 5 1 // 5 0; 3 // 10 2 // 5 1],
+            upper = N[1 // 2 1 // 2 0; 1 // 2 2 // 5 0; 2 // 5 2 // 5 1],
+        )
+        mdp = IntervalMarkovDecisionProcess([prob, prob2, prob2], [1])
+        rvi = RobustValueIteration(default_bellman_algorithm(mdp))
+        gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(mdp);
+            sampling_strategy = IntervalMDP.RoundRobinState(1),
+        )
+        eps = N(1 // 1000000)
+        prop = InfiniteTimeReachability([3], eps)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = VerificationProblem(mdp, spec)
+        (V_rvi, _, _) = solve(problem, rvi)
+        (V_gsdp, _, _) = solve(problem, gsdp)
+        @test maximum(abs, V_rvi .- V_gsdp) <= 2 * eps
+    end
+end
+
+@testitem "RandomlyThinned filters a base strategy's update sequence" tags =
+    [:base, :gsrdp_randomly_thinned] begin
+    using IntervalMDP
+
+    @test_throws ArgumentError IntervalMDP.RandomlyThinned(IntervalMDP.AllStatesSweep(), 1.5)
+    @test_throws ArgumentError IntervalMDP.RandomlyThinned(IntervalMDP.AllStatesSweep(), -0.1)
+
+    prob = IntervalAmbiguitySets(;
+        lower = [0.0 0.5 0.0; 0.1 0.3 0.0; 0.2 0.1 1.0],
+        upper = [0.5 0.7 0.0; 0.6 0.5 0.0; 0.7 0.3 1.0],
+    )
+    mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
+    prop = InfiniteTimeReachability([3], 1 // 1000)
+    spec = Specification(prop, Pessimistic, Maximize)
+    problem = VerificationProblem(mdp, spec)
+    cache = IntervalMDP.select_strategy_cache(IntervalMDP._gsrdp_strategy_cache(problem), 0)
+
+    @testset "keep_prob = 1 keeps every state" begin
+        thinned = IntervalMDP.RandomlyThinned(IntervalMDP.AllStatesSweep(), 1.0)
+        seq = IntervalMDP.sample(thinned, mdp, cache, nothing, nothing)
+        @test IntervalMDP.sequence_shape(seq) === IntervalMDP.StateUpdateSequence()
+        @test length(seq) == num_states(mdp)
+    end
+
+    @testset "keep_prob thins the sequence" begin
+        thinned = IntervalMDP.RandomlyThinned(IntervalMDP.AllStatesSweep(), 0.5)
+        seq = IntervalMDP.sample(thinned, mdp, cache, nothing, nothing)
+        @test 0 <= length(seq) <= num_states(mdp)
+        @test all(s -> s in CartesianIndices(IntervalMDP.source_shape(mdp)), seq)
+    end
+
+    @testset "reset propagates to the wrapped strategy" begin
+        rr = IntervalMDP.RoundRobinState(2)
+        thinned = IntervalMDP.RandomlyThinned(rr, 1.0)
+        rr.cursor[] = 7
+        IntervalMDP.reset_sampling_strategy!(thinned)
+        @test rr.cursor[] == 0
+    end
+end
+
+@testitem "EpsilonGreedyMixture chooses exploit/explore deterministically at epsilon 0/1" tags =
+    [:base, :gsrdp_epsilon_greedy_mixture] begin
+    using IntervalMDP
+
+    @test_throws ArgumentError IntervalMDP.EpsilonGreedyMixture(
+        IntervalMDP.AllStatesSweep(),
+        IntervalMDP.RandomSubsetState(1),
+        1.5,
+    )
+
+    prob = IntervalAmbiguitySets(;
+        lower = [0.0 0.5 0.0; 0.1 0.3 0.0; 0.2 0.1 1.0],
+        upper = [0.5 0.7 0.0; 0.6 0.5 0.0; 0.7 0.3 1.0],
+    )
+    mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
+    prop = InfiniteTimeReachability([3], 1 // 1000)
+    spec = Specification(prop, Pessimistic, Maximize)
+    problem = VerificationProblem(mdp, spec)
+
+    expected_exploit = num_states(mdp) * (num_actions(mdp) + 1)
+    expected_explore = 1 * (num_actions(mdp) + 1)
+
+    @testset "epsilon = 0 always exploits" begin
+        mix = IntervalMDP.EpsilonGreedyMixture(
+            IntervalMDP.AllStatesSweep(),
+            IntervalMDP.RandomSubsetState(1),
+            0.0,
+        )
+        gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(mdp);
+            sampling_strategy = mix,
+        )
+        counts = Int[]
+        solve(problem, gsdp; callback = (V, n) -> push!(counts, n))
+        @test all(diff(counts) .== expected_exploit)
+    end
+
+    @testset "epsilon = 1 always explores" begin
+        mix = IntervalMDP.EpsilonGreedyMixture(
+            IntervalMDP.AllStatesSweep(),
+            IntervalMDP.RandomSubsetState(1),
+            1.0,
+        )
+        gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(mdp);
+            sampling_strategy = mix,
+        )
+        counts = Int[]
+        solve(problem, gsdp; callback = (V, n) -> push!(counts, n))
+        @test all(diff(counts) .== expected_explore)
+    end
+
+    @testset "reset propagates to both sub-strategies" begin
+        rr1 = IntervalMDP.RoundRobinState(1)
+        rr2 = IntervalMDP.RoundRobinState(1)
+        rr1.cursor[] = 2
+        rr2.cursor[] = 1
+        mix = IntervalMDP.EpsilonGreedyMixture(rr1, rr2, 0.5)
+        IntervalMDP.reset_sampling_strategy!(mix)
+        @test rr1.cursor[] == 0
+        @test rr2.cursor[] == 0
+    end
+end

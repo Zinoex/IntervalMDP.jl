@@ -294,12 +294,71 @@ sampling-based algorithm such as
 
 Concrete strategies implement `sample(strategy, model)` (and, optionally,
 `sample(strategy, model, strategy_cache)`), returning an iterator over the
-update sequence for the current iteration. Strategies whose sampling depends on
-the current value function should subtype [`ValueBasedSamplingStrategy`](@ref).
+update sequence for the current iteration. Every concrete strategy falls into
+one of seven categories, each a direct subtype of `SamplingStrategy`:
+[`AllSamplingStrategy`](@ref), [`RandomSamplingStrategy`](@ref),
+[`RoundRobinSamplingStrategy`](@ref), [`TrajectorySamplingStrategy`](@ref),
+[`PriorityQueueSamplingStrategy`](@ref), [`GivenSequence`](@ref) (a single
+concrete type, no category needed), and [`CompositeSamplingStrategy`](@ref)
+(strategies that wrap other strategies).
 """
 abstract type SamplingStrategy end
 
 function sample(::SamplingStrategy, model) end
+
+###################################
+# Context-requirement trait        #
+###################################
+# `_gsrdp_sample` (`gsrdp.jl`) prefers the richest `sample` signature a
+# strategy supports: `sample(strategy, model, strategy_cache, value_function,
+# spec)` over the plain `sample(strategy, model[, strategy_cache])`. Because
+# the category hierarchy above is flat (every category is a direct subtype of
+# `SamplingStrategy`, not nested under a "needs value function" supertype),
+# that preference can't be read off the type hierarchy the way
+# `sequence_shape` reads off the *iterator* hierarchy earlier in this file —
+# so it's a trait instead, following the same pattern.
+
+abstract type SamplingContextRequirement end
+
+"`sample(strategy, model)` / `sample(strategy, model, strategy_cache)`."
+struct NeedsModelOnly <: SamplingContextRequirement end
+
+"`sample(strategy, model, strategy_cache, value_function, spec)`."
+struct NeedsValueFunctionAndSpec <: SamplingContextRequirement end
+
+sampling_context_requirement(::SamplingStrategy) = NeedsModelOnly()
+
+###################################
+# Lifecycle: reset hook            #
+###################################
+# Strategies that carry mutable state across iterations (e.g. a round-robin
+# cursor) must reset it at the start of every `solve` — `_gsrdp!` calls
+# `reset_sampling_strategy!` once, before the first `sample` call, so the
+# same algorithm/strategy object can be reused safely across repeated
+# `solve` calls (e.g. a warm-up solve followed by many timed samples in a
+# benchmark harness, all reusing the same `alg`). Stateless strategies use
+# the no-op default below; composites propagate the reset to their children
+# via `sub_strategies`.
+
+sub_strategies(::SamplingStrategy) = ()
+
+function reset_sampling_strategy!(ss::SamplingStrategy)
+    foreach(reset_sampling_strategy!, sub_strategies(ss))
+    return nothing
+end
+
+###################################
+# 1. All-sampling                  #
+###################################
+
+"""
+    AllSamplingStrategy <: SamplingStrategy
+
+Abstract supertype for exhaustive sampling strategies that relax every state
+(or `(action, state)` pair) each iteration: [`AllSampling`](@ref) and
+[`AllStatesSweep`](@ref).
+"""
+abstract type AllSamplingStrategy <: SamplingStrategy end
 
 """
     AllSampling()
@@ -308,7 +367,7 @@ Exhaustive sampler: relaxes every `(action, state)` pair in the model on each
 iteration (a full Cartesian sweep). This is the standard behaviour for full
 robust value iteration.
 """
-struct AllSampling <: SamplingStrategy end
+struct AllSampling <: AllSamplingStrategy end
 
 default_sampling_strategy() = AllSampling()
 
@@ -385,7 +444,7 @@ the inner loop of `bellman_update!` then sweeps all available actions per
 visited state. This is the default sampling strategy for
 [`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref).
 """
-struct AllStatesSweep <: SamplingStrategy end
+struct AllStatesSweep <: AllSamplingStrategy end
 
 sample(::AllStatesSweep, model) = exhaustive_state_sweep(model)
 sample(::AllStatesSweep, model, ::AbstractStrategyCache) = exhaustive_state_sweep(model)
@@ -396,6 +455,18 @@ exhaustive_state_sweep(model::FactoredRMDP) =
 exhaustive_state_sweep(model::IntervalAmbiguitySets) =
     StateIterator(CartesianIndices(source_shape(model)))
 
+###################################
+# 2. Random sampling               #
+###################################
+
+"""
+    RandomSamplingStrategy <: SamplingStrategy
+
+Abstract supertype for uniform-random sampling strategies:
+[`RandomSubsetState`](@ref) and [`RandomSubsetStateActions`](@ref).
+"""
+abstract type RandomSamplingStrategy <: SamplingStrategy end
+
 """
     RandomSubsetStateActions(k)
 
@@ -405,7 +476,7 @@ Random-subset sampler: yields `k` independent uniform samples of
 states get their value and strategy relaxed; unvisited states retain their
 previous value.
 """
-struct RandomSubsetStateActions <: SamplingStrategy
+struct RandomSubsetStateActions <: RandomSamplingStrategy
     k::Int
 end
 
@@ -417,7 +488,7 @@ iteration (bare states, so all available actions are swept per visited state).
 Like [`RandomSubsetStateActions`](@ref), only visited states are relaxed each
 iteration; unvisited states retain their previous value.
 """
-struct RandomSubsetState <: SamplingStrategy
+struct RandomSubsetState <: RandomSamplingStrategy
     k::Int
 end
 
@@ -475,6 +546,254 @@ function random_subset_state_sample(k::Int, model)
     return RandomSubsetStateIterator(states)
 end
 
+###################################
+# 3. Round-robin sampling          #
+###################################
+
+"""
+    RoundRobinSamplingStrategy <: SamplingStrategy
+
+Abstract supertype for round-robin sampling strategies: each iteration
+advances a persistent cursor through a fixed enumeration of states (or
+`(action, state)` pairs) by `k` entries, wrapping around once the cursor
+reaches the end. Every state (or pair) is visited on a regular cycle, rather
+than probabilistically as in [`RandomSamplingStrategy`](@ref).
+
+Concrete round-robin strategies carry mutable cursor state that persists
+across `sample` calls on the same instance — safe because
+[`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref) reuses the same
+strategy object across the iterations of a single `solve`.
+`reset_sampling_strategy!` rewinds the cursor to the start; it is called
+automatically once at the start of every `solve`.
+"""
+abstract type RoundRobinSamplingStrategy <: SamplingStrategy end
+
+"""
+    RoundRobinState(k)
+
+Round-robin sampler: cycles through states in `CartesianIndices` order (the
+same order [`AllStatesSweep`](@ref) enumerates), yielding the next `k` states
+each iteration and wrapping around once every state has been visited. Yields
+bare states, so the inner loop of `bellman_update!` sweeps all available
+actions per visited state.
+"""
+struct RoundRobinState <: RoundRobinSamplingStrategy
+    k::Int
+    cursor::Base.RefValue{Int}
+
+    RoundRobinState(k::Int) = new(k, Ref(0))
+end
+
+"""
+    RoundRobinStateActions(k)
+
+Round-robin sampler: cycles through `(action, state)` pairs in the same
+linear order [`AllSampling`](@ref) enumerates, yielding the next `k` pairs
+each iteration and wrapping around once every pair has been visited.
+"""
+struct RoundRobinStateActions <: RoundRobinSamplingStrategy
+    k::Int
+    cursor::Base.RefValue{Int}
+
+    RoundRobinStateActions(k::Int) = new(k, Ref(0))
+end
+
+reset_sampling_strategy!(ss::RoundRobinSamplingStrategy) = (ss.cursor[] = 0; nothing)
+
+# Next `k` linear indices into `1:n`, wrapping around; advances `cursor` by
+# `k` (mod `n`). `n == 0` yields an empty window rather than dividing by zero.
+function _round_robin_indices(k::Int, cursor::Base.RefValue{Int}, n::Int)
+    n == 0 && return Int[]
+    start = cursor[]
+    idxs = Vector{Int}(undef, k)
+    @inbounds for i in 1:k
+        idxs[i] = mod(start + i - 1, n) + 1
+    end
+    cursor[] = mod(start + k, n)
+    return idxs
+end
+
+struct RoundRobinStateIterator{NS} <: AbstractIterator
+    states::Vector{CartesianIndex{NS}}
+end
+
+Base.length(iter::RoundRobinStateIterator) = length(iter.states)
+Base.firstindex(iter::RoundRobinStateIterator) = firstindex(iter.states)
+Base.lastindex(iter::RoundRobinStateIterator) = lastindex(iter.states)
+Base.getindex(iter::RoundRobinStateIterator, i) = iter.states[i]
+Base.iterate(iter::RoundRobinStateIterator) = iterate(iter.states)
+Base.iterate(iter::RoundRobinStateIterator, state) = iterate(iter.states, state)
+
+sequence_shape(::RoundRobinStateIterator) = StateUpdateSequence()
+
+sample(ss::RoundRobinState, model) = round_robin_state_sample(ss, model)
+sample(ss::RoundRobinState, model, ::AbstractStrategyCache) = round_robin_state_sample(ss, model)
+
+round_robin_state_sample(ss::RoundRobinState, proc::ProductProcess) =
+    round_robin_state_sample(ss, markov_process(proc))
+
+function round_robin_state_sample(ss::RoundRobinState, model)
+    S = CartesianIndices(source_shape(model))
+    idxs = _round_robin_indices(ss.k, ss.cursor, length(S))
+    return RoundRobinStateIterator([S[i] for i in idxs])
+end
+
+struct RoundRobinStateActionIterator{NA, NS} <: AbstractIterator
+    pairs::Vector{Tuple{CartesianIndex{NA}, CartesianIndex{NS}}}
+end
+
+Base.length(iter::RoundRobinStateActionIterator) = length(iter.pairs)
+Base.firstindex(iter::RoundRobinStateActionIterator) = firstindex(iter.pairs)
+Base.lastindex(iter::RoundRobinStateActionIterator) = lastindex(iter.pairs)
+Base.getindex(iter::RoundRobinStateActionIterator, i) = iter.pairs[i]
+Base.iterate(iter::RoundRobinStateActionIterator) = iterate(iter.pairs)
+Base.iterate(iter::RoundRobinStateActionIterator, state) = iterate(iter.pairs, state)
+
+sample(ss::RoundRobinStateActions, model) = round_robin_state_action_sample(ss, model)
+sample(ss::RoundRobinStateActions, model, ::AbstractStrategyCache) =
+    round_robin_state_action_sample(ss, model)
+
+function round_robin_state_action_sample(ss::RoundRobinStateActions, model)
+    A = CartesianIndices(action_shape(model))
+    S = CartesianIndices(source_shape(model))
+    nA, nS = length(A), length(S)
+    idxs = _round_robin_indices(ss.k, ss.cursor, nA * nS)
+    pairs = Vector{Tuple{eltype(A), eltype(S)}}(undef, length(idxs))
+    @inbounds for (j, lin) in enumerate(idxs)
+        ia = ((lin - 1) % nA) + firstindex(A)
+        is = ((lin - 1) ÷ nA) + firstindex(S)
+        pairs[j] = (A[ia], S[is])
+    end
+    return RoundRobinStateActionIterator(pairs)
+end
+
+###################################
+# 4. Trajectory sampling           #
+###################################
+
+"""
+    TrajectorySamplingStrategy <: SamplingStrategy
+
+Abstract supertype for trajectory-based sampling strategies: instead of
+sampling states independently, these simulate one or more trajectories
+through the model (e.g. following the current greedy policy, optionally with
+exploration) and relax the states visited along the way. No concrete
+strategy is implemented yet — this is a placeholder extension point for:
+
+  * epsilon-greedy simulation of the current policy trajectory
+  * BRTDP-style gap-based trajectory simulation
+
+Concrete subtypes will need the current value function and `Specification`
+(reach/avoid states, `convergence_eps`, `ispessimistic`/`ismaximize`) to
+decide how a trajectory unrolls, so they implement
+`sample(strategy, model, strategy_cache, value_function, spec)`.
+"""
+abstract type TrajectorySamplingStrategy <: SamplingStrategy end
+
+sampling_context_requirement(::TrajectorySamplingStrategy) = NeedsValueFunctionAndSpec()
+
+sample(ss::TrajectorySamplingStrategy, model, strategy_cache, value_function) =
+    sample(ss, model, strategy_cache, value_function, nothing)
+
+###################################
+# 5. Priority-queue sampling       #
+###################################
+
+"""
+    PriorityQueueSamplingStrategy <: SamplingStrategy
+
+Abstract supertype for priority-based sampling strategies: states (or
+`(action, state)` pairs) are ranked by some value-function-derived priority
+(e.g. Bellman residual / gap) and the top-ranked entries are relaxed each
+iteration. [`ValueFunctionOrderedSampling`](@ref) is the first, simplest
+member — it recomputes and fully re-sorts the ranking from scratch every
+iteration; a genuine priority queue that incrementally updates priorities
+between iterations is a future addition to this category.
+
+Concrete subtypes need the current value function and `Specification`, so
+they implement `sample(strategy, model, strategy_cache, value_function,
+spec)`.
+"""
+abstract type PriorityQueueSamplingStrategy <: SamplingStrategy end
+
+sampling_context_requirement(::PriorityQueueSamplingStrategy) = NeedsValueFunctionAndSpec()
+
+sample(ss::PriorityQueueSamplingStrategy, model, strategy_cache, value_function) =
+    sample(ss, model, strategy_cache, value_function, nothing)
+
+"""
+    ValueFunctionOrderedSampling(operation, ascending, k)
+
+Value-function-ordered sampler: applies `operation` (e.g. `gap`) to the current
+`IntervalValueFunction`, sorts states by the resulting values, and yields the
+top `k` states. Yields bare states, so the inner loop of `bellman_update!`
+sweeps all available actions per visited state.
+
+# Fields
+- `operation::Function`: maps an `IntervalValueFunction` to a per-state array.
+- `ascending::Bool`: `true` for ascending (low-to-high), `false` for descending.
+- `k::Int`: number of top states to select.
+"""
+struct ValueFunctionOrderedSampling <: PriorityQueueSamplingStrategy
+    operation::Function  # e.g., gap; takes IntervalValueFunction, returns array
+    ascending::Bool      # true for ascending (low-to-high), false for descending
+    k::Int               # number of top states to select
+end
+
+struct ValueFunctionOrderedStateIterator{NS} <: AbstractIterator
+    states::Vector{CartesianIndex{NS}}
+end
+
+Base.length(iter::ValueFunctionOrderedStateIterator) = length(iter.states)
+Base.firstindex(iter::ValueFunctionOrderedStateIterator) = firstindex(iter.states)
+Base.lastindex(iter::ValueFunctionOrderedStateIterator) = lastindex(iter.states)
+Base.getindex(iter::ValueFunctionOrderedStateIterator, i) = iter.states[i]
+Base.iterate(iter::ValueFunctionOrderedStateIterator) = iterate(iter.states)
+Base.iterate(iter::ValueFunctionOrderedStateIterator, state) = iterate(iter.states, state)
+
+sequence_shape(::ValueFunctionOrderedStateIterator) = StateUpdateSequence()
+
+sample(ss::ValueFunctionOrderedSampling, model) =
+    error("ValueFunctionOrderedSampling requires a value_function argument")
+sample(ss::ValueFunctionOrderedSampling, model, strategy_cache) =
+    error("ValueFunctionOrderedSampling requires a value_function argument")
+
+function sample(ss::ValueFunctionOrderedSampling, model, strategy_cache, value_function, spec)
+    return value_function_ordered_sample(ss.operation, ss.ascending, ss.k, value_function)
+end
+
+function value_function_ordered_sample(
+    operation::Function,
+    ascending::Bool,
+    k::Int,
+    value_function,
+)
+    # Apply the operation to get values
+    values = operation(value_function)
+
+    # Flatten to 1D and create index mapping
+    flat_values = vec(values)
+    indices = CartesianIndices(values)
+
+    # Sort indices by values
+    sorted_perm = if ascending
+        sortperm(flat_values)
+    else
+        sortperm(flat_values; rev = true)
+    end
+
+    # Select top k indices
+    k_selected = min(k, length(sorted_perm))
+    selected_linear_indices = sorted_perm[1:k_selected]
+    selected_states = [indices[i] for i in selected_linear_indices]
+
+    return ValueFunctionOrderedStateIterator(selected_states)
+end
+
+###################################
+# 6. Given sequence                #
+###################################
+
 struct GivenSequence <: SamplingStrategy end
 
 function sample(
@@ -508,90 +827,112 @@ function custom_sequence(
     return GivenSequenceIterator(sequence)
 end
 
-"""
-    ValueBasedSamplingStrategy <: SamplingStrategy
-
-Abstract supertype for sampling strategies whose sampling depends on the current
-value function. Concrete subtypes implement the four-argument
-`sample(strategy, model, strategy_cache, value_function)` method, which
-[`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref) prefers over the
-two/three-argument `sample` used by a plain [`SamplingStrategy`](@ref).
-"""
-abstract type ValueBasedSamplingStrategy <: SamplingStrategy end
+###################################
+# 7. Composite sampling            #
+###################################
 
 """
-    ValueFunctionOrderedSampling(operation, ascending, k)
+    CompositeSamplingStrategy <: SamplingStrategy
 
-Value-function-ordered sampler: applies `operation` (e.g. `gap`) to the current
-`IntervalValueFunction`, sorts states by the resulting values, and yields the
-top `k` states. Yields bare states, so the inner loop of `bellman_update!`
-sweeps all available actions per visited state.
+Abstract supertype for sampling strategies that combine one or more other
+`SamplingStrategy` instances rather than sampling states directly
+themselves — e.g. mixing two strategies, or filtering down another
+strategy's output. Because a wrapped sub-strategy may itself need the value
+function and/or `Specification` (a [`TrajectorySamplingStrategy`](@ref) or
+[`PriorityQueueSamplingStrategy`](@ref)), composites always receive the
+richest signature (`sample(strategy, model, strategy_cache, value_function,
+spec)`) and forward to each sub-strategy via `_gsrdp_sample`, which
+dispatches on that sub-strategy's own `sampling_context_requirement`.
 
-# Fields
-- `operation::Function`: maps an `IntervalValueFunction` to a per-state array.
-- `ascending::Bool`: `true` for ascending (low-to-high), `false` for descending.
-- `k::Int`: number of top states to select.
+Concrete composites must implement `sub_strategies(strategy)`, returning a
+tuple of the wrapped strategies, so `reset_sampling_strategy!` propagates to
+them automatically.
 """
-struct ValueFunctionOrderedSampling <: ValueBasedSamplingStrategy
-    operation::Function  # e.g., gap; takes IntervalValueFunction, returns array
-    ascending::Bool      # true for ascending (low-to-high), false for descending
-    k::Int               # number of top states to select
-end
+abstract type CompositeSamplingStrategy <: SamplingStrategy end
 
-struct ValueFunctionOrderedStateIterator{NS} <: AbstractIterator
-    states::Vector{CartesianIndex{NS}}
-end
+sampling_context_requirement(::CompositeSamplingStrategy) = NeedsValueFunctionAndSpec()
 
-Base.length(iter::ValueFunctionOrderedStateIterator) = length(iter.states)
-Base.firstindex(iter::ValueFunctionOrderedStateIterator) = firstindex(iter.states)
-Base.lastindex(iter::ValueFunctionOrderedStateIterator) = lastindex(iter.states)
-Base.getindex(iter::ValueFunctionOrderedStateIterator, i) = iter.states[i]
-Base.iterate(iter::ValueFunctionOrderedStateIterator) = iterate(iter.states)
-Base.iterate(iter::ValueFunctionOrderedStateIterator, state) = iterate(iter.states, state)
+sample(ss::CompositeSamplingStrategy, model, strategy_cache, value_function) =
+    sample(ss, model, strategy_cache, value_function, nothing)
 
-sequence_shape(::ValueFunctionOrderedStateIterator) = StateUpdateSequence()
+"""
+    RandomlyThinned(base, keep_prob)
 
-sample(ss::ValueFunctionOrderedSampling, model) =
-    error("ValueFunctionOrderedSampling requires a value_function argument")
-sample(ss::ValueFunctionOrderedSampling, model, strategy_cache) =
-    error("ValueFunctionOrderedSampling requires a value_function argument")
+Wraps `base`, independently keeping each entry of its update sequence with
+probability `keep_prob` (dropping it otherwise). Turns any strategy "leaky" —
+e.g. `RandomlyThinned(RoundRobinState(k), 0.8)` round-robins through states
+but only actually relaxes about 80% of the scheduled window each iteration.
+"""
+struct RandomlyThinned{S <: SamplingStrategy} <: CompositeSamplingStrategy
+    base::S
+    keep_prob::Float64
 
-function sample(ss::ValueFunctionOrderedSampling, model, strategy_cache, value_function)
-    return value_function_ordered_sample(ss.operation, ss.ascending, ss.k, value_function)
-end
-
-function value_function_ordered_sample(
-    operation::Function,
-    ascending::Bool,
-    k::Int,
-    value_function,
-)
-    # Apply the operation to get values
-    values = operation(value_function)
-
-    # Flatten to 1D and create index mapping
-    flat_values = vec(values)
-    indices = CartesianIndices(values)
-
-    # Sort indices by values
-    sorted_perm = if ascending
-        sortperm(flat_values)
-    else
-        sortperm(flat_values; rev = true)
+    function RandomlyThinned(base::S, keep_prob::Real) where {S <: SamplingStrategy}
+        0 <= keep_prob <= 1 ||
+            throw(ArgumentError("keep_prob must be in [0, 1], got $keep_prob"))
+        return new{S}(base, Float64(keep_prob))
     end
-
-    # Select top k indices
-    k_selected = min(k, length(sorted_perm))
-    selected_linear_indices = sorted_perm[1:k_selected]
-    selected_states = [indices[i] for i in selected_linear_indices]
-
-    return ValueFunctionOrderedStateIterator(selected_states)
 end
 
-# TODO: 1. random sampling of states, with or without replacement, with or without weighting (e.g. based on current value function)
-# TODO:     - subset of states each iteration?
-# TODO:     - one state per iteration?
-# TODO:
-# TODO: 2. (epsilon) greedy on policy trajectory simulation
-# TODO: 3. BRTDP gap based trajectory simulation
-# TODO: 
+sub_strategies(ss::RandomlyThinned) = (ss.base,)
+
+function sample(ss::RandomlyThinned, model, strategy_cache, value_function, spec)
+    seq = _gsrdp_sample(ss.base, model, strategy_cache, value_function, spec)
+    return _thin(sequence_shape(seq), seq, model, ss.keep_prob)
+end
+
+# `seq`'s elements aren't materialized via a plain comprehension here: these
+# custom iterators don't define `Base.eltype`, so a comprehension would
+# infer `Vector{Any}` — which can't convert into `RandomSubsetState(Action)?Iterator`'s
+# concretely-typed field. Pre-typing `kept` from `model`'s own shapes (the
+# same source `ss.base`'s `sample` used) keeps this concrete.
+function _thin(::StateUpdateSequence, seq, model, keep_prob::Float64)
+    S = CartesianIndices(source_shape(model))
+    kept = Vector{eltype(S)}(undef, 0)
+    for s in seq
+        rand() < keep_prob && push!(kept, s)
+    end
+    return RandomSubsetStateIterator(kept)
+end
+
+function _thin(::StateActionUpdateSequence, seq, model, keep_prob::Float64)
+    A = CartesianIndices(action_shape(model))
+    S = CartesianIndices(source_shape(model))
+    kept = Vector{Tuple{eltype(A), eltype(S)}}(undef, 0)
+    for x in seq
+        rand() < keep_prob && push!(kept, x)
+    end
+    return RandomSubsetStateActionIterator(kept)
+end
+
+"""
+    EpsilonGreedyMixture(exploit, explore, epsilon)
+
+Each iteration, samples from `explore` with probability `epsilon` and from
+`exploit` otherwise. Lets sampling mix two different strategies — e.g.
+mostly follow a priority-queue or trajectory strategy (`exploit`) but
+occasionally fall back to uniform random exploration (`explore =
+RandomSubsetState(k)`) to avoid starving states `exploit` never visits.
+"""
+struct EpsilonGreedyMixture{E1 <: SamplingStrategy, E2 <: SamplingStrategy} <:
+       CompositeSamplingStrategy
+    exploit::E1
+    explore::E2
+    epsilon::Float64
+
+    function EpsilonGreedyMixture(
+        exploit::E1,
+        explore::E2,
+        epsilon::Real,
+    ) where {E1 <: SamplingStrategy, E2 <: SamplingStrategy}
+        0 <= epsilon <= 1 || throw(ArgumentError("epsilon must be in [0, 1], got $epsilon"))
+        return new{E1, E2}(exploit, explore, Float64(epsilon))
+    end
+end
+
+sub_strategies(ss::EpsilonGreedyMixture) = (ss.exploit, ss.explore)
+
+function sample(ss::EpsilonGreedyMixture, model, strategy_cache, value_function, spec)
+    chosen = rand() < ss.epsilon ? ss.explore : ss.exploit
+    return _gsrdp_sample(chosen, model, strategy_cache, value_function, spec)
+end
