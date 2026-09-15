@@ -759,6 +759,45 @@ function _omax_distribution(ambiguity_set, V, upper_bound::Bool)
     return p
 end
 
+"""
+    _omax_expectation(ambiguity_set, V, upper_bound) -> Real
+
+The scalar expectation `dot(V, p)` for the same realized distribution `p`
+[`_omax_distribution`](@ref) would build, without materializing the full
+vector — for callers (action-value comparisons) that only need the number.
+"""
+function _omax_expectation(ambiguity_set, V, upper_bound::Bool)
+    order = _omax_value_order(ambiguity_set, V, upper_bound)
+    budget = one(eltype(V)) - sum(lower(ambiguity_set))
+    res = dot(V, lower(ambiguity_set))
+    _omax_fill(ambiguity_set, order, budget) do i, Δ
+        res += Δ * V[i]
+    end
+    return res
+end
+
+"""
+    _omax_best_action(model, jₛ, V, upper_bound; exclude=nothing) -> (action_or_nothing, value_or_nothing)
+
+The available action at state `jₛ` maximizing [`_omax_expectation`](@ref)
+against `V`/`upper_bound` — i.e. `argmax_a Q(jₛ, a)` under the O-max
+Q-value for that direction. With `exclude`, maximizes among every available
+action *except* `exclude`. Returns `(nothing, nothing)` if no candidate
+action exists (no actions available at `jₛ`, or `exclude` was the only one).
+"""
+function _omax_best_action(model, jₛ, V, upper_bound::Bool; exclude = nothing)
+    marginal = _omax_marginal(model)
+    best_a, best_v = nothing, nothing
+    for jₐ in available(model, jₛ)
+        (exclude !== nothing && jₐ == exclude) && continue
+        v = _omax_expectation(marginal[jₐ, jₛ], V, upper_bound)
+        if best_v === nothing || v > best_v
+            best_a, best_v = jₐ, v
+        end
+    end
+    return best_a, best_v
+end
+
 ###################################
 # 4b. Reach/avoid, initial state   #
 ###################################
@@ -902,6 +941,180 @@ function _categorical_sample(probs::AbstractVector)
     end
     return CartesianIndex(lastindex(probs))   # floating-point fallback
 end
+
+###################################
+# 4e. Greedy trajectory sampling   #
+###################################
+#
+# Concrete TrajectorySamplingStrategy algorithms live in this submodule
+# (`IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling()` etc.) rather
+# than as flat top-level `IntervalMDP.*` names — as more trajectory-sampling
+# algorithms are added (BRTDP-gap, epsilon-greedy, ...) this keeps the
+# top-level namespace from filling up with many similarly-named,
+# trajectory-specific types. The general interface
+# (`TrajectorySamplingStrategy`, the four-function contract, the rollout,
+# the O-max primitives above) stays in the parent `IntervalMDP` module,
+# since `_gsrdp_sample`/`sampling_context_requirement` dispatch on it.
+
+# IntervalMDP.TrajectorySampling: concrete TrajectorySamplingStrategy
+# algorithms. All of them share TrajectorySampling.TrajectorySampling's
+# behaviour (below) — one trajectory per call, greedy argmax-upper-bound
+# action selection, `terminate_sampling` a stub (`false`, for now) — and
+# differ only in how they pick the next state given the concrete O-max
+# transition distribution:
+#
+#   * TransitionProbabilityTrajectorySampling — sample directly from it.
+#   * ExpectedGapTrajectorySampling — weight by the successor's value gap.
+#   * ActionUncertaintyTrajectorySampling — weight by the successor's
+#     action-selection uncertainty.
+#   * ReachProbabilityTrajectorySampling — weight by the successor's upper
+#     (optimistic reach-probability) value.
+#
+# NOTE: this module and its shared abstract supertype are both named
+# `TrajectorySampling` (Julia allows a type to share its enclosing module's
+# name), but only one of the two may carry a docstring — Julia's docsystem
+# can't disambiguate "the module" from "the same-named member inside it"
+# when binding a docstring to the module itself, so this module has none;
+# see the docstring on the type below instead.
+module TrajectorySampling
+
+import ..IntervalMDP:
+    TrajectorySamplingStrategy,
+    num_trajectories,
+    terminate_sampling,
+    action_selection,
+    target_state_sampling,
+    _omax_best_action,
+    _categorical_sample
+
+"""
+    TrajectorySampling.TrajectorySampling <: TrajectorySamplingStrategy
+
+Shared behaviour for this submodule's concrete strategies: one trajectory
+per `sample` call, and an action selected greedily as
+`argmax_a` of the O-max upper-bound Q-value at the current state. Concrete
+subtypes need only implement `target_state_sampling`.
+"""
+abstract type TrajectorySampling <: TrajectorySamplingStrategy end
+
+num_trajectories(::TrajectorySampling) = 1
+
+# Stub for now — always continues until a reach/avoid state or the hard cap.
+terminate_sampling(
+    ::TrajectorySampling,
+    current,
+    trajectory,
+    value_function,
+    model,
+    spec,
+) = false
+
+function action_selection(::TrajectorySampling, current, value_function, model, spec)
+    a, _ = _omax_best_action(model, current, value_function.upper.current, true)
+    return a
+end
+
+"""
+    TransitionProbabilityTrajectorySampling()
+
+Sample the next state directly from the O-max transition distribution
+`p(·|s,a)`.
+"""
+struct TransitionProbabilityTrajectorySampling <: TrajectorySampling end
+
+target_state_sampling(
+    ::TransitionProbabilityTrajectorySampling,
+    current,
+    a,
+    probs,
+    value_function,
+    model,
+    spec,
+) = _categorical_sample(probs)
+
+"""
+    ExpectedGapTrajectorySampling()
+
+Sample the next state with probability proportional to
+`p(s'|s,a) * (U(s') - L(s'))` — biases toward successors whose value is
+still uncertain.
+"""
+struct ExpectedGapTrajectorySampling <: TrajectorySampling end
+
+function target_state_sampling(
+    ::ExpectedGapTrajectorySampling,
+    current,
+    a,
+    probs,
+    value_function,
+    model,
+    spec,
+)
+    gap = value_function.upper.current .- value_function.lower.current
+    return _categorical_sample(probs .* gap)
+end
+
+"""
+    ReachProbabilityTrajectorySampling()
+
+Sample the next state with probability proportional to
+`p(s'|s,a) * U(s')` — biases toward successors that look more likely to
+reach the goal under the optimistic bound.
+"""
+struct ReachProbabilityTrajectorySampling <: TrajectorySampling end
+
+function target_state_sampling(
+    ::ReachProbabilityTrajectorySampling,
+    current,
+    a,
+    probs,
+    value_function,
+    model,
+    spec,
+)
+    return _categorical_sample(probs .* value_function.upper.current)
+end
+
+"""
+    ActionUncertaintyTrajectorySampling()
+
+Sample the next state with probability proportional to
+`p(s'|s,a) * (U^{-a_L(s')}(s') - L(s'))`, where `a_L(s')` is the action
+maximizing the lower-bound Q-value at `s'` and `U^{-a_L}(s')` is the best
+upper-bound Q-value at `s'` among the *other* actions — biases toward
+successors where it's still unclear whether the safe action is really
+optimal.
+"""
+struct ActionUncertaintyTrajectorySampling <: TrajectorySampling end
+
+function target_state_sampling(
+    ::ActionUncertaintyTrajectorySampling,
+    current,
+    a,
+    probs,
+    value_function,
+    model,
+    spec,
+)
+    weighted = zeros(eltype(probs), length(probs))
+    for sp in eachindex(probs)
+        # Only score states the O-max realization actually assigned mass to
+        # — multiplying by probs[sp] == 0 always contributes 0 regardless.
+        probs[sp] > zero(eltype(probs)) || continue
+        weighted[sp] = probs[sp] * _action_uncertainty(model, CartesianIndex(sp), value_function)
+    end
+    return _categorical_sample(weighted)
+end
+
+function _action_uncertainty(model, sp, value_function)
+    L, U = value_function.lower.current, value_function.upper.current
+    a_L, L_sp = _omax_best_action(model, sp, L, false)
+    _, U_excl = _omax_best_action(model, sp, U, true; exclude = a_L)
+    U_excl === nothing && return zero(eltype(U))   # only one action at sp: no alternative to be uncertain about
+    return U_excl - L_sp
+end
+
+end # module TrajectorySampling
 
 ###################################
 # 5. Priority-queue sampling       #
