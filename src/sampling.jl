@@ -681,7 +681,8 @@ action, realizing a concrete transition distribution via O-maximization
 against the upper value function, and sampling a next state from it — and
 relax the states visited along the way. A trajectory stops when it reaches a
 reach or avoid state, or when the strategy's own [`terminate_sampling`](@ref)
-says so (subject to a hard step cap regardless — see [`_trajectory_rollout`]).
+or [`terminate_transition`](@ref) says so (subject to a hard step cap
+regardless — see [`_trajectory_rollout`]).
 
 A rollout also ends if it leaves the source sub-box (an implicit sink state,
 see [`_is_source_state`](@ref)) — the sink is absorbing, and is excluded from
@@ -689,11 +690,12 @@ the returned trajectory since it cannot be relaxed.
 
 Concrete subtypes implement four functions — [`num_trajectories`](@ref),
 [`terminate_sampling`](@ref), [`action_selection`](@ref),
-[`target_state_sampling`](@ref) — and get the rollout, the O-max realization,
-initial-state selection, and reach/avoid checking for free (candidates for
-those four: epsilon-greedy simulation of the current policy trajectory;
-BRTDP-style gap-based trajectory simulation — no concrete strategy is
-implemented yet, only this shared skeleton).
+[`target_state_sampling`](@ref) — optionally override
+[`terminate_transition`](@ref) and [`reverse_trajectory`](@ref), and get the
+rollout, the O-max realization, initial-state selection, and reach/avoid
+checking for free. See the `TrajectorySampling` submodule for the concrete
+strategies built on this skeleton, including the BRTDP-style gap-based
+sampler [`TrajectorySampling.ExpectedGapTrajectorySampling`](@ref).
 
 Only flat (non-factored) models are supported — the O-max realization
 (`_omax_marginal`) requires a single `Marginal`.
@@ -925,6 +927,8 @@ end
 ###################################
 # 4c. The four-function contract   #
 ###################################
+# Plus two optional hooks with defaults — `terminate_transition` and
+# `reverse_trajectory` — which concrete subtypes may but need not implement.
 
 """
     num_trajectories(strategy::TrajectorySamplingStrategy) -> Int
@@ -944,6 +948,11 @@ always stops when `current_state` is a reach or avoid state (checked
 independently, before this is called) and enforces its own hard step cap
 regardless of what this returns. Must be implemented by every concrete
 subtype.
+
+Evaluated at the top of each step, before an action is selected — so a
+stopping rule that is a function of the *realized transition distribution*
+belongs in [`terminate_transition`](@ref) instead, which sees `probs`
+without the rollout having to realize it twice.
 """
 function terminate_sampling end
 
@@ -972,6 +981,33 @@ implemented by every concrete subtype.
 function target_state_sampling end
 
 """
+    terminate_transition(strategy, current_state, action, probabilities, trajectory, value_function, model, spec) -> Bool
+
+Strategy-specific stopping condition evaluated *after* the concrete O-max
+transition distribution `probabilities` for `(current_state, action)` has
+been realized, but before the next state is sampled from it — for criteria
+that are functions of `probabilities` itself, such as BRTDP's
+expected-successor-gap rule (see
+[`TrajectorySampling.ExpectedGapTrajectorySampling`](@ref)). Returning `true`
+ends the rollout with `current_state` as its last state.
+
+Defaults to `false`, so concrete subtypes need only implement it if they want
+it; a stopping rule that doesn't depend on the realized distribution belongs
+in [`terminate_sampling`](@ref), which is checked one step earlier and saves
+the O-max realization entirely.
+"""
+terminate_transition(
+    ::TrajectorySamplingStrategy,
+    current_state,
+    action,
+    probabilities,
+    trajectory,
+    value_function,
+    model,
+    spec,
+) = false
+
+"""
     reverse_trajectory(strategy::TrajectorySamplingStrategy) -> Bool
 
 Whether `sample` reverses each rollout before returning it — goal-first
@@ -982,9 +1018,9 @@ forward/chronological order instead.
 """
 reverse_trajectory(::TrajectorySamplingStrategy) = true
 
-# Hard safety cap, independent of `terminate_sampling` — guarantees a single
-# `sample` call can't hang GSRDP if a strategy's own termination logic never
-# fires (e.g. an absorbing-free transient region).
+# Hard safety cap, independent of `terminate_sampling`/`terminate_transition`
+# — guarantees a single `sample` call can't hang GSRDP if a strategy's own
+# termination logic never fires (e.g. an absorbing-free transient region).
 _trajectory_max_steps(model) = 10 * num_states(model)
 
 function _trajectory_rollout(ss::TrajectorySamplingStrategy, model, value_function, spec)
@@ -1004,6 +1040,18 @@ function _trajectory_rollout(ss::TrajectorySamplingStrategy, model, value_functi
         a = action_selection(ss, current, value_function, model, spec)
         ambiguity_set = _omax_marginal(model)[a, current]
         probs = _omax_distribution(ambiguity_set, V_upper, true)
+        # Post-realization stopping hook: sees `probs` the step already paid
+        # for, so a distribution-dependent criterion costs no extra O-max work.
+        terminate_transition(
+            ss,
+            current,
+            a,
+            probs,
+            trajectory,
+            value_function,
+            model,
+            spec,
+        ) && break
         current = target_state_sampling(ss, current, a, probs, value_function, model, spec)
         # An implicit sink is absorbing and has no strategy-cache entry, so
         # the trajectory both ends here and excludes it — `bellman_v!` and the
@@ -1064,8 +1112,9 @@ end
 # algorithms. All of them share TrajectorySampling.TrajectorySampling's
 # behaviour (below) — one trajectory per call, greedy argmax-upper-bound
 # action selection, `terminate_sampling` a stub (`false`, for now) — and
-# differ only in how they pick the next state given the concrete O-max
-# transition distribution:
+# differ mainly in how they pick the next state given the concrete O-max
+# transition distribution (ExpectedGapTrajectorySampling additionally stops
+# the rollout via `terminate_transition`, on BRTDP's expected-gap rule):
 #
 #   * TransitionProbabilityTrajectorySampling — sample directly from it.
 #   * ExpectedGapTrajectorySampling — weight by the successor's value gap.
@@ -1082,10 +1131,13 @@ end
 # see the docstring on the type below instead.
 module TrajectorySampling
 
+using LinearAlgebra: dot
+
 import ..IntervalMDP:
     TrajectorySamplingStrategy,
     num_trajectories,
     terminate_sampling,
+    terminate_transition,
     action_selection,
     target_state_sampling,
     _omax_best_action,
@@ -1100,7 +1152,10 @@ import ..IntervalMDP:
 Shared behaviour for this submodule's concrete strategies: one trajectory
 per `sample` call, and an action selected greedily as
 `argmax_a` of the O-max upper-bound Q-value at the current state. Concrete
-subtypes need only implement `target_state_sampling`.
+subtypes need only implement `target_state_sampling` — `terminate_sampling`
+is a `false` stub here, so a rollout runs until a reach/avoid state, a sink,
+or the hard step cap, unless the strategy overrides `terminate_transition`
+(as [`ExpectedGapTrajectorySampling`](@ref) does).
 """
 abstract type TrajectorySampling <: TrajectorySamplingStrategy end
 
@@ -1140,13 +1195,58 @@ target_state_sampling(
 ) = _target_state(model, _categorical_sample(probs))
 
 """
-    ExpectedGapTrajectorySampling()
+    ExpectedGapTrajectorySampling(; tau = 10.0)
 
 Sample the next state with probability proportional to
 `p(s'|s,a) * (U(s') - L(s'))` — biases toward successors whose value is
 still uncertain.
+
+Stops the rollout on BRTDP's expected-gap criterion (McMahan et al., 2005):
+with `B = Σ_{s'} p(s'|s,a) * (U(s') - L(s'))` — the same un-normalized weight
+vector the next-state sampling above uses, summed — the trajectory ends at
+`s` as soon as
+
+    B < (U(s) - L(s)) / tau
+
+i.e. once the gap it can expect to shrink one step ahead has fallen a factor
+`tau` below the gap still open at the state it is standing on. Larger `tau`
+means longer trajectories (a stricter condition to stop); `tau` must be
+positive.
+
+A fully converged `s` (`U(s) == L(s)`) also ends the rollout: the threshold
+is then 0, which `B >= 0` can never fall below, so without this the
+trajectory would run on to the hard step cap through an already-tight region.
 """
-struct ExpectedGapTrajectorySampling <: TrajectorySampling end
+struct ExpectedGapTrajectorySampling <: TrajectorySampling
+    tau::Float64
+
+    function ExpectedGapTrajectorySampling(; tau::Real = 10.0)
+        tau > 0 || throw(ArgumentError("tau must be positive, got $tau"))
+        return new(Float64(tau))
+    end
+end
+
+# `_gap` is the per-state `U - L` array both the stopping criterion and the
+# next-state weighting need; each is called at most once per rollout step.
+_gap(value_function) = value_function.upper.current .- value_function.lower.current
+
+function terminate_transition(
+    ss::ExpectedGapTrajectorySampling,
+    current,
+    a,
+    probs,
+    trajectory,
+    value_function,
+    model,
+    spec,
+)
+    gap = _gap(value_function)
+    diff = gap[current]
+    iszero(diff) && return true
+
+    B = dot(probs, vec(gap))
+    return B < diff / ss.tau
+end
 
 function target_state_sampling(
     ::ExpectedGapTrajectorySampling,
@@ -1157,8 +1257,7 @@ function target_state_sampling(
     model,
     spec,
 )
-    gap = value_function.upper.current .- value_function.lower.current
-    return _target_state(model, _categorical_sample(probs .* vec(gap)))
+    return _target_state(model, _categorical_sample(probs .* vec(_gap(value_function))))
 end
 
 """

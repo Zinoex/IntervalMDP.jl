@@ -422,6 +422,25 @@ end
               false
     end
 
+    # `terminate_transition` is opt-in: only ExpectedGapTrajectorySampling
+    # overrides it (with BRTDP's expected-gap rule), the rest inherit `false`.
+    @testset "terminate_transition defaults to false" for strat in [
+        IntervalMDP.TrajectorySampling.TransitionProbabilityTrajectorySampling(),
+        IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling(),
+        IntervalMDP.TrajectorySampling.ActionUncertaintyTrajectorySampling(),
+    ]
+        @test IntervalMDP.terminate_transition(
+            strat,
+            CartesianIndex(1),
+            CartesianIndex(1),
+            [0.5, 0.5],
+            [CartesianIndex(1)],
+            nothing,
+            nothing,
+            nothing,
+        ) == false
+    end
+
     @testset "action_selection picks argmax upper-bound Q" begin
         # State 2's action 1 -> Dirac target 1 (upper Q = V_upper[1]); action 2 -> Dirac
         # target 2 (upper Q = V_upper[2]). V_upper[1] > V_upper[2], so action 1 wins.
@@ -496,6 +515,105 @@ end
     end
 end
 
+@testitem "TrajectorySampling: ExpectedGapTrajectorySampling tau stopping criterion" tags =
+    [:base, :gsrdp_gap_trajectory_tau] begin
+    using IntervalMDP
+
+    ExpectedGap = IntervalMDP.TrajectorySampling.ExpectedGapTrajectorySampling
+
+    @testset "tau hyperparameter: default and validation" begin
+        @test ExpectedGap().tau == 10.0
+        @test ExpectedGap(; tau = 3).tau == 3.0
+        @test_throws ArgumentError ExpectedGap(; tau = 0)
+        @test_throws ArgumentError ExpectedGap(; tau = -1)
+    end
+
+    # 2 states, 1 action, Dirac -> state 1. Only the arithmetic of the
+    # criterion is under test here, so `probs` is passed in directly rather
+    # than realized from the model.
+    dirac2 = IntervalAmbiguitySets(; lower = hcat([1.0, 0.0]), upper = hcat([1.0, 0.0]))
+    wmdp = IntervalMarkovDecisionProcess([dirac2, dirac2], [1])
+    s1 = CartesianIndex(1)
+
+    @testset "B < Diff(s) / tau" begin
+        # gap = U - L = [0.2, 0.4]; B = 0.5 * 0.2 + 0.5 * 0.4 = 0.3;
+        # Diff(s1) = gap[1] = 0.2.
+        vf = (upper = (current = [1.0, 1.0],), lower = (current = [0.8, 0.6],))
+        probs = [0.5, 0.5]
+        terminate(tau) = IntervalMDP.terminate_transition(
+            ExpectedGap(; tau = tau),
+            s1,
+            CartesianIndex(1),
+            probs,
+            [s1],
+            vf,
+            wmdp,
+            nothing,
+        )
+
+        # tau = 10 => threshold 0.02, and B = 0.3 is well above it: continue.
+        @test terminate(10) == false
+        # tau = 0.5 => threshold 0.4, above B = 0.3: stop.
+        @test terminate(0.5) == true
+        # Straddle the threshold exactly: B = 0.3 = Diff/tau at tau = 2/3.
+        # The criterion is strict (`<`), so equality continues.
+        @test terminate(0.2 / 0.3) == false
+        @test terminate(0.2 / 0.3 - 1e-9) == true
+    end
+
+    @testset "a converged current state stops the rollout" begin
+        # gap[1] == 0 makes the threshold 0, which B >= 0 can never fall
+        # below — without the guard the trajectory would run to the step cap.
+        vf = (upper = (current = [1.0, 1.0],), lower = (current = [1.0, 0.6],))
+        @test IntervalMDP.terminate_transition(
+            ExpectedGap(),
+            s1,
+            CartesianIndex(1),
+            [0.5, 0.5],
+            [s1],
+            vf,
+            wmdp,
+            nothing,
+        ) == true
+    end
+
+    @testset "rollout stops early instead of running to the step cap" begin
+        # Same fully-deterministic Dirac-on-state-3 model as the shared
+        # rollout skeleton test, with no reach/avoid states so that the tau
+        # criterion is the only thing that can end the rollout before the cap.
+        prob = IntervalAmbiguitySets(;
+            lower = [0.0 0.0 0.0; 0.0 0.0 0.0; 1.0 1.0 1.0],
+            upper = [0.0 0.0 0.0; 0.0 0.0 0.0; 1.0 1.0 1.0],
+        )
+        mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
+        prop = InfiniteTimeReachAvoid(Int[], Int[], 1 // 1000)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = VerificationProblem(mdp, spec)
+        alg =
+            GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp))
+        V = IntervalMDP.construct_value_function(alg, problem)
+        IntervalMDP._gsrdp_initialize!(V, prop)
+
+        # Every transition lands on state 3, whose gap is 0 after this
+        # assignment; the source state keeps a gap of 1. So B = 0 < 1 / tau
+        # fires on the very first step, for any tau.
+        V.upper.current .= 1.0
+        V.lower.current .= 0.0
+        V.lower.current[3] = 1.0
+
+        states = collect(IntervalMDP.sample(ExpectedGap(), mdp, nothing, V, spec))
+        @test length(states) == 1
+        @test length(states) < 1 + IntervalMDP._trajectory_max_steps(mdp)
+
+        # With the gap left wide open everywhere, B = 1 >= 1 / tau never
+        # fires, so the same model runs to the hard cap — confirming the
+        # early stop above is the criterion and not some other exit.
+        V.lower.current .= 0.0
+        states_open = collect(IntervalMDP.sample(ExpectedGap(), mdp, nothing, V, spec))
+        @test length(states_open) == 1 + IntervalMDP._trajectory_max_steps(mdp)
+    end
+end
+
 @testitem "TrajectorySampling: end-to-end solve() with TransitionProbabilityTrajectorySampling" tags =
     [:base, :gsrdp_greedy_trajectory_solve] begin
     using IntervalMDP
@@ -517,6 +635,45 @@ end
         gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
             default_bellman_algorithm(mdp);
             sampling_strategy = IntervalMDP.TrajectorySampling.TransitionProbabilityTrajectorySampling(),
+        )
+        eps = N(1 // 1000000)
+        prop = InfiniteTimeReachability([3], eps)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = VerificationProblem(mdp, spec)
+        (V_rvi, _, _) = solve(problem, rvi)
+        (V_gsdp, _, _) = solve(problem, gsdp)
+        @test maximum(abs, V_rvi .- V_gsdp) <= 2 * eps
+    end
+end
+
+@testitem "TrajectorySampling: end-to-end solve() with ExpectedGapTrajectorySampling" tags =
+    [:base, :gsrdp_gap_trajectory_tau_solve] begin
+    using IntervalMDP
+
+    # The tau cut-off shortens rollouts, so this checks it doesn't starve
+    # states badly enough to break convergence: GSRDP must still land within
+    # tolerance of full robust value iteration.
+    @testset "IMDP verification parity (Pessimistic, Maximize), tau = $tau" for N in [
+            Float32,
+            Float64,
+        ],
+        tau in [10, 2]
+
+        prob = IntervalAmbiguitySets(;
+            lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
+            upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
+        )
+        prob2 = IntervalAmbiguitySets(;
+            lower = N[1 // 10 1 // 5 0; 1 // 5 1 // 5 0; 3 // 10 2 // 5 1],
+            upper = N[1 // 2 1 // 2 0; 1 // 2 2 // 5 0; 2 // 5 2 // 5 1],
+        )
+        mdp = IntervalMarkovDecisionProcess([prob, prob2, prob2], [1])
+        rvi = RobustValueIteration(default_bellman_algorithm(mdp))
+        gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(mdp);
+            sampling_strategy = IntervalMDP.TrajectorySampling.ExpectedGapTrajectorySampling(;
+                tau = tau,
+            ),
         )
         eps = N(1 // 1000000)
         prop = InfiniteTimeReachability([3], eps)
