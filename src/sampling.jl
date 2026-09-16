@@ -798,6 +798,55 @@ function _omax_best_action(model, jₛ, V, upper_bound::Bool; exclude = nothing)
     return best_a, best_v
 end
 
+"""
+    _action_uncertainty(model, sp, value_function) -> Real
+
+`V^a(s') = U^{-a_L(s')}(s') - L(s')`, where `a_L(s')` is the action
+maximizing the lower-bound Q-value at `s'` and `U^{-a_L}(s')` is the best
+upper-bound Q-value at `s'` among the *other* actions — a measure of how
+uncertain it still is whether the (lower-bound-)optimal action at `s'`
+really is optimal. Returns 0 when `s'` has only one available action (no
+alternative to be uncertain about). Shared by
+[`TrajectorySampling.ActionUncertaintyTrajectorySampling`](@ref) and
+[`PriorityQueueSampling.ActionUncertaintyPriorityQueueSampling`](@ref).
+"""
+function _action_uncertainty(model, sp, value_function)
+    L, U = value_function.lower.current, value_function.upper.current
+    a_L, L_sp = _omax_best_action(model, sp, L, false)
+    _, U_excl = _omax_best_action(model, sp, U, true; exclude = a_L)
+    U_excl === nothing && return zero(eltype(U))   # only one action at sp: no alternative to be uncertain about
+    return U_excl - L_sp
+end
+
+"""
+    _state_indices(model) -> CartesianIndices
+
+`CartesianIndices(source_shape(model))` — every state index, in the same
+order [`AllStatesSweep`](@ref) enumerates them.
+"""
+_state_indices(model) = CartesianIndices(source_shape(model))
+
+"""
+    _successor_states(model, s) -> Set
+
+`SDS(s) = {s' | ∃a. p(s'|s,a)}` — the union, over every action available at
+`s`, of that `(s, a)` ambiguity set's support: every state `s` could
+possibly transition to under some action. Used by incremental
+priority-queue sampling to find which states' priorities may have gone
+stale after `s` was relaxed.
+"""
+function _successor_states(model, s)
+    marginal = _omax_marginal(model)
+    S = _state_indices(model)
+    succ = Set{eltype(S)}()
+    for a in available(model, s)
+        for i in support(marginal[a, s])
+            push!(succ, S[i])
+        end
+    end
+    return succ
+end
+
 ###################################
 # 4b. Reach/avoid, initial state   #
 ###################################
@@ -985,7 +1034,8 @@ import ..IntervalMDP:
     action_selection,
     target_state_sampling,
     _omax_best_action,
-    _categorical_sample
+    _categorical_sample,
+    _action_uncertainty
 
 """
     TrajectorySampling.TrajectorySampling <: TrajectorySamplingStrategy
@@ -1106,14 +1156,6 @@ function target_state_sampling(
     return _categorical_sample(weighted)
 end
 
-function _action_uncertainty(model, sp, value_function)
-    L, U = value_function.lower.current, value_function.upper.current
-    a_L, L_sp = _omax_best_action(model, sp, L, false)
-    _, U_excl = _omax_best_action(model, sp, U, true; exclude = a_L)
-    U_excl === nothing && return zero(eltype(U))   # only one action at sp: no alternative to be uncertain about
-    return U_excl - L_sp
-end
-
 end # module TrajectorySampling
 
 ###################################
@@ -1141,6 +1183,16 @@ sampling_context_requirement(::PriorityQueueSamplingStrategy) = NeedsValueFuncti
 
 sample(ss::PriorityQueueSamplingStrategy, model, strategy_cache, value_function) =
     sample(ss, model, strategy_cache, value_function, nothing)
+
+"""
+    compute_priority(strategy, s, value_function, model, spec) -> Real
+
+Strategy-specific priority for state `s` — higher means more urgent to
+relax next. Must be implemented by every concrete strategy that
+participates in incremental priority-queue sampling (see
+[`PriorityQueueSampling.PriorityQueueSampling`](@ref)).
+"""
+function compute_priority end
 
 """
     ValueFunctionOrderedSampling(operation, ascending, k)
@@ -1210,6 +1262,195 @@ function value_function_ordered_sample(
 
     return ValueFunctionOrderedStateIterator(selected_states)
 end
+
+###################################
+# 5b. Priority-queue sampling      #
+###################################
+#
+# Concrete incremental-priority-queue algorithms live in this submodule
+# (`IntervalMDP.PriorityQueueSampling.GapPriorityQueueSampling()` etc.),
+# mirroring `TrajectorySampling` (§4e): the general interface
+# (`PriorityQueueSamplingStrategy`, `compute_priority`, `_successor_states`,
+# `_state_indices`) stays in the parent `IntervalMDP` module, since
+# `_gsrdp_sample`/`sampling_context_requirement` dispatch on it; only the
+# concrete algorithms move into the submodule.
+#
+# Shared behaviour, all under `PriorityQueueSampling.PriorityQueueSampling`:
+# the first `sample` call computes every state's priority from scratch; every
+# later call only recomputes priorities for `_successor_states(model, s)` of
+# each state `s` selected by the *previous* call (GSRDP always relaxes
+# exactly what `sample` returns, so "states updated in the previous
+# iteration" and "states `sample` returned last time" are the same set).
+# Each call then returns the top `ss.k` states by priority.
+#
+#   * GapPriorityQueueSampling — priority(s) = U(s) - L(s).
+#   * UpperBoundPriorityQueueSampling — priority(s) = U(s).
+#   * ActionUncertaintyPriorityQueueSampling — priority(s) = V^a(s) (same
+#     action-selection-uncertainty measure as
+#     `TrajectorySampling.ActionUncertaintyTrajectorySampling`).
+#
+# NOTE: like `TrajectorySampling`, this module has no docstring of its own
+# (a module can't carry one alongside a same-named member) — see the
+# docstring on the type below instead.
+module PriorityQueueSampling
+
+import ..IntervalMDP:
+    PriorityQueueSamplingStrategy,
+    compute_priority,
+    reset_sampling_strategy!,
+    sample,
+    StateIterator,
+    _state_indices,
+    _successor_states,
+    _action_uncertainty
+
+"""
+    PriorityQueueSampling.PriorityQueueSampling <: PriorityQueueSamplingStrategy
+
+Shared behaviour for this submodule's concrete strategies: a lazily
+maintained priority over every state, initialized in full on the first
+`sample` call and thereafter updated only where the previous call's
+selections could have made it stale (`_successor_states` of each
+previously-selected state), returning the top `k` states by priority each
+call, breaking ties by least-recently-selected. Concrete subtypes need only
+implement `compute_priority`.
+
+Ties matter in practice, not just in theory: every non-goal/avoid state
+starts with an identical priority under all three strategies below (`L = 0`,
+`U = 1` everywhere before the first relaxation), so a naive tie-break that
+always favors the same (e.g. lowest-index) state among ties would get stuck
+reselecting it forever whenever `k` is smaller than the tied set — its own
+priority never changes because nothing ever updates *its* predecessors, and
+its own recompute (after being selected) leaves it tied with everyone else
+again. Breaking ties by least-recently-selected guarantees the tied set
+rotates instead of starving.
+"""
+abstract type PriorityQueueSampling <: PriorityQueueSamplingStrategy end
+
+function reset_sampling_strategy!(ss::PriorityQueueSampling)
+    ss.initialized[] = false
+    ss.previous_selected[] = Int[]
+    ss.clock[] = 0
+    return nothing
+end
+
+function sample(ss::PriorityQueueSampling, model, strategy_cache, value_function, spec)
+    S = _state_indices(model)
+    nS = length(S)
+    ss.clock[] += 1
+
+    if !ss.initialized[]
+        priorities = Vector{Float64}(undef, nS)
+        @inbounds for i in 1:nS
+            priorities[i] = compute_priority(ss, S[i], value_function, model, spec)
+        end
+        ss.priorities[] = priorities
+        ss.last_selected[] = zeros(Int, nS)
+        ss.initialized[] = true
+    else
+        priorities = ss.priorities[]
+        stale = Set{eltype(S)}()
+        for i in ss.previous_selected[]
+            push!(stale, S[i])   # s's own priority is stale too — its value just changed
+            union!(stale, _successor_states(model, S[i]))
+        end
+        L = LinearIndices(S)
+        for sp in stale
+            priorities[L[sp]] = compute_priority(ss, sp, value_function, model, spec)
+        end
+    end
+
+    k = min(ss.k, nS)
+    last_selected = ss.last_selected[]
+    # Priorities within a small relative tolerance are treated as tied (not
+    # just bit-identical ones): two states converging toward the same
+    # asymptotic priority from a shared, still-stale neighborhood can settle
+    # into a persistent floating-point-scale gap (e.g. 1e-9 relative) that a
+    # strict `<` comparison would treat as a real, permanent difference —
+    # starving whichever state loses it forever, even though both still need
+    # further relaxation. Rounding to a coarse relative precision before
+    # comparing lets the recency tie-break take over once that happens,
+    # without disturbing genuine (much larger) priority differences.
+    key = i -> (-round(priorities[i]; sigdigits = 6), last_selected[i])
+    top = partialsortperm(1:nS, 1:k; by = key)
+    for i in top
+        last_selected[i] = ss.clock[]
+    end
+    ss.previous_selected[] = top
+    return StateIterator([S[i] for i in top])
+end
+
+"""
+    GapPriorityQueueSampling(k)
+
+Priority-queue sampler: `priority(s) = U(s) - L(s)`, the value-function
+gap — biases toward states whose bounds are still furthest apart. Yields
+the top `k` states by priority each call.
+"""
+struct GapPriorityQueueSampling <: PriorityQueueSampling
+    k::Int
+    priorities::Base.RefValue{Vector{Float64}}
+    last_selected::Base.RefValue{Vector{Int}}
+    clock::Base.RefValue{Int}
+    initialized::Base.RefValue{Bool}
+    previous_selected::Base.RefValue{Vector{Int}}
+
+    GapPriorityQueueSampling(k::Int) =
+        new(k, Ref(Float64[]), Ref(Int[]), Ref(0), Ref(false), Ref(Int[]))
+end
+
+compute_priority(::GapPriorityQueueSampling, s, value_function, model, spec) =
+    value_function.upper.current[s] - value_function.lower.current[s]
+
+"""
+    UpperBoundPriorityQueueSampling(k)
+
+Priority-queue sampler: `priority(s) = U(s)`, the upper (optimistic) value —
+biases toward states that look most valuable under the optimistic bound.
+Yields the top `k` states by priority each call.
+"""
+struct UpperBoundPriorityQueueSampling <: PriorityQueueSampling
+    k::Int
+    priorities::Base.RefValue{Vector{Float64}}
+    last_selected::Base.RefValue{Vector{Int}}
+    clock::Base.RefValue{Int}
+    initialized::Base.RefValue{Bool}
+    previous_selected::Base.RefValue{Vector{Int}}
+
+    UpperBoundPriorityQueueSampling(k::Int) =
+        new(k, Ref(Float64[]), Ref(Int[]), Ref(0), Ref(false), Ref(Int[]))
+end
+
+compute_priority(::UpperBoundPriorityQueueSampling, s, value_function, model, spec) =
+    value_function.upper.current[s]
+
+"""
+    ActionUncertaintyPriorityQueueSampling(k)
+
+Priority-queue sampler: `priority(s) = V^a(s)`, the same action-selection
+uncertainty measure
+[`TrajectorySampling.ActionUncertaintyTrajectorySampling`](@ref) weights
+by — `U^{-a_L(s)}(s) - L(s)`, where `a_L(s)` is the action maximizing the
+lower-bound Q-value at `s` and `U^{-a_L}(s)` is the best upper-bound
+Q-value at `s` among the *other* actions. Yields the top `k` states by
+priority each call.
+"""
+struct ActionUncertaintyPriorityQueueSampling <: PriorityQueueSampling
+    k::Int
+    priorities::Base.RefValue{Vector{Float64}}
+    last_selected::Base.RefValue{Vector{Int}}
+    clock::Base.RefValue{Int}
+    initialized::Base.RefValue{Bool}
+    previous_selected::Base.RefValue{Vector{Int}}
+
+    ActionUncertaintyPriorityQueueSampling(k::Int) =
+        new(k, Ref(Float64[]), Ref(Int[]), Ref(0), Ref(false), Ref(Int[]))
+end
+
+compute_priority(::ActionUncertaintyPriorityQueueSampling, s, value_function, model, spec) =
+    _action_uncertainty(model, s, value_function)
+
+end # module PriorityQueueSampling
 
 ###################################
 # 6. Given sequence                #

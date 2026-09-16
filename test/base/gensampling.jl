@@ -521,6 +521,162 @@ end
     end
 end
 
+@testitem "_successor_states / _state_indices" tags = [:base, :gsrdp_priority_successor_states] begin
+    using IntervalMDP, SparseArrays
+
+    # 3-state chain, single action per state: 1 -> {1,2}; 2 -> {2,3}; 3 absorbing.
+    # `support` returns the FULL column range for a dense IntervalAmbiguitySets
+    # (see its docstring), so a sparse representation is needed here to actually
+    # exercise successor filtering rather than trivially returning every state.
+    prob1 = IntervalAmbiguitySets(;
+        lower = sparse_hcat(SparseVector(3, [1, 2], [0.3, 0.7])),
+        upper = sparse_hcat(SparseVector(3, [1, 2], [0.3, 0.7])),
+    )
+    prob2 = IntervalAmbiguitySets(;
+        lower = sparse_hcat(SparseVector(3, [2, 3], [0.3, 0.7])),
+        upper = sparse_hcat(SparseVector(3, [2, 3], [0.3, 0.7])),
+    )
+    prob3 = IntervalAmbiguitySets(;
+        lower = sparse_hcat(SparseVector(3, [3], [1.0])),
+        upper = sparse_hcat(SparseVector(3, [3], [1.0])),
+    )
+    mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3], [1])
+
+    @test IntervalMDP._successor_states(mdp, CartesianIndex(1)) ==
+          Set([CartesianIndex(1), CartesianIndex(2)])
+    @test IntervalMDP._successor_states(mdp, CartesianIndex(2)) ==
+          Set([CartesianIndex(2), CartesianIndex(3)])
+    @test IntervalMDP._successor_states(mdp, CartesianIndex(3)) == Set([CartesianIndex(3)])
+    @test collect(IntervalMDP._state_indices(mdp)) ==
+          [CartesianIndex(1), CartesianIndex(2), CartesianIndex(3)]
+end
+
+@testitem "PriorityQueueSampling: compute_priority formulas" tags =
+    [:base, :gsrdp_priority_compute_priority] begin
+    using IntervalMDP
+
+    # Same 2-state/2-action model and hand-verified _action_uncertainty values as the
+    # TrajectorySampling.ActionUncertaintyTrajectorySampling weighting test above.
+    prob1 = IntervalAmbiguitySets(; lower = [1.0 1.0; 0.0 0.0], upper = [1.0 1.0; 0.0 0.0])
+    prob2 = IntervalAmbiguitySets(; lower = [1.0 0.0; 0.0 1.0], upper = [1.0 0.0; 0.0 1.0])
+    mdp = IntervalMarkovDecisionProcess([prob1, prob2], [1])
+    vf = (upper = (current = [10.0, 5.0],), lower = (current = [0.0, 5.0],))
+
+    gap_ss = IntervalMDP.PriorityQueueSampling.GapPriorityQueueSampling(1)
+    @test IntervalMDP.compute_priority(gap_ss, CartesianIndex(1), vf, mdp, nothing) ≈ 10.0
+    @test IntervalMDP.compute_priority(gap_ss, CartesianIndex(2), vf, mdp, nothing) ≈ 0.0
+
+    upper_ss = IntervalMDP.PriorityQueueSampling.UpperBoundPriorityQueueSampling(1)
+    @test IntervalMDP.compute_priority(upper_ss, CartesianIndex(1), vf, mdp, nothing) ≈ 10.0
+    @test IntervalMDP.compute_priority(upper_ss, CartesianIndex(2), vf, mdp, nothing) ≈ 5.0
+
+    au_ss = IntervalMDP.PriorityQueueSampling.ActionUncertaintyPriorityQueueSampling(1)
+    @test IntervalMDP.compute_priority(au_ss, CartesianIndex(1), vf, mdp, nothing) ≈ 10.0
+    @test IntervalMDP.compute_priority(au_ss, CartesianIndex(2), vf, mdp, nothing) ≈ 5.0
+end
+
+@testitem "PriorityQueueSampling: shared sample — init, incremental recompute, reset, fairness" tags =
+    [:base, :gsrdp_priority_shared] begin
+    using IntervalMDP, SparseArrays
+
+    # 3-state chain, single action per state: 1 -> {1,2}; 2 -> {2,3}; 3 absorbing.
+    # Sparse, so state 1's successor set is genuinely {1,2}, not every state (see
+    # the note in the `_successor_states` test above).
+    prob1 = IntervalAmbiguitySets(;
+        lower = sparse_hcat(SparseVector(3, [1, 2], [0.3, 0.7])),
+        upper = sparse_hcat(SparseVector(3, [1, 2], [0.3, 0.7])),
+    )
+    prob2 = IntervalAmbiguitySets(;
+        lower = sparse_hcat(SparseVector(3, [2, 3], [0.3, 0.7])),
+        upper = sparse_hcat(SparseVector(3, [2, 3], [0.3, 0.7])),
+    )
+    prob3 = IntervalAmbiguitySets(;
+        lower = sparse_hcat(SparseVector(3, [3], [1.0])),
+        upper = sparse_hcat(SparseVector(3, [3], [1.0])),
+    )
+    mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3], [1])
+
+    @testset "first call does a full sweep; later calls only touch the stale set" begin
+        vf = (upper = (current = [1.0, 0.5, 1.0],), lower = (current = [0.0, 0.0, 1.0],))
+        ss = IntervalMDP.PriorityQueueSampling.GapPriorityQueueSampling(1)
+
+        # gap = [1.0, 0.5, 0.0] -> state 1 strictly highest, no tie to worry about.
+        seq1 = collect(IntervalMDP.sample(ss, mdp, nothing, vf, nothing))
+        @test seq1 == [CartesianIndex(1)]
+        @test ss.priorities[] ≈ [1.0, 0.5, 0.0]
+        @test ss.initialized[]
+        @test ss.previous_selected[] == [1]
+
+        # Successor set of state 1 is {1, 2}: mutate state 2's value (a successor) and
+        # state 3's value (not a successor of state 1) before the next call.
+        vf.upper.current[2] = 0.9    # successor -> must be picked up
+        vf.upper.current[3] = 0.99   # not a successor -> must stay stale (cached gap 0.0)
+
+        seq2 = collect(IntervalMDP.sample(ss, mdp, nothing, vf, nothing))
+        @test seq2 == [CartesianIndex(1)]   # still the highest priority (1.0, recomputed, unchanged)
+        @test ss.priorities[] ≈ [1.0, 0.9, 0.0]   # state 3 untouched despite the live value change
+    end
+
+    @testset "reset_sampling_strategy! clears cached state" begin
+        ss = IntervalMDP.PriorityQueueSampling.UpperBoundPriorityQueueSampling(1)
+        vf = (upper = (current = [1.0, 1.0, 1.0],), lower = (current = [0.0, 0.0, 1.0],))
+        collect(IntervalMDP.sample(ss, mdp, nothing, vf, nothing))
+        @test ss.initialized[]
+
+        IntervalMDP.reset_sampling_strategy!(ss)
+        @test !ss.initialized[]
+        @test isempty(ss.previous_selected[])
+        @test ss.clock[] == 0
+    end
+
+    @testset "ties break toward least-recently-selected, not lowest index" begin
+        ss = IntervalMDP.PriorityQueueSampling.GapPriorityQueueSampling(1)
+        vf = (upper = (current = [1.0, 1.0, 1.0],), lower = (current = [0.0, 0.0, 1.0],))
+
+        first = collect(IntervalMDP.sample(ss, mdp, nothing, vf, nothing))[1]
+        @test first in (CartesianIndex(1), CartesianIndex(2))
+        other = first == CartesianIndex(1) ? CartesianIndex(2) : CartesianIndex(1)
+
+        # Both states 1 and 2 still tie at gap 1.0 (vf untouched), so whichever wasn't
+        # just selected must win now — starvation would instead reselect `first` again.
+        second = collect(IntervalMDP.sample(ss, mdp, nothing, vf, nothing))[1]
+        @test second == other
+    end
+end
+
+@testitem "PriorityQueueSampling: end-to-end solve() parity with all three concrete strategies" tags =
+    [:base, :gsrdp_priority_solve] begin
+    using IntervalMDP
+
+    @testset "$(nameof(typeof(ss)))" for ss in [
+        IntervalMDP.PriorityQueueSampling.GapPriorityQueueSampling(2),
+        IntervalMDP.PriorityQueueSampling.UpperBoundPriorityQueueSampling(2),
+        IntervalMDP.PriorityQueueSampling.ActionUncertaintyPriorityQueueSampling(2),
+    ]
+        prob = IntervalAmbiguitySets(;
+            lower = [0.0 0.5 0.0; 0.1 0.3 0.0; 0.2 0.1 1.0],
+            upper = [0.5 0.7 0.0; 0.6 0.5 0.0; 0.7 0.3 1.0],
+        )
+        prob2 = IntervalAmbiguitySets(;
+            lower = [0.1 0.2 0.0; 0.2 0.2 0.0; 0.3 0.4 1.0],
+            upper = [0.5 0.5 0.0; 0.5 0.4 0.0; 0.4 0.4 1.0],
+        )
+        mdp = IntervalMarkovDecisionProcess([prob, prob2, prob2], [1])
+        rvi = RobustValueIteration(default_bellman_algorithm(mdp))
+        gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(mdp);
+            sampling_strategy = ss,
+        )
+        eps = 1e-6
+        prop = InfiniteTimeReachability([3], eps)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = VerificationProblem(mdp, spec)
+        (V_rvi, _, _) = solve(problem, rvi)
+        (V_gsdp, _, _) = solve(problem, gsdp)
+        @test maximum(abs, V_rvi .- V_gsdp) <= 1000 * eps
+    end
+end
+
 @testitem "Round-robin state sampling cycles deterministically" tags =
     [:base, :gsrdp_round_robin_state_sampling] begin
     using IntervalMDP
