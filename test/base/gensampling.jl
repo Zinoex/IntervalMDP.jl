@@ -327,7 +327,7 @@ end
         value_function,
         model,
         spec,
-    ) = IntervalMDP._categorical_sample(probs)
+    ) = IntervalMDP._target_state(model, IntervalMDP._categorical_sample(probs))
     IntervalMDP.reverse_trajectory(ss::MockTrajectoryStrategy) = ss.rev
 
     function build_value_function(mdp, prop)
@@ -441,10 +441,17 @@ end
     [:base, :gsrdp_greedy_trajectory_weighting] begin
     using IntervalMDP
 
+    # These three only exercise the weighting arithmetic, but every
+    # `target_state_sampling` still needs a real `model` to map the linear index
+    # `_categorical_sample` returns back to a state index. A 2-state, 1-action
+    # Dirac IMDP is the smallest one that serves.
+    dirac2 = IntervalAmbiguitySets(; lower = hcat([1.0, 0.0]), upper = hcat([1.0, 0.0]))
+    wmdp = IntervalMarkovDecisionProcess([dirac2, dirac2], [1])
+
     @testset "TransitionProbabilityTrajectorySampling samples directly from probs" begin
         strat = IntervalMDP.TrajectorySampling.TransitionProbabilityTrajectorySampling()
         probs = [0.0, 1.0]
-        @test IntervalMDP.target_state_sampling(strat, nothing, nothing, probs, nothing, nothing, nothing) ==
+        @test IntervalMDP.target_state_sampling(strat, nothing, nothing, probs, nothing, wmdp, nothing) ==
               CartesianIndex(2)
     end
 
@@ -452,7 +459,7 @@ end
         strat = IntervalMDP.TrajectorySampling.ExpectedGapTrajectorySampling()
         probs = [0.5, 0.5]
         vf = (upper = (current = [1.0, 1.0],), lower = (current = [1.0, 0.0],))  # gap = [0, 1]
-        @test IntervalMDP.target_state_sampling(strat, nothing, nothing, probs, vf, nothing, nothing) ==
+        @test IntervalMDP.target_state_sampling(strat, nothing, nothing, probs, vf, wmdp, nothing) ==
               CartesianIndex(2)
     end
 
@@ -460,7 +467,7 @@ end
         strat = IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling()
         probs = [0.5, 0.5]
         vf = (upper = (current = [0.0, 1.0],), lower = (current = [0.0, 0.0],))
-        @test IntervalMDP.target_state_sampling(strat, nothing, nothing, probs, vf, nothing, nothing) ==
+        @test IntervalMDP.target_state_sampling(strat, nothing, nothing, probs, vf, wmdp, nothing) ==
               CartesianIndex(2)
     end
 
@@ -549,6 +556,168 @@ end
     @test IntervalMDP._successor_states(mdp, CartesianIndex(3)) == Set([CartesianIndex(3)])
     @test collect(IntervalMDP._state_indices(mdp)) ==
           [CartesianIndex(1), CartesianIndex(2), CartesianIndex(3)]
+end
+
+@testitem "Sampling handles implicit sink states (source_dims < state_vars)" tags =
+    [:base, :gsrdp_implicit_sink] begin
+    using IntervalMDP
+
+    # A model may declare fewer source states than target states, leaving the
+    # trailing targets implicit and absorbing ("implicit sink states", see
+    # `FactoredRobustMarkovDecisionProcess`). Those have no ambiguity-set column
+    # and no actions, so sampling must never treat one as a state to act from,
+    # nor emit one in an update sequence — the strategy cache is sized by
+    # `source_shape`, and `available` on `AllAvailableActions` ignores the state
+    # and offers every action regardless.
+    #
+    # 2 source states, 3 targets, 2 actions; target 3 is the sink.
+    #   state 1: a1 -> state 2,  a2 -> sink
+    #   state 2: a1 -> state 1,  a2 -> sink
+    dirac(rows) = IntervalAmbiguitySets(; lower = rows, upper = rows)
+    prob1 = dirac([0.0 0.0; 1.0 0.0; 0.0 1.0])
+    prob2 = dirac([1.0 0.0; 0.0 0.0; 0.0 1.0])
+    mdp = IntervalMarkovDecisionProcess([prob1, prob2], [1])
+
+    @test IntervalMDP.source_shape(mdp) == (2,)
+    @test IntervalMDP.state_values(mdp) == (3,)
+
+    vf = (upper = (current = [1.0, 1.0, 0.0],), lower = (current = [0.0, 0.5, 0.0],))
+
+    strategies = [
+        IntervalMDP.TrajectorySampling.TransitionProbabilityTrajectorySampling(),
+        IntervalMDP.TrajectorySampling.ExpectedGapTrajectorySampling(),
+        IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling(),
+        IntervalMDP.TrajectorySampling.ActionUncertaintyTrajectorySampling(),
+    ]
+
+    @testset "_is_source_state / _target_indices" begin
+        @test IntervalMDP._is_source_state(mdp, CartesianIndex(1))
+        @test IntervalMDP._is_source_state(mdp, CartesianIndex(2))
+        @test !IntervalMDP._is_source_state(mdp, CartesianIndex(3))   # the sink
+        @test collect(IntervalMDP._target_indices(mdp)) ==
+              [CartesianIndex(1), CartesianIndex(2), CartesianIndex(3)]
+    end
+
+    @testset "_action_uncertainty at the sink is zero, not a BoundsError" begin
+        # Regression: this used to call `available(mdp, sink)` and then index
+        # the marginal past its last (source, action) column.
+        @test IntervalMDP._action_uncertainty(mdp, CartesianIndex(3), vf) == 0.0
+    end
+
+    @testset "_successor_states excludes the sink" begin
+        # `support` on a dense IntervalAmbiguitySets returns the full target
+        # range, so the sink is offered here and must be filtered out.
+        @test IntervalMDP._successor_states(mdp, CartesianIndex(1)) ==
+              Set([CartesianIndex(1), CartesianIndex(2)])
+    end
+
+    @testset "target_state_sampling tolerates sink mass" for strat in strategies
+        probs = [0.0, 0.0, 1.0]   # all mass on the sink
+        sp = IntervalMDP.target_state_sampling(
+            strat,
+            CartesianIndex(1),
+            CartesianIndex(2),
+            probs,
+            vf,
+            mdp,
+            nothing,
+        )
+        @test sp isa CartesianIndex{1}
+        @test sp in IntervalMDP._target_indices(mdp)
+    end
+
+    @testset "rollouts never emit the sink" for strat in strategies
+        prop = InfiniteTimeReachAvoid([2], [3], 1 // 1000)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = VerificationProblem(mdp, spec)
+        alg = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(mdp),
+        )
+        V = IntervalMDP.construct_value_function(alg, problem)
+        IntervalMDP._gsrdp_initialize!(V, prop)
+
+        states = collect(IntervalMDP.sample(strat, mdp, nothing, V, spec))
+        @test !isempty(states)
+        @test all(s -> IntervalMDP._is_source_state(mdp, s), states)
+    end
+end
+
+@testitem "GSRDP parity: implicit vs explicit sink state, all sampling strategies" tags =
+    [:base, :gsrdp_implicit_sink_solve] begin
+    using IntervalMDP
+
+    # The same system written two ways: `explicit_mdp` spells out state 3's
+    # absorbing self-loop as a third source column; `implicit_mdp` omits it and
+    # lets state 3 be an implicit sink. Both must give the same values.
+    prob1 = IntervalAmbiguitySets(;
+        lower = Float64[0 1//2; 1//10 3//10; 1//5 1//10],
+        upper = Float64[1//2 7//10; 3//5 1//2; 7//10 3//10],
+    )
+    prob2 = IntervalAmbiguitySets(;
+        lower = Float64[1//10 1//5; 1//5 1//5; 3//10 2//5],
+        upper = Float64[1//2 1//2; 1//2 2//5; 2//5 2//5],
+    )
+    sink = IntervalAmbiguitySets(;
+        lower = Float64[0 0; 0 0; 1 1],
+        upper = Float64[0 0; 0 0; 1 1],
+    )
+
+    explicit_mdp = IntervalMarkovDecisionProcess([prob1, prob2, sink], [1])
+    implicit_mdp = IntervalMarkovDecisionProcess([prob1, prob2], [1])
+    @test IntervalMDP.source_shape(implicit_mdp) == (2,)
+    @test IntervalMDP.state_values(implicit_mdp) == (3,)
+
+    eps = 1e-6
+    prop = InfiniteTimeReachability([3], eps)
+    spec = Specification(prop, Pessimistic, Maximize)
+
+    (V_ref, _, _) = solve(
+        VerificationProblem(explicit_mdp, spec),
+        RobustValueIteration(default_bellman_algorithm(explicit_mdp)),
+    )
+
+    # Under RVI the two encodings agree exactly — the implicit sink is handled
+    # identically to a spelled-out absorbing state.
+    (V_ref_implicit, _, _) = solve(
+        VerificationProblem(implicit_mdp, spec),
+        RobustValueIteration(default_bellman_algorithm(implicit_mdp)),
+    )
+    @test V_ref_implicit == V_ref
+
+    strategies = [
+        IntervalMDP.TrajectorySampling.TransitionProbabilityTrajectorySampling(),
+        IntervalMDP.TrajectorySampling.ExpectedGapTrajectorySampling(),
+        IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling(),
+        IntervalMDP.TrajectorySampling.ActionUncertaintyTrajectorySampling(),
+        IntervalMDP.PriorityQueueSampling.GapPriorityQueueSampling(2),
+        IntervalMDP.PriorityQueueSampling.UpperBoundPriorityQueueSampling(2),
+        IntervalMDP.PriorityQueueSampling.ActionUncertaintyPriorityQueueSampling(2),
+    ]
+
+    # GSRDP is compared against RVI with a looser tolerance than the usual
+    # `2 * eps`: the two terminate independently, each within `eps` of the fixed
+    # point under its own residual rule, so their difference is not strictly
+    # bounded by `2 * eps`. Values here are all ~1.0, so `1e-4` still catches any
+    # real mishandling of the sink (a grossly wrong value, or a BoundsError).
+    @testset "verification parity: $(typeof(ss).name.name)" for ss in strategies
+        alg = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(implicit_mdp);
+            sampling_strategy = ss,
+        )
+        (V, _, _) = solve(VerificationProblem(implicit_mdp, spec), alg)
+        @test maximum(abs, V_ref .- V) <= 1e-4
+    end
+
+    @testset "control synthesis yields a valid, source-shaped strategy" begin
+        alg = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(implicit_mdp);
+            sampling_strategy = IntervalMDP.TrajectorySampling.ActionUncertaintyTrajectorySampling(),
+        )
+        sol = solve(ControlSynthesisProblem(implicit_mdp, spec), alg)
+        # `checkstrategy` asserts the shape matches `source_shape` and every
+        # action is in range — i.e. nothing wrote through the sink.
+        @test IntervalMDP.checkstrategy(strategy(sol), implicit_mdp) === nothing
+    end
 end
 
 @testitem "PriorityQueueSampling: compute_priority formulas" tags =

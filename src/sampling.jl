@@ -683,6 +683,10 @@ relax the states visited along the way. A trajectory stops when it reaches a
 reach or avoid state, or when the strategy's own [`terminate_sampling`](@ref)
 says so (subject to a hard step cap regardless — see [`_trajectory_rollout`]).
 
+A rollout also ends if it leaves the source sub-box (an implicit sink state,
+see [`_is_source_state`](@ref)) — the sink is absorbing, and is excluded from
+the returned trajectory since it cannot be relaxed.
+
 Concrete subtypes implement four functions — [`num_trajectories`](@ref),
 [`terminate_sampling`](@ref), [`action_selection`](@ref),
 [`target_state_sampling`](@ref) — and get the rollout, the O-max realization,
@@ -812,6 +816,10 @@ alternative to be uncertain about). Shared by
 """
 function _action_uncertainty(model, sp, value_function)
     L, U = value_function.lower.current, value_function.upper.current
+    # An implicit sink (a target state outside the source sub-box) has no
+    # ambiguity-set column and no actions at all, so there is no action to be
+    # uncertain about — same reasoning as the single-action case below.
+    _is_source_state(model, sp) || return zero(eltype(U))
     a_L, L_sp = _omax_best_action(model, sp, L, false)
     _, U_excl = _omax_best_action(model, sp, U, true; exclude = a_L)
     U_excl === nothing && return zero(eltype(U))   # only one action at sp: no alternative to be uncertain about
@@ -821,10 +829,44 @@ end
 """
     _state_indices(model) -> CartesianIndices
 
-`CartesianIndices(source_shape(model))` — every state index, in the same
-order [`AllStatesSweep`](@ref) enumerates them.
+`CartesianIndices(source_shape(model))` — every *source* state index, in the
+same order [`AllStatesSweep`](@ref) enumerates them.
 """
 _state_indices(model) = CartesianIndices(source_shape(model))
+
+"""
+    _target_indices(model) -> CartesianIndices
+
+`CartesianIndices(state_values(model))` — every *target* state index. A
+superset of [`_state_indices`](@ref): a model may declare `source_dims`
+smaller than `state_vars` to leave trailing states implicit ("implicit sink
+states", see `FactoredRobustMarkovDecisionProcess`), which are absorbing —
+they have no ambiguity-set column and no available actions. Value functions
+and the `_omax_distribution` vector are indexed over *this* range.
+"""
+_target_indices(model) = CartesianIndices(state_values(model))
+
+"""
+    _target_state(model, i) -> CartesianIndex
+
+The target state at linear index `i` — how a linear index from
+[`_categorical_sample`](@ref) (or from an ambiguity set's `support`) maps
+back to a state index. Only equals `CartesianIndex(i)` for single-state-variable
+models.
+"""
+Base.@propagate_inbounds _target_state(model, i) = _target_indices(model)[i]
+
+"""
+    _is_source_state(model, s) -> Bool
+
+Whether target state `s` is also a source state — i.e. whether it has
+transitions and actions of its own, and an entry in the strategy cache.
+False exactly for the implicit sink states described in
+[`_target_indices`](@ref); those must never appear in an update sequence,
+since `bellman_v!` and the (`source_shape`-sized) strategy cache cannot
+index them.
+"""
+_is_source_state(model, s::CartesianIndex) = s in _state_indices(model)
 
 """
     _successor_states(model, s) -> Set
@@ -834,14 +876,18 @@ _state_indices(model) = CartesianIndices(source_shape(model))
 possibly transition to under some action. Used by incremental
 priority-queue sampling to find which states' priorities may have gone
 stale after `s` was relaxed.
+
+Implicit sink successors (see [`_is_source_state`](@ref)) are excluded: they
+are absorbing, so they carry no priority entry that could go stale.
 """
 function _successor_states(model, s)
     marginal = _omax_marginal(model)
-    S = _state_indices(model)
-    succ = Set{eltype(S)}()
+    T = _target_indices(model)
+    succ = Set{eltype(T)}()
     for a in available(model, s)
         for i in support(marginal[a, s])
-            push!(succ, S[i])
+            sp = T[i]
+            _is_source_state(model, sp) && push!(succ, sp)
         end
     end
     return succ
@@ -919,8 +965,9 @@ Choose the next state given the concrete O-max transition distribution
 `probabilities` (a dense `Vector` over every state, from [`_omax_distribution`](@ref))
 computed for `(current_state, action)` against the upper value function.
 [`_categorical_sample`](@ref) samples directly from a probability vector,
-for strategies that just want that. Must be implemented by every concrete
-subtype.
+for strategies that just want that; it yields a linear index, which
+[`_target_state`](@ref) maps to the state index this must return. Must be
+implemented by every concrete subtype.
 """
 function target_state_sampling end
 
@@ -951,13 +998,17 @@ function _trajectory_rollout(ss::TrajectorySamplingStrategy, model, value_functi
     trajectory = [current]
     steps = 0
     while !(current in reach_set) &&
-              !(current in avoid_set) &&
-              !terminate_sampling(ss, current, trajectory, value_function, model, spec) &&
-              steps < max_steps
+          !(current in avoid_set) &&
+          !terminate_sampling(ss, current, trajectory, value_function, model, spec) &&
+          steps < max_steps
         a = action_selection(ss, current, value_function, model, spec)
         ambiguity_set = _omax_marginal(model)[a, current]
         probs = _omax_distribution(ambiguity_set, V_upper, true)
         current = target_state_sampling(ss, current, a, probs, value_function, model, spec)
+        # An implicit sink is absorbing and has no strategy-cache entry, so
+        # the trajectory both ends here and excludes it — `bellman_v!` and the
+        # strategy cache can only index source states.
+        _is_source_state(model, current) || break
         push!(trajectory, current)
         steps += 1
     end
@@ -968,27 +1019,31 @@ end
 function sample(ss::TrajectorySamplingStrategy, model, strategy_cache, value_function, spec)
     states = reduce(
         vcat,
-        (_trajectory_rollout(ss, model, value_function, spec) for _ in 1:num_trajectories(ss)),
+        (
+            _trajectory_rollout(ss, model, value_function, spec) for
+            _ in 1:num_trajectories(ss)
+        ),
     )
     return StateIterator(states)
 end
 
 """
-    _categorical_sample(probs::AbstractVector) -> CartesianIndex
+    _categorical_sample(probs::AbstractVector) -> Int
 
-Sample a linear target index from probability vector `probs` (not required
+Sample a *linear* target index from probability vector `probs` (not required
 to be normalized — sampled against `sum(probs)`), via cumulative-sum search.
 Available for [`target_state_sampling`](@ref) implementations that just want
-to sample directly from the O-max distribution.
+to sample directly from the O-max distribution; since those must return a
+state index, pass the result through [`_target_state`](@ref).
 """
 function _categorical_sample(probs::AbstractVector)
     u = rand() * sum(probs)
     acc = zero(eltype(probs))
     for i in eachindex(probs)
         acc += probs[i]
-        acc >= u && return CartesianIndex(i)
+        acc >= u && return i
     end
-    return CartesianIndex(lastindex(probs))   # floating-point fallback
+    return lastindex(probs)   # floating-point fallback
 end
 
 ###################################
@@ -1035,7 +1090,9 @@ import ..IntervalMDP:
     target_state_sampling,
     _omax_best_action,
     _categorical_sample,
-    _action_uncertainty
+    _action_uncertainty,
+    _target_indices,
+    _target_state
 
 """
     TrajectorySampling.TrajectorySampling <: TrajectorySamplingStrategy
@@ -1080,7 +1137,7 @@ target_state_sampling(
     value_function,
     model,
     spec,
-) = _categorical_sample(probs)
+) = _target_state(model, _categorical_sample(probs))
 
 """
     ExpectedGapTrajectorySampling()
@@ -1101,7 +1158,7 @@ function target_state_sampling(
     spec,
 )
     gap = value_function.upper.current .- value_function.lower.current
-    return _categorical_sample(probs .* gap)
+    return _target_state(model, _categorical_sample(probs .* vec(gap)))
 end
 
 """
@@ -1122,7 +1179,10 @@ function target_state_sampling(
     model,
     spec,
 )
-    return _categorical_sample(probs .* value_function.upper.current)
+    return _target_state(
+        model,
+        _categorical_sample(probs .* vec(value_function.upper.current)),
+    )
 end
 
 """
@@ -1151,9 +1211,10 @@ function target_state_sampling(
         # Only score states the O-max realization actually assigned mass to
         # — multiplying by probs[sp] == 0 always contributes 0 regardless.
         probs[sp] > zero(eltype(probs)) || continue
-        weighted[sp] = probs[sp] * _action_uncertainty(model, CartesianIndex(sp), value_function)
+        weighted[sp] =
+            probs[sp] * _action_uncertainty(model, _target_state(model, sp), value_function)
     end
-    return _categorical_sample(weighted)
+    return _target_state(model, _categorical_sample(weighted))
 end
 
 end # module TrajectorySampling
