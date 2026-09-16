@@ -9,6 +9,7 @@ export solve
 using LinearAlgebra, SparseArrays
 using JuMP, HiGHS
 using StyledStrings
+import Flux
 
 ### Utilities
 const UnionIndex = Union{<:Integer, <:Tuple}
@@ -78,16 +79,24 @@ include("bellman/state.jl")
 include("bellman/state_action.jl")
 include("bellman/product.jl")
 
+# `rnd.jl` provides the Random Network Distillation novelty model used by
+# `PriorityQueueSampling.RNDPriorityQueueSampling`. It comes before
+# `sampling.jl` because that submodule imports the `_rnd_*` hooks by name at
+# module-definition time.
+include("rnd.jl")
+
 # `sampling.jl` defines `SamplingStrategy`s and the `sample` dispatcher.
 # Comes after the algorithm-defining files because `sampling_strategy`
 # methods dispatch on the algorithm types.
 include("sampling.jl")
-export SamplingStrategy, ValueBasedSamplingStrategy
+export SamplingStrategy, PriorityQueueSamplingStrategy
 public AllSampling,
     AllStatesSweep,
     RandomSubsetStateActions,
     RandomSubsetState,
-    ValueFunctionOrderedSampling
+    ValueFunctionOrderedSampling,
+    TrajectorySampling,
+    PriorityQueueSampling
 
 include("robust_value_iteration.jl")
 include("gsrdp.jl")

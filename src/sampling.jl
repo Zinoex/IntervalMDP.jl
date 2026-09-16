@@ -783,21 +783,29 @@ function _omax_expectation(ambiguity_set, V, upper_bound::Bool)
 end
 
 """
-    _omax_best_action(model, jₛ, V, upper_bound; exclude=nothing) -> (action_or_nothing, value_or_nothing)
+    _omax_best_action(model, jₛ, V, upper_bound; exclude=nothing, maximize=true) -> (action_or_nothing, value_or_nothing)
 
 The available action at state `jₛ` maximizing [`_omax_expectation`](@ref)
 against `V`/`upper_bound` — i.e. `argmax_a Q(jₛ, a)` under the O-max
-Q-value for that direction. With `exclude`, maximizes among every available
+Q-value for that direction, or `argmin_a` with `maximize = false`, matching
+a `Minimize` specification. With `exclude`, optimizes among every available
 action *except* `exclude`. Returns `(nothing, nothing)` if no candidate
 action exists (no actions available at `jₛ`, or `exclude` was the only one).
 """
-function _omax_best_action(model, jₛ, V, upper_bound::Bool; exclude = nothing)
+function _omax_best_action(
+    model,
+    jₛ,
+    V,
+    upper_bound::Bool;
+    exclude = nothing,
+    maximize::Bool = true,
+)
     marginal = _omax_marginal(model)
     best_a, best_v = nothing, nothing
     for jₐ in available(model, jₛ)
         (exclude !== nothing && jₐ == exclude) && continue
         v = _omax_expectation(marginal[jₐ, jₛ], V, upper_bound)
-        if best_v === nothing || v > best_v
+        if best_v === nothing || (maximize ? v > best_v : v < best_v)
             best_a, best_v = jₐ, v
         end
     end
@@ -871,28 +879,83 @@ index them.
 _is_source_state(model, s::CartesianIndex) = s in _state_indices(model)
 
 """
-    _successor_states(model, s) -> Set
+    _predecessor_states(model, s) -> Set
 
-`SDS(s) = {s' | ∃a. p(s'|s,a)}` — the union, over every action available at
-`s`, of that `(s, a)` ambiguity set's support: every state `s` could
-possibly transition to under some action. Used by incremental
-priority-queue sampling to find which states' priorities may have gone
-stale after `s` was relaxed.
+`Pred(s) = {s' | ∃a. p̄(s|s',a) > 0}` — every source state that can reach `s`
+in one step under some available action. Used by incremental priority-queue
+sampling to find which states' priorities may have gone stale after `s` was
+relaxed: a change in `V(s)` propagates *backward*, to the states whose
+Bellman backup reads `V(s)`.
 
-Implicit sink successors (see [`_is_source_state`](@ref)) are excluded: they
-are absorbing, so they carry no priority entry that could go stale.
+Membership is decided on the *upper* transition probability being nonzero,
+not on `support`: `support` returns the full target range for a dense
+`IntervalAmbiguitySets` (see its docstring), so going by support alone would
+report every state as a predecessor of every other.
+
+Implicit sink states (see [`_is_source_state`](@ref)) can never be
+predecessors — they own no ambiguity-set column and no actions — so no
+filtering is needed here, unlike in the forward direction. A sink may still
+be passed as `s`; it simply has no outgoing edges of its own.
+
+O(|S|·|A|) per query. [`_predecessor_index`](@ref) computes the whole
+relation in a single pass, for callers that need it repeatedly.
 """
-function _successor_states(model, s)
+function _predecessor_states(model, s)
     marginal = _omax_marginal(model)
-    T = _target_indices(model)
-    succ = Set{eltype(T)}()
-    for a in available(model, s)
-        for i in support(marginal[a, s])
-            sp = T[i]
-            _is_source_state(model, sp) && push!(succ, sp)
+    i = LinearIndices(_target_indices(model))[s]
+
+    S = _state_indices(model)
+    pred = Set{eltype(S)}()
+    for sp in S
+        any(a -> upper(marginal[a, sp], i) > 0, available(model, sp)) && push!(pred, sp)
+    end
+    return pred
+end
+
+"""
+    _predecessor_index(model) -> Vector{Vector{Tuple{Int, Float64}}}
+
+The full predecessor relation, computed in one pass over every
+`(source, action)` ambiguity set: entry `i` — a *target* linear index —
+lists `(source linear index, maxₐ p̄(target | source, a))` for every
+predecessor of that target. Only `maxₐ p̄` is retained, since prioritised
+sweeping propagates `δ_pred = maxₐ p̄(s | s_pred, a) · |Δ(s)|`.
+
+Source indices are linear into [`_state_indices`](@ref), target indices
+linear into [`_target_indices`](@ref) — the two ranges differ whenever the
+model declares implicit sink states.
+
+Callers cache the result across `sample` calls, which is sound because GSRDP
+is infinite-horizon (hence a stationary model) and `_omax_marginal` already
+rejects anything but a flat, single-marginal model.
+"""
+function _predecessor_index(model)
+    marginal = _omax_marginal(model)
+    S = _state_indices(model)
+    L = LinearIndices(S)
+
+    index = [Tuple{Int, Float64}[] for _ in 1:length(_target_indices(model))]
+    # `maxₐ p̄` per target, accumulated over the actions available at one source.
+    acc = Dict{Int, Float64}()
+
+    for sp in S
+        empty!(acc)
+        for a in available(model, sp)
+            ambiguity_set = marginal[a, sp]
+            for i in support(ambiguity_set)
+                p = upper(ambiguity_set, i)
+                p > 0 || continue
+                acc[i] = max(get(acc, i, zero(Float64)), Float64(p))
+            end
+        end
+
+        lsp = L[sp]
+        for (i, p) in acc
+            push!(index[i], (lsp, p))
         end
     end
-    return succ
+
+    return index
 end
 
 ###################################
@@ -1021,7 +1084,7 @@ reverse_trajectory(::TrajectorySamplingStrategy) = true
 # Hard safety cap, independent of `terminate_sampling`/`terminate_transition`
 # — guarantees a single `sample` call can't hang GSRDP if a strategy's own
 # termination logic never fires (e.g. an absorbing-free transient region).
-_trajectory_max_steps(model) = 10 * num_states(model)
+_trajectory_max_steps(model) = 1 * num_states(model)
 
 function _trajectory_rollout(ss::TrajectorySamplingStrategy, model, value_function, spec)
     prop = system_property(spec)
@@ -1430,17 +1493,19 @@ end
 # Concrete incremental-priority-queue algorithms live in this submodule
 # (`IntervalMDP.PriorityQueueSampling.GapPriorityQueueSampling()` etc.),
 # mirroring `TrajectorySampling` (§4e): the general interface
-# (`PriorityQueueSamplingStrategy`, `compute_priority`, `_successor_states`,
+# (`PriorityQueueSamplingStrategy`, `compute_priority`, `_predecessor_states`,
 # `_state_indices`) stays in the parent `IntervalMDP` module, since
 # `_gsrdp_sample`/`sampling_context_requirement` dispatch on it; only the
 # concrete algorithms move into the submodule.
 #
 # Shared behaviour, all under `PriorityQueueSampling.PriorityQueueSampling`:
 # the first `sample` call computes every state's priority from scratch; every
-# later call only recomputes priorities for `_successor_states(model, s)` of
-# each state `s` selected by the *previous* call (GSRDP always relaxes
-# exactly what `sample` returns, so "states updated in the previous
-# iteration" and "states `sample` returned last time" are the same set).
+# later call only recomputes priorities for the *predecessors*
+# (`_predecessor_index`) of each state `s` selected by the *previous* call —
+# prioritised sweeping's backward propagation, since a change in `V(s)` is
+# read by exactly the states that can transition into `s`. (GSRDP always
+# relaxes exactly what `sample` returns, so "states updated in the previous
+# iteration" and "states `sample` returned last time" are the same set.)
 # Each call then returns the top `ss.k` states by priority.
 #
 #   * GapPriorityQueueSampling — priority(s) = U(s) - L(s).
@@ -1448,6 +1513,9 @@ end
 #   * ActionUncertaintyPriorityQueueSampling — priority(s) = V^a(s) (same
 #     action-selection-uncertainty measure as
 #     `TrajectorySampling.ActionUncertaintyTrajectorySampling`).
+#   * RNDPriorityQueueSampling — priority(s) = max(δ(s), λ · novelty(s)),
+#     with novelty from a Random Network Distillation predictor standing in
+#     for a per-state backup counter (§5c).
 #
 # NOTE: like `TrajectorySampling`, this module has no docstring of its own
 # (a module can't carry one alongside a same-named member) — see the
@@ -1461,8 +1529,16 @@ import ..IntervalMDP:
     sample,
     StateIterator,
     _state_indices,
-    _successor_states,
-    _action_uncertainty
+    _target_indices,
+    _predecessor_index,
+    _action_uncertainty,
+    _omax_best_action,
+    _is_source_state,
+    ismaximize,
+    _rnd_construct,
+    _rnd_novelty,
+    _rnd_train!,
+    _rnd_calibrate!
 
 """
     PriorityQueueSampling.PriorityQueueSampling <: PriorityQueueSamplingStrategy
@@ -1470,10 +1546,13 @@ import ..IntervalMDP:
 Shared behaviour for this submodule's concrete strategies: a lazily
 maintained priority over every state, initialized in full on the first
 `sample` call and thereafter updated only where the previous call's
-selections could have made it stale (`_successor_states` of each
-previously-selected state), returning the top `k` states by priority each
-call, breaking ties by least-recently-selected. Concrete subtypes need only
-implement `compute_priority`.
+selections could have made it stale (the *predecessors* of each
+previously-selected state, via `_predecessor_index`), returning the top `k`
+states by priority each call, breaking ties by least-recently-selected.
+Concrete subtypes need only implement `compute_priority`; the optional hooks
+[`propagated_priority`](@ref), [`on_selected!`](@ref) and
+[`initialize_priority_state!`](@ref) default to behaviour that ignores
+prioritised sweeping's propagated magnitude.
 
 Ties matter in practice, not just in theory: every non-goal/avoid state
 starts with an identical priority under all three strategies below (`L = 0`,
@@ -1490,9 +1569,57 @@ abstract type PriorityQueueSampling <: PriorityQueueSamplingStrategy end
 function reset_sampling_strategy!(ss::PriorityQueueSampling)
     ss.initialized[] = false
     ss.previous_selected[] = Int[]
+    ss.selected_snapshot[] = Tuple{Float64, Float64}[]
+    ss.predecessor_index[] = Vector{Tuple{Int, Float64}}[]
     ss.clock[] = 0
     return nothing
 end
+
+"""
+    propagated_priority(strategy, sp, propagated, value_function, model, spec) -> Real
+
+Priority for a state `sp` whose priority went stale because a *successor* of
+it was relaxed. `propagated` is `maxₐ p̄(s | sp, a) · |Δ(s)|` maximised over
+the relaxed states `s` that `sp` can reach — the bound on how much `sp`'s own
+value can move as a result.
+
+Defaults to [`compute_priority`](@ref), i.e. ignoring the propagated
+magnitude and simply recomputing the strategy's own priority, which is what
+the value-function-derived strategies here want. Strategies that combine the
+two — [`RNDPriorityQueueSampling`](@ref) — override it.
+"""
+propagated_priority(
+    ss::PriorityQueueSampling,
+    sp,
+    propagated,
+    value_function,
+    model,
+    spec,
+) = compute_priority(ss, sp, value_function, model, spec)
+
+"""
+    on_selected!(strategy, states, value_function, model, spec)
+
+Hook called with the states a `sample` call selected, immediately after
+selection and hence immediately before GSRDP relaxes exactly those states.
+Defaults to a no-op; [`RNDPriorityQueueSampling`](@ref) uses it to train its
+novelty predictor on the states that are about to be backed up.
+"""
+on_selected!(::PriorityQueueSampling, states, value_function, model, spec) = nothing
+
+# The value pair snapshotted for a selected state, so that the *actual*
+# backup magnitude |Δ(s)| can be measured on the next call. It has to be
+# measured rather than read off the value function: `_gsrdp!` calls
+# `nextiteration!` (which copies `current` into `previous`) immediately
+# before `sample`, so by the time a strategy is asked for a sample the two
+# carry identical values and no residual.
+_snapshot(value_function, s) =
+    (Float64(value_function.upper.current[s]), Float64(value_function.lower.current[s]))
+
+_backup_magnitude(value_function, s, snapshot) = max(
+    abs(Float64(value_function.upper.current[s]) - snapshot[1]),
+    abs(Float64(value_function.lower.current[s]) - snapshot[2]),
+)
 
 function sample(ss::PriorityQueueSampling, model, strategy_cache, value_function, spec)
     S = _state_indices(model)
@@ -1500,23 +1627,46 @@ function sample(ss::PriorityQueueSampling, model, strategy_cache, value_function
     ss.clock[] += 1
 
     if !ss.initialized[]
+        ss.predecessor_index[] = _predecessor_index(model)
+        initialize_priority_state!(ss, S, value_function, model, spec)
+
+        # Assigned before the sweep, not after: strategies whose priority
+        # depends on whether a state has been relaxed yet read it from here.
+        ss.last_selected[] = zeros(Int, nS)
+
         priorities = Vector{Float64}(undef, nS)
         @inbounds for i in 1:nS
             priorities[i] = compute_priority(ss, S[i], value_function, model, spec)
         end
         ss.priorities[] = priorities
-        ss.last_selected[] = zeros(Int, nS)
         ss.initialized[] = true
     else
         priorities = ss.priorities[]
-        stale = Set{eltype(S)}()
-        for i in ss.previous_selected[]
-            push!(stale, S[i])   # s's own priority is stale too — its value just changed
-            union!(stale, _successor_states(model, S[i]))
+        index = ss.predecessor_index[]
+        target_linear = LinearIndices(_target_indices(model))
+
+        # Backward propagation: relaxing `s` can only move the value of a
+        # state that reads `V(s)`, i.e. a predecessor of `s`, and by at most
+        # `maxₐ p̄(s | sp, a) · |Δ(s)|`.
+        propagated = Dict{Int, Float64}()
+        snapshots = ss.selected_snapshot[]
+        for (n, i) in enumerate(ss.previous_selected[])
+            Δ = _backup_magnitude(value_function, S[i], snapshots[n])
+            for (j, p̄) in index[target_linear[S[i]]]
+                propagated[j] = max(get(propagated, j, 0.0), p̄ * Δ)
+            end
         end
-        L = LinearIndices(S)
-        for sp in stale
-            priorities[L[sp]] = compute_priority(ss, sp, value_function, model, spec)
+
+        for (j, m) in propagated
+            priorities[j] = propagated_priority(ss, S[j], m, value_function, model, spec)
+        end
+
+        # A relaxed state's own priority is stale too — its value just
+        # changed. If it is also its own predecessor (a self-loop), keep
+        # whichever of the two readings is more urgent.
+        for i in ss.previous_selected[]
+            own = compute_priority(ss, S[i], value_function, model, spec)
+            priorities[i] = haskey(propagated, i) ? max(priorities[i], own) : own
         end
     end
 
@@ -1537,8 +1687,25 @@ function sample(ss::PriorityQueueSampling, model, strategy_cache, value_function
         last_selected[i] = ss.clock[]
     end
     ss.previous_selected[] = top
-    return StateIterator([S[i] for i in top])
+    ss.selected_snapshot[] = [_snapshot(value_function, S[i]) for i in top]
+
+    selected = [S[i] for i in top]
+    on_selected!(ss, selected, value_function, model, spec)
+
+    return StateIterator(selected)
 end
+
+"""
+    initialize_priority_state!(strategy, S, value_function, model, spec)
+
+Hook called once per `solve`, before the initial full priority sweep, with
+every state `S`. Defaults to a no-op; strategies carrying a lazily
+constructed model — [`RNDPriorityQueueSampling`](@ref) and its novelty
+networks, whose input dimension is only known once a model is in hand — build
+it here so that the sweep that follows can already query it.
+"""
+initialize_priority_state!(::PriorityQueueSampling, S, value_function, model, spec) =
+    nothing
 
 """
     GapPriorityQueueSampling(k)
@@ -1554,9 +1721,19 @@ struct GapPriorityQueueSampling <: PriorityQueueSampling
     clock::Base.RefValue{Int}
     initialized::Base.RefValue{Bool}
     previous_selected::Base.RefValue{Vector{Int}}
+    selected_snapshot::Base.RefValue{Vector{Tuple{Float64, Float64}}}
+    predecessor_index::Base.RefValue{Vector{Vector{Tuple{Int, Float64}}}}
 
-    GapPriorityQueueSampling(k::Int) =
-        new(k, Ref(Float64[]), Ref(Int[]), Ref(0), Ref(false), Ref(Int[]))
+    GapPriorityQueueSampling(k::Int) = new(
+        k,
+        Ref(Float64[]),
+        Ref(Int[]),
+        Ref(0),
+        Ref(false),
+        Ref(Int[]),
+        Ref(Tuple{Float64, Float64}[]),
+        Ref(Vector{Tuple{Int, Float64}}[]),
+    )
 end
 
 compute_priority(::GapPriorityQueueSampling, s, value_function, model, spec) =
@@ -1576,9 +1753,19 @@ struct UpperBoundPriorityQueueSampling <: PriorityQueueSampling
     clock::Base.RefValue{Int}
     initialized::Base.RefValue{Bool}
     previous_selected::Base.RefValue{Vector{Int}}
+    selected_snapshot::Base.RefValue{Vector{Tuple{Float64, Float64}}}
+    predecessor_index::Base.RefValue{Vector{Vector{Tuple{Int, Float64}}}}
 
-    UpperBoundPriorityQueueSampling(k::Int) =
-        new(k, Ref(Float64[]), Ref(Int[]), Ref(0), Ref(false), Ref(Int[]))
+    UpperBoundPriorityQueueSampling(k::Int) = new(
+        k,
+        Ref(Float64[]),
+        Ref(Int[]),
+        Ref(0),
+        Ref(false),
+        Ref(Int[]),
+        Ref(Tuple{Float64, Float64}[]),
+        Ref(Vector{Tuple{Int, Float64}}[]),
+    )
 end
 
 compute_priority(::UpperBoundPriorityQueueSampling, s, value_function, model, spec) =
@@ -1602,13 +1789,281 @@ struct ActionUncertaintyPriorityQueueSampling <: PriorityQueueSampling
     clock::Base.RefValue{Int}
     initialized::Base.RefValue{Bool}
     previous_selected::Base.RefValue{Vector{Int}}
+    selected_snapshot::Base.RefValue{Vector{Tuple{Float64, Float64}}}
+    predecessor_index::Base.RefValue{Vector{Vector{Tuple{Int, Float64}}}}
 
-    ActionUncertaintyPriorityQueueSampling(k::Int) =
-        new(k, Ref(Float64[]), Ref(Int[]), Ref(0), Ref(false), Ref(Int[]))
+    ActionUncertaintyPriorityQueueSampling(k::Int) = new(
+        k,
+        Ref(Float64[]),
+        Ref(Int[]),
+        Ref(0),
+        Ref(false),
+        Ref(Int[]),
+        Ref(Tuple{Float64, Float64}[]),
+        Ref(Vector{Tuple{Int, Float64}}[]),
+    )
 end
 
 compute_priority(::ActionUncertaintyPriorityQueueSampling, s, value_function, model, spec) =
     _action_uncertainty(model, s, value_function)
+
+###################################
+# 5c. RND-based priority queue     #
+###################################
+#
+# `δ` is deliberately pluggable — the three functions below are ready-made,
+# and any `(s, value_function, model, spec) -> Real` works.
+
+"""
+    bellman_residual_delta(s, value_function, model, spec) -> Real
+
+`δ(s) = |maxₐ Q_U(s, a) − U(s)|`, the Bellman residual at `s` under the
+upper bound: how far `s` still is from satisfying its own Bellman equation,
+and hence how much a backup there would move it. The default `δ` for
+[`RNDPriorityQueueSampling`](@ref).
+
+Measured on the upper bound because that is the bound GSRDP lets drive
+action selection; the optimization direction follows the specification's
+`Maximize`/`Minimize` mode, defaulting to maximizing when `spec === nothing`.
+"""
+function bellman_residual_delta(s, value_function, model, spec)
+    _is_source_state(model, s) || return 0.0
+
+    U = value_function.upper.current
+    _, q = _omax_best_action(model, s, U, true; maximize = _delta_maximize(spec))
+    isnothing(q) && return 0.0
+
+    return abs(Float64(q) - Float64(U[s]))
+end
+
+_delta_maximize(::Nothing) = true
+_delta_maximize(spec) = ismaximize(spec)
+
+"""
+    gap_delta(s, value_function, model, spec) -> Real
+
+`δ(s) = |U(s) − L(s)|`, the value-function gap — the same measure
+[`GapPriorityQueueSampling`](@ref) prioritizes by, usable as a `δ` for
+[`RNDPriorityQueueSampling`](@ref).
+"""
+gap_delta(s, value_function, model, spec) =
+    abs(Float64(value_function.upper.current[s]) - Float64(value_function.lower.current[s]))
+
+"""
+    action_uncertainty_delta(s, value_function, model, spec) -> Real
+
+`δ(s) = V^a(s)`, the action-selection uncertainty
+[`ActionUncertaintyPriorityQueueSampling`](@ref) prioritizes by, usable as a
+`δ` for [`RNDPriorityQueueSampling`](@ref).
+"""
+action_uncertainty_delta(s, value_function, model, spec) =
+    _action_uncertainty(model, s, value_function)
+
+"""
+    RNDPriorityQueueSampling(k; delta, lambda, hidden, output, lr, epochs, features, rng)
+
+Priority-queue sampler whose priority is a *floor* combination of a
+value-function residual and a Random Network Distillation novelty signal:
+
+    priority(s) = max(δ(s), λ · novelty(s))
+
+The model is known exactly, so `δ(s)` is trustworthy on its own and novelty
+must not discount it — which is why this is a floor rather than the
+multiplicative form RND takes under model uncertainty. What the floor buys
+is that a region which has never been backed up still gets swept while its
+`δ` is artificially small from a cold start.
+
+`novelty(s)` is not "have I seen data here" — the model is known everywhere,
+so that question is empty. It is a *generalized backup-recency* signal: the
+predictor is trained on every state that gets backed up, so its error decays
+across the whole neighbourhood of well-swept regions and stays high
+elsewhere. That makes it a function-approximated stand-in for a per-state
+backup counter, which a state space too large to enumerate cannot maintain
+exactly. See [`RandomNetworkDistillation`](@ref).
+
+Train vs. evaluate follows from a backup being the grounded event here:
+a state that is popped and relaxed is trained on; a predecessor being
+assigned a propagated priority, and the initial seeding sweep, only
+evaluate. The floor is applied at exactly those evaluation points — that is,
+to states that have not been relaxed yet — and drops away once a state has
+been swept; see [`_novelty_floor`](@ref), which also explains why that is
+what keeps the sampler live.
+
+Propagation is prioritised sweeping's: after `s` is relaxed by `Δ(s)`, each
+predecessor `s_pred` is pushed with `max(maxₐ p̄(s|s_pred,a) · |Δ(s)|,
+λ · novelty(s_pred))`.
+
+# Keywords
+- `delta`: `(s, value_function, model, spec) -> Real`, the `δ` above.
+  Defaults to [`bellman_residual_delta`](@ref); [`gap_delta`](@ref) and
+  [`action_uncertainty_delta`](@ref) are also provided.
+- `lambda`: the novelty floor's weight. Novelty is normalized to start near
+  `1`, so `λ` is in the same units as `δ`. `λ = 0` disables the floor and
+  reduces this to plain prioritised sweeping over `δ`.
+- `hidden`, `output`, `lr`, `epochs`: novelty network size, Adam learning
+  rate, and gradient steps per relaxed batch.
+- `features`: `s::CartesianIndex -> Vector{Float32}` state embedding.
+  Defaults to normalized state-variable indices; models with a meaningful
+  geometry should pass their own, since novelty generalizes exactly as far
+  as the embedding says two states are alike.
+- `rng`: optional RNG for network initialization, for reproducibility.
+"""
+struct RNDPriorityQueueSampling <: PriorityQueueSampling
+    k::Int
+    delta::Function
+    lambda::Float64
+    hidden::Int
+    output::Int
+    lr::Float64
+    epochs::Int
+    features::Any
+    rng::Any
+    # Built lazily in `initialize_priority_state!`: the networks' input
+    # dimension is only known once there is a model to read a state's
+    # features from.
+    rnd::Base.RefValue{Any}
+    priorities::Base.RefValue{Vector{Float64}}
+    last_selected::Base.RefValue{Vector{Int}}
+    clock::Base.RefValue{Int}
+    initialized::Base.RefValue{Bool}
+    previous_selected::Base.RefValue{Vector{Int}}
+    selected_snapshot::Base.RefValue{Vector{Tuple{Float64, Float64}}}
+    predecessor_index::Base.RefValue{Vector{Vector{Tuple{Int, Float64}}}}
+
+    function RNDPriorityQueueSampling(
+        k::Int;
+        delta::Function = bellman_residual_delta,
+        lambda::Real = 1.0,
+        hidden::Int = 32,
+        output::Int = 8,
+        lr::Real = 1e-3,
+        epochs::Int = 1,
+        features = nothing,
+        rng = nothing,
+    )
+        lambda >= 0 || throw(ArgumentError("lambda must be non-negative, got $lambda"))
+        epochs >= 1 || throw(ArgumentError("epochs must be positive, got $epochs"))
+
+        return new(
+            k,
+            delta,
+            Float64(lambda),
+            hidden,
+            output,
+            Float64(lr),
+            epochs,
+            features,
+            rng,
+            Ref{Any}(nothing),
+            Ref(Float64[]),
+            Ref(Int[]),
+            Ref(0),
+            Ref(false),
+            Ref(Int[]),
+            Ref(Tuple{Float64, Float64}[]),
+            Ref(Vector{Tuple{Int, Float64}}[]),
+        )
+    end
+end
+
+function reset_sampling_strategy!(ss::RNDPriorityQueueSampling)
+    invoke(reset_sampling_strategy!, Tuple{PriorityQueueSampling}, ss)
+    # Fresh networks per `solve`: a predictor still carrying the previous
+    # run's training would report a whole region as already well-swept
+    # before this run has backed up anything at all.
+    ss.rnd[] = nothing
+    return nothing
+end
+
+function initialize_priority_state!(
+    ss::RNDPriorityQueueSampling,
+    S,
+    value_function,
+    model,
+    spec,
+)
+    ss.rnd[] = _rnd_construct(
+        model;
+        hidden = ss.hidden,
+        output = ss.output,
+        lr = ss.lr,
+        epochs = ss.epochs,
+        features = ss.features,
+        rng = ss.rng,
+    )
+    # Calibrate before any training, so novelty starts near 1 everywhere and
+    # `λ` reads as "the priority floor a never-backed-up state gets".
+    _rnd_calibrate!(ss.rnd[], S)
+
+    return nothing
+end
+
+"""
+    _relaxed(strategy, s, model) -> Bool
+
+Whether `s` has been selected — and hence relaxed by GSRDP — at least once
+this run, read off the tie-break clock.
+"""
+function _relaxed(ss::RNDPriorityQueueSampling, s, model)
+    last_selected = ss.last_selected[]
+    isempty(last_selected) && return false
+    return last_selected[LinearIndices(_state_indices(model))[s]] > 0
+end
+
+"""
+    _novelty_floor(strategy, s, model) -> Real
+
+`λ · novelty(s)`, but only for a state that has not been relaxed yet; `0`
+once it has.
+
+This is what the floor is *for*: novelty is evaluated when a state enters
+the queue — at seeding, and when a predecessor is pushed — to keep a region
+that has never been swept from being ignored while its `δ` is still
+artificially small. A state that has already been backed up is no longer
+making that claim, and re-applying the floor to it would be reading the
+predictor as a statement about the *future* rather than about coverage so
+far.
+
+It is also what makes the sampler live. The novelty ordering across states
+is arbitrary — it comes from a random target network — and training
+generalizes, so every state's novelty decays roughly together. A floor that
+applied forever would therefore freeze that arbitrary ordering into the
+priorities: with `k` smaller than the number of states, the states that
+happen to rank lowest would never be selected, and their bounds would never
+converge. Restricting the floor to never-relaxed states means every
+priority eventually falls back to `δ` and propagation, so an unswept state
+is guaranteed to reach the top of the queue once the swept ones converge.
+"""
+function _novelty_floor(ss::RNDPriorityQueueSampling, s, model)
+    (iszero(ss.lambda) || _relaxed(ss, s, model)) && return 0.0
+
+    rnd = ss.rnd[]
+    isnothing(rnd) && throw(
+        ArgumentError(
+            "the novelty networks have not been built yet — `sample` builds them on " *
+            "its first call, so `compute_priority` is only meaningful after that",
+        ),
+    )
+
+    return ss.lambda * _rnd_novelty(rnd, s)
+end
+
+compute_priority(ss::RNDPriorityQueueSampling, s, value_function, model, spec) =
+    max(Float64(ss.delta(s, value_function, model, spec)), _novelty_floor(ss, s, model))
+
+propagated_priority(
+    ss::RNDPriorityQueueSampling,
+    sp,
+    propagated,
+    value_function,
+    model,
+    spec,
+) = max(Float64(propagated), _novelty_floor(ss, sp, model))
+
+# A backup is the grounded event this signal tracks, so training happens on
+# exactly the states GSRDP is about to relax — and nowhere else.
+on_selected!(ss::RNDPriorityQueueSampling, states, value_function, model, spec) =
+    (_rnd_train!(ss.rnd[], states); nothing)
 
 end # module PriorityQueueSampling
 

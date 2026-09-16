@@ -30,6 +30,6 @@ IntervalMDP.AllSampling
 IntervalMDP.AllStatesSweep
 IntervalMDP.RandomSubsetStateActions
 IntervalMDP.RandomSubsetState
-ValueBasedSamplingStrategy
+PriorityQueueSamplingStrategy
 IntervalMDP.ValueFunctionOrderedSampling
 ```

@@ -685,13 +685,12 @@ end
     end
 end
 
-@testitem "_successor_states / _state_indices" tags = [:base, :gsrdp_priority_successor_states] begin
+@testitem "_predecessor_states / _predecessor_index / _state_indices" tags =
+    [:base, :gsrdp_priority_predecessor_states] begin
     using IntervalMDP, SparseArrays
 
-    # 3-state chain, single action per state: 1 -> {1,2}; 2 -> {2,3}; 3 absorbing.
-    # `support` returns the FULL column range for a dense IntervalAmbiguitySets
-    # (see its docstring), so a sparse representation is needed here to actually
-    # exercise successor filtering rather than trivially returning every state.
+    # 3-state chain, single action per state: 1 -> {1,2}; 2 -> {2,3}; 3 absorbing,
+    # so the predecessor relation is 1 <- {1}; 2 <- {1,2}; 3 <- {2,3}.
     prob1 = IntervalAmbiguitySets(;
         lower = sparse_hcat(SparseVector(3, [1, 2], [0.3, 0.7])),
         upper = sparse_hcat(SparseVector(3, [1, 2], [0.3, 0.7])),
@@ -706,13 +705,27 @@ end
     )
     mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3], [1])
 
-    @test IntervalMDP._successor_states(mdp, CartesianIndex(1)) ==
+    @test IntervalMDP._predecessor_states(mdp, CartesianIndex(1)) ==
+          Set([CartesianIndex(1)])
+    @test IntervalMDP._predecessor_states(mdp, CartesianIndex(2)) ==
           Set([CartesianIndex(1), CartesianIndex(2)])
-    @test IntervalMDP._successor_states(mdp, CartesianIndex(2)) ==
+    @test IntervalMDP._predecessor_states(mdp, CartesianIndex(3)) ==
           Set([CartesianIndex(2), CartesianIndex(3)])
-    @test IntervalMDP._successor_states(mdp, CartesianIndex(3)) == Set([CartesianIndex(3)])
     @test collect(IntervalMDP._state_indices(mdp)) ==
           [CartesianIndex(1), CartesianIndex(2), CartesianIndex(3)]
+
+    @testset "_predecessor_index agrees with the per-state query" begin
+        index = IntervalMDP._predecessor_index(mdp)
+        for i in 1:3
+            @test Set(CartesianIndex(src) for (src, _) in index[i]) ==
+                  IntervalMDP._predecessor_states(mdp, CartesianIndex(i))
+        end
+
+        # ... and carries maxₐ p̄(target | source, a) per edge.
+        @test sort(index[1]) == [(1, 0.3)]
+        @test sort(index[2]) == [(1, 0.7), (2, 0.3)]
+        @test sort(index[3]) == [(2, 0.7), (3, 1.0)]
+    end
 end
 
 @testitem "Sampling handles implicit sink states (source_dims < state_vars)" tags =
@@ -761,11 +774,33 @@ end
         @test IntervalMDP._action_uncertainty(mdp, CartesianIndex(3), vf) == 0.0
     end
 
-    @testset "_successor_states excludes the sink" begin
+    @testset "bellman_residual_delta at the sink is zero, not a BoundsError" begin
+        @test IntervalMDP.PriorityQueueSampling.bellman_residual_delta(
+            CartesianIndex(3),
+            vf,
+            mdp,
+            nothing,
+        ) == 0.0
+    end
+
+    @testset "the sink is never a predecessor, but may be a target" begin
         # `support` on a dense IntervalAmbiguitySets returns the full target
-        # range, so the sink is offered here and must be filtered out.
-        @test IntervalMDP._successor_states(mdp, CartesianIndex(1)) ==
+        # range, so membership has to be decided on a nonzero upper transition
+        # probability — going by support alone would make every state a
+        # predecessor of every other here.
+        @test IntervalMDP._predecessor_states(mdp, CartesianIndex(1)) ==
+              Set([CartesianIndex(2)])
+        @test IntervalMDP._predecessor_states(mdp, CartesianIndex(2)) ==
+              Set([CartesianIndex(1)])
+
+        # The sink owns no ambiguity-set column, so it can never appear in a
+        # predecessor set — it does, however, have predecessors of its own.
+        @test IntervalMDP._predecessor_states(mdp, CartesianIndex(3)) ==
               Set([CartesianIndex(1), CartesianIndex(2)])
+
+        index = IntervalMDP._predecessor_index(mdp)
+        @test length(index) == 3          # indexed by target, so the sink has a slot
+        @test sort(index[3]) == [(1, 1.0), (2, 1.0)]
     end
 
     @testset "target_state_sampling tolerates sink mass" for strat in strategies
@@ -905,9 +940,9 @@ end
     [:base, :gsrdp_priority_shared] begin
     using IntervalMDP, SparseArrays
 
-    # 3-state chain, single action per state: 1 -> {1,2}; 2 -> {2,3}; 3 absorbing.
-    # Sparse, so state 1's successor set is genuinely {1,2}, not every state (see
-    # the note in the `_successor_states` test above).
+    # 3-state chain, single action per state: 1 -> {1,2}; 2 -> {2,3}; 3 absorbing,
+    # so the predecessor relation the stale set follows is 1 <- {1}; 2 <- {1,2};
+    # 3 <- {2,3}.
     prob1 = IntervalAmbiguitySets(;
         lower = sparse_hcat(SparseVector(3, [1, 2], [0.3, 0.7])),
         upper = sparse_hcat(SparseVector(3, [1, 2], [0.3, 0.7])),
@@ -923,24 +958,25 @@ end
     mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3], [1])
 
     @testset "first call does a full sweep; later calls only touch the stale set" begin
-        vf = (upper = (current = [1.0, 0.5, 1.0],), lower = (current = [0.0, 0.0, 1.0],))
+        vf = (upper = (current = [0.5, 1.0, 1.0],), lower = (current = [0.0, 0.0, 1.0],))
         ss = IntervalMDP.PriorityQueueSampling.GapPriorityQueueSampling(1)
 
-        # gap = [1.0, 0.5, 0.0] -> state 1 strictly highest, no tie to worry about.
+        # gap = [0.5, 1.0, 0.0] -> state 2 strictly highest, no tie to worry about.
         seq1 = collect(IntervalMDP.sample(ss, mdp, nothing, vf, nothing))
-        @test seq1 == [CartesianIndex(1)]
-        @test ss.priorities[] ≈ [1.0, 0.5, 0.0]
+        @test seq1 == [CartesianIndex(2)]
+        @test ss.priorities[] ≈ [0.5, 1.0, 0.0]
         @test ss.initialized[]
-        @test ss.previous_selected[] == [1]
+        @test ss.previous_selected[] == [2]
 
-        # Successor set of state 1 is {1, 2}: mutate state 2's value (a successor) and
-        # state 3's value (not a successor of state 1) before the next call.
-        vf.upper.current[2] = 0.9    # successor -> must be picked up
-        vf.upper.current[3] = 0.99   # not a successor -> must stay stale (cached gap 0.0)
+        # Relaxing state 2 makes {1, 2} stale — its predecessors, the states whose
+        # own backup reads V(2). State 3 is a *successor* of 2 and must stay stale.
+        vf.upper.current[1] = 0.8    # predecessor -> must be picked up
+        vf.upper.current[2] = 0.2    # relaxed state itself -> must be picked up
+        vf.upper.current[3] = 0.99   # successor only -> must stay stale (cached gap 0.0)
 
         seq2 = collect(IntervalMDP.sample(ss, mdp, nothing, vf, nothing))
-        @test seq2 == [CartesianIndex(1)]   # still the highest priority (1.0, recomputed, unchanged)
-        @test ss.priorities[] ≈ [1.0, 0.9, 0.0]   # state 3 untouched despite the live value change
+        @test seq2 == [CartesianIndex(1)]         # gap 0.8, now the highest
+        @test ss.priorities[] ≈ [0.8, 0.2, 0.0]   # state 3 untouched despite the live value change
     end
 
     @testset "reset_sampling_strategy! clears cached state" begin
@@ -970,7 +1006,7 @@ end
     end
 end
 
-@testitem "PriorityQueueSampling: end-to-end solve() parity with all three concrete strategies" tags =
+@testitem "PriorityQueueSampling: end-to-end solve() parity across the concrete strategies" tags =
     [:base, :gsrdp_priority_solve] begin
     using IntervalMDP
 
@@ -978,6 +1014,7 @@ end
         IntervalMDP.PriorityQueueSampling.GapPriorityQueueSampling(2),
         IntervalMDP.PriorityQueueSampling.UpperBoundPriorityQueueSampling(2),
         IntervalMDP.PriorityQueueSampling.ActionUncertaintyPriorityQueueSampling(2),
+        IntervalMDP.PriorityQueueSampling.RNDPriorityQueueSampling(2),
     ]
         prob = IntervalAmbiguitySets(;
             lower = [0.0 0.5 0.0; 0.1 0.3 0.0; 0.2 0.1 1.0],
@@ -1196,5 +1233,201 @@ end
         IntervalMDP.reset_sampling_strategy!(mix)
         @test rr1.cursor[] == 0
         @test rr2.cursor[] == 0
+    end
+end
+
+@testitem "RNDPriorityQueueSampling: δ functions" tags = [:base, :gsrdp_priority_rnd] begin
+    using IntervalMDP
+    const PQ = IntervalMDP.PriorityQueueSampling
+
+    # Same 2-state/2-action model as the `compute_priority` test above:
+    #   state 1: both actions -> state 1
+    #   state 2: a1 -> state 1, a2 -> state 2
+    prob1 = IntervalAmbiguitySets(; lower = [1.0 1.0; 0.0 0.0], upper = [1.0 1.0; 0.0 0.0])
+    prob2 = IntervalAmbiguitySets(; lower = [1.0 0.0; 0.0 1.0], upper = [1.0 0.0; 0.0 1.0])
+    mdp = IntervalMarkovDecisionProcess([prob1, prob2], [1])
+    vf = (upper = (current = [10.0, 5.0],), lower = (current = [0.0, 5.0],))
+
+    @testset "bellman_residual_delta" begin
+        # State 1 is a fixed point of its own backup: Q_U(1, ·) = U(1) = 10.
+        @test PQ.bellman_residual_delta(CartesianIndex(1), vf, mdp, nothing) ≈ 0.0
+        # State 2: maxₐ Q_U(2, a) = max(U(1), U(2)) = 10, against U(2) = 5.
+        @test PQ.bellman_residual_delta(CartesianIndex(2), vf, mdp, nothing) ≈ 5.0
+    end
+
+    @testset "bellman_residual_delta follows the specification's direction" begin
+        minimize = Specification(InfiniteTimeReachability([1], 1e-6), Pessimistic, Minimize)
+        # minₐ Q_U(2, a) = min(10, 5) = 5 = U(2), so no residual under Minimize.
+        @test PQ.bellman_residual_delta(CartesianIndex(2), vf, mdp, minimize) ≈ 0.0
+    end
+
+    @testset "gap_delta / action_uncertainty_delta" begin
+        @test PQ.gap_delta(CartesianIndex(1), vf, mdp, nothing) ≈ 10.0
+        @test PQ.gap_delta(CartesianIndex(2), vf, mdp, nothing) ≈ 0.0
+        @test PQ.action_uncertainty_delta(CartesianIndex(1), vf, mdp, nothing) ≈ 10.0
+        @test PQ.action_uncertainty_delta(CartesianIndex(2), vf, mdp, nothing) ≈ 5.0
+    end
+end
+
+@testitem "RNDPriorityQueueSampling: novelty is a backup-recency signal" tags =
+    [:base, :gsrdp_priority_rnd] begin
+    using IntervalMDP, SparseArrays, Random
+
+    prob1 = IntervalAmbiguitySets(;
+        lower = sparse_hcat(SparseVector(3, [1, 2], [0.3, 0.7])),
+        upper = sparse_hcat(SparseVector(3, [1, 2], [0.3, 0.7])),
+    )
+    prob2 = IntervalAmbiguitySets(;
+        lower = sparse_hcat(SparseVector(3, [2, 3], [0.3, 0.7])),
+        upper = sparse_hcat(SparseVector(3, [2, 3], [0.3, 0.7])),
+    )
+    prob3 = IntervalAmbiguitySets(;
+        lower = sparse_hcat(SparseVector(3, [3], [1.0])),
+        upper = sparse_hcat(SparseVector(3, [3], [1.0])),
+    )
+    mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3], [1])
+
+    rnd = IntervalMDP._rnd_construct(mdp; rng = MersenneTwister(42))
+    S = collect(IntervalMDP._state_indices(mdp))
+
+    @testset "default features normalise state indices to [-1, 1]" begin
+        φ = IntervalMDP._rnd_default_features(mdp)
+        @test φ(CartesianIndex(1)) ≈ Float32[-1.0]
+        @test φ(CartesianIndex(2)) ≈ Float32[0.0]
+        @test φ(CartesianIndex(3)) ≈ Float32[1.0]
+    end
+
+    @testset "calibration puts mean novelty at 1 before any training" begin
+        IntervalMDP._rnd_calibrate!(rnd, S)
+        mean_novelty = sum(IntervalMDP._rnd_novelty(rnd, s) for s in S) / length(S)
+        # Exact by construction — the tolerance is for the networks' Float32
+        # arithmetic, not for the identity.
+        @test mean_novelty ≈ 1.0 rtol = 1e-5
+    end
+
+    @testset "a state at the feature-space origin is still novel" begin
+        # Regression: with Flux's default zero biases, a state whose features
+        # are all zero drives both networks to identical outputs, pinning its
+        # novelty at 0 regardless of how little of the space had been swept.
+        @test IntervalMDP._rnd_raw_novelty(rnd, CartesianIndex(2)) > 0
+    end
+
+    @testset "training on a state suppresses its novelty" begin
+        before = IntervalMDP._rnd_novelty(rnd, S[1])
+        for _ in 1:200
+            IntervalMDP._rnd_train!(rnd, [S[1]])
+        end
+        @test IntervalMDP._rnd_novelty(rnd, S[1]) < before
+    end
+end
+
+@testitem "RNDPriorityQueueSampling: priority floor and backward propagation" tags =
+    [:base, :gsrdp_priority_rnd] begin
+    using IntervalMDP, SparseArrays, Random
+    const PQ = IntervalMDP.PriorityQueueSampling
+
+    # 3-state chain: 1 -> {1,2}; 2 -> {2,3}; 3 absorbing. Predecessor relation
+    # (with maxₐ p̄): 1 <- {(1, 0.3)}; 2 <- {(1, 0.7), (2, 0.3)}; 3 <- {(2, 0.7), (3, 1.0)}.
+    prob1 = IntervalAmbiguitySets(;
+        lower = sparse_hcat(SparseVector(3, [1, 2], [0.3, 0.7])),
+        upper = sparse_hcat(SparseVector(3, [1, 2], [0.3, 0.7])),
+    )
+    prob2 = IntervalAmbiguitySets(;
+        lower = sparse_hcat(SparseVector(3, [2, 3], [0.3, 0.7])),
+        upper = sparse_hcat(SparseVector(3, [2, 3], [0.3, 0.7])),
+    )
+    prob3 = IntervalAmbiguitySets(;
+        lower = sparse_hcat(SparseVector(3, [3], [1.0])),
+        upper = sparse_hcat(SparseVector(3, [3], [1.0])),
+    )
+    mdp = IntervalMarkovDecisionProcess([prob1, prob2, prob3], [1])
+
+    @testset "λ = 0 reduces the priority to δ exactly" begin
+        ss = PQ.RNDPriorityQueueSampling(
+            1;
+            delta = PQ.gap_delta,
+            lambda = 0.0,
+            rng = MersenneTwister(1),
+        )
+        vf = (upper = (current = [0.5, 1.0, 1.0],), lower = (current = [0.0, 0.0, 1.0],))
+
+        seq = collect(IntervalMDP.sample(ss, mdp, nothing, vf, nothing))
+        @test seq == [CartesianIndex(2)]
+        @test ss.priorities[] ≈ [0.5, 1.0, 0.0]   # the gaps, with no novelty floor
+    end
+
+    @testset "the floor lifts a converged but never-relaxed state" begin
+        ss = PQ.RNDPriorityQueueSampling(
+            1;
+            delta = PQ.gap_delta,
+            lambda = 100.0,
+            rng = MersenneTwister(1),
+        )
+        # Every gap is ≤ 1, so a λ of 100 against novelty ≈ 1 must dominate δ
+        # everywhere — including at state 3, where δ is exactly 0.
+        vf = (upper = (current = [0.5, 1.0, 1.0],), lower = (current = [0.0, 0.0, 1.0],))
+
+        collect(IntervalMDP.sample(ss, mdp, nothing, vf, nothing))
+        @test all(>(1.0), ss.priorities[])
+    end
+
+    @testset "the floor drops away once a state has been relaxed" begin
+        ss = PQ.RNDPriorityQueueSampling(
+            1;
+            delta = PQ.gap_delta,
+            lambda = 100.0,
+            rng = MersenneTwister(1),
+        )
+        vf = (upper = (current = [0.5, 1.0, 1.0],), lower = (current = [0.0, 0.0, 1.0],))
+
+        first = collect(IntervalMDP.sample(ss, mdp, nothing, vf, nothing))[1]
+        # Its priority now comes from δ and propagation alone, so it must fall
+        # below the floor the never-relaxed states still carry — otherwise the
+        # arbitrary novelty ordering would starve them forever.
+        collect(IntervalMDP.sample(ss, mdp, nothing, vf, nothing))
+        relaxed = LinearIndices(IntervalMDP._state_indices(mdp))[first]
+        @test ss.priorities[][relaxed] <= 1.0
+    end
+
+    @testset "a relaxed state's Δ propagates to its predecessors" begin
+        ss = PQ.RNDPriorityQueueSampling(
+            1;
+            delta = PQ.gap_delta,
+            lambda = 0.0,
+            rng = MersenneTwister(1),
+        )
+        vf = (upper = (current = [0.5, 1.0, 1.0],), lower = (current = [0.0, 0.0, 1.0],))
+
+        collect(IntervalMDP.sample(ss, mdp, nothing, vf, nothing))   # selects state 2
+        @test ss.previous_selected[] == [2]
+        @test ss.selected_snapshot[] == [(1.0, 0.0)]
+
+        vf.upper.current[2] = 0.2      # |Δ(2)| = 0.8
+
+        collect(IntervalMDP.sample(ss, mdp, nothing, vf, nothing))
+        # priority(1) = maxₐ p̄(2|1,a)·|Δ| = 0.7 · 0.8; priority(2) = max(0.3 · 0.8,
+        # its own recomputed gap 0.2); state 3 is not a predecessor of 2, so it
+        # keeps its cached 0.0.
+        @test ss.priorities[] ≈ [0.56, 0.24, 0.0]
+    end
+
+    @testset "reset_sampling_strategy! drops the novelty networks" begin
+        ss = PQ.RNDPriorityQueueSampling(1; rng = MersenneTwister(1))
+        vf = (upper = (current = [0.5, 1.0, 1.0],), lower = (current = [0.0, 0.0, 1.0],))
+        collect(IntervalMDP.sample(ss, mdp, nothing, vf, nothing))
+        @test !isnothing(ss.rnd[])
+
+        IntervalMDP.reset_sampling_strategy!(ss)
+        @test isnothing(ss.rnd[])
+        @test !ss.initialized[]
+        @test isempty(ss.previous_selected[])
+        @test isempty(ss.selected_snapshot[])
+        @test isempty(ss.predecessor_index[])
+        @test ss.clock[] == 0
+    end
+
+    @testset "invalid hyperparameters are rejected" begin
+        @test_throws ArgumentError PQ.RNDPriorityQueueSampling(1; lambda = -1.0)
+        @test_throws ArgumentError PQ.RNDPriorityQueueSampling(1; epochs = 0)
     end
 end
