@@ -131,6 +131,13 @@ end
 function read_intervalmdp_jl_reachability_property(prop_dict)
     @assert prop_dict["type"] == "reachability"
 
+    # An empty reach set would otherwise die deep inside the property constructor with a
+    # `Vector{Any}` MethodError -- `vector2tuple.([])` cannot infer a state index type --
+    # which says nothing about the actual problem: the file describes a vacuous property.
+    isempty(prop_dict["reach"]) && throw(
+        ArgumentError("empty \"reach\" set: the property would be vacuous (value 0 everywhere)"),
+    )
+
     reach = vector2tuple.(prop_dict["reach"])
 
     if prop_dict["infinite_time"]
@@ -146,6 +153,13 @@ end
 
 function read_intervalmdp_jl_reach_avoid_property(prop_dict)
     @assert prop_dict["type"] == "reach-avoid"
+
+    # An empty reach set would otherwise die deep inside the property constructor with a
+    # `Vector{Any}` MethodError -- `vector2tuple.([])` cannot infer a state index type --
+    # which says nothing about the actual problem: the file describes a vacuous property.
+    isempty(prop_dict["reach"]) && throw(
+        ArgumentError("empty \"reach\" set: the property would be vacuous (value 0 everywhere)"),
+    )
 
     reach = vector2tuple.(prop_dict["reach"])
     avoid = vector2tuple.(prop_dict["avoid"])
