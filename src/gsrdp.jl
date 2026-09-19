@@ -27,6 +27,16 @@ sweep, unvisited states retain `V_prev`.
 `term_criteria` overrides the default termination criterion derived from
 the property. When omitted, the algorithm uses the gap-based criterion
 from `convergence_eps(prop)`.
+
+`solve` accepts a `callback` keyword, invoked once per iteration (plus once
+before any update, with a count of zero) at either of two arities:
+
+    callback(value_function::IntervalValueFunction, bellman_updates::Int)
+    callback(value_function::IntervalValueFunction, bellman_updates::Int, state_seq)
+
+The three-argument form additionally receives the states relaxed in that
+iteration — exactly the sequence the Bellman update swept, duplicates
+included — and `nothing` on the pre-update fire. See `_invoke_callback`.
 """
 struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm} <:
        ModelCheckingAlgorithm
@@ -149,10 +159,9 @@ function _gsrdp!(
     nextiteration!(value_function)
     bellman_updates = 0
 
-    # Initial callback before any updates for debug
-    if !isnothing(callback)
-        callback(value_function, bellman_updates)
-    end
+    # Initial callback before any updates for debug. Nothing has been sampled yet,
+    # so there is no update sequence to report.
+    _invoke_callback(callback, value_function, bellman_updates, nothing)
 
     update_sequence = _gsrdp_sample(
         sampling_strat,
@@ -161,12 +170,13 @@ function _gsrdp!(
         value_function,
         spec,
     )
-    bellman_updates += _bellman_update_count(update_sequence, mp)
+    state_seq = project_to_state_sequence(update_sequence)
+    bellman_updates += _bellman_update_count(state_seq, mp)
     bellman_update!(
         alg,
         workspace,
         strategy_cache,
-        update_sequence,
+        state_seq,
         value_function,
         0,
         mp,
@@ -174,9 +184,7 @@ function _gsrdp!(
     )
     k = 1
 
-    if !isnothing(callback)
-        callback(value_function, bellman_updates)
-    end
+    _invoke_callback(callback, value_function, bellman_updates, state_seq)
 
     while !term_criteria(value_function, k, gap(value_function))
         nextiteration!(value_function)
@@ -188,21 +196,20 @@ function _gsrdp!(
             value_function,
             spec,
         )
-        bellman_updates += _bellman_update_count(update_sequence, mp)
+        state_seq = project_to_state_sequence(update_sequence)
+        bellman_updates += _bellman_update_count(state_seq, mp)
         bellman_update!(
             alg,
             workspace,
             strategy_cache,
-            update_sequence,
+            state_seq,
             value_function,
             k,
             mp,
             spec,
         )
 
-        if !isnothing(callback)
-            callback(value_function, bellman_updates)
-        end
+        _invoke_callback(callback, value_function, bellman_updates, state_seq)
 
         k += 1
     end
@@ -215,6 +222,31 @@ end
 
 _bellman_update_count(update_sequence, mp) =
     length(project_to_state_sequence(update_sequence)) * (num_actions(mp) + 1)
+
+# Invoke a user callback at whichever arity it supports.
+#
+#   callback(value_function, bellman_updates)             # the long-standing contract
+#   callback(value_function, bellman_updates, state_seq)  # additionally observes WHICH
+#                                                         # states this iteration relaxed
+#
+# `state_seq` is exactly the collection `bellman_v!` iterates (`for jₛ in
+# update_sequence`), so a per-state occurrence count of it IS the number of backups that
+# state received this iteration. Duplicates are meaningful and are preserved: a
+# trajectory sampler that revisits a state really does relax it twice. It is `nothing`
+# on the pre-loop fire, which happens before anything has been sampled.
+#
+# Arity is probed rather than required so every existing two-argument callback keeps
+# working untouched. Note a callback declared with a `(args...)` splat is `applicable` at
+# both arities and will therefore receive three arguments.
+@inline function _invoke_callback(callback, value_function, bellman_updates, state_seq)
+    isnothing(callback) && return nothing
+    if applicable(callback, value_function, bellman_updates, state_seq)
+        callback(value_function, bellman_updates, state_seq)
+    else
+        callback(value_function, bellman_updates)
+    end
+    return nothing
+end
 
 # Pessimistic returns the lower bound, Optimistic returns the upper bound —
 # matching `RobustValueIteration`'s single-bound output for parity.

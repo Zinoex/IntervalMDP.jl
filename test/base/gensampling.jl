@@ -55,6 +55,64 @@ end
     end
 end
 
+@testitem "GSRDP callback reports the states each iteration relaxed" tags =
+    [:base, :gsrdp_callback_reports_state_sequence] begin
+    using IntervalMDP, Random
+    # The three-argument callback form sees the update sequence; the two-argument form
+    # must keep working untouched, since every existing caller uses it.
+    @testset "GSRDP callback reports the states each iteration relaxed" for sampling in [
+        IntervalMDP.AllStatesSweep(),
+        IntervalMDP.RandomSubsetState(2),
+    ]
+        prob = IntervalAmbiguitySets(;
+            lower = [0 1//2 0; 1//10 3//10 0; 1//5 1//10 1],
+            upper = [1//2 7//10 0; 3//5 1//2 0; 7//10 3//10 1],
+        )
+        mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
+        gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(mdp);
+            sampling_strategy = sampling,
+        )
+        prop = InfiniteTimeReachability([3], 1e-6)
+        problem = VerificationProblem(mdp, Specification(prop, Pessimistic, Maximize))
+
+        # Three-argument form: record both the count and the reported sequence.
+        counts = Int[]
+        seqs = Any[]
+        Random.seed!(1234)          # so the sampled variant replays identically below
+        solve(
+            problem,
+            gsdp;
+            callback = (V, n, seq) -> (push!(counts, n); push!(seqs, seq)),
+        )
+
+        # The pre-update fire has nothing sampled yet.
+        @test first(counts) == 0
+        @test isnothing(first(seqs))
+        @test all(!isnothing, seqs[2:end])
+
+        # `bellman_updates` advances by exactly `|state_seq| * (num_actions + 1)`, which
+        # is what ties the reported sequence to the work the solver actually did.
+        per_state = num_actions(mdp) + 1
+        @test diff(counts) == [length(seq) * per_state for seq in seqs[2:end]]
+
+        # Every reported state is a real state of the model.
+        S = CartesianIndices(IntervalMDP.source_shape(mdp))
+        @test all(all(s -> s in S, seq) for seq in seqs[2:end])
+
+        # A full sweep relaxes every state exactly once per iteration.
+        if sampling isa IntervalMDP.AllStatesSweep
+            @test all(length(seq) == num_states(mdp) for seq in seqs[2:end])
+        end
+
+        # Two-argument form still fires, with the identical update counts.
+        legacy = Int[]
+        Random.seed!(1234)
+        solve(problem, gsdp; callback = (V, n) -> push!(legacy, n))
+        @test legacy == counts
+    end
+end
+
 @testitem "Random subset state sampling yields states" tags =
     [:base, :gsrdp_random_subset_state_sampling] begin
     using IntervalMDP
