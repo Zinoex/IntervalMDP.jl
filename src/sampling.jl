@@ -88,8 +88,11 @@ struct ProductIterator{AI, SI} <: AbstractIterator
 end
 
 Base.length(iter::ProductIterator) = iter.nA * iter.nS
-Base.firstindex(iter::ProductIterator) = (firstindex(iter.S)-1)*iter.nS + firstindex(iter.A)
-Base.lastindex(iter::ProductIterator) = (lastindex(iter.S)-1)*iter.nS + lastindex(iter.A)
+# `getindex` takes a 1-based linear index with the actions as the fast axis
+# (stride `nA`), so the index bounds are those of `1:nA*nS` — independent of
+# the axes of `A` and `S`, whose offsets `getindex` adds itself.
+Base.firstindex(iter::ProductIterator) = 1
+Base.lastindex(iter::ProductIterator) = iter.nA * iter.nS
 Base.getindex(iter::ProductIterator, i) = begin
     A = iter.A
     S = iter.S
@@ -160,7 +163,7 @@ Base.getindex(iter::ZipIterator, i) = begin
     A = iter.A
     S = iter.S
 
-    return (A[i], S[i])
+    return (A[firstindex(A) - 1 + i], S[firstindex(S) - 1 + i])
 end
 
 Base.iterate(iter::ZipIterator) = begin
@@ -506,6 +509,9 @@ Base.iterate(iter::RandomSubsetStateActionIterator, state) = iterate(iter.pairs,
 sample(ss::RandomSubsetStateActions, model) = random_subset_state_action_sample(ss.k, model)
 sample(ss::RandomSubsetStateActions, model, ::AbstractStrategyCache) =
     random_subset_state_action_sample(ss.k, model)
+
+random_subset_state_action_sample(k::Int, proc::ProductProcess) =
+    random_subset_state_action_sample(k, markov_process(proc))
 
 function random_subset_state_action_sample(k::Int, model)
     A = CartesianIndices(action_shape(model))
@@ -867,6 +873,17 @@ models.
 Base.@propagate_inbounds _target_state(model, i) = _target_indices(model)[i]
 
 """
+    _maybe_target_state(model, i) -> Union{CartesianIndex, Nothing}
+
+[`_target_state`](@ref) that passes `nothing` straight through — the sentinel
+[`_categorical_sample`](@ref) returns when a weight vector carries no positive
+mass, which [`target_state_sampling`](@ref) forwards to the rollout to end the
+trajectory.
+"""
+Base.@propagate_inbounds _maybe_target_state(model, i::Integer) = _target_state(model, i)
+_maybe_target_state(model, ::Nothing) = nothing
+
+"""
     _is_source_state(model, s) -> Bool
 
 Whether target state `s` is also a source state — i.e. whether it has
@@ -1031,15 +1048,22 @@ Must be implemented by every concrete subtype.
 function action_selection end
 
 """
-    target_state_sampling(strategy, current_state, action, probabilities, value_function, model, spec) -> next_state::CartesianIndex
+    target_state_sampling(strategy, current_state, action, probabilities, value_function, model, spec) -> Union{CartesianIndex, Nothing}
 
 Choose the next state given the concrete O-max transition distribution
 `probabilities` (a dense `Vector` over every state, from [`_omax_distribution`](@ref))
 computed for `(current_state, action)` against the upper value function.
 [`_categorical_sample`](@ref) samples directly from a probability vector,
 for strategies that just want that; it yields a linear index, which
-[`_target_state`](@ref) maps to the state index this must return. Must be
+[`_maybe_target_state`](@ref) maps to the state index this must return. Must be
 implemented by every concrete subtype.
+
+Returning `nothing` ends the rollout with `current_state` as its last state —
+the sentinel for "this strategy has no successor it can honestly pick". A
+strategy that tilts `probabilities` by a per-successor score returns it when
+that score is zero on every successor carrying mass: there is no signal left
+along this path, and moving to an arbitrary state would put a transition the
+model forbids into the trajectory.
 """
 function target_state_sampling end
 
@@ -1115,7 +1139,12 @@ function _trajectory_rollout(ss::TrajectorySamplingStrategy, model, value_functi
             model,
             spec,
         ) && break
-        current = target_state_sampling(ss, current, a, probs, value_function, model, spec)
+        next = target_state_sampling(ss, current, a, probs, value_function, model, spec)
+        # `nothing` = the strategy's weighting carries no mass on any successor,
+        # so there is no successor it can honestly pick — end the rollout here
+        # rather than move to an arbitrary state.
+        next === nothing && break
+        current = next
         # An implicit sink is absorbing and has no strategy-cache entry, so
         # the trajectory both ends here and excludes it — `bellman_v!` and the
         # strategy cache can only index source states.
@@ -1139,22 +1168,48 @@ function sample(ss::TrajectorySamplingStrategy, model, strategy_cache, value_fun
 end
 
 """
-    _categorical_sample(probs::AbstractVector) -> Int
+    _categorical_sample(weights::AbstractVector) -> Union{Int, Nothing}
 
-Sample a *linear* target index from probability vector `probs` (not required
-to be normalized — sampled against `sum(probs)`), via cumulative-sum search.
-Available for [`target_state_sampling`](@ref) implementations that just want
-to sample directly from the O-max distribution; since those must return a
-state index, pass the result through [`_target_state`](@ref).
+Sample a *linear* target index proportionally to `weights` (not required to be
+normalized), via cumulative-sum search. Available for
+[`target_state_sampling`](@ref) implementations that just want to sample
+directly from the O-max distribution, or from it tilted by a per-successor
+score; since those must return a state index, pass the result through
+[`_maybe_target_state`](@ref).
+
+Returns `nothing` when `weights` carries no positive mass — every entry zero or
+negative, or the vector empty. There is then no index the vector actually
+selects, and the caller must decide what that means (for the trajectory
+rollout: end the trajectory) rather than being handed an arbitrary one. This is
+not a corner case: a weighted sampler whose score is zero on every successor
+carrying transition mass produces exactly this vector, and the old behaviour —
+`u = rand() * 0 == 0`, so the `acc >= u` test passes on the first index —
+silently returned target state 1 regardless of its transition probability.
+
+Only strictly positive entries are summed and drawn from, so a zero-weight
+index is never selected even on the `rand() === 0.0` draw, and negative weights
+(which `weights` should not contain, but which a reach-avoid value function
+carries on avoid states before the first postprocess) can neither be selected
+nor shrink the sampling range.
 """
-function _categorical_sample(probs::AbstractVector)
-    u = rand() * sum(probs)
-    acc = zero(eltype(probs))
-    for i in eachindex(probs)
-        acc += probs[i]
-        acc >= u && return i
+function _categorical_sample(weights::AbstractVector)
+    total = zero(eltype(weights))
+    for w in weights
+        w > zero(w) && (total += w)
     end
-    return lastindex(probs)   # floating-point fallback
+    total > zero(total) || return nothing
+
+    u = rand() * total
+    acc = zero(eltype(weights))
+    last_positive = nothing
+    for i in eachindex(weights)
+        w = weights[i]
+        w > zero(w) || continue
+        acc += w
+        acc >= u && return i
+        last_positive = i
+    end
+    return last_positive   # floating-point fallback; not `nothing`, since total > 0
 end
 
 ###################################
@@ -1207,7 +1262,8 @@ import ..IntervalMDP:
     _categorical_sample,
     _action_uncertainty,
     _target_indices,
-    _target_state
+    _target_state,
+    _maybe_target_state
 
 """
     TrajectorySampling.TrajectorySampling <: TrajectorySamplingStrategy
@@ -1243,7 +1299,8 @@ end
     TransitionProbabilityTrajectorySampling()
 
 Sample the next state directly from the O-max transition distribution
-`p(·|s,a)`.
+`p(·|s,a)`. Unweighted, so — unlike its three siblings — it has no degenerate
+case: `p(·|s,a)` always sums to 1.
 """
 struct TransitionProbabilityTrajectorySampling <: TrajectorySampling end
 
@@ -1255,7 +1312,7 @@ target_state_sampling(
     value_function,
     model,
     spec,
-) = _target_state(model, _categorical_sample(probs))
+) = _maybe_target_state(model, _categorical_sample(probs))
 
 """
     ExpectedGapTrajectorySampling(; tau = 10.0)
@@ -1279,6 +1336,12 @@ positive.
 A fully converged `s` (`U(s) == L(s)`) also ends the rollout: the threshold
 is then 0, which `B >= 0` can never fall below, so without this the
 trajectory would run on to the hard step cap through an already-tight region.
+
+Those two rules also make the degenerate weight vector unreachable here in
+practice — `B` is the sum of the very vector the next-state draw samples from,
+so an all-zero one gives `B = 0`, which fails `B >= diff/tau` whatever `diff`
+is. `target_state_sampling` still returns `nothing` on it, since that shield is
+a consequence of the tau rule rather than a guarantee of the weighting.
 """
 struct ExpectedGapTrajectorySampling <: TrajectorySampling
     tau::Float64
@@ -1320,7 +1383,10 @@ function target_state_sampling(
     model,
     spec,
 )
-    return _target_state(model, _categorical_sample(probs .* vec(_gap(value_function))))
+    return _maybe_target_state(
+        model,
+        _categorical_sample(probs .* vec(_gap(value_function))),
+    )
 end
 
 """
@@ -1329,6 +1395,10 @@ end
 Sample the next state with probability proportional to
 `p(s'|s,a) * U(s')` — biases toward successors that look more likely to
 reach the goal under the optimistic bound.
+
+Ends the rollout (`target_state_sampling` returns `nothing`) when `U(s') == 0`
+for every successor carrying mass: the whole reachable continuation is pinned
+at zero under the optimistic bound, so there is nothing left to bias toward.
 """
 struct ReachProbabilityTrajectorySampling <: TrajectorySampling end
 
@@ -1341,7 +1411,7 @@ function target_state_sampling(
     model,
     spec,
 )
-    return _target_state(
+    return _maybe_target_state(
         model,
         _categorical_sample(probs .* vec(value_function.upper.current)),
     )
@@ -1356,6 +1426,13 @@ maximizing the lower-bound Q-value at `s'` and `U^{-a_L}(s')` is the best
 upper-bound Q-value at `s'` among the *other* actions — biases toward
 successors where it's still unclear whether the safe action is really
 optimal.
+
+Ends the rollout (`target_state_sampling` returns `nothing`) when that
+uncertainty is zero on every successor carrying mass. Note `_action_uncertainty`
+is zero for an implicit sink *and* for any state with only one action, so on a
+single-action model it is identically zero everywhere and every rollout is the
+initial state alone — this strategy has nothing to say about a model with no
+action choice to be uncertain about.
 """
 struct ActionUncertaintyTrajectorySampling <: TrajectorySampling end
 
@@ -1376,7 +1453,7 @@ function target_state_sampling(
         weighted[sp] =
             probs[sp] * _action_uncertainty(model, _target_state(model, sp), value_function)
     end
-    return _target_state(model, _categorical_sample(weighted))
+    return _maybe_target_state(model, _categorical_sample(weighted))
 end
 
 end # module TrajectorySampling
@@ -2076,29 +2153,32 @@ struct GivenSequence <: SamplingStrategy end
 function sample(
     ::GivenSequence,
     model,
-    sequence::Vector{Tuple{NTuple{N, T}, NTuple{M, T}}}, # each element: (state_tuple, action_tuple
-) where {N, M, T <: Integer}
+    sequence::Vector{Tuple{NTuple{NA, T}, NTuple{NS, T}}}, # each element: (action_tuple, state_tuple)
+) where {NA, NS, T <: Integer}
     return custom_sequence(model, sequence)
 end
 
+# Elements are `(action_tuple, state_tuple)`, matching the `(action, state)`
+# order every other update sequence yields (see `ProductIterator`) and the
+# order `GivenSequenceIterator` destructures them in.
 function custom_sequence(
     model::FactoredRMDP,
-    sequence::Vector{Tuple{NTuple{N, T}, NTuple{M, T}}},
-)::AbstractVector{Tuple{CartesianIndex{N}, CartesianIndex{M}}} where {N, M, T <: Integer}
+    sequence::Vector{Tuple{NTuple{NA, T}, NTuple{NS, T}}},
+) where {NA, NS, T <: Integer}
 
     # Precompute model shapes
     shape_s = source_shape(model)   # state shape tuple
     shape_a = action_shape(model)   # action shape tuple
 
-    # Validate each state-action pair
-    for (s, a) in sequence
+    # Validate each action-state pair
+    for (a, s) in sequence
         # check all entries >= 1
         @assert all(x -> x >= 1, s)
         @assert all(x -> x >= 1, a)
 
         # check each entry within bounds
-        @assert all((xi, yi) -> xi <= yi, zip(s, shape_s))
-        @assert all((xi, yi) -> xi <= yi, zip(a, shape_a))
+        @assert all(((xi, yi),) -> xi <= yi, zip(s, shape_s))
+        @assert all(((xi, yi),) -> xi <= yi, zip(a, shape_a))
     end
 
     return GivenSequenceIterator(sequence)

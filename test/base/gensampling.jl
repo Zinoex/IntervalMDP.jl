@@ -65,8 +65,8 @@ end
         IntervalMDP.RandomSubsetState(2),
     ]
         prob = IntervalAmbiguitySets(;
-            lower = [0 1//2 0; 1//10 3//10 0; 1//5 1//10 1],
-            upper = [1//2 7//10 0; 3//5 1//2 0; 7//10 3//10 1],
+            lower = Float64[0 1//2 0; 1//10 3//10 0; 1//5 1//10 1],
+            upper = Float64[1//2 7//10 0; 3//5 1//2 0; 7//10 3//10 1],
         )
         mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
         gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
@@ -192,6 +192,145 @@ end
         # ||V_cur - V_prev|| < eps. Both converge to the same V*; allow
         # `2eps` slack since each method's lower bound is within `eps` of V*.
         @test maximum(abs, V_rvi .- V_gsdp) <= 2 * eps
+    end
+end
+
+@testitem "GSRDP honours the satisfaction mode (parity with RVI, both modes)" tags =
+    [:base, :gsrdp_satisfaction_mode_parity] begin
+    using IntervalMDP
+    # `upper_bound` selects the adversary's direction inside the ambiguity set, so
+    # getting it wrong makes GSRDP silently return the *opposite* mode's value. The
+    # other parity fixtures in this file cannot catch that: every state there has an
+    # action reaching the target with probability exactly 1, so V* = 1 under both
+    # modes. This fixture separates the modes by 0.48.
+    #
+    # Reach-avoid, not plain reachability: separating the modes needs an absorbing
+    # non-target state, and GSRDP's upper bracket (initialised to 1 everywhere) never
+    # contracts on one. Reach-avoid pins the avoid state in `step_postprocess`, so the
+    # gap closes.
+    #
+    #   s1 -> s2 in [2/5, 4/5],  s1 -> s4 in [1/5, 3/5]
+    #   s2 -> s3 in [2/5, 4/5],  s2 -> s4 in [1/5, 3/5]
+    #   s3 (reach) and s4 (avoid) absorbing
+    #
+    # Pessimistic V = [0.16, 0.4, 1, 0];  Optimistic V = [0.64, 0.8, 1, 0].
+    @testset "GSRDP honours the satisfaction mode" for N in [Float32, Float64]
+        prob = IntervalAmbiguitySets(;
+            lower = N[0 0 0 0; 2//5 0 0 0; 0 2//5 1 0; 1//5 1//5 0 1],
+            upper = N[0 0 0 0; 4//5 0 0 0; 0 4//5 1 0; 3//5 3//5 0 1],
+        )
+        eps = N(1 // 1000000)
+        prop = InfiniteTimeReachAvoid([3], [4], eps)
+
+        model = IntervalMarkovChain(prob, [1])
+        rvi = RobustValueIteration(default_bellman_algorithm(model))
+        gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(model),
+        )
+
+        V_rvi = Dict{SatisfactionMode, Any}()
+        for mode in (Pessimistic, Optimistic)
+            problem = VerificationProblem(model, Specification(prop, mode, Maximize))
+            (V_rvi[mode], _, _) = solve(problem, rvi)
+            (V_gsdp, _, _) = solve(problem, gsdp)
+            @test maximum(abs, V_rvi[mode] .- V_gsdp) <= 2 * eps
+        end
+
+        # Guard against the fixture degenerating: if the two modes ever collapse
+        # onto the same values, the assertions above stop testing the sign.
+        @test maximum(abs, V_rvi[Pessimistic] .- V_rvi[Optimistic]) > N(1 // 10)
+    end
+end
+
+@testitem "Reach-avoid keeps a valid bracket, and gap reports an inverted one" tags =
+    [:base, :gsrdp_reach_avoid_bracket] begin
+    using IntervalMDP
+    # `initialize!(..., AbstractReachAvoid, Val(true))` used to seed avoid states at
+    # `-1.0` — the `AbstractSafety` encoding, which only works because safety shifts
+    # everything back by `+1.0` in `postprocess_value_function!`. Reach-avoid has no
+    # such shift, so the upper bound started below the lower bound on avoid states.
+    # `gap` hid it: it took `abs`, so `GapTerminationCriteria` read an inverted
+    # bracket as a small gap.
+    @testset "Reach-avoid bracket" for N in [Float32, Float64]
+        prob = IntervalAmbiguitySets(;
+            lower = N[0 0 0 0; 2//5 0 0 0; 0 2//5 1 0; 1//5 1//5 0 1],
+            upper = N[0 0 0 0; 4//5 0 0 0; 0 4//5 1 0; 3//5 3//5 0 1],
+        )
+        model = IntervalMarkovChain(prob, [1])
+        prop = InfiniteTimeReachAvoid([3], [4], N(1 // 1000000))
+        problem = VerificationProblem(model, Specification(prop, Pessimistic, Maximize))
+
+        V = IntervalMDP.IntervalValueFunction(
+            IntervalMDP.StateValueFunction(problem, IntervalMDP.Lower),
+            IntervalMDP.StateValueFunction(problem, IntervalMDP.Upper),
+        )
+        IntervalMDP.initialize!(V, prop)
+
+        # The avoid state is 0, not -1, and the bracket is valid everywhere.
+        @test V.upper.current[4] == N(0)
+        @test all(V.upper.current .>= V.lower.current)
+
+        # `gap` is the signed width `upper - lower`, not `abs`.
+        @test IntervalMDP.gap(V) == V.upper.current .- V.lower.current
+
+        # An inverted bracket is reported rather than folded away.
+        V.upper.current[1] = V.lower.current[1] - N(1 // 2)
+        @test_throws IntervalMDP.InvertedBracketError IntervalMDP.gap(V)
+    end
+end
+
+@testitem "GSRDP reach-avoid parity with RVI over multiple actions" tags =
+    [:base, :gsrdp_reach_avoid_multiaction_parity] begin
+    using IntervalMDP
+    # The multi-action counterpart of the satisfaction-mode fixture. It is the case
+    # the `-1.0` avoid initialisation broke: `bellman_update!` picks the optimal
+    # action from the *upper* bracket, so a negative upper bound on the avoid state
+    # made the maximiser prefer the action that jumps straight into it, dragging the
+    # lower bracket onto the wrong action (`V = [0.0, 0.4, 1.0, 0.0]` under
+    # `Pessimistic`).
+    #
+    # One `IntervalAmbiguitySets` per state; its columns are that state's actions.
+    # Action 1 is the reach-avoid chain; action 2 jumps straight to the avoid state,
+    # so a `Maximize` strategy must never pick it.
+    #
+    # Pessimistic V = [0.16, 0.4, 1, 0];  Optimistic V = [0.64, 0.8, 1, 0].
+    @testset "GSRDP reach-avoid multi-action parity" for N in [Float32, Float64]
+        s1 = IntervalAmbiguitySets(;
+            lower = N[0 0; 2//5 0; 0 0; 1//5 1],
+            upper = N[0 0; 4//5 0; 0 0; 3//5 1],
+        )
+        s2 = IntervalAmbiguitySets(;
+            lower = N[0 0; 0 0; 2//5 0; 1//5 1],
+            upper = N[0 0; 0 0; 4//5 0; 3//5 1],
+        )
+        s3 = IntervalAmbiguitySets(;
+            lower = N[0 0; 0 0; 1 1; 0 0],
+            upper = N[0 0; 0 0; 1 1; 0 0],
+        )
+        s4 = IntervalAmbiguitySets(;
+            lower = N[0 0; 0 0; 0 0; 1 1],
+            upper = N[0 0; 0 0; 0 0; 1 1],
+        )
+        model = IntervalMarkovDecisionProcess([s1, s2, s3, s4], [1])
+
+        eps = N(1 // 1000000)
+        prop = InfiniteTimeReachAvoid([3], [4], eps)
+        rvi = RobustValueIteration(default_bellman_algorithm(model))
+        gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(model),
+        )
+
+        expected = Dict(
+            Pessimistic => N[4 // 25, 2 // 5, 1, 0],
+            Optimistic => N[16 // 25, 4 // 5, 1, 0],
+        )
+        for mode in (Pessimistic, Optimistic)
+            problem = VerificationProblem(model, Specification(prop, mode, Maximize))
+            (V_rvi, _, _) = solve(problem, rvi)
+            (V_gsdp, _, _) = solve(problem, gsdp)
+            @test maximum(abs, V_rvi .- V_gsdp) <= 2 * eps
+            @test maximum(abs, vec(V_gsdp) .- expected[mode]) <= 2 * eps
+        end
     end
 end
 
@@ -353,6 +492,112 @@ end
     @test_throws ArgumentError IntervalMDP._omax_marginal(FakeFactoredModel())
 end
 
+@testitem "_categorical_sample rejects a degenerate weight vector" tags =
+    [:base, :gsrdp_categorical_sample] begin
+    using IntervalMDP, Random
+
+    # `_categorical_sample` used to answer a weight vector with no positive
+    # mass with `firstindex`: `u = rand() * sum(w) == 0`, so `acc >= u` passes
+    # on the first index. Every weighted trajectory sampler can hand it such a
+    # vector (a successor set that scores zero throughout), and the rollout then
+    # moved to target state 1 regardless of its transition probability.
+    @testset "no positive mass => nothing" begin
+        @test IntervalMDP._categorical_sample(zeros(4)) === nothing
+        @test IntervalMDP._categorical_sample(zeros(Float32, 3)) === nothing
+        @test IntervalMDP._categorical_sample(Float64[]) === nothing
+        @test IntervalMDP._categorical_sample([-1.0, -1.0]) === nothing
+    end
+
+    @testset "negative entries are ignored, not cancelled against" begin
+        # Reach-avoid seeds `U` at -1.0 on avoid states, so a tilted weight
+        # vector really can carry negatives. They must not shrink the sampling
+        # range: a large negative alongside a positive weight still leaves the
+        # positive one drawable.
+        @test all(IntervalMDP._categorical_sample([-5.0, 1.0]) == 2 for _ in 1:100)
+    end
+
+    @testset "zero and negative entries are never selected" begin
+        # Deterministic, not statistical: only one entry is positive, and the
+        # `rand() === 0.0` draw must not divert to index 1 either.
+        @test all(IntervalMDP._categorical_sample([0.0, 1.0, 0.0]) == 2 for _ in 1:100)
+        @test all(IntervalMDP._categorical_sample([-1.0, 0.0, 2.0]) == 3 for _ in 1:100)
+    end
+
+    @testset "samples proportionally to the positive weights" begin
+        Random.seed!(1234)
+        counts = zeros(Int, 2)
+        for _ in 1:40_000
+            counts[IntervalMDP._categorical_sample([0.25, 0.75])] += 1
+        end
+        @test counts[1] / 40_000 ≈ 0.25 atol = 0.02
+        @test counts[2] / 40_000 ≈ 0.75 atol = 0.02
+    end
+end
+
+@testitem "Weighted trajectory samplers end the rollout on a degenerate tilt" tags =
+    [:base, :gsrdp_degenerate_weight_tilt] begin
+    using IntervalMDP
+
+    # 3-state, single-action IMC; every state is a Dirac point mass on state 3.
+    # Single-action is deliberate: `_action_uncertainty` is identically zero on
+    # such a model (there is no alternative action to be uncertain about), so
+    # ActionUncertainty's tilt is degenerate by construction.
+    p = IntervalAmbiguitySets(;
+        lower = [0.0 0.0 0.0; 0.0 0.0 0.0; 1.0 1.0 1.0],
+        upper = [0.0 0.0 0.0; 0.0 0.0 0.0; 1.0 1.0 1.0],
+    )
+    mc = IntervalMarkovChain(p, [1])
+    probs = [0.0, 0.0, 1.0]   # all transition mass on state 3, none on state 1
+
+    # Per strategy: a value function that zeroes *that* strategy's score.
+    zero_gap = (upper = (current = [1.0, 1.0, 1.0],), lower = (current = [1.0, 1.0, 1.0],))
+    zero_upper =
+        (upper = (current = [0.0, 0.0, 0.0],), lower = (current = [0.0, 0.0, 0.0],))
+    any_vf = (upper = (current = [1.0, 1.0, 1.0],), lower = (current = [0.0, 0.0, 0.0],))
+
+    cases = [
+        (IntervalMDP.TrajectorySampling.ExpectedGapTrajectorySampling(), zero_gap),
+        (IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling(), zero_upper),
+        (IntervalMDP.TrajectorySampling.ActionUncertaintyTrajectorySampling(), any_vf),
+    ]
+
+    @testset "$(typeof(strat).name.name) returns nothing" for (strat, vf) in cases
+        # Regression: each of these returned CartesianIndex(1) — a state `probs`
+        # gives zero transition probability.
+        @test IntervalMDP.target_state_sampling(
+            strat,
+            CartesianIndex(1),
+            CartesianIndex(1),
+            probs,
+            vf,
+            mc,
+            nothing,
+        ) === nothing
+    end
+
+    @testset "the rollout stops at the initial state" begin
+        # End to end through `sample`, not just the strategy in isolation: with
+        # no successor to pick, the trajectory is the initial state alone.
+        # State 1 is the sole initial state and is neither reach nor avoid, so
+        # the rollout genuinely enters the loop and has to stop on the sentinel
+        # — every other stop condition here is a property of `current`.
+        prop = InfiniteTimeReachability([2], 1 // 1000)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = VerificationProblem(mc, spec)
+        alg =
+            GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mc))
+        V = IntervalMDP.construct_value_function(alg, problem)
+        V.lower.current .= 0.0
+        V.upper.current .= 0.0   # zero gap and zero upper: degenerate for all three
+
+        for (strat, _) in cases
+            states = collect(IntervalMDP.sample(strat, mc, nothing, V, spec))
+            @test length(states) == 1
+            @test only(states) == CartesianIndex(1)   # the sole initial state
+        end
+    end
+end
+
 @testitem "TrajectorySamplingStrategy shared rollout skeleton" tags =
     [:base, :gsrdp_trajectory_sampling] begin
     using IntervalMDP
@@ -427,6 +672,43 @@ end
         # Every trajectory visits state 3 exactly once (either as the sole
         # initial state, or as the one step taken to reach it).
         @test count(==(CartesianIndex(3)), states) == 3
+    end
+
+    @testset "a `nothing` target ends the rollout" begin
+        # The rollout's other stop conditions are all about `current`; this one
+        # is the strategy saying it has no successor it can honestly pick.
+        struct MockNothingTargetStrategy <: IntervalMDP.TrajectorySamplingStrategy end
+        IntervalMDP.num_trajectories(::MockNothingTargetStrategy) = 1
+        IntervalMDP.terminate_sampling(
+            ::MockNothingTargetStrategy,
+            current,
+            trajectory,
+            value_function,
+            model,
+            spec,
+        ) = false
+        IntervalMDP.action_selection(
+            ::MockNothingTargetStrategy,
+            current,
+            value_function,
+            model,
+            spec,
+        ) = first(IntervalMDP.available(model, current))
+        IntervalMDP.target_state_sampling(
+            ::MockNothingTargetStrategy,
+            current,
+            a,
+            probs,
+            value_function,
+            model,
+            spec,
+        ) = nothing
+
+        prop = InfiniteTimeReachAvoid(Int[], Int[], 1 // 1000)  # no reach/avoid states
+        V, spec = build_value_function(mdp, prop)
+        states =
+            collect(IntervalMDP.sample(MockNothingTargetStrategy(), mdp, nothing, V, spec))
+        @test length(states) == 1   # the initial state, and nothing appended
     end
 
     @testset "hard step cap bounds a non-terminating strategy" begin
@@ -743,6 +1025,40 @@ end
     end
 end
 
+@testitem "TrajectorySampling: end-to-end solve() with ReachProbabilityTrajectorySampling" tags =
+    [:base, :gsrdp_reach_probability_trajectory_solve] begin
+    using IntervalMDP
+
+    # `ReachProbabilityTrajectorySampling` had no end-to-end coverage, and its
+    # tilt (`probs .* U`) is one of the two that used to teleport the rollout to
+    # state 1 once `U` went to zero on every successor carrying mass. It now
+    # ends the rollout instead; this checks that shortening rollouts that way
+    # does not starve states badly enough to break convergence.
+    @testset "IMDP verification parity (Pessimistic, Maximize)" for N in [Float32, Float64]
+        prob = IntervalAmbiguitySets(;
+            lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
+            upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
+        )
+        prob2 = IntervalAmbiguitySets(;
+            lower = N[1 // 10 1 // 5 0; 1 // 5 1 // 5 0; 3 // 10 2 // 5 1],
+            upper = N[1 // 2 1 // 2 0; 1 // 2 2 // 5 0; 2 // 5 2 // 5 1],
+        )
+        mdp = IntervalMarkovDecisionProcess([prob, prob2, prob2], [1])
+        rvi = RobustValueIteration(default_bellman_algorithm(mdp))
+        gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(mdp);
+            sampling_strategy = IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling(),
+        )
+        eps = N(1 // 1000000)
+        prop = InfiniteTimeReachability([3], eps)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = VerificationProblem(mdp, spec)
+        (V_rvi, _, _) = solve(problem, rvi)
+        (V_gsdp, _, _) = solve(problem, gsdp)
+        @test maximum(abs, V_rvi .- V_gsdp) <= 2 * eps
+    end
+end
+
 @testitem "_predecessor_states / _predecessor_index / _state_indices" tags =
     [:base, :gsrdp_priority_predecessor_states] begin
     using IntervalMDP, SparseArrays
@@ -872,8 +1188,22 @@ end
             mdp,
             nothing,
         )
-        @test sp isa CartesianIndex{1}
-        @test sp in IntervalMDP._target_indices(mdp)
+
+        # The sink scores zero under all three weighted tilts (`vf` gives it
+        # gap 0 and upper 0, and `_action_uncertainty` is 0 for a sink), so they
+        # have nothing to pick and say so. Only the unweighted sampler picks the
+        # sink itself — and the rollout's own sink guard ends the trajectory
+        # there either way.
+        #
+        # Regression: asserting only `sp isa CartesianIndex{1}` let all three
+        # weighted strategies pass while silently returning CartesianIndex(1),
+        # a state carrying *zero* transition probability.
+        if strat isa IntervalMDP.TrajectorySampling.TransitionProbabilityTrajectorySampling
+            @test sp == CartesianIndex(3)
+            @test sp in IntervalMDP._target_indices(mdp)
+        else
+            @test sp === nothing
+        end
     end
 
     @testset "rollouts never emit the sink" for strat in strategies

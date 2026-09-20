@@ -178,8 +178,37 @@ function nextiteration!(V::IntervalValueFunction)
     return V
 end
 
+"""
+    gap(V::IntervalValueFunction)
+
+Return the signed bracket width `upper - lower` for every state.
+
+A well-formed interval value function satisfies `upper >= lower` everywhere, so every
+entry of the result is non-negative. The difference is *not* wrapped in `abs`: a
+negative entry means the bracket has inverted, which is a bug in the property's
+initialization or in a Bellman update rather than a small gap, and taking the absolute
+value would hide it from every gap-based termination criterion. Such an entry raises an
+[`InvertedBracketError`](@ref) instead. A slack of `sqrt(eps)` is allowed for
+floating-point round-off.
+"""
 function gap(V::IntervalValueFunction)
-    return abs.(V.lower.current .- V.upper.current)
+    g = V.upper.current .- V.lower.current
+    return checkbracket(V, g)
+end
+
+# Slack allowed on `upper - lower` before the bracket counts as inverted. Only wide
+# enough to absorb round-off in the Bellman updates, not a real crossing.
+_bracket_tolerance(::Type{R}) where {R <: AbstractFloat} = sqrt(eps(R))
+_bracket_tolerance(::Type{R}) where {R} = zero(R)
+
+function checkbracket(V::IntervalValueFunction, g)
+    minimum_gap, state = findmin(g)
+
+    if minimum_gap < -_bracket_tolerance(eltype(g))
+        throw(InvertedBracketError(state, V.lower.current[state], V.upper.current[state]))
+    end
+
+    return g
 end
 
 function initialize!(value_function::IntervalValueFunction, prop::AbstractReachability)

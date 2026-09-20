@@ -15,7 +15,7 @@ import Flux
 const UnionIndex = Union{<:Integer, <:Tuple}
 
 include("errors.jl")
-export InvalidStateError, StateDimensionMismatch
+export InvalidStateError, StateDimensionMismatch, InvertedBracketError
 
 ### Modelling
 include("probabilities/probabilities.jl")

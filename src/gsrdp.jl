@@ -67,14 +67,17 @@ construct_value_function(::GeneralizedSamplingbasedRobustDynamicProgramming, pro
 """
     GapTerminationCriteria(tol)
 
-Terminates when `maximum(abs, gap) < tol` over the elementwise gap
+Terminates when `maximum(gap) < tol` over the elementwise gap
 `V_upper - V_lower`. Used by
 [`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref).
 """
 struct GapTerminationCriteria{T <: Real} <: TerminationCriteria
     tol::T
 end
-(f::GapTerminationCriteria)(_, _, gap_residual) = maximum(abs, gap_residual) < f.tol
+# `gap_residual` is the signed `upper - lower` bracket width, which `gap` has already
+# checked to be non-negative, so no `abs` is needed (and taking one would mask an
+# inverted bracket as a small gap).
+(f::GapTerminationCriteria)(_, _, gap_residual) = maximum(gap_residual) < f.tol
 
 function termination_criteria(
     ::GeneralizedSamplingbasedRobustDynamicProgramming,
@@ -261,6 +264,15 @@ function _gsrdp_initialize!(V::IntervalValueFunction, prop::AbstractReachability
     initialize!(V.upper, prop, Val(true))
 end
 
+# Any other property would silently fall through to a `MethodError` deep inside
+# the solve; fail at the point the restriction actually applies instead.
+_gsrdp_initialize!(::IntervalValueFunction, prop) = throw(
+    ArgumentError(
+        "GeneralizedSamplingbasedRobustDynamicProgramming currently supports only " *
+        "reachability and reach-avoid properties; got $(typeof(prop)).",
+    ),
+)
+
 # GSRDP always allocates a fresh `StationaryStrategyCache`. The algorithm
 # is infinite-horizon, so the optimal policy under a fixed model is
 # stationary; using the same cache type for both `VerificationProblem`
@@ -299,6 +311,13 @@ function bellman_update!(
     # Upper bound drives optimistic action selection, lower bound follows. 
     primary, secondary = value_function.upper, value_function.lower
 
+    # `upper_bound` is the *adversary's* direction inside the ambiguity set
+    # (`true` = O-maximization), not a tag for which bracket is being written.
+    # `value_function.lower` and `value_function.upper` bracket the *same* fixed
+    # point from below and above, so both calls must use the direction the
+    # satisfaction mode dictates - the same value `RobustValueIteration` passes.
+    # Keep these two `upper_bound` arguments identical; that is what makes the
+    # bracket valid.
     primary_sc = select_strategy_cache(strategy_cache, k)
     bellman_v!(
         workspace,
@@ -307,7 +326,7 @@ function bellman_update!(
         StateValueArray(primary.previous),
         model,
         state_seq;
-        upper_bound = ispessimistic(spec),
+        upper_bound = isoptimistic(spec),
         maximize = ismaximize(spec),
         prop = system_property(spec),
     )
@@ -320,7 +339,7 @@ function bellman_update!(
         StateValueArray(secondary.previous),
         model,
         state_seq;
-        upper_bound = ispessimistic(spec),
+        upper_bound = isoptimistic(spec),
         maximize = ismaximize(spec),
         prop = system_property(spec),
     )

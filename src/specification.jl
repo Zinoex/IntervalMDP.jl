@@ -617,10 +617,17 @@ function checkdisjoint(reach, avoid)
     end
 end
 
+# Note: avoid states are initialized to `0.0`, not to the `-1.0` used by
+# `AbstractSafety`. The `-1.0` encoding only makes sense when it is undone by a
+# final `postprocess_value_function!` shift of `+1.0`; reach-avoid has no such
+# shift (`postprocess_value_function!(_, ::AbstractReachability)` is a no-op) and
+# its `step_postprocess_value_function!` already pins avoid states to `0.0`.
+# Using `-1.0` here puts the upper bound below the lower bound on avoid states,
+# inverting the bracket for the first iteration.
 function initialize!(value_function, prop::AbstractReachAvoid, upper::Val{true})
     value_function.current .= 1.0
     @inbounds value_function.current[reach(prop)] .= 1.0
-    @inbounds value_function.current[avoid(prop)] .= -1.0
+    @inbounds value_function.current[avoid(prop)] .= 0.0
 end
 
 """

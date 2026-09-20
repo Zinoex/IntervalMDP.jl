@@ -30,3 +30,15 @@ Base.showerror(io::IO, e::StateDimensionMismatch) = print(
     io,
     "state dimension $(length(e.invalid_state)) of the state $(e.invalid_state) does not match the system dimension $(e.state_dim).",
 )
+
+struct InvertedBracketError{T, R <: Real} <: Exception
+    state::T
+    lower::R
+    upper::R
+end
+
+Base.showerror(io::IO, e::InvertedBracketError) = print(
+    io,
+    "the value function bracket is inverted at state $(e.state): the upper bound $(e.upper) is below the lower bound $(e.lower). ",
+    "This is a bug in the initialization or in a Bellman update of the property being solved, not a small gap.",
+)
