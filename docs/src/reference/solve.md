@@ -60,6 +60,16 @@ IntervalMDP.TrajectorySampling.EpsilonGreedy
 IntervalMDP.TrajectorySampling.Boltzmann
 ```
 
+#### Temperature schedules
+
+```@docs
+IntervalMDP.TrajectorySampling.TemperatureSchedule
+IntervalMDP.TrajectorySampling.FixedTemperature
+IntervalMDP.TrajectorySampling.GapDecayTemperature
+IntervalMDP.TrajectorySampling.UpdateDecayTemperature
+IntervalMDP.TrajectorySampling.TemperatureContext
+```
+
 #### Action scores
 
 ```@docs

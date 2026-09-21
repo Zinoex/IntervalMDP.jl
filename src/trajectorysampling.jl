@@ -14,6 +14,7 @@
 # choices, rather than a family of subtypes each baking in one combination:
 #
 #   selection policy  (ε-greedy | Boltzmann)      — for actions and for states
+#   × temperature schedule (fixed | annealed, per policy)
 #   × score function  (f_A over actions, f_S over successors)
 #   × concrete transition (which bound, which adversary direction)
 #   × Gauss-Seidel batching (whole trajectory per iteration, or `k` at a time)
@@ -122,6 +123,7 @@ import ..IntervalMDP:
     reset_sampling_strategy!,
     available,
     num_states,
+    num_actions,
     system_property,
     isoptimistic,
     _omax_marginal,
@@ -137,12 +139,152 @@ import ..IntervalMDP:
     _trajectory_max_steps
 
 ###################################
-# 1. Selection policies            #
+# 1. Temperatures and policies     #
 ###################################
 #
 # Action selection and successor selection are the same operation — draw one
 # candidate given a score per candidate — so they share one policy type. What
 # differs between them is only the score function (§2 and §4).
+#
+# A Boltzmann policy's temperature need not be a constant: it is a
+# `TemperatureSchedule`, resolved to one number per rollout (§7) against the
+# `TemperatureContext` that rollout starts from. That is what lets exploration
+# anneal — as the bounds tighten, or as backups accumulate — instead of the
+# caller having to pick one compromise temperature for the whole solve.
+
+"""
+    TemperatureSchedule
+
+How a [`Boltzmann`](@ref) policy's temperature `T` is obtained at the start of
+each rollout: [`FixedTemperature`](@ref) (a constant),
+[`GapDecayTemperature`](@ref) (annealed by how far apart the bounds still are
+at the rollout's initial state), or [`UpdateDecayTemperature`](@ref) (annealed
+by how many Bellman updates the strategy has issued so far).
+
+`_temperature(schedule, ctx)` evaluates one against a
+[`TemperatureContext`](@ref), and `_resolve_policy` does that once per rollout,
+so a single trajectory is always drawn at one temperature.
+"""
+abstract type TemperatureSchedule end
+
+"""
+    TemperatureContext(diff, n)
+
+What a [`TemperatureSchedule`](@ref) is evaluated against at the start of a
+rollout:
+
+  * `diff` — `U(s₀) − L(s₀)`, the value-function gap at the state the rollout
+    starts from, clamped to `[0, 1]`. The clamp keeps a fractional `τ` off a
+    negative base — a reach-avoid value function carries negative values on
+    avoid states until `postprocess_value_function!` runs — the same guard
+    `_gap_weight` takes for [`PolynomialGap`](@ref), and it also keeps a
+    decayed temperature inside `[t_min, t_max]`.
+  * `n` — the number of Bellman updates the strategy has issued so far, i.e.
+    `Σ length(batch) * (num_actions + 1)` over the previous `sample` calls,
+    which is exactly the `bellman_updates` count GSRDP reports to its callback.
+"""
+struct TemperatureContext
+    diff::Float64
+    n::Int
+
+    TemperatureContext(diff::Real, n::Integer) = new(clamp(Float64(diff), 0.0, 1.0), Int(n))
+end
+
+"""
+    FixedTemperature(t)
+
+`T = t` at every rollout — the constant temperature, and what a bare number
+means: `Boltzmann(0.5)` is shorthand for `Boltzmann(FixedTemperature(0.5))`.
+`t` must be positive.
+"""
+struct FixedTemperature <: TemperatureSchedule
+    t::Float64
+
+    function FixedTemperature(t::Real)
+        t > 0 || throw(ArgumentError("t must be positive, got $t"))
+        return new(Float64(t))
+    end
+end
+
+"""
+    GapDecayTemperature(t_min, t_max, tau)
+
+`T = t_min + (t_max − t_min)·Diff(s₀)^τ`, the termination-criteria decay: the
+temperature tracks how much uncertainty is left at the state the rollout starts
+from, `Diff(s₀) = U(s₀) − L(s₀)` (clamped to `[0, 1]`, see
+[`TemperatureContext`](@ref)).
+
+A wide-open `s₀` (`Diff = 1`) is explored at `t_max`; a converged one
+(`Diff = 0`) is exploited at `t_min`, since there is nothing left to learn
+where the rollout began. Larger `τ` holds the temperature near `t_min` until
+the gap is nearly closed; `τ = 1` interpolates linearly in the gap.
+
+Requires `0 < t_min ≤ t_max` and `τ > 0`. `t_min` is an exploration floor, not
+a formality — see the warning on
+[`IntervalMDP.TrajectorySampling.TrajectorySampling`](@ref).
+"""
+struct GapDecayTemperature <: TemperatureSchedule
+    t_min::Float64
+    t_max::Float64
+    tau::Float64
+
+    function GapDecayTemperature(t_min::Real, t_max::Real, tau::Real)
+        t_min > 0 || throw(ArgumentError("t_min must be positive, got $t_min"))
+        t_max >= t_min ||
+            throw(ArgumentError("t_max must be at least t_min = $t_min, got $t_max"))
+        tau > 0 || throw(ArgumentError("tau must be positive, got $tau"))
+        return new(Float64(t_min), Float64(t_max), Float64(tau))
+    end
+end
+
+"""
+    UpdateDecayTemperature(t_min, t_max, tau)
+
+`T = max(t_min, t_max·τⁿ)`, the Bellman-update decay: the temperature falls
+geometrically in `n`, the number of Bellman updates issued so far (see
+[`TemperatureContext`](@ref)), and floors at `t_min`.
+
+`n` counts *backups*, not iterations — one trajectory of 20 states on a
+2-action model already contributes 60 — so a useful `τ` is very close to 1
+(e.g. `0.999`).
+
+Requires `0 < t_min ≤ t_max` and `0 < τ ≤ 1`: a `τ > 1` would make `t_max·τⁿ`
+grow without bound, which is an annealing schedule run backwards. `t_min` is an
+exploration floor, not a formality — see the warning on
+[`IntervalMDP.TrajectorySampling.TrajectorySampling`](@ref).
+"""
+struct UpdateDecayTemperature <: TemperatureSchedule
+    t_min::Float64
+    t_max::Float64
+    tau::Float64
+
+    function UpdateDecayTemperature(t_min::Real, t_max::Real, tau::Real)
+        t_min > 0 || throw(ArgumentError("t_min must be positive, got $t_min"))
+        t_max >= t_min ||
+            throw(ArgumentError("t_max must be at least t_min = $t_min, got $t_max"))
+        0 < tau <= 1 || throw(
+            ArgumentError(
+                "tau must be in (0, 1] — tau > 1 grows the temperature rather than " *
+                "decaying it, got $tau",
+            ),
+        )
+        return new(Float64(t_min), Float64(t_max), Float64(tau))
+    end
+end
+
+"""
+    _temperature(schedule, ctx) -> Float64
+
+The temperature `schedule` gives a rollout starting in context `ctx` —
+`ComputeTemp(n, t_min, t_max, τ)`.
+"""
+_temperature(schedule::FixedTemperature, ::TemperatureContext) = schedule.t
+
+_temperature(schedule::GapDecayTemperature, ctx::TemperatureContext) =
+    schedule.t_min + (schedule.t_max - schedule.t_min) * ctx.diff^schedule.tau
+
+_temperature(schedule::UpdateDecayTemperature, ctx::TemperatureContext) =
+    max(schedule.t_min, schedule.t_max * schedule.tau^ctx.n)
 
 """
     SelectionPolicy
@@ -174,16 +316,20 @@ end
     Boltzmann(T)
 
 Draw a candidate with probability proportional to `exp(score / T)`. Small `T`
-concentrates on the argmax; large `T` approaches uniform. `T` must be positive.
-"""
-struct Boltzmann <: SelectionPolicy
-    T::Float64
+concentrates on the argmax; large `T` approaches uniform.
 
-    function Boltzmann(T::Real)
-        T > 0 || throw(ArgumentError("T must be positive, got $T"))
-        return new(Float64(T))
-    end
+`T` is a [`TemperatureSchedule`](@ref), and a positive number is shorthand for
+[`FixedTemperature`](@ref) — `Boltzmann(0.5) == Boltzmann(FixedTemperature(0.5))`.
+A decaying schedule ([`GapDecayTemperature`](@ref),
+[`UpdateDecayTemperature`](@ref)) is resolved to one number at the top of each
+rollout, so every draw within one trajectory shares a temperature; see
+`_resolve_policy`.
+"""
+struct Boltzmann{S <: TemperatureSchedule} <: SelectionPolicy
+    T::S
 end
+
+Boltzmann(T::Real) = Boltzmann(FixedTemperature(T))
 
 """
     _select(policy, candidates, scores) -> eltype(candidates)
@@ -202,18 +348,39 @@ function _select(policy::EpsilonGreedy, candidates, scores)
     return candidates[argmax(scores)]
 end
 
-function _select(policy::Boltzmann, candidates, scores)
+function _select(policy::Boltzmann{FixedTemperature}, candidates, scores)
     m = maximum(scores)
     # Shift by the max before exponentiating (log-sum-exp): `exp` of a raw
     # score overflows to Inf for large scores and underflows to 0 for very
     # negative ones, either of which destroys the relative weights.
     isfinite(m) || return rand(candidates)   # all -Inf: nothing to prefer
-    weights = [exp((s - m) / policy.T) for s in scores]
+    weights = [exp((s - m) / policy.T.t) for s in scores]
     i = _categorical_sample(weights)
     # `weights` always has a 1.0 entry (the argmax), so this cannot be
     # `nothing` in practice; guard rather than propagate a silent failure.
     return i === nothing ? candidates[argmax(scores)] : candidates[i]
 end
+
+# A decaying schedule is not a number until a rollout gives it one, so drawing
+# straight from it is a programming error rather than a missing method.
+_select(policy::Boltzmann, candidates, scores) = throw(
+    ArgumentError(
+        "a Boltzmann policy carrying a $(typeof(policy.T)) has no temperature until " *
+        "it is resolved against a rollout's TemperatureContext (`_resolve_policy`)",
+    ),
+)
+
+"""
+    _resolve_policy(policy, ctx) -> SelectionPolicy
+
+The policy a rollout actually draws with: a [`Boltzmann`](@ref)'s schedule
+collapsed to the single temperature [`TemperatureContext`](@ref) `ctx` gives
+it, and any other policy unchanged.
+"""
+_resolve_policy(policy::SelectionPolicy, ::TemperatureContext) = policy
+
+_resolve_policy(policy::Boltzmann, ctx::TemperatureContext) =
+    Boltzmann(FixedTemperature(_temperature(policy.T, ctx)))
 
 ###################################
 # 2. Action scores f_A             #
@@ -628,7 +795,8 @@ Each of the four decisions is configured independently:
 
 # Keywords
 - `action_policy::SelectionPolicy = EpsilonGreedy(0.1)`: how the action is
-  drawn given `action_score`.
+  drawn given `action_score`. A `Boltzmann` policy may carry an annealing
+  [`TemperatureSchedule`](@ref) rather than a constant — see below.
 - `action_score::ActionScore = UpperBoundScore()`: `f_A(s, a)`.
 - `transition::ConcreteTransition = ConcreteTransition()`: which bound and
   adversary direction realize `p(·|s,a)`.
@@ -641,6 +809,36 @@ Each of the four decisions is configured independently:
 - `gauss_seidel::Bool = false`: see below.
 - `k::Int = 1`: batch size, used only when `gauss_seidel = true`.
 - `reverse::Bool = true`: return each trajectory goal-first.
+
+# Temperature schedules
+
+A `Boltzmann` policy's temperature is resolved once per rollout, before the
+first action is selected, and held for the whole trajectory — so the action
+policy and the successor policy each get their own `T` from their own schedule
+(`τ_a` and `τ_s` of the writeup):
+
+* [`FixedTemperature`](@ref) — `T = t`, the constant.
+* [`GapDecayTemperature`](@ref) — `T = t_min + (t_max − t_min)·Diff(s₀)^τ`,
+  where `Diff(s₀) = U(s₀) − L(s₀)` is the gap at the state *this* rollout
+  starts from. Exploration therefore fades where the bounds have already met.
+* [`UpdateDecayTemperature`](@ref) — `T = max(t_min, t_max·τⁿ)`, where `n` is
+  the number of Bellman updates the strategy has issued so far — the same
+  `length(states) * (num_actions + 1)` per iteration GSRDP reports to its
+  callback, accumulated across `sample` calls and reset by
+  `reset_sampling_strategy!`.
+
+In Gauss-Seidel mode the temperature belongs to the rollout, not the batch: a
+trajectory doled out over several iterations keeps the temperature it was
+sampled at.
+
+!!! warning
+    Keep `t_min` well away from zero. A cold Boltzmann policy is argmax in all
+    but name, so annealing all the way down runs into exactly the hazard
+    described under "Why the default ε is not zero" below: the rollout locks
+    onto the states it already prefers, the rest keep their initial values, and
+    the gap criterion never fires. `t_min` is the exploration floor the schedule
+    can never anneal past — on a three-state IMDP, `t_min = 0.01` stalls where
+    `t_min = 0.5` converges.
 
 # Gauss-Seidel batching
 
@@ -705,6 +903,11 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
     buffer::Base.RefValue{Any}
     cursor::Base.RefValue{Int}
 
+    # Bellman updates issued so far — `n` for `UpdateDecayTemperature`. Tracked
+    # here because `sample` is not handed the solver's iteration count; see the
+    # increment in §8.
+    updates::Base.RefValue{Int}
+
     function TrajectorySampling(;
         action_policy::SelectionPolicy = EpsilonGreedy(0.1),
         action_score::ActionScore = UpperBoundScore(),
@@ -732,6 +935,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
             reverse,
             Ref{Any}(nothing),
             Ref(0),
+            Ref(0),
         )
     end
 end
@@ -741,6 +945,9 @@ function reset_sampling_strategy!(ss::TrajectorySampling)
     # previous `solve`'s value function and says nothing about this one.
     ss.buffer[] = nothing
     ss.cursor[] = 0
+    # The temperature schedules anneal over one solve, not over the lifetime of
+    # the strategy object, so the backup count restarts with it.
+    ss.updates[] = 0
     return nothing
 end
 
@@ -775,22 +982,33 @@ _terminate_post(ss::TrajectorySampling, s, a, probs, trajectory, i, vf, model, s
     any(r -> terminate_post(r, s, a, probs, trajectory, i, vf, model, spec), ss.terminate)
 
 """
-    _sample_action(ss, s, vf, model, spec, marginal, dir) -> Union{CartesianIndex, Nothing}
+    _sample_action(ss, s, vf, model, spec, marginal, dir, policy = ss.action_policy) -> Union{CartesianIndex, Nothing}
 
 Score every action available at `s` with `ss.action_score` and draw one under
-`ss.action_policy`. `nothing` if `s` has no available actions.
+`policy` — the strategy's action policy with its temperature already resolved
+for this rollout (`_resolve_policy`). `nothing` if `s` has no available
+actions.
 """
-function _sample_action(ss::TrajectorySampling, s, vf, model, spec, marginal, dir)
+function _sample_action(
+    ss::TrajectorySampling,
+    s,
+    vf,
+    model,
+    spec,
+    marginal,
+    dir,
+    policy::SelectionPolicy = ss.action_policy,
+)
     actions = collect(available(model, s))
     isempty(actions) && return nothing
 
     U, L = vf.upper.current, vf.lower.current
     scores = [_action_score(ss.action_score, marginal[a, s], U, L, dir) for a in actions]
-    return _select(ss.action_policy, actions, scores)
+    return _select(policy, actions, scores)
 end
 
 """
-    _sample_state(ss, s, a, probs, vf, model, spec) -> Union{CartesianIndex, Nothing}
+    _sample_state(ss, s, a, probs, vf, model, spec, policy = ss.state_policy) -> Union{CartesianIndex, Nothing}
 
 Draw a successor from the support of `probs` — the linear target indices
 carrying positive mass. `nothing` if nothing does, which ends the rollout.
@@ -799,6 +1017,9 @@ The support is read off `probs` rather than `support(ambiguity_set)`: the
 latter returns the *full* target range for a dense `IntervalAmbiguitySets`, so
 going by it would offer successors the realized distribution assigns no mass.
 
+`policy` is the strategy's successor policy with its temperature already
+resolved for this rollout (`_resolve_policy`).
+
 `EpsilonGreedy` and `Boltzmann` score differently here, deliberately, following
 the writeup: ε-greedy exploits on `p(x)·f_greedy(x)` alone, whatever
 `ss.state_score` is, while Boltzmann uses the full `f_S`. So the exploration
@@ -806,11 +1027,19 @@ and gap-weighting terms of an [`ExplorationScore`](@ref) /
 [`GapWeightedExplorationScore`](@ref) only take effect under `Boltzmann` — an
 ε-greedy configuration reads only the score's `bound`.
 """
-function _sample_state(ss::TrajectorySampling, s, a, probs, vf, model, spec)
+function _sample_state(
+    ss::TrajectorySampling,
+    s,
+    a,
+    probs,
+    vf,
+    model,
+    spec,
+    policy::SelectionPolicy = ss.state_policy,
+)
     supp = [i for i in eachindex(probs) if probs[i] > zero(eltype(probs))]
     isempty(supp) && return nothing
 
-    policy = ss.state_policy
     if policy isa EpsilonGreedy
         Vg = vec(_bound_values(_greedy_bound(ss.state_score), vf))
         scores = [Float64(probs[i]) * Float64(Vg[i]) for i in supp]
@@ -840,6 +1069,17 @@ function _sample_trajectory(ss::TrajectorySampling, model, value_function, spec)
     cap = _step_cap(ss, model)
 
     s = _trajectory_initial_state(model)
+
+    # ComputeTemp, once per rollout: both policies are resolved against the gap
+    # at s₀ and the backups issued so far, so the whole trajectory is drawn at
+    # one temperature (lines 4-5 of SampleTrajectory).
+    ctx = TemperatureContext(
+        Float64(value_function.upper.current[s]) - Float64(value_function.lower.current[s]),
+        ss.updates[],
+    )
+    action_policy = _resolve_policy(ss.action_policy, ctx)
+    state_policy = _resolve_policy(ss.state_policy, ctx)
+
     trajectory = typeof(s)[]
     i = 0
 
@@ -849,14 +1089,14 @@ function _sample_trajectory(ss::TrajectorySampling, model, value_function, spec)
               i < cap
         push!(trajectory, s)
 
-        a = _sample_action(ss, s, value_function, model, spec, marginal, dir)
+        a = _sample_action(ss, s, value_function, model, spec, marginal, dir, action_policy)
         a === nothing && break
 
         probs = _omax_distribution(marginal[a, s], Vt, dir)
         _terminate_post(ss, s, a, probs, trajectory, i, value_function, model, spec) &&
             break
 
-        sp = _sample_state(ss, s, a, probs, value_function, model, spec)
+        sp = _sample_state(ss, s, a, probs, value_function, model, spec, state_policy)
         # `nothing` = no successor carries mass under this weighting, so there
         # is none the strategy can honestly pick — end the rollout rather than
         # move to an arbitrary state.
@@ -878,12 +1118,30 @@ end
 # 8. TrajectorySampling (batching) #
 ###################################
 
+"""
+    _count_updates!(ss, model, batch) -> batch
+
+Record the Bellman updates `batch` is about to cause, which is `n` for
+[`UpdateDecayTemperature`](@ref). It mirrors GSRDP's own `_bellman_update_count`
+exactly — the sampler hands back a `StateIterator`, on which
+`project_to_state_sequence` is the identity, and every state in it gets a full
+action sweep plus the state backup.
+
+The count is taken *after* the rollout it belongs to, so a rollout's
+temperature reads the backups issued before it.
+"""
+function _count_updates!(ss::TrajectorySampling, model, batch)
+    ss.updates[] += length(batch) * (num_actions(model) + 1)
+    return batch
+end
+
 function sample(ss::TrajectorySampling, model, strategy_cache, value_function, spec)
     if !ss.gauss_seidel
         trajectory = _sample_trajectory(ss, model, value_function, spec)
         # A no-op under GSRDP's Jacobi backup, but applied here too so the
         # flag's meaning doesn't depend on `gauss_seidel`.
         ss.reverse && reverse!(trajectory)
+        _count_updates!(ss, model, trajectory)
         return StateIterator(trajectory)
     end
 
@@ -902,6 +1160,7 @@ function sample(ss::TrajectorySampling, model, strategy_cache, value_function, s
     stop = min(start + ss.k - 1, length(buffer))
     batch = buffer[start:stop]
     ss.cursor[] = stop + 1
+    _count_updates!(ss, model, batch)
 
     if ss.cursor[] > length(buffer)
         ss.buffer[] = nothing   # exhausted: the next call samples afresh

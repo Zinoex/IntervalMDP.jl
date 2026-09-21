@@ -16,7 +16,7 @@
         @test_throws ArgumentError TS.Boltzmann(0.0)
         @test_throws ArgumentError TS.Boltzmann(-1.0)
         @test TS.EpsilonGreedy(0.0).p == 0.0
-        @test TS.Boltzmann(2.0).T == 2.0
+        @test TS.Boltzmann(2.0).T == TS.FixedTemperature(2.0)
     end
 
     cands = [:a, :b, :c]
@@ -295,6 +295,152 @@ end
     @testset "no successor carries mass -> nothing" begin
         ss = TS.TrajectorySampling()
         @test TS._sample_state(ss, s, a, [0.0, 0.0], vf, mdp, nothing) === nothing
+    end
+end
+
+@testitem "TrajectorySampling: temperature schedules" tags =
+    [:base, :trajectory_sampling, :trajectory_temperature] begin
+    using IntervalMDP
+    const TS = IntervalMDP.TrajectorySampling
+
+    @testset "constructor validation" begin
+        @test_throws ArgumentError TS.FixedTemperature(0.0)
+        @test_throws ArgumentError TS.GapDecayTemperature(0.0, 1.0, 1.0)
+        @test_throws ArgumentError TS.GapDecayTemperature(1.0, 0.5, 1.0)   # t_max < t_min
+        @test_throws ArgumentError TS.GapDecayTemperature(0.1, 1.0, 0.0)
+        @test_throws ArgumentError TS.UpdateDecayTemperature(0.1, 1.0, 0.0)
+        # tau > 1 grows `t_max * tau^n` without bound — an anneal run backwards.
+        @test_throws ArgumentError TS.UpdateDecayTemperature(0.1, 1.0, 2.0)
+        @test TS.UpdateDecayTemperature(0.1, 1.0, 1.0).tau == 1.0
+    end
+
+    @testset "a bare number means a fixed temperature" begin
+        @test TS.Boltzmann(0.5).T === TS.FixedTemperature(0.5)
+        @test_throws ArgumentError TS.Boltzmann(0.0)
+        @test_throws ArgumentError TS.Boltzmann(-1.0)
+    end
+
+    @testset "TemperatureContext clamps the gap to [0, 1]" begin
+        # A reach-avoid value function carries negative values on avoid states
+        # until the postprocess runs, and a fractional tau on a negative base
+        # would go complex.
+        @test TS.TemperatureContext(-0.5, 0).diff == 0.0
+        @test TS.TemperatureContext(1.5, 0).diff == 1.0
+    end
+
+    @testset "gap decay spans [t_min, t_max] in Diff(s0)" begin
+        sched = TS.GapDecayTemperature(0.01, 2.0, 1.0)
+        @test TS._temperature(sched, TS.TemperatureContext(0.0, 0)) == 0.01
+        @test TS._temperature(sched, TS.TemperatureContext(1.0, 0)) == 2.0
+
+        mid = TS._temperature(sched, TS.TemperatureContext(0.5, 0))
+        @test 0.01 < mid < 2.0
+        # Larger tau holds the temperature down until the gap is nearly closed.
+        @test TS._temperature(
+            TS.GapDecayTemperature(0.01, 2.0, 4.0),
+            TS.TemperatureContext(0.5, 0),
+        ) < mid
+        # The backup count is irrelevant to this schedule.
+        @test TS._temperature(sched, TS.TemperatureContext(0.5, 10^6)) == mid
+    end
+
+    @testset "update decay falls geometrically and floors at t_min" begin
+        sched = TS.UpdateDecayTemperature(0.05, 1.0, 0.99)
+        @test TS._temperature(sched, TS.TemperatureContext(1.0, 0)) == 1.0
+        @test TS._temperature(sched, TS.TemperatureContext(1.0, 100)) ≈ 0.99^100
+        @test TS._temperature(sched, TS.TemperatureContext(1.0, 10^6)) == 0.05
+
+        # Monotone in n, and independent of the gap.
+        temps = [TS._temperature(sched, TS.TemperatureContext(0.3, n)) for n in 0:50]
+        @test issorted(temps; rev = true)
+        @test TS._temperature(sched, TS.TemperatureContext(0.3, 7)) ==
+              TS._temperature(sched, TS.TemperatureContext(0.9, 7))
+    end
+
+    @testset "resolution against a rollout context" begin
+        ctx = TS.TemperatureContext(1.0, 0)
+
+        eg = TS.EpsilonGreedy(0.3)
+        @test TS._resolve_policy(eg, ctx) === eg
+
+        decaying = TS.Boltzmann(TS.GapDecayTemperature(0.01, 2.0, 1.0))
+        @test TS._resolve_policy(decaying, ctx) == TS.Boltzmann(2.0)
+
+        # An unresolved schedule has no temperature to draw with; that is an
+        # error rather than a silent default.
+        @test_throws ArgumentError TS._select(decaying, [:a, :b], [1.0, 2.0])
+    end
+end
+
+@testitem "TrajectorySampling: temperature decay in the rollout" tags =
+    [:base, :trajectory_sampling, :trajectory_temperature_rollout] begin
+    using IntervalMDP
+    const TS = IntervalMDP.TrajectorySampling
+
+    # Two states, one action, every transition an even coin flip between them.
+    # State 2 is the goal, so a rollout from state 1 ends as soon as the coin
+    # flip is drawn towards it.
+    amb = IntervalAmbiguitySets(;
+        lower = reshape([0.5, 0.5], 2, 1),
+        upper = reshape([0.5, 0.5], 2, 1),
+    )
+    mdp = IntervalMarkovDecisionProcess([amb, amb], [1])
+    prop = InfiniteTimeReachability([2], 1 // 1000)
+    spec = Specification(prop, Pessimistic, Maximize)
+
+    # Successor scores are `p * U`, so holding U fixed and moving only L varies
+    # Diff(s0) — and therefore the temperature — while leaving what the policy
+    # is choosing between untouched: [0.5*0.9, 0.5*1.0] = [0.45, 0.5].
+    function value_function(lower)
+        alg =
+            GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp))
+        V = IntervalMDP.construct_value_function(alg, VerificationProblem(mdp, spec))
+        IntervalMDP._gsrdp_initialize!(V, prop)
+        V.upper.current .= [0.9, 1.0]
+        V.lower.current .= lower
+        return V
+    end
+
+    # t_max = 100, so Diff(s0) = 0.9 resolves to T = 90: exp(0.05/90) ≈ 1, i.e.
+    # an even draw. Diff(s0) = 0 resolves to T = 0.001: exp(0.05/0.001) = e^50,
+    # i.e. the argmax every time.
+    sched = TS.GapDecayTemperature(0.001, 100.0, 1.0)
+    ss = TS.TrajectorySampling(; state_policy = TS.Boltzmann(sched))
+
+    @testset "a converged s0 draws at t_min: straight to the goal" begin
+        V = value_function([0.9, 1.0])   # Diff(s0) = 0
+        rhos = [TS._sample_trajectory(ss, mdp, V, spec) for _ in 1:200]
+        @test all(rho -> rho == [CartesianIndex(1)], rhos)
+    end
+
+    @testset "a wide-open s0 draws at t_max: it wanders" begin
+        V = value_function([0.0, 1.0])   # Diff(s0) = 0.9
+        rhos = [TS._sample_trajectory(ss, mdp, V, spec) for _ in 1:200]
+        # The default MaxSteps() cap is num_states(mdp) = 2 transitions, so a
+        # rollout that does not step onto the goal immediately has length 2.
+        @test any(rho -> length(rho) > 1, rhos)
+        @test any(rho -> length(rho) == 1, rhos)
+    end
+
+    @testset "the backup counter feeds the update decay" begin
+        V = value_function([0.0, 1.0])
+        ss2 = TS.TrajectorySampling(;
+            state_policy = TS.Boltzmann(TS.UpdateDecayTemperature(0.05, 1.0, 0.99)),
+        )
+        @test ss2.updates[] == 0
+
+        expected = 0
+        for _ in 1:5
+            seq = IntervalMDP.sample(ss2, mdp, nothing, V, spec)
+            # One action, so each relaxed state costs `num_actions + 1` = 2
+            # backups — exactly what GSRDP's `_bellman_update_count` charges.
+            expected += length(seq) * (IntervalMDP.num_actions(mdp) + 1)
+            @test ss2.updates[] == expected
+        end
+        @test expected > 0
+
+        IntervalMDP.reset_sampling_strategy!(ss2)
+        @test ss2.updates[] == 0
     end
 end
 
@@ -684,6 +830,18 @@ end
             "expected-gap stop" => TS.TrajectorySampling(;
                 terminate = [TS.MaxSteps(), TS.ExpectedGapStop(10.0)],
             ),
+            # `t_min` is 0.5, not something near zero: annealing all the way
+            # down is pure exploitation, which can lock the rollout onto one
+            # state and stall the gap criterion — the same hazard documented
+            # under "Why the default e is not zero".
+            "gap-decay temperature" => TS.TrajectorySampling(;
+                action_policy = TS.Boltzmann(TS.GapDecayTemperature(0.5, 1.0, 1.0)),
+                state_policy = TS.Boltzmann(TS.GapDecayTemperature(0.5, 1.0, 2.0)),
+            ),
+            "update-decay temperature" => TS.TrajectorySampling(;
+                action_policy = TS.Boltzmann(TS.UpdateDecayTemperature(0.5, 1.0, 0.999)),
+                state_policy = TS.Boltzmann(TS.UpdateDecayTemperature(0.5, 1.0, 0.999)),
+            ),
             "gauss-seidel k = 2" => TS.TrajectorySampling(; gauss_seidel = true, k = 2),
             "lower-bound transition" => TS.TrajectorySampling(;
                 transition = TS.ConcreteTransition(; bound = IntervalMDP.Lower),
@@ -697,6 +855,33 @@ end
             )
             (V, _, _) = solve(problem, gsdp)
             @test maximum(abs, V_rvi .- V) <= 2 * eps
+        end
+
+        # `n` for UpdateDecayTemperature is meant to BE the solver's backup
+        # count, but the strategy has to reconstruct it (`sample` is not handed
+        # the iteration). Check the two never drift: GSRDP reports its own
+        # count to the callback, and the strategy has just finished charging
+        # itself for that same batch.
+        @testset "the backup counter tracks GSRDP's bellman_updates" begin
+            ss = TS.TrajectorySampling(;
+                state_policy = TS.Boltzmann(TS.UpdateDecayTemperature(0.5, 1.0, 0.999)),
+            )
+            agree = Ref(true)
+            seen = Ref(0)
+            callback = function (_, bellman_updates, state_seq)
+                state_seq === nothing && return nothing   # the pre-update fire
+                seen[] += 1
+                agree[] &= (bellman_updates == ss.updates[])
+                return nothing
+            end
+
+            gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
+                default_bellman_algorithm(mdp);
+                sampling_strategy = ss,
+            )
+            solve(problem, gsdp; callback = callback)
+            @test seen[] > 0
+            @test agree[]
         end
     end
 end
