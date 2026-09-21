@@ -784,13 +784,17 @@ end
     @testset "action_selection picks argmax upper-bound Q" begin
         # State 2's action 1 -> Dirac target 1 (upper Q = V_upper[1]); action 2 -> Dirac
         # target 2 (upper Q = V_upper[2]). V_upper[1] > V_upper[2], so action 1 wins.
+        # Both ambiguity sets are Dirac (lower == upper), so which satisfaction mode
+        # `spec` carries can't affect the O-max/O-min realization here -- `action_selection`
+        # still needs a real `Specification` to read `isoptimistic` from, not `nothing`.
         prob1 = IntervalAmbiguitySets(; lower = [1.0 1.0; 0.0 0.0], upper = [1.0 1.0; 0.0 0.0])
         prob2 = IntervalAmbiguitySets(; lower = [1.0 0.0; 0.0 1.0], upper = [1.0 0.0; 0.0 1.0])
         mdp = IntervalMarkovDecisionProcess([prob1, prob2], [1])
         vf = (upper = (current = [10.0, 5.0],), lower = (current = [0.0, 5.0],))
+        spec = Specification(InfiniteTimeReachability([1], 1e-5), Pessimistic, Maximize)
 
         for strat in strategies
-            a = IntervalMDP.action_selection(strat, CartesianIndex(2), vf, mdp, nothing)
+            a = IntervalMDP.action_selection(strat, CartesianIndex(2), vf, mdp, spec)
             @test a == CartesianIndex(1)
         end
     end
@@ -843,8 +847,8 @@ end
         #            U^{-a_L}(1) = U(1, other action) = V_upper[1] = 10 => uncertainty 10.
         #   state 2: a_L = action 2 (L=5 > 0), L(2) = 5;
         #            U^{-a_L}(2) = U(2, action 1) = V_upper[1] = 10 => uncertainty 5.
-        @test IntervalMDP.TrajectorySampling._action_uncertainty(mdp, CartesianIndex(1), vf) ≈ 10.0
-        @test IntervalMDP.TrajectorySampling._action_uncertainty(mdp, CartesianIndex(2), vf) ≈ 5.0
+        @test IntervalMDP.TrajectorySampling._action_uncertainty(mdp, CartesianIndex(1), vf, nothing) ≈ 10.0
+        @test IntervalMDP.TrajectorySampling._action_uncertainty(mdp, CartesianIndex(2), vf, nothing) ≈ 5.0
 
         # With all transition mass on state 2, the (positive) uncertainty at state 1
         # is irrelevant — target_state_sampling must pick state 2 deterministically.
@@ -1145,7 +1149,7 @@ end
     @testset "_action_uncertainty at the sink is zero, not a BoundsError" begin
         # Regression: this used to call `available(mdp, sink)` and then index
         # the marginal past its last (source, action) column.
-        @test IntervalMDP._action_uncertainty(mdp, CartesianIndex(3), vf) == 0.0
+        @test IntervalMDP._action_uncertainty(mdp, CartesianIndex(3), vf, nothing) == 0.0
     end
 
     @testset "bellman_residual_delta at the sink is zero, not a BoundsError" begin

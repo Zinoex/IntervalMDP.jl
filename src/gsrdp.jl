@@ -12,11 +12,9 @@ Restrictions:
   Finite-horizon properties have a fixed-iteration termination criterion
   that's incompatible with gap-based convergence.
 
-The optimal action at each visited state is picked from the *primary*
-bound (lower for `Pessimistic`, upper for `Optimistic`) using the
-specification's `Maximize`/`Minimize` mode. The chosen action is then
-applied to the *secondary* bound through a `NonOptimizingStrategyCache`
-so both bounds track the same policy.
+The optimal action at each visited state is picked from the upper
+bound. The chosen action is then applied to the lower bound through 
+a `NonOptimizingStrategyCache` so both bounds track the same policy.
 
 `sampling_strategy` controls which states (or `(a, s)` pairs) are
 relaxed each iteration; defaults to [`AllStatesSweep`](@ref). State-action
@@ -287,10 +285,10 @@ function _gsrdp_strategy_cache(problem::AbstractIntervalMDPProblem)
     return StationaryStrategyCache(strategy_arr)
 end
 
-# Wrap the primary bellman call's strategy cache as a non-optimizing
-# follower for the secondary bellman call. After `bellman_v!` with the
+# Wrap the upper bellman call's strategy cache as a non-optimizing
+# follower for the lower bellman call. After `bellman_v!` with the
 # stationary cache, `cache.strategy` holds the chosen action per state;
-# we expose it as an `ActiveGivenStrategyCache` for the secondary call.
+# we expose it as an `ActiveGivenStrategyCache` for the lower call.
 _follow_strategy_cache(cache::StationaryStrategyCache) =
     ActiveGivenStrategyCache(cache.strategy)
 
@@ -307,9 +305,9 @@ function bellman_update!(
     state_seq = project_to_state_sequence(update_sequence)
     model = select_model(mp, k)
 
-    #TODO: Primary drives action selection; secondary follows.
+    #TODO: upper drives action selection; lower follows.
     # Upper bound drives optimistic action selection, lower bound follows. 
-    primary, secondary = value_function.upper, value_function.lower
+    upper, lower = value_function.upper, value_function.lower
 
     # `upper_bound` is the *adversary's* direction inside the ambiguity set
     # (`true` = O-maximization), not a tag for which bracket is being written.
@@ -318,12 +316,12 @@ function bellman_update!(
     # satisfaction mode dictates - the same value `RobustValueIteration` passes.
     # Keep these two `upper_bound` arguments identical; that is what makes the
     # bracket valid.
-    primary_sc = select_strategy_cache(strategy_cache, k)
+    upper_sc = select_strategy_cache(strategy_cache, k)
     bellman_v!(
         workspace,
-        primary_sc,
-        StateValueArray(primary.current),
-        StateValueArray(primary.previous),
+        upper_sc,
+        StateValueArray(upper.current),
+        StateValueArray(upper.previous),
         model,
         state_seq;
         upper_bound = isoptimistic(spec),
@@ -331,12 +329,12 @@ function bellman_update!(
         prop = system_property(spec),
     )
 
-    secondary_sc = _follow_strategy_cache(primary_sc)
+    lower_sc = _follow_strategy_cache(upper_sc)
     bellman_v!(
         workspace,
-        secondary_sc,
-        StateValueArray(secondary.current),
-        StateValueArray(secondary.previous),
+        lower_sc,
+        StateValueArray(lower.current),
+        StateValueArray(lower.previous),
         model,
         state_seq;
         upper_bound = isoptimistic(spec),

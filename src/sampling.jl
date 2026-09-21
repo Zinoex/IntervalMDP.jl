@@ -819,7 +819,7 @@ function _omax_best_action(
 end
 
 """
-    _action_uncertainty(model, sp, value_function) -> Real
+    _action_uncertainty(model, sp, value_function, spec) -> Real
 
 `V^a(s') = U^{-a_L(s')}(s') - L(s')`, where `a_L(s')` is the action
 maximizing the lower-bound Q-value at `s'` and `U^{-a_L}(s')` is the best
@@ -829,18 +829,29 @@ really is optimal. Returns 0 when `s'` has only one available action (no
 alternative to be uncertain about). Shared by
 [`TrajectorySampling.ActionUncertaintyTrajectorySampling`](@ref) and
 [`PriorityQueueSampling.ActionUncertaintyPriorityQueueSampling`](@ref).
+
+Both `_omax_best_action` calls use the *same* `isoptimistic(spec)` direction: `L` and `U` are
+themselves both derived from `bellman_update!` backups under that one direction — their bracket
+comes from the strategy cache (optimizing vs following), not from opposing O-max/O-min
+directions — so re-deriving each one's own best action must match that same direction.
 """
-function _action_uncertainty(model, sp, value_function)
+function _action_uncertainty(model, sp, value_function, spec)
     L, U = value_function.lower.current, value_function.upper.current
     # An implicit sink (a target state outside the source sub-box) has no
     # ambiguity-set column and no actions at all, so there is no action to be
     # uncertain about — same reasoning as the single-action case below.
     _is_source_state(model, sp) || return zero(eltype(U))
-    a_L, L_sp = _omax_best_action(model, sp, L, false)
-    _, U_excl = _omax_best_action(model, sp, U, true; exclude = a_L)
+    dir = _isoptimistic(spec)
+    a_L, L_sp = _omax_best_action(model, sp, L, dir)
+    _, U_excl = _omax_best_action(model, sp, U, dir; exclude = a_L)
     U_excl === nothing && return zero(eltype(U))   # only one action at sp: no alternative to be uncertain about
     return U_excl - L_sp
 end
+
+# Nothing-tolerant `isoptimistic`, mirroring `_delta_maximize` below (§5c) — some unit tests
+# exercise these O-max helpers directly without a full `Specification`.
+_isoptimistic(::Nothing) = true
+_isoptimistic(spec) = isoptimistic(spec)
 
 """
     _state_indices(model) -> CartesianIndices
@@ -1126,7 +1137,11 @@ function _trajectory_rollout(ss::TrajectorySamplingStrategy, model, value_functi
           steps < max_steps
         a = action_selection(ss, current, value_function, model, spec)
         ambiguity_set = _omax_marginal(model)[a, current]
-        probs = _omax_distribution(ambiguity_set, V_upper, true)
+        # Must match the O-max/O-min direction `bellman_update!`'s `value_function.upper`
+        # backup uses (`isoptimistic(spec)`, IntervalMDP `src/gsrdp.jl`) — a rollout realized
+        # under the other direction explores states the corresponding Bellman update isn't
+        # actually driven toward, which can starve the trajectory of any path to reach/avoid.
+        probs = _omax_distribution(ambiguity_set, V_upper, isoptimistic(spec))
         # Post-realization stopping hook: sees `probs` the step already paid
         # for, so a distribution-dependent criterion costs no extra O-max work.
         terminate_transition(
@@ -1263,7 +1278,8 @@ import ..IntervalMDP:
     _action_uncertainty,
     _target_indices,
     _target_state,
-    _maybe_target_state
+    _maybe_target_state,
+    isoptimistic
 
 """
     TrajectorySampling.TrajectorySampling <: TrajectorySamplingStrategy
@@ -1291,7 +1307,9 @@ terminate_sampling(
 ) = false
 
 function action_selection(::TrajectorySampling, current, value_function, model, spec)
-    a, _ = _omax_best_action(model, current, value_function.upper.current, true)
+    # `isoptimistic(spec)`, not a fixed `true`: must match `bellman_update!`'s direction
+    # for `value_function.upper` (see `_trajectory_rollout`'s O-max realization above).
+    a, _ = _omax_best_action(model, current, value_function.upper.current, isoptimistic(spec))
     return a
 end
 
@@ -1451,7 +1469,7 @@ function target_state_sampling(
         # — multiplying by probs[sp] == 0 always contributes 0 regardless.
         probs[sp] > zero(eltype(probs)) || continue
         weighted[sp] =
-            probs[sp] * _action_uncertainty(model, _target_state(model, sp), value_function)
+            probs[sp] * _action_uncertainty(model, _target_state(model, sp), value_function, spec)
     end
     return _maybe_target_state(model, _categorical_sample(weighted))
 end
@@ -1612,6 +1630,7 @@ import ..IntervalMDP:
     _omax_best_action,
     _is_source_state,
     ismaximize,
+    _isoptimistic,
     _rnd_construct,
     _rnd_novelty,
     _rnd_train!,
@@ -1882,7 +1901,7 @@ struct ActionUncertaintyPriorityQueueSampling <: PriorityQueueSampling
 end
 
 compute_priority(::ActionUncertaintyPriorityQueueSampling, s, value_function, model, spec) =
-    _action_uncertainty(model, s, value_function)
+    _action_uncertainty(model, s, value_function, spec)
 
 ###################################
 # 5c. RND-based priority queue     #
@@ -1900,14 +1919,18 @@ and hence how much a backup there would move it. The default `δ` for
 [`RNDPriorityQueueSampling`](@ref).
 
 Measured on the upper bound because that is the bound GSRDP lets drive
-action selection; the optimization direction follows the specification's
-`Maximize`/`Minimize` mode, defaulting to maximizing when `spec === nothing`.
+action selection; both the O-max/O-min ambiguity-set direction and the
+maximize/minimize action-selection direction follow the specification
+(`isoptimistic`/`Maximize`-`Minimize` respectively), defaulting to
+optimistic-and-maximizing when `spec === nothing`. The direction must match
+`bellman_update!`'s for `U` — this is a residual against `U`'s own equation,
+so re-deriving it with a different direction would check the wrong equation.
 """
 function bellman_residual_delta(s, value_function, model, spec)
     _is_source_state(model, s) || return 0.0
 
     U = value_function.upper.current
-    _, q = _omax_best_action(model, s, U, true; maximize = _delta_maximize(spec))
+    _, q = _omax_best_action(model, s, U, _isoptimistic(spec); maximize = _delta_maximize(spec))
     isnothing(q) && return 0.0
 
     return abs(Float64(q) - Float64(U[s]))
@@ -1934,7 +1957,7 @@ gap_delta(s, value_function, model, spec) =
 `δ` for [`RNDPriorityQueueSampling`](@ref).
 """
 action_uncertainty_delta(s, value_function, model, spec) =
-    _action_uncertainty(model, s, value_function)
+    _action_uncertainty(model, s, value_function, spec)
 
 """
     RNDPriorityQueueSampling(k; delta, lambda, hidden, output, lr, epochs, features, rng)
