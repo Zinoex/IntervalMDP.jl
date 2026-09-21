@@ -633,7 +633,8 @@ Base.iterate(iter::RoundRobinStateIterator, state) = iterate(iter.states, state)
 sequence_shape(::RoundRobinStateIterator) = StateUpdateSequence()
 
 sample(ss::RoundRobinState, model) = round_robin_state_sample(ss, model)
-sample(ss::RoundRobinState, model, ::AbstractStrategyCache) = round_robin_state_sample(ss, model)
+sample(ss::RoundRobinState, model, ::AbstractStrategyCache) =
+    round_robin_state_sample(ss, model)
 
 round_robin_state_sample(ss::RoundRobinState, proc::ProductProcess) =
     round_robin_state_sample(ss, markov_process(proc))
@@ -681,27 +682,18 @@ end
     TrajectorySamplingStrategy <: SamplingStrategy
 
 Abstract supertype for trajectory-based sampling strategies: instead of
-sampling states independently, these simulate one or more trajectories
-through the model — starting from an initial state, repeatedly picking an
-action, realizing a concrete transition distribution via O-maximization
-against the upper value function, and sampling a next state from it — and
-relax the states visited along the way. A trajectory stops when it reaches a
-reach or avoid state, or when the strategy's own [`terminate_sampling`](@ref)
-or [`terminate_transition`](@ref) says so (subject to a hard step cap
-regardless — see [`_trajectory_rollout`]).
+sampling states independently, these simulate a trajectory through the model —
+starting from an initial state, repeatedly selecting an action, realizing a
+concrete transition distribution out of the ambiguity set via O-maximization,
+and drawing a next state from it — and relax the states visited along the way.
 
-A rollout also ends if it leaves the source sub-box (an implicit sink state,
-see [`_is_source_state`](@ref)) — the sink is absorbing, and is excluded from
-the returned trajectory since it cannot be relaxed.
-
-Concrete subtypes implement four functions — [`num_trajectories`](@ref),
-[`terminate_sampling`](@ref), [`action_selection`](@ref),
-[`target_state_sampling`](@ref) — optionally override
-[`terminate_transition`](@ref) and [`reverse_trajectory`](@ref), and get the
-rollout, the O-max realization, initial-state selection, and reach/avoid
-checking for free. See the `TrajectorySampling` submodule for the concrete
-strategies built on this skeleton, including the BRTDP-style gap-based
-sampler [`TrajectorySampling.ExpectedGapTrajectorySampling`](@ref).
+The category lives here, alongside the O-max primitives every trajectory step
+is built from (§4a below), because `sampling_context_requirement` dispatches on
+it and the priority-queue strategies share those primitives. The sampler itself
+is in `trajectorysampling.jl`: a single configurable
+[`TrajectorySampling.TrajectorySampling`](@ref), parameterized by a selection
+policy, action and successor score functions, the concrete-transition bound and
+adversary direction, and Gauss-Seidel batching.
 
 Only flat (non-factored) models are supported — the O-max realization
 (`_omax_marginal`) requires a single `Marginal`.
@@ -730,7 +722,8 @@ function _omax_marginal(model)
     ms = marginals(model)
     length(ms) == 1 || throw(
         ArgumentError(
-            "trajectory sampling only supports flat (non-factored) models; got $(length(ms)) marginals",
+            "trajectory and priority-queue sampling only support flat (non-factored) " *
+            "models; got $(length(ms)) marginals",
         ),
     )
     return ms[1]
@@ -826,8 +819,7 @@ maximizing the lower-bound Q-value at `s'` and `U^{-a_L}(s')` is the best
 upper-bound Q-value at `s'` among the *other* actions — a measure of how
 uncertain it still is whether the (lower-bound-)optimal action at `s'`
 really is optimal. Returns 0 when `s'` has only one available action (no
-alternative to be uncertain about). Shared by
-[`TrajectorySampling.ActionUncertaintyTrajectorySampling`](@ref) and
+alternative to be uncertain about). Used by
 [`PriorityQueueSampling.ActionUncertaintyPriorityQueueSampling`](@ref).
 
 Both `_omax_best_action` calls use the *same* `isoptimistic(spec)` direction: `L` and `U` are
@@ -877,8 +869,8 @@ _target_indices(model) = CartesianIndices(state_values(model))
     _target_state(model, i) -> CartesianIndex
 
 The target state at linear index `i` — how a linear index from
-[`_categorical_sample`](@ref) (or from an ambiguity set's `support`) maps
-back to a state index. Only equals `CartesianIndex(i)` for single-state-variable
+`_categorical_sample` (`trajectorysampling.jl`), or from an ambiguity set's
+`support`, maps back to a state index. Only equals `CartesianIndex(i)` for single-state-variable
 models.
 """
 Base.@propagate_inbounds _target_state(model, i) = _target_indices(model)[i]
@@ -887,9 +879,9 @@ Base.@propagate_inbounds _target_state(model, i) = _target_indices(model)[i]
     _maybe_target_state(model, i) -> Union{CartesianIndex, Nothing}
 
 [`_target_state`](@ref) that passes `nothing` straight through — the sentinel
-[`_categorical_sample`](@ref) returns when a weight vector carries no positive
-mass, which [`target_state_sampling`](@ref) forwards to the rollout to end the
-trajectory.
+`_categorical_sample` (`trajectorysampling.jl`) returns when a weight vector
+carries no positive mass, which the trajectory rollout forwards as "no
+successor to move to", ending the trajectory.
 """
 Base.@propagate_inbounds _maybe_target_state(model, i::Integer) = _target_state(model, i)
 _maybe_target_state(model, ::Nothing) = nothing
@@ -987,496 +979,6 @@ function _predecessor_index(model)
 end
 
 ###################################
-# 4b. Reach/avoid, initial state   #
-###################################
-# `reach`/`avoid` (specification.jl) are only defined for
-# AbstractReachability/AbstractReachAvoid/AbstractSafety — not every
-# `Property`. These fall back to "no reach/avoid states" for anything else,
-# so trajectory sampling still runs (just never stops via goal/obstacle).
-
-_trajectory_reach_states(prop) = CartesianIndex[]
-_trajectory_reach_states(prop::AbstractReachability) = reach(prop)   # AbstractReachAvoid IS-A AbstractReachability
-
-_trajectory_avoid_states(prop) = CartesianIndex[]
-_trajectory_avoid_states(prop::AbstractReachAvoid) = avoid(prop)
-_trajectory_avoid_states(prop::AbstractSafety) = avoid(prop)
-
-# `initial_states(mp)` elements aren't normalized to `CartesianIndex` at
-# model-construction time (could be `Int`, `Tuple`, or `CartesianIndex`).
-_to_state_index(s::CartesianIndex) = s
-_to_state_index(s::Integer) = CartesianIndex(s)
-_to_state_index(s::Tuple) = CartesianIndex(s)
-
-# `AllStates()` (no restriction declared) samples uniformly over every
-# state; a concrete initial-states vector samples uniformly among them.
-function _trajectory_initial_state(model)
-    init = initial_states(model)
-    return init isa AllStates ? rand(CartesianIndices(source_shape(model))) :
-           _to_state_index(rand(init))
-end
-
-###################################
-# 4c. The four-function contract   #
-###################################
-# Plus two optional hooks with defaults — `terminate_transition` and
-# `reverse_trajectory` — which concrete subtypes may but need not implement.
-
-"""
-    num_trajectories(strategy::TrajectorySamplingStrategy) -> Int
-
-Number of independent trajectories `sample` rolls out and concatenates per
-call. Must be implemented by every concrete subtype.
-"""
-function num_trajectories end
-
-"""
-    terminate_sampling(strategy, current_state, trajectory, value_function, model, spec) -> Bool
-
-Strategy-specific extra stopping condition (e.g. a max length, an
-uncertainty/gap threshold) — `trajectory` is the sequence of states visited
-so far (including `current_state`, its last entry). The shared rollout ALSO
-always stops when `current_state` is a reach or avoid state (checked
-independently, before this is called) and enforces its own hard step cap
-regardless of what this returns. Must be implemented by every concrete
-subtype.
-
-Evaluated at the top of each step, before an action is selected — so a
-stopping rule that is a function of the *realized transition distribution*
-belongs in [`terminate_transition`](@ref) instead, which sees `probs`
-without the rollout having to realize it twice.
-"""
-function terminate_sampling end
-
-"""
-    action_selection(strategy, current_state, value_function, model, spec) -> action::CartesianIndex
-
-Choose the action to take from `current_state`. `_omax_marginal(model)[a,
-current_state]` gives the `(current_state, a)` ambiguity set, and
-`_omax_value_order` the O-max value ordering, for strategies that want an
-O-max Q-value per available action (`available(model, current_state)`).
-Must be implemented by every concrete subtype.
-"""
-function action_selection end
-
-"""
-    target_state_sampling(strategy, current_state, action, probabilities, value_function, model, spec) -> Union{CartesianIndex, Nothing}
-
-Choose the next state given the concrete O-max transition distribution
-`probabilities` (a dense `Vector` over every state, from [`_omax_distribution`](@ref))
-computed for `(current_state, action)` against the upper value function.
-[`_categorical_sample`](@ref) samples directly from a probability vector,
-for strategies that just want that; it yields a linear index, which
-[`_maybe_target_state`](@ref) maps to the state index this must return. Must be
-implemented by every concrete subtype.
-
-Returning `nothing` ends the rollout with `current_state` as its last state —
-the sentinel for "this strategy has no successor it can honestly pick". A
-strategy that tilts `probabilities` by a per-successor score returns it when
-that score is zero on every successor carrying mass: there is no signal left
-along this path, and moving to an arbitrary state would put a transition the
-model forbids into the trajectory.
-"""
-function target_state_sampling end
-
-"""
-    terminate_transition(strategy, current_state, action, probabilities, trajectory, value_function, model, spec) -> Bool
-
-Strategy-specific stopping condition evaluated *after* the concrete O-max
-transition distribution `probabilities` for `(current_state, action)` has
-been realized, but before the next state is sampled from it — for criteria
-that are functions of `probabilities` itself, such as BRTDP's
-expected-successor-gap rule (see
-[`TrajectorySampling.ExpectedGapTrajectorySampling`](@ref)). Returning `true`
-ends the rollout with `current_state` as its last state.
-
-Defaults to `false`, so concrete subtypes need only implement it if they want
-it; a stopping rule that doesn't depend on the realized distribution belongs
-in [`terminate_sampling`](@ref), which is checked one step earlier and saves
-the O-max realization entirely.
-"""
-terminate_transition(
-    ::TrajectorySamplingStrategy,
-    current_state,
-    action,
-    probabilities,
-    trajectory,
-    value_function,
-    model,
-    spec,
-) = false
-
-"""
-    reverse_trajectory(strategy::TrajectorySamplingStrategy) -> Bool
-
-Whether `sample` reverses each rollout before returning it — goal-first
-ordering (the default, `true`) means a Gauss-Seidel-style sweep propagates
-the newly-touched goal/obstacle-adjacent values backward through the rest of
-the trajectory in the same iteration. Override per strategy for
-forward/chronological order instead.
-"""
-reverse_trajectory(::TrajectorySamplingStrategy) = true
-
-# Hard safety cap, independent of `terminate_sampling`/`terminate_transition`
-# — guarantees a single `sample` call can't hang GSRDP if a strategy's own
-# termination logic never fires (e.g. an absorbing-free transient region).
-_trajectory_max_steps(model) = 1 * num_states(model)
-
-function _trajectory_rollout(ss::TrajectorySamplingStrategy, model, value_function, spec)
-    prop = system_property(spec)
-    reach_set = Set(_trajectory_reach_states(prop))
-    avoid_set = Set(_trajectory_avoid_states(prop))
-    V_upper = value_function.upper.current
-    max_steps = _trajectory_max_steps(model)
-
-    current = _trajectory_initial_state(model)
-    trajectory = [current]
-    steps = 0
-    while !(current in reach_set) &&
-          !(current in avoid_set) &&
-          !terminate_sampling(ss, current, trajectory, value_function, model, spec) &&
-          steps < max_steps
-        a = action_selection(ss, current, value_function, model, spec)
-        ambiguity_set = _omax_marginal(model)[a, current]
-        # Must match the O-max/O-min direction `bellman_update!`'s `value_function.upper`
-        # backup uses (`isoptimistic(spec)`, IntervalMDP `src/gsrdp.jl`) — a rollout realized
-        # under the other direction explores states the corresponding Bellman update isn't
-        # actually driven toward, which can starve the trajectory of any path to reach/avoid.
-        probs = _omax_distribution(ambiguity_set, V_upper, isoptimistic(spec))
-        # Post-realization stopping hook: sees `probs` the step already paid
-        # for, so a distribution-dependent criterion costs no extra O-max work.
-        terminate_transition(
-            ss,
-            current,
-            a,
-            probs,
-            trajectory,
-            value_function,
-            model,
-            spec,
-        ) && break
-        next = target_state_sampling(ss, current, a, probs, value_function, model, spec)
-        # `nothing` = the strategy's weighting carries no mass on any successor,
-        # so there is no successor it can honestly pick — end the rollout here
-        # rather than move to an arbitrary state.
-        next === nothing && break
-        current = next
-        # An implicit sink is absorbing and has no strategy-cache entry, so
-        # the trajectory both ends here and excludes it — `bellman_v!` and the
-        # strategy cache can only index source states.
-        _is_source_state(model, current) || break
-        push!(trajectory, current)
-        steps += 1
-    end
-
-    return reverse_trajectory(ss) ? reverse(trajectory) : trajectory
-end
-
-function sample(ss::TrajectorySamplingStrategy, model, strategy_cache, value_function, spec)
-    states = reduce(
-        vcat,
-        (
-            _trajectory_rollout(ss, model, value_function, spec) for
-            _ in 1:num_trajectories(ss)
-        ),
-    )
-    return StateIterator(states)
-end
-
-"""
-    _categorical_sample(weights::AbstractVector) -> Union{Int, Nothing}
-
-Sample a *linear* target index proportionally to `weights` (not required to be
-normalized), via cumulative-sum search. Available for
-[`target_state_sampling`](@ref) implementations that just want to sample
-directly from the O-max distribution, or from it tilted by a per-successor
-score; since those must return a state index, pass the result through
-[`_maybe_target_state`](@ref).
-
-Returns `nothing` when `weights` carries no positive mass — every entry zero or
-negative, or the vector empty. There is then no index the vector actually
-selects, and the caller must decide what that means (for the trajectory
-rollout: end the trajectory) rather than being handed an arbitrary one. This is
-not a corner case: a weighted sampler whose score is zero on every successor
-carrying transition mass produces exactly this vector, and the old behaviour —
-`u = rand() * 0 == 0`, so the `acc >= u` test passes on the first index —
-silently returned target state 1 regardless of its transition probability.
-
-Only strictly positive entries are summed and drawn from, so a zero-weight
-index is never selected even on the `rand() === 0.0` draw, and negative weights
-(which `weights` should not contain, but which a reach-avoid value function
-carries on avoid states before the first postprocess) can neither be selected
-nor shrink the sampling range.
-"""
-function _categorical_sample(weights::AbstractVector)
-    total = zero(eltype(weights))
-    for w in weights
-        w > zero(w) && (total += w)
-    end
-    total > zero(total) || return nothing
-
-    u = rand() * total
-    acc = zero(eltype(weights))
-    last_positive = nothing
-    for i in eachindex(weights)
-        w = weights[i]
-        w > zero(w) || continue
-        acc += w
-        acc >= u && return i
-        last_positive = i
-    end
-    return last_positive   # floating-point fallback; not `nothing`, since total > 0
-end
-
-###################################
-# 4e. Greedy trajectory sampling   #
-###################################
-#
-# Concrete TrajectorySamplingStrategy algorithms live in this submodule
-# (`IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling()` etc.) rather
-# than as flat top-level `IntervalMDP.*` names — as more trajectory-sampling
-# algorithms are added (BRTDP-gap, epsilon-greedy, ...) this keeps the
-# top-level namespace from filling up with many similarly-named,
-# trajectory-specific types. The general interface
-# (`TrajectorySamplingStrategy`, the four-function contract, the rollout,
-# the O-max primitives above) stays in the parent `IntervalMDP` module,
-# since `_gsrdp_sample`/`sampling_context_requirement` dispatch on it.
-
-# IntervalMDP.TrajectorySampling: concrete TrajectorySamplingStrategy
-# algorithms. All of them share TrajectorySampling.TrajectorySampling's
-# behaviour (below) — one trajectory per call, greedy argmax-upper-bound
-# action selection, `terminate_sampling` a stub (`false`, for now) — and
-# differ mainly in how they pick the next state given the concrete O-max
-# transition distribution (ExpectedGapTrajectorySampling additionally stops
-# the rollout via `terminate_transition`, on BRTDP's expected-gap rule):
-#
-#   * TransitionProbabilityTrajectorySampling — sample directly from it.
-#   * ExpectedGapTrajectorySampling — weight by the successor's value gap.
-#   * ActionUncertaintyTrajectorySampling — weight by the successor's
-#     action-selection uncertainty.
-#   * ReachProbabilityTrajectorySampling — weight by the successor's upper
-#     (optimistic reach-probability) value.
-#
-# NOTE: this module and its shared abstract supertype are both named
-# `TrajectorySampling` (Julia allows a type to share its enclosing module's
-# name), but only one of the two may carry a docstring — Julia's docsystem
-# can't disambiguate "the module" from "the same-named member inside it"
-# when binding a docstring to the module itself, so this module has none;
-# see the docstring on the type below instead.
-module TrajectorySampling
-
-using LinearAlgebra: dot
-
-import ..IntervalMDP:
-    TrajectorySamplingStrategy,
-    num_trajectories,
-    terminate_sampling,
-    terminate_transition,
-    action_selection,
-    target_state_sampling,
-    _omax_best_action,
-    _categorical_sample,
-    _action_uncertainty,
-    _target_indices,
-    _target_state,
-    _maybe_target_state,
-    isoptimistic
-
-"""
-    TrajectorySampling.TrajectorySampling <: TrajectorySamplingStrategy
-
-Shared behaviour for this submodule's concrete strategies: one trajectory
-per `sample` call, and an action selected greedily as
-`argmax_a` of the O-max upper-bound Q-value at the current state. Concrete
-subtypes need only implement `target_state_sampling` — `terminate_sampling`
-is a `false` stub here, so a rollout runs until a reach/avoid state, a sink,
-or the hard step cap, unless the strategy overrides `terminate_transition`
-(as [`ExpectedGapTrajectorySampling`](@ref) does).
-"""
-abstract type TrajectorySampling <: TrajectorySamplingStrategy end
-
-num_trajectories(::TrajectorySampling) = 1
-
-# Stub for now — always continues until a reach/avoid state or the hard cap.
-terminate_sampling(
-    ::TrajectorySampling,
-    current,
-    trajectory,
-    value_function,
-    model,
-    spec,
-) = false
-
-function action_selection(::TrajectorySampling, current, value_function, model, spec)
-    # `isoptimistic(spec)`, not a fixed `true`: must match `bellman_update!`'s direction
-    # for `value_function.upper` (see `_trajectory_rollout`'s O-max realization above).
-    a, _ = _omax_best_action(model, current, value_function.upper.current, isoptimistic(spec))
-    return a
-end
-
-"""
-    TransitionProbabilityTrajectorySampling()
-
-Sample the next state directly from the O-max transition distribution
-`p(·|s,a)`. Unweighted, so — unlike its three siblings — it has no degenerate
-case: `p(·|s,a)` always sums to 1.
-"""
-struct TransitionProbabilityTrajectorySampling <: TrajectorySampling end
-
-target_state_sampling(
-    ::TransitionProbabilityTrajectorySampling,
-    current,
-    a,
-    probs,
-    value_function,
-    model,
-    spec,
-) = _maybe_target_state(model, _categorical_sample(probs))
-
-"""
-    ExpectedGapTrajectorySampling(; tau = 10.0)
-
-Sample the next state with probability proportional to
-`p(s'|s,a) * (U(s') - L(s'))` — biases toward successors whose value is
-still uncertain.
-
-Stops the rollout on BRTDP's expected-gap criterion (McMahan et al., 2005):
-with `B = Σ_{s'} p(s'|s,a) * (U(s') - L(s'))` — the same un-normalized weight
-vector the next-state sampling above uses, summed — the trajectory ends at
-`s` as soon as
-
-    B < (U(s) - L(s)) / tau
-
-i.e. once the gap it can expect to shrink one step ahead has fallen a factor
-`tau` below the gap still open at the state it is standing on. Larger `tau`
-means longer trajectories (a stricter condition to stop); `tau` must be
-positive.
-
-A fully converged `s` (`U(s) == L(s)`) also ends the rollout: the threshold
-is then 0, which `B >= 0` can never fall below, so without this the
-trajectory would run on to the hard step cap through an already-tight region.
-
-Those two rules also make the degenerate weight vector unreachable here in
-practice — `B` is the sum of the very vector the next-state draw samples from,
-so an all-zero one gives `B = 0`, which fails `B >= diff/tau` whatever `diff`
-is. `target_state_sampling` still returns `nothing` on it, since that shield is
-a consequence of the tau rule rather than a guarantee of the weighting.
-"""
-struct ExpectedGapTrajectorySampling <: TrajectorySampling
-    tau::Float64
-
-    function ExpectedGapTrajectorySampling(; tau::Real = 10.0)
-        tau > 0 || throw(ArgumentError("tau must be positive, got $tau"))
-        return new(Float64(tau))
-    end
-end
-
-# `_gap` is the per-state `U - L` array both the stopping criterion and the
-# next-state weighting need; each is called at most once per rollout step.
-_gap(value_function) = value_function.upper.current .- value_function.lower.current
-
-function terminate_transition(
-    ss::ExpectedGapTrajectorySampling,
-    current,
-    a,
-    probs,
-    trajectory,
-    value_function,
-    model,
-    spec,
-)
-    gap = _gap(value_function)
-    diff = gap[current]
-    iszero(diff) && return true
-
-    B = dot(probs, vec(gap))
-    return B < diff / ss.tau
-end
-
-function target_state_sampling(
-    ::ExpectedGapTrajectorySampling,
-    current,
-    a,
-    probs,
-    value_function,
-    model,
-    spec,
-)
-    return _maybe_target_state(
-        model,
-        _categorical_sample(probs .* vec(_gap(value_function))),
-    )
-end
-
-"""
-    ReachProbabilityTrajectorySampling()
-
-Sample the next state with probability proportional to
-`p(s'|s,a) * U(s')` — biases toward successors that look more likely to
-reach the goal under the optimistic bound.
-
-Ends the rollout (`target_state_sampling` returns `nothing`) when `U(s') == 0`
-for every successor carrying mass: the whole reachable continuation is pinned
-at zero under the optimistic bound, so there is nothing left to bias toward.
-"""
-struct ReachProbabilityTrajectorySampling <: TrajectorySampling end
-
-function target_state_sampling(
-    ::ReachProbabilityTrajectorySampling,
-    current,
-    a,
-    probs,
-    value_function,
-    model,
-    spec,
-)
-    return _maybe_target_state(
-        model,
-        _categorical_sample(probs .* vec(value_function.upper.current)),
-    )
-end
-
-"""
-    ActionUncertaintyTrajectorySampling()
-
-Sample the next state with probability proportional to
-`p(s'|s,a) * (U^{-a_L(s')}(s') - L(s'))`, where `a_L(s')` is the action
-maximizing the lower-bound Q-value at `s'` and `U^{-a_L}(s')` is the best
-upper-bound Q-value at `s'` among the *other* actions — biases toward
-successors where it's still unclear whether the safe action is really
-optimal.
-
-Ends the rollout (`target_state_sampling` returns `nothing`) when that
-uncertainty is zero on every successor carrying mass. Note `_action_uncertainty`
-is zero for an implicit sink *and* for any state with only one action, so on a
-single-action model it is identically zero everywhere and every rollout is the
-initial state alone — this strategy has nothing to say about a model with no
-action choice to be uncertain about.
-"""
-struct ActionUncertaintyTrajectorySampling <: TrajectorySampling end
-
-function target_state_sampling(
-    ::ActionUncertaintyTrajectorySampling,
-    current,
-    a,
-    probs,
-    value_function,
-    model,
-    spec,
-)
-    weighted = zeros(eltype(probs), length(probs))
-    for sp in eachindex(probs)
-        # Only score states the O-max realization actually assigned mass to
-        # — multiplying by probs[sp] == 0 always contributes 0 regardless.
-        probs[sp] > zero(eltype(probs)) || continue
-        weighted[sp] =
-            probs[sp] * _action_uncertainty(model, _target_state(model, sp), value_function, spec)
-    end
-    return _maybe_target_state(model, _categorical_sample(weighted))
-end
-
-end # module TrajectorySampling
-
-###################################
 # 5. Priority-queue sampling       #
 ###################################
 
@@ -1549,7 +1051,13 @@ sample(ss::ValueFunctionOrderedSampling, model) =
 sample(ss::ValueFunctionOrderedSampling, model, strategy_cache) =
     error("ValueFunctionOrderedSampling requires a value_function argument")
 
-function sample(ss::ValueFunctionOrderedSampling, model, strategy_cache, value_function, spec)
+function sample(
+    ss::ValueFunctionOrderedSampling,
+    model,
+    strategy_cache,
+    value_function,
+    spec,
+)
     return value_function_ordered_sample(ss.operation, ss.ascending, ss.k, value_function)
 end
 
@@ -1587,7 +1095,7 @@ end
 #
 # Concrete incremental-priority-queue algorithms live in this submodule
 # (`IntervalMDP.PriorityQueueSampling.GapPriorityQueueSampling()` etc.),
-# mirroring `TrajectorySampling` (§4e): the general interface
+# mirroring `TrajectorySampling` (`trajectorysampling.jl`): the general interface
 # (`PriorityQueueSamplingStrategy`, `compute_priority`, `_predecessor_states`,
 # `_state_indices`) stays in the parent `IntervalMDP` module, since
 # `_gsrdp_sample`/`sampling_context_requirement` dispatch on it; only the
@@ -1605,9 +1113,8 @@ end
 #
 #   * GapPriorityQueueSampling — priority(s) = U(s) - L(s).
 #   * UpperBoundPriorityQueueSampling — priority(s) = U(s).
-#   * ActionUncertaintyPriorityQueueSampling — priority(s) = V^a(s) (same
-#     action-selection-uncertainty measure as
-#     `TrajectorySampling.ActionUncertaintyTrajectorySampling`).
+#   * ActionUncertaintyPriorityQueueSampling — priority(s) = V^a(s), the
+#     action-selection-uncertainty measure `_action_uncertainty` computes.
 #   * RNDPriorityQueueSampling — priority(s) = max(δ(s), λ · novelty(s)),
 #     with novelty from a Random Network Distillation predictor standing in
 #     for a per-state backup counter (§5c).
@@ -1870,10 +1377,9 @@ compute_priority(::UpperBoundPriorityQueueSampling, s, value_function, model, sp
 """
     ActionUncertaintyPriorityQueueSampling(k)
 
-Priority-queue sampler: `priority(s) = V^a(s)`, the same action-selection
-uncertainty measure
-[`TrajectorySampling.ActionUncertaintyTrajectorySampling`](@ref) weights
-by — `U^{-a_L(s)}(s) - L(s)`, where `a_L(s)` is the action maximizing the
+Priority-queue sampler: `priority(s) = V^a(s)`, the action-selection
+uncertainty measure `_action_uncertainty` computes —
+`U^{-a_L(s)}(s) - L(s)`, where `a_L(s)` is the action maximizing the
 lower-bound Q-value at `s` and `U^{-a_L}(s)` is the best upper-bound
 Q-value at `s` among the *other* actions. Yields the top `k` states by
 priority each call.
@@ -1930,7 +1436,13 @@ function bellman_residual_delta(s, value_function, model, spec)
     _is_source_state(model, s) || return 0.0
 
     U = value_function.upper.current
-    _, q = _omax_best_action(model, s, U, _isoptimistic(spec); maximize = _delta_maximize(spec))
+    _, q = _omax_best_action(
+        model,
+        s,
+        U,
+        _isoptimistic(spec);
+        maximize = _delta_maximize(spec),
+    )
     isnothing(q) && return 0.0
 
     return abs(Float64(q) - Float64(U[s]))
@@ -2171,6 +1683,14 @@ end # module PriorityQueueSampling
 # 6. Given sequence                #
 ###################################
 
+"""
+    GivenSequence()
+
+Replays a caller-supplied update sequence verbatim: `sample(GivenSequence(),
+model, sequence)` takes a `Vector` of `(action_tuple, state_tuple)` pairs and
+yields exactly those, in order, after bounds-checking them against the model's
+shapes. Primarily for tests and for reproducing a recorded sweep.
+"""
 struct GivenSequence <: SamplingStrategy end
 
 function sample(

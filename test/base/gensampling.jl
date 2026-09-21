@@ -80,11 +80,7 @@ end
         counts = Int[]
         seqs = Any[]
         Random.seed!(1234)          # so the sampled variant replays identically below
-        solve(
-            problem,
-            gsdp;
-            callback = (V, n, seq) -> (push!(counts, n); push!(seqs, seq)),
-        )
+        solve(problem, gsdp; callback = (V, n, seq) -> (push!(counts, n); push!(seqs, seq)))
 
         # The pre-update fire has nothing sampled yet.
         @test first(counts) == 0
@@ -534,192 +530,6 @@ end
     end
 end
 
-@testitem "Weighted trajectory samplers end the rollout on a degenerate tilt" tags =
-    [:base, :gsrdp_degenerate_weight_tilt] begin
-    using IntervalMDP
-
-    # 3-state, single-action IMC; every state is a Dirac point mass on state 3.
-    # Single-action is deliberate: `_action_uncertainty` is identically zero on
-    # such a model (there is no alternative action to be uncertain about), so
-    # ActionUncertainty's tilt is degenerate by construction.
-    p = IntervalAmbiguitySets(;
-        lower = [0.0 0.0 0.0; 0.0 0.0 0.0; 1.0 1.0 1.0],
-        upper = [0.0 0.0 0.0; 0.0 0.0 0.0; 1.0 1.0 1.0],
-    )
-    mc = IntervalMarkovChain(p, [1])
-    probs = [0.0, 0.0, 1.0]   # all transition mass on state 3, none on state 1
-
-    # Per strategy: a value function that zeroes *that* strategy's score.
-    zero_gap = (upper = (current = [1.0, 1.0, 1.0],), lower = (current = [1.0, 1.0, 1.0],))
-    zero_upper =
-        (upper = (current = [0.0, 0.0, 0.0],), lower = (current = [0.0, 0.0, 0.0],))
-    any_vf = (upper = (current = [1.0, 1.0, 1.0],), lower = (current = [0.0, 0.0, 0.0],))
-
-    cases = [
-        (IntervalMDP.TrajectorySampling.ExpectedGapTrajectorySampling(), zero_gap),
-        (IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling(), zero_upper),
-        (IntervalMDP.TrajectorySampling.ActionUncertaintyTrajectorySampling(), any_vf),
-    ]
-
-    @testset "$(typeof(strat).name.name) returns nothing" for (strat, vf) in cases
-        # Regression: each of these returned CartesianIndex(1) — a state `probs`
-        # gives zero transition probability.
-        @test IntervalMDP.target_state_sampling(
-            strat,
-            CartesianIndex(1),
-            CartesianIndex(1),
-            probs,
-            vf,
-            mc,
-            nothing,
-        ) === nothing
-    end
-
-    @testset "the rollout stops at the initial state" begin
-        # End to end through `sample`, not just the strategy in isolation: with
-        # no successor to pick, the trajectory is the initial state alone.
-        # State 1 is the sole initial state and is neither reach nor avoid, so
-        # the rollout genuinely enters the loop and has to stop on the sentinel
-        # — every other stop condition here is a property of `current`.
-        prop = InfiniteTimeReachability([2], 1 // 1000)
-        spec = Specification(prop, Pessimistic, Maximize)
-        problem = VerificationProblem(mc, spec)
-        alg =
-            GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mc))
-        V = IntervalMDP.construct_value_function(alg, problem)
-        V.lower.current .= 0.0
-        V.upper.current .= 0.0   # zero gap and zero upper: degenerate for all three
-
-        for (strat, _) in cases
-            states = collect(IntervalMDP.sample(strat, mc, nothing, V, spec))
-            @test length(states) == 1
-            @test only(states) == CartesianIndex(1)   # the sole initial state
-        end
-    end
-end
-
-@testitem "TrajectorySamplingStrategy shared rollout skeleton" tags =
-    [:base, :gsrdp_trajectory_sampling] begin
-    using IntervalMDP
-
-    # Every state's transition is a Dirac point mass on state 3, regardless
-    # of source state or action — makes the rollout fully deterministic
-    # (no flakiness from the random initial state / O-max tie-breaking)
-    # while still exercising the real O-max/categorical-sampling machinery.
-    prob = IntervalAmbiguitySets(;
-        lower = [0.0 0.0 0.0; 0.0 0.0 0.0; 1.0 1.0 1.0],
-        upper = [0.0 0.0 0.0; 0.0 0.0 0.0; 1.0 1.0 1.0],
-    )
-    mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
-
-    struct MockTrajectoryStrategy <: IntervalMDP.TrajectorySamplingStrategy
-        n::Int
-        terminate::Bool
-        rev::Bool
-    end
-    IntervalMDP.num_trajectories(ss::MockTrajectoryStrategy) = ss.n
-    IntervalMDP.terminate_sampling(ss::MockTrajectoryStrategy, current, trajectory, value_function, model, spec) =
-        ss.terminate
-    IntervalMDP.action_selection(ss::MockTrajectoryStrategy, current, value_function, model, spec) =
-        first(IntervalMDP.available(model, current))
-    IntervalMDP.target_state_sampling(
-        ss::MockTrajectoryStrategy,
-        current,
-        a,
-        probs,
-        value_function,
-        model,
-        spec,
-    ) = IntervalMDP._target_state(model, IntervalMDP._categorical_sample(probs))
-    IntervalMDP.reverse_trajectory(ss::MockTrajectoryStrategy) = ss.rev
-
-    function build_value_function(mdp, prop)
-        spec = Specification(prop, Pessimistic, Maximize)
-        problem = VerificationProblem(mdp, spec)
-        alg = GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp))
-        V = IntervalMDP.construct_value_function(alg, problem)
-        IntervalMDP._gsrdp_initialize!(V, prop)
-        return V, spec
-    end
-
-    @testset "stops at a reach state, default (reversed) order" begin
-        prop = InfiniteTimeReachability([3], 1 // 1000)
-        V, spec = build_value_function(mdp, prop)
-        strat = MockTrajectoryStrategy(1, false, true)
-        seq = IntervalMDP.sample(strat, mdp, nothing, V, spec)
-
-        @test IntervalMDP.sequence_shape(seq) === IntervalMDP.StateUpdateSequence()
-        states = collect(seq)
-        @test all(s -> s in CartesianIndices(IntervalMDP.source_shape(mdp)), states)
-        @test 1 <= length(states) <= 2
-        @test first(states) == CartesianIndex(3)   # reversed: reach state first
-    end
-
-    @testset "forward (non-reversed) order" begin
-        prop = InfiniteTimeReachability([3], 1 // 1000)
-        V, spec = build_value_function(mdp, prop)
-        strat = MockTrajectoryStrategy(1, false, false)
-        states = collect(IntervalMDP.sample(strat, mdp, nothing, V, spec))
-        @test last(states) == CartesianIndex(3)
-    end
-
-    @testset "num_trajectories concatenates independent rollouts" begin
-        prop = InfiniteTimeReachability([3], 1 // 1000)
-        V, spec = build_value_function(mdp, prop)
-        strat = MockTrajectoryStrategy(3, false, true)
-        states = collect(IntervalMDP.sample(strat, mdp, nothing, V, spec))
-        @test 3 <= length(states) <= 6
-        # Every trajectory visits state 3 exactly once (either as the sole
-        # initial state, or as the one step taken to reach it).
-        @test count(==(CartesianIndex(3)), states) == 3
-    end
-
-    @testset "a `nothing` target ends the rollout" begin
-        # The rollout's other stop conditions are all about `current`; this one
-        # is the strategy saying it has no successor it can honestly pick.
-        struct MockNothingTargetStrategy <: IntervalMDP.TrajectorySamplingStrategy end
-        IntervalMDP.num_trajectories(::MockNothingTargetStrategy) = 1
-        IntervalMDP.terminate_sampling(
-            ::MockNothingTargetStrategy,
-            current,
-            trajectory,
-            value_function,
-            model,
-            spec,
-        ) = false
-        IntervalMDP.action_selection(
-            ::MockNothingTargetStrategy,
-            current,
-            value_function,
-            model,
-            spec,
-        ) = first(IntervalMDP.available(model, current))
-        IntervalMDP.target_state_sampling(
-            ::MockNothingTargetStrategy,
-            current,
-            a,
-            probs,
-            value_function,
-            model,
-            spec,
-        ) = nothing
-
-        prop = InfiniteTimeReachAvoid(Int[], Int[], 1 // 1000)  # no reach/avoid states
-        V, spec = build_value_function(mdp, prop)
-        states =
-            collect(IntervalMDP.sample(MockNothingTargetStrategy(), mdp, nothing, V, spec))
-        @test length(states) == 1   # the initial state, and nothing appended
-    end
-
-    @testset "hard step cap bounds a non-terminating strategy" begin
-        prop = InfiniteTimeReachAvoid(Int[], Int[], 1 // 1000)  # no reach/avoid states
-        V, spec = build_value_function(mdp, prop)
-        strat = MockTrajectoryStrategy(1, false, true)  # terminate_sampling always false
-        states = collect(IntervalMDP.sample(strat, mdp, nothing, V, spec))
-        @test length(states) == 1 + IntervalMDP._trajectory_max_steps(mdp)
-    end
-end
-
 @testitem "_omax_best_action finds the argmax action, with exclude" tags =
     [:base, :gsrdp_omax_best_action] begin
     using IntervalMDP
@@ -733,334 +543,28 @@ end
     @test a == CartesianIndex(2)
     @test v ≈ 20.0
 
-    a2, v2 = IntervalMDP._omax_best_action(mdp, CartesianIndex(1), V, true; exclude = CartesianIndex(2))
+    a2, v2 = IntervalMDP._omax_best_action(
+        mdp,
+        CartesianIndex(1),
+        V,
+        true;
+        exclude = CartesianIndex(2),
+    )
     @test a2 == CartesianIndex(1)
     @test v2 ≈ 10.0
 
     # A single-action state, excluding its only action leaves no candidate.
     prob1a = IntervalAmbiguitySets(; lower = hcat([1.0, 0.0]), upper = hcat([1.0, 0.0]))
     mdp1a = IntervalMarkovDecisionProcess([prob1a], [1])
-    a3, v3 = IntervalMDP._omax_best_action(mdp1a, CartesianIndex(1), V, true; exclude = CartesianIndex(1))
+    a3, v3 = IntervalMDP._omax_best_action(
+        mdp1a,
+        CartesianIndex(1),
+        V,
+        true;
+        exclude = CartesianIndex(1),
+    )
     @test a3 === nothing
     @test v3 === nothing
-end
-
-@testitem "TrajectorySampling: shared TrajectorySampling.TrajectorySampling behaviour" tags =
-    [:base, :gsrdp_greedy_trajectory_shared] begin
-    using IntervalMDP
-
-    strategies = [
-        IntervalMDP.TrajectorySampling.TransitionProbabilityTrajectorySampling(),
-        IntervalMDP.TrajectorySampling.ExpectedGapTrajectorySampling(),
-        IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling(),
-        IntervalMDP.TrajectorySampling.ActionUncertaintyTrajectorySampling(),
-    ]
-
-    @testset "num_trajectories == 1, terminate_sampling is the false stub" for strat in strategies
-        @test IntervalMDP.num_trajectories(strat) == 1
-        @test IntervalMDP.terminate_sampling(strat, CartesianIndex(1), [CartesianIndex(1)], nothing, nothing, nothing) ==
-              false
-    end
-
-    # `terminate_transition` is opt-in: only ExpectedGapTrajectorySampling
-    # overrides it (with BRTDP's expected-gap rule), the rest inherit `false`.
-    @testset "terminate_transition defaults to false" for strat in [
-        IntervalMDP.TrajectorySampling.TransitionProbabilityTrajectorySampling(),
-        IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling(),
-        IntervalMDP.TrajectorySampling.ActionUncertaintyTrajectorySampling(),
-    ]
-        @test IntervalMDP.terminate_transition(
-            strat,
-            CartesianIndex(1),
-            CartesianIndex(1),
-            [0.5, 0.5],
-            [CartesianIndex(1)],
-            nothing,
-            nothing,
-            nothing,
-        ) == false
-    end
-
-    @testset "action_selection picks argmax upper-bound Q" begin
-        # State 2's action 1 -> Dirac target 1 (upper Q = V_upper[1]); action 2 -> Dirac
-        # target 2 (upper Q = V_upper[2]). V_upper[1] > V_upper[2], so action 1 wins.
-        # Both ambiguity sets are Dirac (lower == upper), so which satisfaction mode
-        # `spec` carries can't affect the O-max/O-min realization here -- `action_selection`
-        # still needs a real `Specification` to read `isoptimistic` from, not `nothing`.
-        prob1 = IntervalAmbiguitySets(; lower = [1.0 1.0; 0.0 0.0], upper = [1.0 1.0; 0.0 0.0])
-        prob2 = IntervalAmbiguitySets(; lower = [1.0 0.0; 0.0 1.0], upper = [1.0 0.0; 0.0 1.0])
-        mdp = IntervalMarkovDecisionProcess([prob1, prob2], [1])
-        vf = (upper = (current = [10.0, 5.0],), lower = (current = [0.0, 5.0],))
-        spec = Specification(InfiniteTimeReachability([1], 1e-5), Pessimistic, Maximize)
-
-        for strat in strategies
-            a = IntervalMDP.action_selection(strat, CartesianIndex(2), vf, mdp, spec)
-            @test a == CartesianIndex(1)
-        end
-    end
-end
-
-@testitem "TrajectorySampling: target_state_sampling weighting" tags =
-    [:base, :gsrdp_greedy_trajectory_weighting] begin
-    using IntervalMDP
-
-    # These three only exercise the weighting arithmetic, but every
-    # `target_state_sampling` still needs a real `model` to map the linear index
-    # `_categorical_sample` returns back to a state index. A 2-state, 1-action
-    # Dirac IMDP is the smallest one that serves.
-    dirac2 = IntervalAmbiguitySets(; lower = hcat([1.0, 0.0]), upper = hcat([1.0, 0.0]))
-    wmdp = IntervalMarkovDecisionProcess([dirac2, dirac2], [1])
-
-    @testset "TransitionProbabilityTrajectorySampling samples directly from probs" begin
-        strat = IntervalMDP.TrajectorySampling.TransitionProbabilityTrajectorySampling()
-        probs = [0.0, 1.0]
-        @test IntervalMDP.target_state_sampling(strat, nothing, nothing, probs, nothing, wmdp, nothing) ==
-              CartesianIndex(2)
-    end
-
-    @testset "ExpectedGapTrajectorySampling weights by U - L" begin
-        strat = IntervalMDP.TrajectorySampling.ExpectedGapTrajectorySampling()
-        probs = [0.5, 0.5]
-        vf = (upper = (current = [1.0, 1.0],), lower = (current = [1.0, 0.0],))  # gap = [0, 1]
-        @test IntervalMDP.target_state_sampling(strat, nothing, nothing, probs, vf, wmdp, nothing) ==
-              CartesianIndex(2)
-    end
-
-    @testset "ReachProbabilityTrajectorySampling weights by U" begin
-        strat = IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling()
-        probs = [0.5, 0.5]
-        vf = (upper = (current = [0.0, 1.0],), lower = (current = [0.0, 0.0],))
-        @test IntervalMDP.target_state_sampling(strat, nothing, nothing, probs, vf, wmdp, nothing) ==
-              CartesianIndex(2)
-    end
-
-    @testset "ActionUncertaintyTrajectorySampling weights by action uncertainty at s'" begin
-        # 2 states, 2 actions: state 1's actions both Dirac -> state 1; state 2's
-        # action 1 -> Dirac state 1, action 2 -> Dirac state 2.
-        prob1 = IntervalAmbiguitySets(; lower = [1.0 1.0; 0.0 0.0], upper = [1.0 1.0; 0.0 0.0])
-        prob2 = IntervalAmbiguitySets(; lower = [1.0 0.0; 0.0 1.0], upper = [1.0 0.0; 0.0 1.0])
-        mdp = IntervalMarkovDecisionProcess([prob1, prob2], [1])
-        vf = (upper = (current = [10.0, 5.0],), lower = (current = [0.0, 5.0],))
-
-        # Direct check of the uncertainty primitive itself, hand-computed:
-        #   state 1: a_L ties (both actions -> state 1), L(1) = V_lower[1] = 0;
-        #            U^{-a_L}(1) = U(1, other action) = V_upper[1] = 10 => uncertainty 10.
-        #   state 2: a_L = action 2 (L=5 > 0), L(2) = 5;
-        #            U^{-a_L}(2) = U(2, action 1) = V_upper[1] = 10 => uncertainty 5.
-        @test IntervalMDP.TrajectorySampling._action_uncertainty(mdp, CartesianIndex(1), vf, nothing) ≈ 10.0
-        @test IntervalMDP.TrajectorySampling._action_uncertainty(mdp, CartesianIndex(2), vf, nothing) ≈ 5.0
-
-        # With all transition mass on state 2, the (positive) uncertainty at state 1
-        # is irrelevant — target_state_sampling must pick state 2 deterministically.
-        strat = IntervalMDP.TrajectorySampling.ActionUncertaintyTrajectorySampling()
-        probs = [0.0, 1.0]
-        @test IntervalMDP.target_state_sampling(strat, CartesianIndex(1), CartesianIndex(1), probs, vf, mdp, nothing) ==
-              CartesianIndex(2)
-    end
-end
-
-@testitem "TrajectorySampling: ExpectedGapTrajectorySampling tau stopping criterion" tags =
-    [:base, :gsrdp_gap_trajectory_tau] begin
-    using IntervalMDP
-
-    ExpectedGap = IntervalMDP.TrajectorySampling.ExpectedGapTrajectorySampling
-
-    @testset "tau hyperparameter: default and validation" begin
-        @test ExpectedGap().tau == 10.0
-        @test ExpectedGap(; tau = 3).tau == 3.0
-        @test_throws ArgumentError ExpectedGap(; tau = 0)
-        @test_throws ArgumentError ExpectedGap(; tau = -1)
-    end
-
-    # 2 states, 1 action, Dirac -> state 1. Only the arithmetic of the
-    # criterion is under test here, so `probs` is passed in directly rather
-    # than realized from the model.
-    dirac2 = IntervalAmbiguitySets(; lower = hcat([1.0, 0.0]), upper = hcat([1.0, 0.0]))
-    wmdp = IntervalMarkovDecisionProcess([dirac2, dirac2], [1])
-    s1 = CartesianIndex(1)
-
-    @testset "B < Diff(s) / tau" begin
-        # gap = U - L = [0.2, 0.4]; B = 0.5 * 0.2 + 0.5 * 0.4 = 0.3;
-        # Diff(s1) = gap[1] = 0.2.
-        vf = (upper = (current = [1.0, 1.0],), lower = (current = [0.8, 0.6],))
-        probs = [0.5, 0.5]
-        terminate(tau) = IntervalMDP.terminate_transition(
-            ExpectedGap(; tau = tau),
-            s1,
-            CartesianIndex(1),
-            probs,
-            [s1],
-            vf,
-            wmdp,
-            nothing,
-        )
-
-        # tau = 10 => threshold 0.02, and B = 0.3 is well above it: continue.
-        @test terminate(10) == false
-        # tau = 0.5 => threshold 0.4, above B = 0.3: stop.
-        @test terminate(0.5) == true
-        # Straddle the threshold exactly: B = 0.3 = Diff/tau at tau = 2/3.
-        # The criterion is strict (`<`), so equality continues.
-        @test terminate(0.2 / 0.3) == false
-        @test terminate(0.2 / 0.3 - 1e-9) == true
-    end
-
-    @testset "a converged current state stops the rollout" begin
-        # gap[1] == 0 makes the threshold 0, which B >= 0 can never fall
-        # below — without the guard the trajectory would run to the step cap.
-        vf = (upper = (current = [1.0, 1.0],), lower = (current = [1.0, 0.6],))
-        @test IntervalMDP.terminate_transition(
-            ExpectedGap(),
-            s1,
-            CartesianIndex(1),
-            [0.5, 0.5],
-            [s1],
-            vf,
-            wmdp,
-            nothing,
-        ) == true
-    end
-
-    @testset "rollout stops early instead of running to the step cap" begin
-        # Same fully-deterministic Dirac-on-state-3 model as the shared
-        # rollout skeleton test, with no reach/avoid states so that the tau
-        # criterion is the only thing that can end the rollout before the cap.
-        prob = IntervalAmbiguitySets(;
-            lower = [0.0 0.0 0.0; 0.0 0.0 0.0; 1.0 1.0 1.0],
-            upper = [0.0 0.0 0.0; 0.0 0.0 0.0; 1.0 1.0 1.0],
-        )
-        mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
-        prop = InfiniteTimeReachAvoid(Int[], Int[], 1 // 1000)
-        spec = Specification(prop, Pessimistic, Maximize)
-        problem = VerificationProblem(mdp, spec)
-        alg =
-            GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp))
-        V = IntervalMDP.construct_value_function(alg, problem)
-        IntervalMDP._gsrdp_initialize!(V, prop)
-
-        # Every transition lands on state 3, whose gap is 0 after this
-        # assignment; the source state keeps a gap of 1. So B = 0 < 1 / tau
-        # fires on the very first step, for any tau.
-        V.upper.current .= 1.0
-        V.lower.current .= 0.0
-        V.lower.current[3] = 1.0
-
-        states = collect(IntervalMDP.sample(ExpectedGap(), mdp, nothing, V, spec))
-        @test length(states) == 1
-        @test length(states) < 1 + IntervalMDP._trajectory_max_steps(mdp)
-
-        # With the gap left wide open everywhere, B = 1 >= 1 / tau never
-        # fires, so the same model runs to the hard cap — confirming the
-        # early stop above is the criterion and not some other exit.
-        V.lower.current .= 0.0
-        states_open = collect(IntervalMDP.sample(ExpectedGap(), mdp, nothing, V, spec))
-        @test length(states_open) == 1 + IntervalMDP._trajectory_max_steps(mdp)
-    end
-end
-
-@testitem "TrajectorySampling: end-to-end solve() with TransitionProbabilityTrajectorySampling" tags =
-    [:base, :gsrdp_greedy_trajectory_solve] begin
-    using IntervalMDP
-    @testset "IMDP verification parity (Pessimistic, Maximize) with trajectory sampling" for N in
-                                                                                             [
-        Float32,
-        Float64,
-    ]
-        prob = IntervalAmbiguitySets(;
-            lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
-            upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
-        )
-        prob2 = IntervalAmbiguitySets(;
-            lower = N[1 // 10 1 // 5 0; 1 // 5 1 // 5 0; 3 // 10 2 // 5 1],
-            upper = N[1 // 2 1 // 2 0; 1 // 2 2 // 5 0; 2 // 5 2 // 5 1],
-        )
-        mdp = IntervalMarkovDecisionProcess([prob, prob2, prob2], [1])
-        rvi = RobustValueIteration(default_bellman_algorithm(mdp))
-        gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
-            default_bellman_algorithm(mdp);
-            sampling_strategy = IntervalMDP.TrajectorySampling.TransitionProbabilityTrajectorySampling(),
-        )
-        eps = N(1 // 1000000)
-        prop = InfiniteTimeReachability([3], eps)
-        spec = Specification(prop, Pessimistic, Maximize)
-        problem = VerificationProblem(mdp, spec)
-        (V_rvi, _, _) = solve(problem, rvi)
-        (V_gsdp, _, _) = solve(problem, gsdp)
-        @test maximum(abs, V_rvi .- V_gsdp) <= 2 * eps
-    end
-end
-
-@testitem "TrajectorySampling: end-to-end solve() with ExpectedGapTrajectorySampling" tags =
-    [:base, :gsrdp_gap_trajectory_tau_solve] begin
-    using IntervalMDP
-
-    # The tau cut-off shortens rollouts, so this checks it doesn't starve
-    # states badly enough to break convergence: GSRDP must still land within
-    # tolerance of full robust value iteration.
-    @testset "IMDP verification parity (Pessimistic, Maximize), tau = $tau" for N in [
-            Float32,
-            Float64,
-        ],
-        tau in [10, 2]
-
-        prob = IntervalAmbiguitySets(;
-            lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
-            upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
-        )
-        prob2 = IntervalAmbiguitySets(;
-            lower = N[1 // 10 1 // 5 0; 1 // 5 1 // 5 0; 3 // 10 2 // 5 1],
-            upper = N[1 // 2 1 // 2 0; 1 // 2 2 // 5 0; 2 // 5 2 // 5 1],
-        )
-        mdp = IntervalMarkovDecisionProcess([prob, prob2, prob2], [1])
-        rvi = RobustValueIteration(default_bellman_algorithm(mdp))
-        gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
-            default_bellman_algorithm(mdp);
-            sampling_strategy = IntervalMDP.TrajectorySampling.ExpectedGapTrajectorySampling(;
-                tau = tau,
-            ),
-        )
-        eps = N(1 // 1000000)
-        prop = InfiniteTimeReachability([3], eps)
-        spec = Specification(prop, Pessimistic, Maximize)
-        problem = VerificationProblem(mdp, spec)
-        (V_rvi, _, _) = solve(problem, rvi)
-        (V_gsdp, _, _) = solve(problem, gsdp)
-        @test maximum(abs, V_rvi .- V_gsdp) <= 2 * eps
-    end
-end
-
-@testitem "TrajectorySampling: end-to-end solve() with ReachProbabilityTrajectorySampling" tags =
-    [:base, :gsrdp_reach_probability_trajectory_solve] begin
-    using IntervalMDP
-
-    # `ReachProbabilityTrajectorySampling` had no end-to-end coverage, and its
-    # tilt (`probs .* U`) is one of the two that used to teleport the rollout to
-    # state 1 once `U` went to zero on every successor carrying mass. It now
-    # ends the rollout instead; this checks that shortening rollouts that way
-    # does not starve states badly enough to break convergence.
-    @testset "IMDP verification parity (Pessimistic, Maximize)" for N in [Float32, Float64]
-        prob = IntervalAmbiguitySets(;
-            lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
-            upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
-        )
-        prob2 = IntervalAmbiguitySets(;
-            lower = N[1 // 10 1 // 5 0; 1 // 5 1 // 5 0; 3 // 10 2 // 5 1],
-            upper = N[1 // 2 1 // 2 0; 1 // 2 2 // 5 0; 2 // 5 2 // 5 1],
-        )
-        mdp = IntervalMarkovDecisionProcess([prob, prob2, prob2], [1])
-        rvi = RobustValueIteration(default_bellman_algorithm(mdp))
-        gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
-            default_bellman_algorithm(mdp);
-            sampling_strategy = IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling(),
-        )
-        eps = N(1 // 1000000)
-        prop = InfiniteTimeReachability([3], eps)
-        spec = Specification(prop, Pessimistic, Maximize)
-        problem = VerificationProblem(mdp, spec)
-        (V_rvi, _, _) = solve(problem, rvi)
-        (V_gsdp, _, _) = solve(problem, gsdp)
-        @test maximum(abs, V_rvi .- V_gsdp) <= 2 * eps
-    end
 end
 
 @testitem "_predecessor_states / _predecessor_index / _state_indices" tags =
@@ -1131,12 +635,9 @@ end
 
     vf = (upper = (current = [1.0, 1.0, 0.0],), lower = (current = [0.0, 0.5, 0.0],))
 
-    strategies = [
-        IntervalMDP.TrajectorySampling.TransitionProbabilityTrajectorySampling(),
-        IntervalMDP.TrajectorySampling.ExpectedGapTrajectorySampling(),
-        IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling(),
-        IntervalMDP.TrajectorySampling.ActionUncertaintyTrajectorySampling(),
-    ]
+    # Trajectory sampling's own handling of implicit sinks is covered in
+    # `trajectorysampling.jl`; what's left here is the shared machinery the
+    # priority-queue strategies also rely on.
 
     @testset "_is_source_state / _target_indices" begin
         @test IntervalMDP._is_source_state(mdp, CartesianIndex(1))
@@ -1179,50 +680,6 @@ end
         index = IntervalMDP._predecessor_index(mdp)
         @test length(index) == 3          # indexed by target, so the sink has a slot
         @test sort(index[3]) == [(1, 1.0), (2, 1.0)]
-    end
-
-    @testset "target_state_sampling tolerates sink mass" for strat in strategies
-        probs = [0.0, 0.0, 1.0]   # all mass on the sink
-        sp = IntervalMDP.target_state_sampling(
-            strat,
-            CartesianIndex(1),
-            CartesianIndex(2),
-            probs,
-            vf,
-            mdp,
-            nothing,
-        )
-
-        # The sink scores zero under all three weighted tilts (`vf` gives it
-        # gap 0 and upper 0, and `_action_uncertainty` is 0 for a sink), so they
-        # have nothing to pick and say so. Only the unweighted sampler picks the
-        # sink itself — and the rollout's own sink guard ends the trajectory
-        # there either way.
-        #
-        # Regression: asserting only `sp isa CartesianIndex{1}` let all three
-        # weighted strategies pass while silently returning CartesianIndex(1),
-        # a state carrying *zero* transition probability.
-        if strat isa IntervalMDP.TrajectorySampling.TransitionProbabilityTrajectorySampling
-            @test sp == CartesianIndex(3)
-            @test sp in IntervalMDP._target_indices(mdp)
-        else
-            @test sp === nothing
-        end
-    end
-
-    @testset "rollouts never emit the sink" for strat in strategies
-        prop = InfiniteTimeReachAvoid([2], [3], 1 // 1000)
-        spec = Specification(prop, Pessimistic, Maximize)
-        problem = VerificationProblem(mdp, spec)
-        alg = GeneralizedSamplingbasedRobustDynamicProgramming(
-            default_bellman_algorithm(mdp),
-        )
-        V = IntervalMDP.construct_value_function(alg, problem)
-        IntervalMDP._gsrdp_initialize!(V, prop)
-
-        states = collect(IntervalMDP.sample(strat, mdp, nothing, V, spec))
-        @test !isempty(states)
-        @test all(s -> IntervalMDP._is_source_state(mdp, s), states)
     end
 end
 
@@ -1268,11 +725,9 @@ end
     )
     @test V_ref_implicit == V_ref
 
+    # Trajectory sampling's parity on this same fixture is in
+    # `trajectorysampling.jl`, alongside the rest of its suite.
     strategies = [
-        IntervalMDP.TrajectorySampling.TransitionProbabilityTrajectorySampling(),
-        IntervalMDP.TrajectorySampling.ExpectedGapTrajectorySampling(),
-        IntervalMDP.TrajectorySampling.ReachProbabilityTrajectorySampling(),
-        IntervalMDP.TrajectorySampling.ActionUncertaintyTrajectorySampling(),
         IntervalMDP.PriorityQueueSampling.GapPriorityQueueSampling(2),
         IntervalMDP.PriorityQueueSampling.UpperBoundPriorityQueueSampling(2),
         IntervalMDP.PriorityQueueSampling.ActionUncertaintyPriorityQueueSampling(2),
@@ -1295,7 +750,9 @@ end
     @testset "control synthesis yields a valid, source-shaped strategy" begin
         alg = GeneralizedSamplingbasedRobustDynamicProgramming(
             default_bellman_algorithm(implicit_mdp);
-            sampling_strategy = IntervalMDP.TrajectorySampling.ActionUncertaintyTrajectorySampling(),
+            sampling_strategy = IntervalMDP.PriorityQueueSampling.ActionUncertaintyPriorityQueueSampling(
+                2,
+            ),
         )
         sol = solve(ControlSynthesisProblem(implicit_mdp, spec), alg)
         # `checkstrategy` asserts the shape matches `source_shape` and every
@@ -1308,8 +765,7 @@ end
     [:base, :gsrdp_priority_compute_priority] begin
     using IntervalMDP
 
-    # Same 2-state/2-action model and hand-verified _action_uncertainty values as the
-    # TrajectorySampling.ActionUncertaintyTrajectorySampling weighting test above.
+    # 2-state/2-action model with hand-verified `_action_uncertainty` values.
     prob1 = IntervalAmbiguitySets(; lower = [1.0 1.0; 0.0 0.0], upper = [1.0 1.0; 0.0 0.0])
     prob2 = IntervalAmbiguitySets(; lower = [1.0 0.0; 0.0 1.0], upper = [1.0 0.0; 0.0 1.0])
     mdp = IntervalMarkovDecisionProcess([prob1, prob2], [1])
@@ -1496,7 +952,7 @@ end
     [:base, :gsrdp_round_robin_parity] begin
     using IntervalMDP
     @testset "IMDP verification parity (Pessimistic, Maximize) with round-robin sampling" for N in
-                                                                                               [
+                                                                                              [
         Float32,
         Float64,
     ]
@@ -1528,8 +984,14 @@ end
     [:base, :gsrdp_randomly_thinned] begin
     using IntervalMDP
 
-    @test_throws ArgumentError IntervalMDP.RandomlyThinned(IntervalMDP.AllStatesSweep(), 1.5)
-    @test_throws ArgumentError IntervalMDP.RandomlyThinned(IntervalMDP.AllStatesSweep(), -0.1)
+    @test_throws ArgumentError IntervalMDP.RandomlyThinned(
+        IntervalMDP.AllStatesSweep(),
+        1.5,
+    )
+    @test_throws ArgumentError IntervalMDP.RandomlyThinned(
+        IntervalMDP.AllStatesSweep(),
+        -0.1,
+    )
 
     prob = IntervalAmbiguitySets(;
         lower = [0.0 0.5 0.0; 0.1 0.3 0.0; 0.2 0.1 1.0],

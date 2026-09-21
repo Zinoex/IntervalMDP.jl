@@ -89,6 +89,14 @@ include("rnd.jl")
 # Comes after the algorithm-defining files because `sampling_strategy`
 # methods dispatch on the algorithm types.
 include("sampling.jl")
+
+# The configurable trajectory sampler. Split out of `sampling.jl` because the
+# configuration vocabulary (policies, score functions, termination rules) is
+# substantial on its own; the `TrajectorySamplingStrategy` category and the
+# O-max primitives it builds on stay in `sampling.jl`, since the
+# priority-queue strategies share them.
+include("trajectorysampling.jl")
+
 export SamplingStrategy, PriorityQueueSamplingStrategy
 public AllSampling,
     AllStatesSweep,
