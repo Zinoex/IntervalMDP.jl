@@ -80,8 +80,8 @@ include("bellman/state_action.jl")
 include("bellman/product.jl")
 
 # `rnd.jl` provides the Random Network Distillation novelty model used by
-# `PriorityQueueSampling.RNDPriorityQueueSampling`. It comes before
-# `sampling.jl` because that submodule imports the `_rnd_*` hooks by name at
+# `PriorityQueueSampling.RNDPriority`. It comes before `prioritysweeping.jl`
+# because that submodule imports the `_rnd_*` hooks by name at
 # module-definition time.
 include("rnd.jl")
 
@@ -96,6 +96,12 @@ include("sampling.jl")
 # O-max primitives it builds on stay in `sampling.jl`, since the
 # priority-queue strategies share them.
 include("trajectorysampling.jl")
+
+# The configurable priority-queue sampler, split out for the same reason. It
+# comes after `trajectorysampling.jl` because it imports that submodule's
+# selection policies and temperature schedules by name at module-definition
+# time, rather than restating them.
+include("prioritysweeping.jl")
 
 export SamplingStrategy, PriorityQueueSamplingStrategy
 public AllSampling,
