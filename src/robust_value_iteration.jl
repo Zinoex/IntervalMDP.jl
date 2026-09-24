@@ -234,7 +234,7 @@ function bellman_update!(
         StateValueArray(value_function.current),
         StateValueArray(value_function.previous),
         model,
-        sample(AllStatesSweep(), model, sc);
+        sample(ExhaustiveState(), model, sc);
         upper_bound = isoptimistic(spec),
         maximize = ismaximize(spec),
         prop = system_property(spec),
@@ -250,4 +250,4 @@ end
 # RobustVI does a full state-outer sweep — yields bare states so
 # `expectation_v!` dispatches to the state-outer path that uses
 # `workspace.actions` + `extract_strategy!` (no Q-array materialization).
-sampling_strategy(alg::RobustValueIteration) = AllStatesSweep()
+sampling_strategy(alg::RobustValueIteration) = ExhaustiveState()

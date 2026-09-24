@@ -17,7 +17,7 @@ bound. The chosen action is then applied to the lower bound through
 a `NonOptimizingStrategyCache` so both bounds track the same policy.
 
 `sampling_strategy` controls which states (or `(a, s)` pairs) are
-relaxed each iteration; defaults to [`AllStatesSweep`](@ref). State-action
+relaxed each iteration; defaults to [`ExhaustiveState`](@ref). State-action
 samplers are projected to their unique state set via
 `project_to_state_sequence` — visited states get a full action
 sweep, unvisited states retain `V_prev`.
@@ -47,7 +47,7 @@ struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm} <
     ) where {B <: BellmanAlgorithm}
         new{B}(
             bellman_alg,
-            isnothing(sampling_strategy) ? AllStatesSweep() : sampling_strategy,
+            isnothing(sampling_strategy) ? ExhaustiveState() : sampling_strategy,
         )
     end
 end

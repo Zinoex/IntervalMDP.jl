@@ -803,7 +803,8 @@ admit(rule::PredicateSkip, s, value_function, model, spec) =
     PrioritizedSweep(; priority, propagate, policy, admit, aging, k)
 
 Priority-queue sampling for
-[`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref): every state carries
+[`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref
+IntervalMDP.GeneralizedSamplingbasedRobustDynamicProgramming): every state carries
 a priority, the top `k` are relaxed each iteration, and after each batch only
 the priorities that batch could have made stale are recomputed.
 

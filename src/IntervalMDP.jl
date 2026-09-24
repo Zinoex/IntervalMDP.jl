@@ -103,14 +103,26 @@ include("trajectorysampling.jl")
 # time, rather than restating them.
 include("prioritysweeping.jl")
 
+# `PriorityQueueSamplingStrategy` is `export`ed rather than `public` for
+# historical reasons; the other five category supertypes below are `public`.
 export SamplingStrategy, PriorityQueueSamplingStrategy
-public AllSampling,
-    AllStatesSweep,
-    RandomSubsetStateActions,
-    RandomSubsetState,
-    ValueFunctionOrderedSampling,
-    TrajectorySampling,
-    PriorityQueueSampling
+
+# One group per `SamplingStrategy` category, in the order `sampling.jl`
+# defines them. Within a category, the `State` member yields bare states and
+# the `StateActions` member yields `(action, state)` pairs.
+public ExhaustiveSamplingStrategy, ExhaustiveState, ExhaustiveStateActions,
+    RandomSamplingStrategy, RandomSubsetState, RandomSubsetStateActions,
+    RoundRobinSamplingStrategy, RoundRobinState, RoundRobinStateActions,
+    TrajectorySamplingStrategy, TrajectorySampling,
+    PriorityQueueSampling, ValueFunctionOrderedSampling,
+    GivenSequence,
+    CompositeSamplingStrategy, RandomlyThinned, EpsilonGreedyMixture
+
+# Renamed in 0.7 so every family reads `<Scheme><Shape>`; the old names are
+# kept because banked benchmark scripts construct them by name.
+Base.@deprecate_binding AllSamplingStrategy ExhaustiveSamplingStrategy
+Base.@deprecate_binding AllSampling ExhaustiveStateActions
+Base.@deprecate_binding AllStatesSweep ExhaustiveState
 
 include("robust_value_iteration.jl")
 include("gsrdp.jl")

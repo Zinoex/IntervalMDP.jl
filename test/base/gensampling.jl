@@ -61,7 +61,7 @@ end
     # The three-argument callback form sees the update sequence; the two-argument form
     # must keep working untouched, since every existing caller uses it.
     @testset "GSRDP callback reports the states each iteration relaxed" for sampling in [
-        IntervalMDP.AllStatesSweep(),
+        IntervalMDP.ExhaustiveState(),
         IntervalMDP.RandomSubsetState(2),
     ]
         prob = IntervalAmbiguitySets(;
@@ -97,7 +97,7 @@ end
         @test all(all(s -> s in S, seq) for seq in seqs[2:end])
 
         # A full sweep relaxes every state exactly once per iteration.
-        if sampling isa IntervalMDP.AllStatesSweep
+        if sampling isa IntervalMDP.ExhaustiveState
             @test all(length(seq) == num_states(mdp) for seq in seqs[2:end])
         end
 
@@ -858,11 +858,11 @@ end
     using IntervalMDP
 
     @test_throws ArgumentError IntervalMDP.RandomlyThinned(
-        IntervalMDP.AllStatesSweep(),
+        IntervalMDP.ExhaustiveState(),
         1.5,
     )
     @test_throws ArgumentError IntervalMDP.RandomlyThinned(
-        IntervalMDP.AllStatesSweep(),
+        IntervalMDP.ExhaustiveState(),
         -0.1,
     )
 
@@ -877,14 +877,14 @@ end
     cache = IntervalMDP.select_strategy_cache(IntervalMDP._gsrdp_strategy_cache(problem), 0)
 
     @testset "keep_prob = 1 keeps every state" begin
-        thinned = IntervalMDP.RandomlyThinned(IntervalMDP.AllStatesSweep(), 1.0)
+        thinned = IntervalMDP.RandomlyThinned(IntervalMDP.ExhaustiveState(), 1.0)
         seq = IntervalMDP.sample(thinned, mdp, cache, nothing, nothing)
         @test IntervalMDP.sequence_shape(seq) === IntervalMDP.StateUpdateSequence()
         @test length(seq) == num_states(mdp)
     end
 
     @testset "keep_prob thins the sequence" begin
-        thinned = IntervalMDP.RandomlyThinned(IntervalMDP.AllStatesSweep(), 0.5)
+        thinned = IntervalMDP.RandomlyThinned(IntervalMDP.ExhaustiveState(), 0.5)
         seq = IntervalMDP.sample(thinned, mdp, cache, nothing, nothing)
         @test 0 <= length(seq) <= num_states(mdp)
         @test all(s -> s in CartesianIndices(IntervalMDP.source_shape(mdp)), seq)
@@ -904,7 +904,7 @@ end
     using IntervalMDP
 
     @test_throws ArgumentError IntervalMDP.EpsilonGreedyMixture(
-        IntervalMDP.AllStatesSweep(),
+        IntervalMDP.ExhaustiveState(),
         IntervalMDP.RandomSubsetState(1),
         1.5,
     )
@@ -923,7 +923,7 @@ end
 
     @testset "epsilon = 0 always exploits" begin
         mix = IntervalMDP.EpsilonGreedyMixture(
-            IntervalMDP.AllStatesSweep(),
+            IntervalMDP.ExhaustiveState(),
             IntervalMDP.RandomSubsetState(1),
             0.0,
         )
@@ -938,7 +938,7 @@ end
 
     @testset "epsilon = 1 always explores" begin
         mix = IntervalMDP.EpsilonGreedyMixture(
-            IntervalMDP.AllStatesSweep(),
+            IntervalMDP.ExhaustiveState(),
             IntervalMDP.RandomSubsetState(1),
             1.0,
         )

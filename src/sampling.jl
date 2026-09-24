@@ -299,7 +299,7 @@ Concrete strategies implement `sample(strategy, model)` (and, optionally,
 `sample(strategy, model, strategy_cache)`), returning an iterator over the
 update sequence for the current iteration. Every concrete strategy falls into
 one of seven categories, each a direct subtype of `SamplingStrategy`:
-[`AllSamplingStrategy`](@ref), [`RandomSamplingStrategy`](@ref),
+[`ExhaustiveSamplingStrategy`](@ref), [`RandomSamplingStrategy`](@ref),
 [`RoundRobinSamplingStrategy`](@ref), [`TrajectorySamplingStrategy`](@ref),
 [`PriorityQueueSamplingStrategy`](@ref), [`GivenSequence`](@ref) (a single
 concrete type, no category needed), and [`CompositeSamplingStrategy`](@ref)
@@ -351,32 +351,32 @@ function reset_sampling_strategy!(ss::SamplingStrategy)
 end
 
 ###################################
-# 1. All-sampling                  #
+# 1. Exhaustive sampling           #
 ###################################
 
 """
-    AllSamplingStrategy <: SamplingStrategy
+    ExhaustiveSamplingStrategy <: SamplingStrategy
 
-Abstract supertype for exhaustive sampling strategies that relax every state
-(or `(action, state)` pair) each iteration: [`AllSampling`](@ref) and
-[`AllStatesSweep`](@ref).
+Abstract supertype for exhaustive sampling strategies, which relax the whole
+model each iteration: [`ExhaustiveState`](@ref) yields bare states,
+[`ExhaustiveStateActions`](@ref) yields `(action, state)` pairs.
 """
-abstract type AllSamplingStrategy <: SamplingStrategy end
+abstract type ExhaustiveSamplingStrategy <: SamplingStrategy end
 
 """
-    AllSampling()
+    ExhaustiveStateActions()
 
 Exhaustive sampler: relaxes every `(action, state)` pair in the model on each
 iteration (a full Cartesian sweep). This is the standard behaviour for full
 robust value iteration.
 """
-struct AllSampling <: AllSamplingStrategy end
+struct ExhaustiveStateActions <: ExhaustiveSamplingStrategy end
 
-default_sampling_strategy() = AllSampling()
+default_sampling_strategy() = ExhaustiveStateActions()
 
-sample(::AllSampling, model) = exhaustive_cartesian(model)
+sample(::ExhaustiveStateActions, model) = exhaustive_cartesian(model)
 
-sample(::AllSampling, model, strategy_cache::AbstractStrategyCache) =
+sample(::ExhaustiveStateActions, model, strategy_cache::AbstractStrategyCache) =
     exhaustive_cartesian(model, strategy_cache)
 
 # `ProductProcess` wraps a Markov process with a DFA. Iteration over the
@@ -440,17 +440,17 @@ function exhaustive_cartesian(
 end
 
 """
-    AllStatesSweep()
+    ExhaustiveState()
 
 State-sweep sampler. Yields bare states (rather than `(action, state)` pairs);
 the inner loop of `bellman_update!` then sweeps all available actions per
 visited state. This is the default sampling strategy for
 [`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref).
 """
-struct AllStatesSweep <: AllSamplingStrategy end
+struct ExhaustiveState <: ExhaustiveSamplingStrategy end
 
-sample(::AllStatesSweep, model) = exhaustive_state_sweep(model)
-sample(::AllStatesSweep, model, ::AbstractStrategyCache) = exhaustive_state_sweep(model)
+sample(::ExhaustiveState, model) = exhaustive_state_sweep(model)
+sample(::ExhaustiveState, model, ::AbstractStrategyCache) = exhaustive_state_sweep(model)
 
 exhaustive_state_sweep(proc::ProductProcess) = exhaustive_state_sweep(markov_process(proc))
 exhaustive_state_sweep(model::FactoredRMDP) =
@@ -578,7 +578,7 @@ abstract type RoundRobinSamplingStrategy <: SamplingStrategy end
     RoundRobinState(k)
 
 Round-robin sampler: cycles through states in `CartesianIndices` order (the
-same order [`AllStatesSweep`](@ref) enumerates), yielding the next `k` states
+same order [`ExhaustiveState`](@ref) enumerates), yielding the next `k` states
 each iteration and wrapping around once every state has been visited. Yields
 bare states, so the inner loop of `bellman_update!` sweeps all available
 actions per visited state.
@@ -594,7 +594,7 @@ end
     RoundRobinStateActions(k)
 
 Round-robin sampler: cycles through `(action, state)` pairs in the same
-linear order [`AllSampling`](@ref) enumerates, yielding the next `k` pairs
+linear order [`ExhaustiveStateActions`](@ref) enumerates, yielding the next `k` pairs
 each iteration and wrapping around once every pair has been visited.
 """
 struct RoundRobinStateActions <: RoundRobinSamplingStrategy
@@ -849,7 +849,7 @@ _isoptimistic(spec) = isoptimistic(spec)
     _state_indices(model) -> CartesianIndices
 
 `CartesianIndices(source_shape(model))` — every *source* state index, in the
-same order [`AllStatesSweep`](@ref) enumerates them.
+same order [`ExhaustiveState`](@ref) enumerates them.
 """
 _state_indices(model) = CartesianIndices(source_shape(model))
 

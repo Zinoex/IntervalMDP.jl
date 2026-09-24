@@ -24,19 +24,61 @@ GeneralizedSamplingbasedRobustDynamicProgramming
 
 ## Sampling strategies
 
+A sampling strategy decides which part of the model each iteration of
+[`GeneralizedSamplingbasedRobustDynamicProgramming`](@ref) relaxes. Every
+concrete strategy belongs to one of the families below, each a direct subtype
+of `SamplingStrategy` — they are alternatives to the same question, not layers,
+so a strategy from any one of them can be dropped into `sampling_strategy`.
+
+Families that enumerate the model directly come in two shapes, named by suffix:
+a `...State` strategy yields bare states, and `bellman_update!` then sweeps
+every available action of each visited state; a `...StateActions` strategy
+yields `(action, state)` pairs, so a state can be relaxed for one action
+without the others. The trajectory and priority-queue samplers pick states, so
+they have no such pair.
+
 ```@docs
 SamplingStrategy
-IntervalMDP.AllSamplingStrategy
-IntervalMDP.AllSampling
-IntervalMDP.AllStatesSweep
+```
+
+### Exhaustive sweeps
+
+Relax the whole model each iteration — no sampling at all. `ExhaustiveState` is
+the default for `GeneralizedSamplingbasedRobustDynamicProgramming`, and is what
+makes it reproduce [`RobustValueIteration`](@ref).
+
+```@docs
+IntervalMDP.ExhaustiveSamplingStrategy
+IntervalMDP.ExhaustiveState
+IntervalMDP.ExhaustiveStateActions
+```
+
+### Random-subset sampling
+
+Draw `k` entries uniformly at random each iteration, independently and with
+replacement. Only the drawn entries are relaxed; everything else keeps its
+previous value. The cheapest way to trade per-iteration cost for iteration
+count, and the natural baseline any targeted strategy has to beat.
+
+```@docs
 IntervalMDP.RandomSamplingStrategy
-IntervalMDP.RandomSubsetStateActions
 IntervalMDP.RandomSubsetState
+IntervalMDP.RandomSubsetStateActions
+```
+
+### Round-robin sampling
+
+Walk a persistent cursor through the model in the order the exhaustive sweeps
+enumerate it, taking the next `k` entries each iteration and wrapping around at
+the end. Same per-iteration cost as random-subset sampling, but every entry is
+visited on a fixed cycle rather than only in expectation, so no state can be
+starved. The cursor is mutable state on the strategy object;
+`reset_sampling_strategy!` rewinds it once at the start of every `solve`.
+
+```@docs
 IntervalMDP.RoundRobinSamplingStrategy
-PriorityQueueSamplingStrategy
-IntervalMDP.ValueFunctionOrderedSampling
-IntervalMDP.GivenSequence
-IntervalMDP.CompositeSamplingStrategy
+IntervalMDP.RoundRobinState
+IntervalMDP.RoundRobinStateActions
 ```
 
 ### Trajectory sampling
@@ -124,8 +166,17 @@ what `GapTerminationCriteria` stops on unless the property sets
 `restrict_to_initial`.
 
 ```@docs
+PriorityQueueSamplingStrategy
 IntervalMDP.PriorityQueueSampling.PrioritizedSweep
 IntervalMDP.compute_priority
+```
+
+[`ValueFunctionOrderedSampling`](@ref IntervalMDP.ValueFunctionOrderedSampling)
+is the degenerate case: it re-ranks every state from scratch each iteration
+instead of repairing the queue incrementally, and takes no propagation rule.
+
+```@docs
+IntervalMDP.ValueFunctionOrderedSampling
 ```
 
 #### State priorities
@@ -194,4 +245,21 @@ IntervalMDP.PriorityQueueSampling.GapPriorityQueueSampling
 IntervalMDP.PriorityQueueSampling.UpperBoundPriorityQueueSampling
 IntervalMDP.PriorityQueueSampling.ActionUncertaintyPriorityQueueSampling
 IntervalMDP.PriorityQueueSampling.RNDPriorityQueueSampling
+```
+
+### Replaying a recorded sequence
+
+```@docs
+IntervalMDP.GivenSequence
+```
+
+### Composite strategies
+
+Composites wrap one or more other strategies rather than enumerating the model
+themselves, so any family above can be filtered or mixed without a new type.
+
+```@docs
+IntervalMDP.CompositeSamplingStrategy
+IntervalMDP.RandomlyThinned
+IntervalMDP.EpsilonGreedyMixture
 ```

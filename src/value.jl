@@ -188,7 +188,7 @@ entry of the result is non-negative. The difference is *not* wrapped in `abs`: a
 negative entry means the bracket has inverted, which is a bug in the property's
 initialization or in a Bellman update rather than a small gap, and taking the absolute
 value would hide it from every gap-based termination criterion. Such an entry raises an
-[`InvertedBracketError`](@ref) instead. A slack of `sqrt(eps)` is allowed for
+`InvertedBracketError` instead. A slack of `sqrt(eps)` is allowed for
 floating-point round-off.
 """
 function gap(V::IntervalValueFunction)

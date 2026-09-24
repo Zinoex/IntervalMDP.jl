@@ -31,7 +31,7 @@ function bellman_v!(
     Vres::StateValueArray,
     V::StateValueArray,
     model::Union{IntervalMarkovProcess, AbstractAmbiguitySets},
-    update_sequence = sample(AllStatesSweep(), model, strategy_cache);
+    update_sequence = sample(ExhaustiveState(), model, strategy_cache);
     upper_bound = false,
     maximize = true,
     prop = nothing,

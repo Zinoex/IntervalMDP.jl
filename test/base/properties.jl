@@ -115,8 +115,8 @@ end
     end
 end
 
-# Property 3 — GenSamplingDP(AllSampling()) parity with RobustVI.
-@testitem "property: GenSamplingDP(AllSampling()) ≡ RobustVI on V" tags = [:base, :property] begin
+# Property 3 — GenSamplingDP(ExhaustiveStateActions()) parity with RobustVI.
+@testitem "property: GenSamplingDP(ExhaustiveStateActions()) ≡ RobustVI on V" tags = [:base, :property] begin
     using IntervalMDP, Random, Supposition
 
     function _valid_bounds(rng, n_target, n_columns)
