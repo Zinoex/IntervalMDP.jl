@@ -138,6 +138,14 @@ IntervalMDP.TrajectorySampling.GapWeightedExplorationScore
 IntervalMDP.TrajectorySampling.GapFunction
 IntervalMDP.TrajectorySampling.ExponentialGap
 IntervalMDP.TrajectorySampling.PolynomialGap
+IntervalMDP.TrajectorySampling.ExplorationTerm
+IntervalMDP.TrajectorySampling.GapExplore
+IntervalMDP.TrajectorySampling.UpperBoundExplore
+IntervalMDP.TrajectorySampling.ActionUncertaintyExplore
+IntervalMDP.TrajectorySampling.BellmanErrorExplore
+IntervalMDP.TrajectorySampling.MaxBellmanErrorExplore
+IntervalMDP.TrajectorySampling.VPIExplore
+IntervalMDP.TrajectorySampling.BackupTracker
 IntervalMDP.TrajectorySampling.VPIScore
 IntervalMDP.TrajectorySampling.LogStateScore
 ```

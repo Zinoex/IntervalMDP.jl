@@ -245,6 +245,230 @@ end
     end
 end
 
+@testitem "TrajectorySampling: exploration terms f_explore" tags =
+    [:base, :trajectory_sampling, :trajectory_explore_terms] begin
+    using IntervalMDP
+    const TS = IntervalMDP.TrajectorySampling
+
+    probs = [0.6, 0.4]
+    supp = [1, 2]
+    # Fresh vectors per call: the Bellman-error tests mutate them.
+    fixture() = (upper = (current = [1.0, 0.5],), lower = (current = [0.2, 0.1],))
+    vf = fixture()
+
+    @testset "GapExplore is the default" begin
+        @test TS.ExplorationScore(1.0).explore isa TS.GapExplore
+        @test TS.GapWeightedExplorationScore(1.0, TS.ExponentialGap(1.0)).explore isa
+              TS.GapExplore
+        @test TS._explore_values(TS.GapExplore(), supp, vf, nothing, nothing) ≈ [0.8, 0.4]
+        @test TS._state_scores(
+            TS.ExplorationScore(1.0; explore = TS.GapExplore()),
+            probs,
+            supp,
+            vf,
+        ) ≈ [1.08, 0.36]
+    end
+
+    @testset "UpperBoundExplore adds beta * p * U" begin
+        @test TS._explore_values(TS.UpperBoundExplore(), supp, vf, nothing, nothing) ≈
+              [1.0, 0.5]
+        @test TS._state_scores(
+            TS.ExplorationScore(1.0; explore = TS.UpperBoundExplore()),
+            probs,
+            supp,
+            vf,
+        ) ≈ [0.6 * (1.0 + 1.0), 0.4 * (0.5 + 0.5)]
+        # greedy = [0.6, 0.2], delta = [0, 0.4]
+        @test TS._state_scores(
+            TS.GapWeightedExplorationScore(
+                1.0,
+                TS.ExponentialGap(1.0);
+                explore = TS.UpperBoundExplore(),
+            ),
+            probs,
+            supp,
+            vf,
+        ) ≈ [0.6 + 0.6 * 1.0, 0.2 + 0.4 * 0.5 * exp(-0.4)]
+    end
+
+    @testset "Bellman-error terms track the last backup" begin
+        vf = fixture()
+        up = TS.BellmanErrorExplore()
+        lo = TS.BellmanErrorExplore(; bound = IntervalMDP.Lower)
+        mx = TS.MaxBellmanErrorExplore()
+        @test up.bound === IntervalMDP.Upper
+
+        # Never backed up: fall back to the gap.
+        for term in (up, lo, mx)
+            @test TS._explore_values(term, supp, vf, nothing, nothing) ≈ [0.8, 0.4]
+        end
+
+        # Hand state 1 to GSRDP, "back it up", and measure on the next call.
+        for term in (up, lo, mx)
+            TS._after_sample!(term, [CartesianIndex(1)], vf)
+        end
+        vf.upper.current[1] = 0.9
+        vf.lower.current[1] = 0.25
+        for term in (up, lo, mx)
+            TS._before_sample!(term, vf)
+        end
+        # State 2 was never backed up, so it still reads its gap (0.4).
+        @test TS._explore_values(up, supp, vf, nothing, nothing) ≈ [0.1, 0.4]
+        @test TS._explore_values(lo, supp, vf, nothing, nothing) ≈ [0.05, 0.4]
+        @test TS._explore_values(mx, supp, vf, nothing, nothing) ≈ [0.1, 0.4]
+
+        # A second measurement with nothing pending leaves the readings alone.
+        TS._before_sample!(up, vf)
+        @test TS._explore_values(up, supp, vf, nothing, nothing) ≈ [0.1, 0.4]
+
+        # A backup that did not move the value reads 0, not the gap.
+        TS._after_sample!(up, [CartesianIndex(1)], vf)
+        TS._before_sample!(up, vf)
+        @test TS._explore_values(up, supp, vf, nothing, nothing) ≈ [0.0, 0.4]
+
+        TS._reset_score!(up)
+        @test TS._explore_values(up, supp, vf, nothing, nothing) ≈ [0.65, 0.4]
+    end
+
+    @testset "hooks are forwarded through the successor scores" begin
+        vf = fixture()
+        term = TS.BellmanErrorExplore()
+        score = TS.LogStateScore(TS.ExplorationScore(1.0; explore = term))
+        TS._after_sample!(score, [CartesianIndex(2)], vf)
+        vf.upper.current[2] = 0.3
+        TS._before_sample!(score, vf)
+        # dU = [NaN -> gap 0.8, 0.2]
+        @test TS._state_scores(score, probs, supp, vf) ≈
+              log.([0.6 * (1.0 + 0.8), 0.4 * (0.3 + 0.2)])
+        TS._reset_score!(score)
+        @test all(isnan, term.tracker.dU[]) || isempty(term.tracker.dU[])
+
+        # Scores without a term accept the hooks and do nothing.
+        @test TS._before_sample!(TS.GreedyScore(), vf) === nothing
+        @test TS._after_sample!(TS.VPIScore(), [CartesianIndex(1)], vf) === nothing
+        @test TS._reset_score!(TS.LogStateScore(TS.GreedyScore())) === nothing
+    end
+
+    @testset "ActionUncertaintyExplore" begin
+        # Every state has two precise actions over {1, 2, 3}; 2 and 3 are
+        # absorbing under both, so there U^{-a_L}(t) − L(t) = U(t) − L(t).
+        precise(p) = IntervalAmbiguitySets(; lower = p, upper = p)
+        mdp = IntervalMarkovDecisionProcess(
+            [
+                precise([0.0 0.0; 0.5 0.8; 0.5 0.2]),
+                precise([0.0 0.0; 1.0 1.0; 0.0 0.0]),
+                precise([0.0 0.0; 0.0 0.0; 1.0 1.0]),
+            ],
+            [1],
+        )
+        vf = (upper = (current = [1.0, 0.8, 0.6],), lower = (current = [0.0, 0.3, 0.1],))
+        term = TS.ActionUncertaintyExplore()
+
+        # At state 1: L(1, a1) = 0.5·0.3 + 0.5·0.1 = 0.2 and
+        # L(1, a2) = 0.8·0.3 + 0.2·0.1 = 0.26, so a_L = a2 and
+        # U^{-a_L}(1) = U(1, a1) = 0.5·0.8 + 0.5·0.6 = 0.7.
+        x = TS._explore_values(term, [1, 2, 3], vf, mdp, nothing)
+        @test x ≈ [0.7 - 0.26, 0.5, 0.5]
+        @test x ≈ [
+            IntervalMDP._action_uncertainty(mdp, CartesianIndex(t), vf, nothing) for
+            t in 1:3
+        ]
+
+        tr = TS.ConcreteTransition()
+        score = TS.ExplorationScore(1.0; explore = term)
+        p1 = [0.0, 0.5, 0.5]
+        @test TS._state_scores(
+            score,
+            p1,
+            [2, 3],
+            vf,
+            CartesianIndex(1),
+            CartesianIndex(1),
+            mdp,
+            nothing,
+            tr,
+        ) ≈ [0.5 * (0.8 + 0.5), 0.5 * (0.6 + 0.5)]
+
+        # Without the model there is nothing to compute it from.
+        @test_throws ArgumentError TS._state_scores(score, p1, [2, 3], vf)
+    end
+
+    @testset "_uniform_excess is E[max(0, q - c)] for uniform q" begin
+        n = 200_000
+        for (l, u, c) in ((0.2, 0.7, 0.51), (0.2, 0.7, 0.1), (0.2, 0.7, 0.9), (0.0, 1.0, 0.5))
+            qs = range(l, u; length = n)
+            @test TS._uniform_excess(l, u, c) ≈ sum(q -> max(0.0, q - c), qs) / n atol = 1e-5
+        end
+        # A point interval (a converged Q-value) never divides by zero.
+        @test TS._uniform_excess(0.4, 0.4, 0.4) == 0.0
+        @test TS._uniform_excess(0.4, 0.4, 0.1) ≈ 0.3
+    end
+
+    @testset "VPIExplore" begin
+        precise(p) = IntervalAmbiguitySets(; lower = p, upper = p)
+        mdp = IntervalMarkovDecisionProcess(
+            [
+                precise([0.0 0.0; 0.5 0.8; 0.5 0.2]),
+                precise([0.0 0.0; 1.0 1.0; 0.0 0.0]),
+                precise([0.0 0.0; 0.0 0.0; 1.0 1.0]),
+            ],
+            [1],
+        )
+        vf = (upper = (current = [1.0, 0.8, 0.6],), lower = (current = [0.0, 0.3, 0.1],))
+        term = TS.VPIExplore()
+
+        # State 1: Q(1, a1) ∈ [0.2, 0.7] (m = 0.45), Q(1, a2) ∈ [0.26, 0.76]
+        # (m = 0.51), so a₁ = a2 with runner-up 0.45:
+        #   VPI(a2) = E[max(0, 0.45 − q)], q ~ U[0.26, 0.76] = 0.19²/1
+        #   VPI(a1) = E[max(0, q − 0.51)], q ~ U[0.2, 0.7]   = 0.19²/1
+        # States 2 and 3: both actions share one interval of width 0.5, so
+        # each side of the tie reads 0.25²/1.
+        x = TS._explore_values(term, [1, 2, 3], vf, mdp, nothing)
+        @test x ≈ [0.19^2, 0.25^2, 0.25^2]
+
+        # Asymmetric intervals, where only one side can gain. At state 1, a1
+        # moves to 2 and a2 to 3 deterministically, so Q(1, a1) = [L(2), U(2)]
+        # = [0.2, 0.7] (m = 0.45) and Q(1, a2) = [L(3), U(3)] = [0.5, 0.6]
+        # (m = 0.55). a₁ = a2, runner-up 0.45:
+        #   VPI(a2) = E[max(0, 0.45 − q)], q ~ U[0.5, 0.6] = 0
+        #   VPI(a1) = E[max(0, q − 0.55)], q ~ U[0.2, 0.7] = 0.15²/1
+        split = IntervalMarkovDecisionProcess(
+            [
+                precise([0.0 0.0; 1.0 0.0; 0.0 1.0]),
+                precise([0.0 0.0; 1.0 1.0; 0.0 0.0]),
+                precise([0.0 0.0; 0.0 0.0; 1.0 1.0]),
+            ],
+            [1],
+        )
+        vf2 = (upper = (current = [1.0, 0.7, 0.6],), lower = (current = [0.0, 0.2, 0.5],))
+        @test TS._state_vpi(split, CartesianIndex(1), vf2, nothing) ≈ 0.15^2
+
+        # Minimize: a1 is now best (m = 0.45 < 0.55) with runner-up 0.55, so
+        # the gain is a1 turning out *above* 0.55, again 0.15²/1, and a2 (all of
+        # it above 0.45) cannot gain.
+        spec_min = Specification(InfiniteTimeReachability([3], 1e-6), Optimistic, Minimize)
+        @test TS._state_vpi(split, CartesianIndex(1), vf2, spec_min) ≈ 0.15^2
+        # Narrowing a1 to [0.4, 0.5] leaves no chance of crossing either way.
+        vf3 = (upper = (current = [1.0, 0.5, 0.6],), lower = (current = [0.0, 0.4, 0.5],))
+        @test TS._state_vpi(split, CartesianIndex(1), vf3, nothing) == 0.0
+        @test TS._state_vpi(split, CartesianIndex(1), vf3, spec_min) == 0.0
+
+        # A single-action state has no decision to be uncertain about.
+        single = IntervalMarkovDecisionProcess(
+            [
+                precise(reshape([0.0, 0.5, 0.5], 3, 1)),
+                precise(reshape([0.0, 1.0, 0.0], 3, 1)),
+                precise(reshape([0.0, 0.0, 1.0], 3, 1)),
+            ],
+            [1],
+        )
+        @test TS._explore_values(term, [1, 2, 3], vf, single, nothing) == [0.0, 0.0, 0.0]
+
+        score = TS.ExplorationScore(1.0; explore = term)
+        @test_throws ArgumentError TS._state_scores(score, [0.0, 0.5, 0.5], [2, 3], vf)
+    end
+end
+
 @testitem "TrajectorySampling: epsilon-greedy ignores the exploration terms" tags =
     [:base, :trajectory_sampling, :trajectory_policy_asymmetry] begin
     using IntervalMDP
@@ -984,6 +1208,42 @@ end
             "gap-weighted (polynomial)" => TS.TrajectorySampling(;
                 state_policy = TS.Boltzmann(0.5),
                 state_score = TS.GapWeightedExplorationScore(1.0, TS.PolynomialGap(2.0)),
+            ),
+            "exploration: upper bound" => TS.TrajectorySampling(;
+                state_policy = TS.Boltzmann(0.5),
+                state_score = TS.ExplorationScore(1.0; explore = TS.UpperBoundExplore()),
+            ),
+            "exploration: action uncertainty" => TS.TrajectorySampling(;
+                state_policy = TS.Boltzmann(0.5),
+                state_score = TS.ExplorationScore(
+                    1.0;
+                    explore = TS.ActionUncertaintyExplore(),
+                ),
+            ),
+            "exploration: state-level VPI" => TS.TrajectorySampling(;
+                state_policy = TS.Boltzmann(0.5),
+                state_score = TS.ExplorationScore(1.0; explore = TS.VPIExplore()),
+            ),
+            "exploration: Bellman error (U)" => TS.TrajectorySampling(;
+                state_policy = TS.Boltzmann(0.5),
+                state_score = TS.ExplorationScore(1.0; explore = TS.BellmanErrorExplore()),
+            ),
+            "exploration: Bellman error (L)" => TS.TrajectorySampling(;
+                state_policy = TS.Boltzmann(0.5),
+                state_score = TS.ExplorationScore(
+                    1.0;
+                    explore = TS.BellmanErrorExplore(; bound = IntervalMDP.Lower),
+                ),
+            ),
+            "exploration: max Bellman error, gauss-seidel" => TS.TrajectorySampling(;
+                state_policy = TS.Boltzmann(0.5),
+                state_score = TS.GapWeightedExplorationScore(
+                    1.0,
+                    TS.ExponentialGap(1.0);
+                    explore = TS.MaxBellmanErrorExplore(),
+                ),
+                gauss_seidel = true,
+                k = 2,
             ),
             "expected-gap stop" => TS.TrajectorySampling(;
                 terminate = [TS.MaxSteps(), TS.ExpectedGapStop(10.0)],
