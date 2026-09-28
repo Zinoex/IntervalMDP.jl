@@ -199,7 +199,7 @@ end
         @test_throws ArgumentError TS.ExplorationScore(-1.0)
     end
 
-    @testset "GapWeightedExplorationScore discounts by f_gap(delta)" begin
+    @testset "GapWeightedExplorationScore discounts by G(f_gap)" begin
         # greedy = [0.6, 0.2], best = 0.6, so delta = [0.0, 0.4].
         exp_expected = [
             0.6 + 1.0 * 0.6 * 0.8 * exp(-0.0 / 1.0),
@@ -295,6 +295,164 @@ end
     @testset "no successor carries mass -> nothing" begin
         ss = TS.TrajectorySampling()
         @test TS._sample_state(ss, s, a, [0.0, 0.0], vf, mdp, nothing) === nothing
+    end
+end
+
+@testitem "TrajectorySampling: VPI successor score" tags =
+    [:base, :trajectory_sampling, :trajectory_vpi] begin
+    using IntervalMDP
+    const TS = IntervalMDP.TrajectorySampling
+
+    @testset "phi: the three branches" begin
+        @test TS._vpi_gain(-1.0, 0.5) == 0.0      # Δ ≤ -k: never overtakes
+        @test TS._vpi_gain(1.0, 0.5) == 1.0       # Δ ≥ k: always wins
+        @test TS._vpi_gain(0.0, 0.5) ≈ 0.125      # (0 + 0.5)² / 2
+        # Continuous at both kinks.
+        @test TS._vpi_gain(-0.5, 0.5) == 0.0
+        @test TS._vpi_gain(0.5 - 1e-12, 0.5) ≈ 0.5
+        # k = 0 (converged t, or no difference in p) reduces to max(0, Δ).
+        @test TS._vpi_gain(0.3, 0.0) == 0.3
+        @test TS._vpi_gain(-0.3, 0.0) == 0.0
+        @test TS._vpi_gain(0.0, 0.0) == 0.0
+        @test !isnan(TS._vpi_gain(0.0, 0.0))
+    end
+
+    @testset "phi matches the averaged integral" begin
+        # φ(Δ, |δ|h) is the mean of max(0, Δ + δx) over x ∈ [-h, h].
+        n = 200_000
+        for (Δ, δ, h) in (
+            (0.1, 0.4, 0.5),
+            (-0.1, -0.4, 0.5),
+            (0.05, 0.1, 0.2),
+            (-0.3, 0.9, 0.6),
+            (0.2, 0.1, 0.5),
+            (-0.2, 0.1, 0.5),
+        )
+            xs = range(-h, h; length = n)
+            riemann = sum(x -> max(0.0, Δ + δ * x), xs) / n
+            @test TS._vpi_gain(Δ, abs(δ) * h) ≈ riemann atol = 1e-5
+        end
+    end
+
+    # Source state 1 has two precise actions over targets {1, 2, 3}:
+    #   a1: p = [0, 0.5, 0.5],  a2: p = [0, 0.8, 0.2]
+    # States 2 and 3 are absorbing. Precise transitions make the U- and
+    # L-realized distributions coincide, so m_a is exact.
+    precise(p) = IntervalAmbiguitySets(; lower = p, upper = p)
+    mdp = IntervalMarkovDecisionProcess(
+        [
+            precise([0.0 0.0; 0.5 0.8; 0.5 0.2]),
+            precise([0.0 0.0; 1.0 1.0; 0.0 0.0]),
+            precise([0.0 0.0; 0.0 0.0; 1.0 1.0]),
+        ],
+        [1],
+    )
+    s, a1, a2 = CartesianIndex(1), CartesianIndex(1), CartesianIndex(2)
+    p1, p2 = [0.0, 0.5, 0.5], [0.0, 0.8, 0.2]
+    supp = [2, 3]
+    tr = TS.ConcreteTransition()
+
+    # U = [1, 0.8, 0.6], L = [0, 0.2, 0.2]:
+    #   m_a1 = (0.5·0.8 + 0.5·0.6 + 0.5·0.2 + 0.5·0.2)/2 = 0.45
+    #   m_a2 = (0.8·0.8 + 0.2·0.6 + 0.8·0.2 + 0.2·0.2)/2 = 0.48
+    #   |p_a1 − p_a2| = 0.3 on both successors; h = [0.3, 0.2] -> k = [0.09, 0.06]
+    vf = (upper = (current = [1.0, 0.8, 0.6],), lower = (current = [0.0, 0.2, 0.2],))
+
+    @testset "hand-computed VPI" begin
+        # a* = a1, Δ = +0.03: (0.03 + k)² / 4k
+        @test TS._vpi(s, a1, p1, supp, vf, mdp, nothing, tr) ≈
+              [0.12^2 / 0.36, 0.09^2 / 0.24]
+        # a* = a2, Δ = -0.03: (-0.03 + k)² / 4k
+        @test TS._vpi(s, a2, p2, supp, vf, mdp, nothing, tr) ≈
+              [0.06^2 / 0.36, 0.03^2 / 0.24]
+    end
+
+    @testset "Minimize flips which action gains" begin
+        spec_min = Specification(InfiniteTimeReachability([3], 1e-6), Pessimistic, Minimize)
+        # Under Minimize a1 is the better midpoint, so a* = a1 now sees Δ = -0.03.
+        @test TS._vpi(s, a1, p1, supp, vf, mdp, spec_min, tr) ≈
+              TS._vpi(s, a2, p2, supp, vf, mdp, nothing, tr)
+    end
+
+    @testset "a converged successor carries no VPI when a* is midpoint-best" begin
+        # t = 3 converged at 0.4 (h = 0) -> k = 0 -> φ = max(0, Δ) = 0 for Δ < 0.
+        # Here m_a1 = 0.45, m_a2 = 0.48, so a* = a2 sees Δ = -0.03, while t = 2
+        # still has k = 0.3·0.3 = 0.09 > 0.03.
+        vf_conv =
+            (upper = (current = [1.0, 0.8, 0.4],), lower = (current = [0.0, 0.2, 0.4],))
+        vpi = TS._vpi(s, a2, p2, supp, vf_conv, mdp, nothing, tr)
+        @test vpi[2] == 0.0
+        @test vpi[1] > 0.0
+    end
+
+    @testset "a single-action state has zero VPI" begin
+        single = IntervalMarkovDecisionProcess(
+            [
+                precise(reshape([0.0, 0.5, 0.5], 3, 1)),
+                precise(reshape([0.0, 1.0, 0.0], 3, 1)),
+                precise(reshape([0.0, 0.0, 1.0], 3, 1)),
+            ],
+            [1],
+        )
+        @test TS._vpi(s, a1, p1, supp, vf, single, nothing, tr) == [0.0, 0.0]
+    end
+
+    ctx = (s, a1, mdp, nothing, tr)
+    vpi_a1 = TS._vpi(s, a1, p1, supp, vf, mdp, nothing, tr)
+    b_a1 = [0.5 * 0.6, 0.5 * 0.4]   # p·(U − L)
+
+    @testset "VPIScore follows Algorithm 3's branches" begin
+        @test_throws ArgumentError TS.VPIScore(; beta = -0.1)
+        @test TS.VPIScore().beta == 0.95
+        @test TS.VPIScore().bound === IntervalMDP.Upper
+
+        # max b = 0.3 ≤ 0.95 and VPI > 0: score by VPI.
+        @test TS._state_scores(TS.VPIScore(), p1, supp, vf, ctx...) ≈ vpi_a1
+        # max b = 0.3 > beta: the BRTDP fallback.
+        @test TS._state_scores(TS.VPIScore(; beta = 0.1), p1, supp, vf, ctx...) ≈ b_a1
+
+        # Equal midpoints and equal distributions: no VPI anywhere, so b again.
+        same = IntervalMarkovDecisionProcess(
+            [
+                precise([0.0 0.0; 0.5 0.5; 0.5 0.5]),
+                precise([0.0 0.0; 1.0 1.0; 0.0 0.0]),
+                precise([0.0 0.0; 0.0 0.0; 1.0 1.0]),
+            ],
+            [1],
+        )
+        @test TS._state_scores(TS.VPIScore(), p1, supp, vf, s, a1, same, nothing, tr) ≈ b_a1
+
+        # Without the step context there is nothing to compute VPI from.
+        @test_throws ArgumentError TS._state_scores(TS.VPIScore(), p1, supp, vf)
+    end
+
+    @testset "LogStateScore takes the log of any inner score" begin
+        @test TS._state_scores(TS.LogStateScore(TS.VPIScore()), p1, supp, vf, ctx...) ≈
+              log.(vpi_a1)
+        @test TS._state_scores(TS.LogStateScore(TS.GreedyScore()), p1, supp, vf) ≈
+              log.([0.5 * 0.8, 0.5 * 0.6])
+        # Zero inner score -> -Inf, never NaN.
+        vf_zero =
+            (upper = (current = [0.0, 0.0, 0.0],), lower = (current = [0.0, 0.0, 0.0],))
+        @test all(
+            ==(-Inf),
+            TS._state_scores(TS.LogStateScore(TS.GreedyScore()), p1, supp, vf_zero),
+        )
+        @test TS._greedy_bound(
+            TS.LogStateScore(TS.VPIScore(; bound = IntervalMDP.Lower)),
+        ) === IntervalMDP.Lower
+    end
+
+    @testset "_sample_state draws in proportion to VPI" begin
+        ss = TS.TrajectorySampling(;
+            state_policy = TS.Boltzmann(1.0),
+            state_score = TS.LogStateScore(TS.VPIScore()),
+        )
+        n = 20_000
+        hits = count(1:n) do _
+            TS._sample_state(ss, s, a1, p1, vf, mdp, nothing) == CartesianIndex(2)
+        end
+        @test hits / n ≈ vpi_a1[1] / sum(vpi_a1) atol = 0.02
     end
 end
 
@@ -845,6 +1003,16 @@ end
             "gauss-seidel k = 2" => TS.TrajectorySampling(; gauss_seidel = true, k = 2),
             "lower-bound transition" => TS.TrajectorySampling(;
                 transition = TS.ConcreteTransition(; bound = IntervalMDP.Lower),
+            ),
+            # VPI-RTDP's successor rule: draw t proportionally to VPI_{s,a}(t).
+            "vpi" => TS.TrajectorySampling(;
+                state_policy = TS.Boltzmann(1.0),
+                state_score = TS.LogStateScore(TS.VPIScore()),
+            ),
+            "vpi + expected-gap stop" => TS.TrajectorySampling(;
+                state_policy = TS.Boltzmann(1.0),
+                state_score = TS.LogStateScore(TS.VPIScore()),
+                terminate = [TS.MaxSteps(), TS.ExpectedGapStop(10.0)],
             ),
         ]
 

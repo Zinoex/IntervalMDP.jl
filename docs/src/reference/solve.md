@@ -138,6 +138,8 @@ IntervalMDP.TrajectorySampling.GapWeightedExplorationScore
 IntervalMDP.TrajectorySampling.GapFunction
 IntervalMDP.TrajectorySampling.ExponentialGap
 IntervalMDP.TrajectorySampling.PolynomialGap
+IntervalMDP.TrajectorySampling.VPIScore
+IntervalMDP.TrajectorySampling.LogStateScore
 ```
 
 #### Termination rules

@@ -15,7 +15,7 @@
 #
 #   selection policy  (ε-greedy | Boltzmann)      — for actions and for states
 #   × temperature schedule (fixed | annealed, per policy)
-#   × score function  (f_A over actions, f_S over successors)
+#   × score function  (f_A over actions, f_S over successors — incl. VPI)
 #   × concrete transition (which bound, which adversary direction)
 #   × Gauss-Seidel batching (whole trajectory per iteration, or `k` at a time)
 
@@ -130,6 +130,7 @@ import ..IntervalMDP:
     _omax_distribution,
     _omax_expectation,
     _isoptimistic,
+    _ismaximize,
     _is_source_state,
     _maybe_target_state,
     _categorical_sample,
@@ -516,13 +517,15 @@ _adversary_direction(mode::SatisfactionMode, spec) = isoptimistic(mode)
 """
     GapFunction
 
-`f_gap(δ)`, the discount a successor's exploration term takes for how far
-behind the best successor it scores. See [`ExponentialGap`](@ref) and
-[`PolynomialGap`](@ref); `τ` must be positive in both.
+`G(δ)`, the discount a successor's exploration term takes for its greedy
+shortfall `δ = f_gap(s',s,a)` behind the best successor: `G(0) = 1` keeps the
+full bonus for a competitive successor, and `G → 0` as it falls further
+behind. See [`ExponentialGap`](@ref) and [`PolynomialGap`](@ref); `τ` must be
+positive in both.
 """
 abstract type GapFunction end
 
-"`f_gap(δ) = exp(-δ/τ)`."
+"`G(δ) = exp(-δ/τ)`."
 struct ExponentialGap <: GapFunction
     tau::Float64
 
@@ -532,7 +535,7 @@ struct ExponentialGap <: GapFunction
     end
 end
 
-"`f_gap(δ) = (1-δ)^τ`, with `1-δ` clamped at 0 so a fractional `τ` can't go complex."
+"`G(δ) = (1-δ)^τ`, with `1-δ` clamped at 0 so a fractional `τ` can't go complex."
 struct PolynomialGap <: GapFunction
     tau::Float64
 
@@ -556,7 +559,9 @@ _gap_weight(g::PolynomialGap, delta) = max(1 - delta, 0.0)^g.tau
 
 weighted by the realized transition probability `p(s'|s,a)`. See
 [`GreedyScore`](@ref), [`ExplorationScore`](@ref) and
-[`GapWeightedExplorationScore`](@ref).
+[`GapWeightedExplorationScore`](@ref). [`VPIScore`](@ref) instead scores by
+the myopic value of perfect information about `s'`, and
+[`LogStateScore`](@ref) wraps any of them for proportional sampling.
 """
 abstract type StateScore end
 
@@ -592,15 +597,15 @@ end
 """
     GapWeightedExplorationScore(beta, gap; bound = Upper)
 
-`f_S(s') = p·f_greedy(s') + β·p·f_explore(s')·f_gap(δ(s',s,a))` — the
+`f_S(s') = p·f_greedy(s') + β·p·f_explore(s')·G(f_gap(s',s,a))` — the
 exploration score with its bonus additionally discounted by how far `s'` falls
 behind the best successor,
 
-    δ(s',s,a) = max_{x ∈ supp(s,a)} p(x)·V(x) − p(s')·V(s')
+    f_gap(s',s,a) = δ = max_{x ∈ supp(s,a)} p(x)·V(x) − p(s')·V(s')
 
 with `V = f_greedy`'s bound. Both terms are probability-weighted, so `δ ≥ 0`
-always, and `δ = 0` exactly at the best successor. `gap` is a
-[`GapFunction`](@ref).
+always, and `δ = 0` exactly at the best successor — "`s'` is the greedy best",
+not "`s'` is converged". `gap` is the discount `G`, a [`GapFunction`](@ref).
 """
 struct GapWeightedExplorationScore{G <: GapFunction} <: StateScore
     bound::IntervalMode
@@ -654,6 +659,191 @@ function _state_scores(score::GapWeightedExplorationScore, probs, supp, vf)
         _gap_weight(score.gap, best - greedy[n]) for (n, i) in enumerate(supp)
     ]
 end
+
+"""
+    _state_scores(score, probs, supp, vf, s, a, model, spec, transition) -> Vector{Float64}
+
+`f_S` given the full step context: the current state `s`, the rollout's action
+`a`, and the strategy's [`ConcreteTransition`](@ref). This is what
+`_sample_state` calls. Scores that only need `probs` and the value function
+fall back to the four-argument form; [`VPIScore`](@ref) needs the rest.
+"""
+_state_scores(score::StateScore, probs, supp, vf, s, a, model, spec, transition) =
+    _state_scores(score, probs, supp, vf)
+
+###################################
+# 4b. Value of perfect information #
+###################################
+#
+# VPI-RTDP (Sanner et al., 2009), restated for interval MDPs. The full
+# derivation is in docs/design/vpi.md. In short: with a uniform belief
+# v_t ~ U[L(t), U(t)] and m_a = (U(s,a) + L(s,a))/2, revealing v_t = m(t) + x
+# moves the expected Q-value of `a` along the line m_a + p_a(t)·x. Averaging the
+# gain of `a` over the rollout's action a*, max(0, Δ_a + δ_a·x), over
+# x ∈ [-h, h] has a closed form, `_vpi_gain`.
+
+"""
+    _vpi_gain(Δ, k) -> Float64
+
+`φ(Δ, k)`, the average of `max(0, Δ + δ·x)` over `x ∈ [-h, h]` with
+`k = |δ|·h ≥ 0`:
+
+    φ(Δ, k) = 0               if Δ ≤ -k   (the line never crosses zero)
+            = Δ               if Δ ≥  k   (the line never drops below zero)
+            = (Δ + k)² / (4k) otherwise   (the triangle above zero)
+
+`φ` is continuous and continuously differentiable, non-negative, and
+non-decreasing in both arguments. The third branch only runs when `k > |Δ|`, so
+it never divides by zero. With `k = 0` (no uncertainty, or no difference in
+transition probability) it reduces to `max(0, Δ)`.
+"""
+function _vpi_gain(Δ::Float64, k::Float64)
+    Δ <= -k && return 0.0
+    Δ >= k && return Δ
+    return (Δ + k)^2 / (4k)
+end
+
+"""
+    _vpi(s, a, probs, supp, vf, model, spec, transition) -> Vector{Float64}
+
+`VPI_{s,a}(t)` for every successor `t` in `supp`, parallel to `supp`:
+
+    VPI_{s,a}(t) = max_{a' ≠ a} φ(Δ_{a'}, k_{a'}(t))
+    Δ_{a'}       = σ·(m_{a'} − m_a),  m_{a'} = (U(s,a') + L(s,a')) / 2
+    k_{a'}(t)    = |p_{a'}(t) − p_a(t)| · (U(t) − L(t)) / 2
+
+where `a` is the rollout's action, `σ = ±1` for `Maximize`/`Minimize`, and φ is
+[`_vpi_gain`](@ref). `U(s,a')` and `L(s,a')` are the O-max Q-bounds in
+`transition`'s adversary direction. `p_{a'}` is the distribution `transition`
+realizes for `a'`, and `p_a = probs`, the distribution the rollout already
+drew. All zeros when `a` is the only action available at `s`.
+"""
+function _vpi(s, a, probs, supp, vf, model, spec, transition)
+    marginal = _omax_marginal(model)
+    dir = _adversary_direction(transition.adversary, spec)
+    σ = _ismaximize(spec) ? 1.0 : -1.0
+    U, L = vf.upper.current, vf.lower.current
+    Uv, Lv = vec(U), vec(L)
+
+    # Midpoint of the Q-interval, plus the distribution `transition` realizes.
+    function q_mid_and_p(a′)
+        as = marginal[a′, s]
+        pU = _omax_distribution(as, U, dir)
+        pL = _omax_distribution(as, L, dir)
+        m = (Float64(dot(pU, Uv)) + Float64(dot(pL, Lv))) / 2
+        return m, (transition.bound == Upper ? pU : pL)
+    end
+
+    m_star, _ = q_mid_and_p(a)
+    vpi = zeros(Float64, length(supp))
+    for a′ in available(model, s)
+        a′ == a && continue
+        m, p = q_mid_and_p(a′)
+        Δ = σ * (m - m_star)
+        for (n, t) in enumerate(supp)
+            h = (Float64(Uv[t]) - Float64(Lv[t])) / 2
+            k = abs(Float64(p[t]) - Float64(probs[t])) * max(h, 0.0)
+            vpi[n] = max(vpi[n], _vpi_gain(Δ, k))
+        end
+    end
+    return vpi
+end
+
+"""
+    VPIScore(; beta = 0.95, bound = Upper)
+
+`f_S(t) = VPI_{s,a}(t)`, the myopic value of perfect information about the
+successor `t` (VPI-RTDP, Sanner et al. 2009): how much learning `V*(t)` is
+expected to improve on the rollout's action `a` at `s`. Unlike the gap-based
+scores, it ignores successors whose open gap cannot change the decision at `s`.
+
+With `v_t ~ Uniform[L(t), U(t)]` and `m_{a'} = (U(s,a') + L(s,a'))/2`,
+
+    VPI_{s,a}(t) = max_{a' ≠ a} φ(Δ_{a'}, k_{a'}(t))
+    Δ_{a'}       = σ·(m_{a'} − m_a)
+    k_{a'}(t)    = |p_{a'}(t) − p_a(t)| · (U(t) − L(t)) / 2
+    φ(Δ, k)      = 0 if Δ ≤ -k;  Δ if Δ ≥ k;  (Δ + k)²/(4k) otherwise
+
+where `σ = ±1` for `Maximize`/`Minimize` and each `p_{a'}` is the distribution
+the strategy's [`ConcreteTransition`](@ref) realizes. See `docs/design/vpi.md`
+for the derivation.
+
+The score follows the paper's `CHOOSENEXTSTATE-VPI` (Algorithm 3), minus its
+termination branch. With `b(t) = p(t)·(U(t) − L(t))`:
+
+ 1. if `max_t b(t) > beta`, the score is `b`. VPI tells you little while the
+    bounds are nearly vacuous, so this is BRTDP's rule. `beta` is absolute, and
+    the paper's `0.95` assumes values in `[0, 1]`.
+ 2. otherwise, if some successor has positive VPI, the score is `VPI`.
+ 3. otherwise, the score is `b` again. Ending the rollout is left to
+    `terminate`, e.g. [`ExpectedGapStop`](@ref).
+
+Successors come from the support of the rollout's `p(·|s,a)`. The paper
+considers every `t`, which could move the rollout to a state that is not a
+successor of `(s, a)`.
+
+The paper draws `t` with probability proportional to its score, which is
+`state_policy = Boltzmann(1.0)` with `state_score = LogStateScore(VPIScore())`.
+Like the other successor scores, `EpsilonGreedy` reads only `bound`.
+
+!!! note
+    `a` is the action the rollout sampled, as in the paper, not necessarily the
+    one that is best by its midpoint `m_a`. If another action `a'` has a higher
+    midpoint, `Δ_{a'} > 0`, and every successor then scores at least `Δ_{a'}`,
+    even one whose bounds have already met.
+
+Each step computes two O-max distributions per available action, the same
+order of work as a Bellman backup at `s`.
+"""
+struct VPIScore <: StateScore
+    bound::IntervalMode
+    beta::Float64
+
+    function VPIScore(; beta::Real = 0.95, bound::IntervalMode = Upper)
+        beta >= 0 || throw(ArgumentError("beta must be non-negative, got $beta"))
+        return new(bound, Float64(beta))
+    end
+end
+
+_state_scores(score::VPIScore, probs, supp, vf) = throw(
+    ArgumentError(
+        "VPIScore needs the step context (s, a, model, spec, transition); " *
+        "call the nine-argument `_state_scores`",
+    ),
+)
+
+function _state_scores(score::VPIScore, probs, supp, vf, s, a, model, spec, transition)
+    U, L = vec(vf.upper.current), vec(vf.lower.current)
+    b = [Float64(probs[i]) * (Float64(U[i]) - Float64(L[i])) for i in supp]
+    maximum(b) > score.beta && return b
+
+    vpi = _vpi(s, a, probs, supp, vf, model, spec, transition)
+    return sum(vpi) > 0 ? vpi : b
+end
+
+"""
+    LogStateScore(inner)
+
+`f_S(t) = log(f'_S(t))`, with `f'_S` any other [`StateScore`](@ref). This is
+the successor-side counterpart of [`LogScore`](@ref). Under
+[`Boltzmann`](@ref) at temperature `T` it draws `t` with probability
+proportional to `f'_S(t)^(1/T)`, so `Boltzmann(1.0)` samples in proportion to
+the inner score itself. A non-positive inner score maps to `-Inf` (see
+`_safe_log`), and `_select` never picks it.
+"""
+struct LogStateScore{S <: StateScore} <: StateScore
+    inner::S
+end
+
+_greedy_bound(score::LogStateScore) = _greedy_bound(score.inner)
+
+# Both arities spelled out: a varargs method would be ambiguous against the
+# nine-argument `StateScore` fallback.
+_state_scores(score::LogStateScore, probs, supp, vf) =
+    _safe_log.(_state_scores(score.inner, probs, supp, vf))
+
+_state_scores(score::LogStateScore, probs, supp, vf, s, a, model, spec, transition) =
+    _safe_log.(_state_scores(score.inner, probs, supp, vf, s, a, model, spec, transition))
 
 ###################################
 # 5. Termination rules             #
@@ -1044,7 +1234,8 @@ function _sample_state(
         Vg = vec(_bound_values(_greedy_bound(ss.state_score), vf))
         scores = [Float64(probs[i]) * Float64(Vg[i]) for i in supp]
     else
-        scores = _state_scores(ss.state_score, probs, supp, vf)
+        scores =
+            _state_scores(ss.state_score, probs, supp, vf, s, a, model, spec, ss.transition)
     end
 
     return _maybe_target_state(model, _select(policy, supp, scores))

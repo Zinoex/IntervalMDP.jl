@@ -845,6 +845,10 @@ end
 _isoptimistic(::Nothing) = true
 _isoptimistic(spec) = isoptimistic(spec)
 
+# Likewise for the strategy mode: `nothing` (no spec) means maximize.
+_ismaximize(::Nothing) = true
+_ismaximize(spec) = ismaximize(spec)
+
 """
     _state_indices(model) -> CartesianIndices
 
