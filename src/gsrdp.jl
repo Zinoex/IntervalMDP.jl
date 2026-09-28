@@ -22,6 +22,21 @@ samplers are projected to their unique state set via
 `project_to_state_sequence` — visited states get a full action
 sweep, unvisited states retain `V_prev`.
 
+`lower_bound` selects how the lower bound is backed up:
+
+* `:follow` (default) — the lower bound follows the action the upper bound picked,
+  `L(s) = Q_L(s, a_U)`, through an `ActiveGivenStrategyCache`. One Q-value per
+  state on the lower side, so a state backup costs `num_actions + 1` Bellman
+  updates.
+* `:optimize` — the lower bound optimizes on its own, `L(s) = opt_a Q_L(s, a)`
+  (max for `Maximize`, min for `Minimize`). This is still a valid lower bound:
+  `L ≤ V*` pointwise and the Bellman operator is monotone, so
+  `opt_a Q_L(s,a) ≤ opt_a Q*(s,a) = V*(s)`. It is never below the `:follow`
+  value for the same `L`, it rises monotonically, and it does not drop when
+  `a_U` switches between near-tied actions. It costs a full action sweep on the
+  lower side too, so a state backup counts as `2·num_actions` updates. The
+  synthesized strategy still comes from the upper bound's cache.
+
 `term_criteria` overrides the default termination criterion derived from
 the property. When omitted, the algorithm uses the gap-based criterion
 from `convergence_eps(prop)`.
@@ -40,14 +55,20 @@ struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm} <
        ModelCheckingAlgorithm
     bellman_alg::B
     sampling_strategy::SamplingStrategy
+    lower_bound::Symbol
 
     function GeneralizedSamplingbasedRobustDynamicProgramming(
         bellman_alg::B;
         sampling_strategy::Union{Nothing, SamplingStrategy} = nothing,
+        lower_bound::Symbol = :follow,
     ) where {B <: BellmanAlgorithm}
+        lower_bound in (:follow, :optimize) || throw(
+            ArgumentError("lower_bound must be :follow or :optimize, got :$lower_bound"),
+        )
         new{B}(
             bellman_alg,
             isnothing(sampling_strategy) ? ExhaustiveState() : sampling_strategy,
+            lower_bound,
         )
     end
 end
@@ -172,7 +193,7 @@ function _gsrdp!(
         spec,
     )
     state_seq = project_to_state_sequence(update_sequence)
-    bellman_updates += _bellman_update_count(state_seq, mp)
+    bellman_updates += _bellman_update_count(alg, state_seq, mp)
     bellman_update!(
         alg,
         workspace,
@@ -198,7 +219,7 @@ function _gsrdp!(
             spec,
         )
         state_seq = project_to_state_sequence(update_sequence)
-        bellman_updates += _bellman_update_count(state_seq, mp)
+        bellman_updates += _bellman_update_count(alg, state_seq, mp)
         bellman_update!(
             alg,
             workspace,
@@ -221,8 +242,11 @@ function _gsrdp!(
     return value_function.lower.current, k, gap(value_function), strategy_cache
 end
 
-_bellman_update_count(update_sequence, mp) =
-    length(project_to_state_sequence(update_sequence)) * (num_actions(mp) + 1)
+# Q-values evaluated per state backup: every action on the upper side, then one
+# (`:follow`) or every action again (`:optimize`) on the lower side.
+_bellman_update_count(alg::GeneralizedSamplingbasedRobustDynamicProgramming, seq, mp) =
+    length(project_to_state_sequence(seq)) *
+    (alg.lower_bound === :optimize ? 2 * num_actions(mp) : num_actions(mp) + 1)
 
 # Invoke a user callback at whichever arity it supports.
 #
@@ -293,7 +317,7 @@ _follow_strategy_cache(cache::StationaryStrategyCache) =
     ActiveGivenStrategyCache(cache.strategy)
 
 function bellman_update!(
-    ::GeneralizedSamplingbasedRobustDynamicProgramming,
+    alg::GeneralizedSamplingbasedRobustDynamicProgramming,
     workspace,
     strategy_cache,
     update_sequence,
@@ -329,7 +353,8 @@ function bellman_update!(
         prop = system_property(spec),
     )
 
-    lower_sc = _follow_strategy_cache(upper_sc)
+    lower_sc =
+        alg.lower_bound === :optimize ? NoStrategyCache() : _follow_strategy_cache(upper_sc)
     bellman_v!(
         workspace,
         lower_sc,

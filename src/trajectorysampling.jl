@@ -364,6 +364,28 @@ function _select(policy::Boltzmann{FixedTemperature}, candidates, scores)
     return i === nothing ? candidates[argmax(scores)] : candidates[i]
 end
 
+"""
+    Proportional()
+
+Draw a candidate with probability proportional to its score, which must be
+non-negative: non-positive (and `-Inf`/`NaN`) scores are never drawn. When no
+score is positive there is no signal to act on and the draw falls back to
+uniform, like the other policies do on an all-`-Inf` vector.
+
+Unlike [`Boltzmann`](@ref), the draw does not depend on the scale of the scores:
+multiplying every score by a constant leaves it unchanged. That is what a
+gap-driven successor score needs — the gaps shrink by orders of magnitude over a
+solve, and a softmax at a fixed temperature flattens to uniform once they are
+small next to `T`. `Boltzmann(1.0)` over a `LogStateScore` draws the same
+distribution, at the cost of a `log` and an `exp` per candidate.
+"""
+struct Proportional <: SelectionPolicy end
+
+function _select(::Proportional, candidates, scores)
+    i = _categorical_sample(scores)
+    return i === nothing ? rand(candidates) : candidates[i]
+end
+
 # A decaying schedule is not a number until a rollout gives it one, so drawing
 # straight from it is a programming error rather than a missing method.
 _select(policy::Boltzmann, candidates, scores) = throw(
@@ -1166,6 +1188,129 @@ function _state_scores(score::VPIScore, probs, supp, vf, s, a, model, spec, tran
     return sum(vpi) > 0 ? vpi : b
 end
 
+###################################
+# 4c. Gap contribution             #
+###################################
+
+"""
+    GapContributionScore(; bound = Upper)
+
+`f_S(t) = max(p_U(t), p_L(t))·(U(t) − L(t))`, the share of the gap at `(s, a)`
+that successor `t` can account for. `p_U` and `p_L` are the O-max distributions
+realized against the upper and the lower bound, both in the specification's
+adversary direction, which is the direction `bellman_update!` backs both bounds
+up in. It is BRTDP's `p(t)·(U(t) − L(t))` (McMahan et al., 2005), made to see
+both of the adversaries an interval MDP has.
+
+Why both: the gap at `(s, a)` is
+
+    U(s,a) − L(s,a) = Σ_t p_U(t)·U(t) − Σ_t p_L(t)·L(t)
+                    = Σ_t p_U(t)·(U − L)(t) + Σ_t (p_U − p_L)(t)·L(t)
+
+The second term is not negative for a pessimistic adversary, and a successor
+score that weights by `p_U` alone cannot see it. That adversary gives a state
+whose upper bound is still high little mass under `p_U`, and a state whose lower
+bound is still low a lot of mass under `p_L`. Because `p_U` minimizes against
+`U`, `Σ (p_U − p_L)·L ≤ Σ (p_L − p_U)⁺·(U − L)`, so
+
+    U(s,a) − L(s,a) ≤ Σ_t max(p_U(t), p_L(t))·(U(t) − L(t))
+
+in either adversary direction. Every term vanishes at a converged successor,
+so the score only ever points at states whose backup can still shrink the gap.
+
+Pair it with [`Proportional`](@ref), which draws in proportion to the score
+whatever its scale: under a fixed-temperature `Boltzmann` the score is
+~`10⁻⁵` by the end of a solve and the draw is uniform. Candidates come from the
+union of both supports, so a successor only `p_L` loads can be drawn.
+
+Under `EpsilonGreedy` only `bound` is read, like every other successor score.
+Each step costs one extra O-max distribution (`p_L`), unless the strategy's
+[`ConcreteTransition`](@ref) already realizes `p_L`.
+"""
+struct GapContributionScore <: StateScore
+    bound::IntervalMode
+
+    GapContributionScore(; bound::IntervalMode = Upper) = new(bound)
+end
+
+_state_scores(::GapContributionScore, probs, supp, vf) = throw(
+    ArgumentError(
+        "GapContributionScore needs the step context (s, a, model, spec, transition); " *
+        "call the nine-argument `_state_scores`",
+    ),
+)
+
+"""
+    _upper_lower_distributions(probs, s, a, vf, model, spec, transition) -> (p_U, p_L)
+
+The O-max distributions of `(s, a)` against the upper and the lower bound, in the
+specification's adversary direction. `probs`, which the rollout already realized
+under `transition`, is reused for whichever of the two it equals.
+"""
+function _upper_lower_distributions(probs, s, a, vf, model, spec, transition)
+    dir = _isoptimistic(spec)
+    as = _omax_marginal(model)[a, s]
+    same_dir = _adversary_direction(transition.adversary, spec) == dir
+    pU = same_dir && transition.bound == Upper ? probs :
+         _omax_distribution(as, vf.upper.current, dir)
+    pL = same_dir && transition.bound == Lower ? probs :
+         _omax_distribution(as, vf.lower.current, dir)
+    return pU, pL
+end
+
+# `max(U − L, 0)`: a reach-avoid value function carries negative values on avoid
+# states until the first postprocess, which could otherwise make a score negative.
+_contribution(pU, pL, Uv, Lv, i) =
+    max(Float64(pU[i]), Float64(pL[i])) * max(Float64(Uv[i]) - Float64(Lv[i]), 0.0)
+
+function _state_scores(
+    ::GapContributionScore,
+    probs,
+    supp,
+    vf,
+    s,
+    a,
+    model,
+    spec,
+    transition,
+)
+    pU, pL = _upper_lower_distributions(probs, s, a, vf, model, spec, transition)
+    Uv, Lv = vec(vf.upper.current), vec(vf.lower.current)
+    return [_contribution(pU, pL, Uv, Lv, i) for i in supp]
+end
+
+"""
+    _candidates_and_scores(score, probs, vf, s, a, model, spec, transition) -> (supp, scores)
+
+The successors a non-ε-greedy policy draws from, and their scores. By default
+the candidates are the support of `probs`, the distribution the rollout realized.
+[`GapContributionScore`](@ref) widens them to the union of the `p_U` and `p_L`
+supports.
+"""
+function _candidates_and_scores(score::StateScore, probs, vf, s, a, model, spec, transition)
+    supp = _positive_support(probs)
+    isempty(supp) && return supp, Float64[]
+    return supp, _state_scores(score, probs, supp, vf, s, a, model, spec, transition)
+end
+
+function _candidates_and_scores(
+    ::GapContributionScore,
+    probs,
+    vf,
+    s,
+    a,
+    model,
+    spec,
+    transition,
+)
+    pU, pL = _upper_lower_distributions(probs, s, a, vf, model, spec, transition)
+    supp = [i for i in eachindex(pU) if pU[i] > zero(eltype(pU)) || pL[i] > zero(eltype(pL))]
+    Uv, Lv = vec(vf.upper.current), vec(vf.lower.current)
+    return supp, [_contribution(pU, pL, Uv, Lv, i) for i in supp]
+end
+
+_positive_support(probs) = [i for i in eachindex(probs) if probs[i] > zero(eltype(probs))]
+
 """
     LogStateScore(inner)
 
@@ -1193,6 +1338,12 @@ _state_scores(score::LogStateScore, probs, supp, vf) =
 
 _state_scores(score::LogStateScore, probs, supp, vf, s, a, model, spec, transition) =
     _safe_log.(_state_scores(score.inner, probs, supp, vf, s, a, model, spec, transition))
+
+function _candidates_and_scores(score::LogStateScore, probs, vf, s, a, model, spec, transition)
+    supp, scores =
+        _candidates_and_scores(score.inner, probs, vf, s, a, model, spec, transition)
+    return supp, _safe_log.(scores)
+end
 
 ###################################
 # 5. Termination rules             #
@@ -1275,13 +1426,20 @@ positive.
 A fully converged `s` (`U(s) == L(s)`) also ends the rollout: the threshold is
 then 0, which `B >= 0` can never fall below, so without this the trajectory
 would run on to the step cap through an already-tight region.
+
+With `max_adversary = true`, `B` is instead `Σ max(p_U, p_L)·(U − L)`, the
+bound [`GapContributionScore`](@ref) samples by. That sum is never below the gap
+at `(s, a)`. The realized `p` misses the lower-bound adversary's share of the
+gap, so with `false` `B` can fall below the threshold while that share is still
+open. Costs two O-max distributions per step.
 """
 struct ExpectedGapStop <: TerminationRule
     tau::Float64
+    max_adversary::Bool
 
-    function ExpectedGapStop(tau::Real = 10.0)
+    function ExpectedGapStop(tau::Real = 10.0; max_adversary::Bool = false)
         tau > 0 || throw(ArgumentError("tau must be positive, got $tau"))
-        return new(Float64(tau))
+        return new(Float64(tau), max_adversary)
     end
 end
 
@@ -1296,11 +1454,29 @@ function terminate_post(
     model,
     spec,
 )
-    gap = value_function.upper.current .- value_function.lower.current
-    diff = gap[s]
+    U, L = value_function.upper.current, value_function.lower.current
+    diff = U[s] - L[s]
     iszero(diff) && return true
 
-    B = dot(probs, vec(gap))
+    # Summed over the support rather than via a full `U .- L` vector: this runs at
+    # every step of every rollout, and the allocation was O(|S|) per step.
+    Uv, Lv = vec(U), vec(L)
+    B = zero(Float64)
+    if rule.max_adversary
+        # The GapContributionScore bound, Σ max(p_U, p_L)·(U − L) ≥ U(s,a) − L(s,a).
+        dir = _isoptimistic(spec)
+        as = _omax_marginal(model)[a, s]
+        pU = _omax_distribution(as, U, dir)
+        pL = _omax_distribution(as, L, dir)
+        for j in eachindex(pU)
+            (pU[j] > 0 || pL[j] > 0) && (B += _contribution(pU, pL, Uv, Lv, j))
+        end
+    else
+        for j in eachindex(probs)
+            p = probs[j]
+            p > 0 && (B += Float64(p) * (Float64(Uv[j]) - Float64(Lv[j])))
+        end
+    end
     return B < diff / rule.tau
 end
 
@@ -1348,6 +1524,10 @@ Each of the four decisions is configured independently:
 - `gauss_seidel::Bool = false`: see below.
 - `k::Int = 1`: batch size, used only when `gauss_seidel = true`.
 - `reverse::Bool = true`: return each trajectory goal-first.
+- `dedup::Bool = false`: drop repeated states from each batch (the whole
+  trajectory when `gauss_seidel = false`), keeping the first occurrence. Every
+  backup in a batch reads the previous iterate, so a second backup of the same
+  state in one batch recomputes the same value and only costs a Bellman update.
 
 # Temperature schedules
 
@@ -1434,6 +1614,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
     gauss_seidel::Bool
     k::Int
     reverse::Bool
+    dedup::Bool
 
     # Active-trajectory batching state. `Base.RefValue{Any}` because the
     # `CartesianIndex{N}` arity isn't known until there is a model in hand —
@@ -1457,6 +1638,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
         gauss_seidel::Bool = false,
         k::Int = 1,
         reverse::Bool = true,
+        dedup::Bool = false,
     )
         rules = collect(TerminationRule, terminate)
         gauss_seidel &&
@@ -1472,6 +1654,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
             gauss_seidel,
             k,
             reverse,
+            dedup,
             Ref{Any}(nothing),
             Ref(0),
             Ref(0),
@@ -1579,15 +1762,23 @@ function _sample_state(
     spec,
     policy::SelectionPolicy = ss.state_policy,
 )
-    supp = [i for i in eachindex(probs) if probs[i] > zero(eltype(probs))]
-    isempty(supp) && return nothing
-
     if policy isa EpsilonGreedy
+        supp = _positive_support(probs)
+        isempty(supp) && return nothing
         Vg = vec(_bound_values(_greedy_bound(ss.state_score), vf))
         scores = [Float64(probs[i]) * Float64(Vg[i]) for i in supp]
     else
-        scores =
-            _state_scores(ss.state_score, probs, supp, vf, s, a, model, spec, ss.transition)
+        supp, scores = _candidates_and_scores(
+            ss.state_score,
+            probs,
+            vf,
+            s,
+            a,
+            model,
+            spec,
+            ss.transition,
+        )
+        isempty(supp) && return nothing
     end
 
     return _maybe_target_state(model, _select(policy, supp, scores))
@@ -1688,6 +1879,7 @@ function sample(ss::TrajectorySampling, model, strategy_cache, value_function, s
         # A no-op under GSRDP's Jacobi backup, but applied here too so the
         # flag's meaning doesn't depend on `gauss_seidel`.
         ss.reverse && reverse!(trajectory)
+        ss.dedup && unique!(trajectory)
         _count_updates!(ss, model, trajectory)
         _after_sample!(ss.state_score, trajectory, value_function)
         return StateIterator(trajectory)
@@ -1710,6 +1902,7 @@ function sample(ss::TrajectorySampling, model, strategy_cache, value_function, s
     start = ss.cursor[]
     stop = min(start + ss.k - 1, length(buffer))
     batch = buffer[start:stop]
+    ss.dedup && unique!(batch)
     ss.cursor[] = stop + 1
     _count_updates!(ss, model, batch)
     _after_sample!(ss.state_score, batch, value_function)

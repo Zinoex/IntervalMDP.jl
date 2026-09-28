@@ -1261,3 +1261,130 @@ function sample(ss::EpsilonGreedyMixture, model, strategy_cache, value_function,
     chosen = rand() < ss.epsilon ? ss.explore : ss.exploit
     return _gsrdp_sample(chosen, model, strategy_cache, value_function, spec)
 end
+
+"""
+    AdaptiveSweepMixture(exploit; sweep = ExhaustiveState(), window = 1.0, probe_every = 4)
+
+Runs whichever of two strategies is currently shrinking the gap faster per
+Bellman backup. It alternates *stints*: a sweep stint is one call to `sweep`, and
+an exploit stint lasts until `exploit` has backed up `window·|S|` states, which is
+`window` sweeps' worth of work. At the end of each stint it records that arm's
+rate,
+
+    rate = (log g_start − log g_end) / states backed up during the stint
+
+where `g = max_{s ∈ S0} U(s) − L(s)` is the quantity GSRDP's termination criterion
+tracks (every state when the property does not restrict to the initial states,
+or the model declares none). The next stint goes to the arm with the higher
+recorded rate. After `probe_every` consecutive stints of one arm, the other arm
+gets one stint to refresh its rate. An arm that has never run is probed first.
+
+The motivation is that a focused sampler (trajectory, priority) and a sweep win
+in different regimes. The focused sampler reaches loose tolerances with a
+fraction of the work, while at tight tolerances a Jacobi sweep often removes more
+gap per backup. Mixing by iteration count, as [`EpsilonGreedyMixture`](@ref)
+does, cannot express this because one sweep is `|S|` backups and one trajectory
+batch is a handful.
+
+Rates compare backups, not Bellman updates. The two differ by the same factor
+per state for both arms, so the choice is the same either way.
+"""
+struct AdaptiveSweepMixture{E1 <: SamplingStrategy, E2 <: SamplingStrategy} <:
+       CompositeSamplingStrategy
+    exploit::E1
+    sweep::E2
+    window::Float64
+    probe_every::Int
+
+    arm::Base.RefValue{Int}            # 1 = exploit, 2 = sweep
+    stint_work::Base.RefValue{Int}     # states backed up in the running stint
+    stint_start::Base.RefValue{Float64} # log gap when the running stint started
+    streak::Base.RefValue{Int}         # consecutive stints of the current arm
+    rate::Vector{Float64}              # last measured rate per arm, NaN = never run
+    history::Vector{Tuple{Int, Int, Float64}}  # (arm, work, rate) per finished stint
+
+    function AdaptiveSweepMixture(
+        exploit::E1;
+        sweep::E2 = ExhaustiveState(),
+        window::Real = 1.0,
+        probe_every::Integer = 4,
+    ) where {E1 <: SamplingStrategy, E2 <: SamplingStrategy}
+        window > 0 || throw(ArgumentError("window must be positive, got $window"))
+        probe_every >= 1 ||
+            throw(ArgumentError("probe_every must be at least 1, got $probe_every"))
+        return new{E1, E2}(
+            exploit,
+            sweep,
+            Float64(window),
+            Int(probe_every),
+            Ref(1),
+            Ref(0),
+            Ref(NaN),
+            Ref(0),
+            [NaN, NaN],
+            Tuple{Int, Int, Float64}[],
+        )
+    end
+end
+
+sub_strategies(ss::AdaptiveSweepMixture) = (ss.exploit, ss.sweep)
+
+function reset_sampling_strategy!(ss::AdaptiveSweepMixture)
+    foreach(reset_sampling_strategy!, sub_strategies(ss))
+    ss.arm[] = 1
+    ss.stint_work[] = 0
+    ss.stint_start[] = NaN
+    ss.streak[] = 0
+    fill!(ss.rate, NaN)
+    empty!(ss.history)
+    return nothing
+end
+
+# The gap GSRDP's termination criterion looks at: initial states when the
+# property restricts to them and the model declares some, else every state.
+function _tracked_gap(model, value_function, spec)
+    U, L = value_function.upper.current, value_function.lower.current
+    init = initial_states(model)
+    restrict = spec !== nothing && restrict_to_initial(system_property(spec))
+    if restrict && !(init isa AllStates)
+        return maximum(Float64(U[_to_state_index(s)]) - Float64(L[_to_state_index(s)]) for s in init)
+    end
+    return Float64(maximum(U .- L))
+end
+
+function _stint_over(ss::AdaptiveSweepMixture, model)
+    ss.stint_work[] == 0 && return false
+    ss.arm[] == 2 && return true
+    return ss.stint_work[] >= ss.window * prod(source_shape(model))
+end
+
+function sample(ss::AdaptiveSweepMixture, model, strategy_cache, value_function, spec)
+    lg = log(max(_tracked_gap(model, value_function, spec), floatmin(Float64)))
+    isnan(ss.stint_start[]) && (ss.stint_start[] = lg)
+
+    if _stint_over(ss, model)
+        arm = ss.arm[]
+        r = (ss.stint_start[] - lg) / ss.stint_work[]
+        ss.rate[arm] = r
+        push!(ss.history, (arm, ss.stint_work[], r))
+        other = 3 - arm
+        next = if isnan(ss.rate[other])
+            other                                   # never run: probe it
+        elseif ss.rate[other] > ss.rate[arm]
+            other
+        elseif ss.streak[] + 1 >= ss.probe_every
+            other                                   # refresh the stale rate
+        else
+            arm
+        end
+        ss.streak[] = next == arm ? ss.streak[] + 1 : 0
+        ss.arm[] = next
+        ss.stint_work[] = 0
+        ss.stint_start[] = lg
+    end
+
+    chosen = ss.arm[] == 1 ? ss.exploit : ss.sweep
+    seq = _gsrdp_sample(chosen, model, strategy_cache, value_function, spec)
+    ss.stint_work[] += length(project_to_state_sequence(seq))
+    return seq
+end
