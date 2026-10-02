@@ -122,9 +122,12 @@ import ..IntervalMDP:
     StateIterator,
     sample,
     reset_sampling_strategy!,
+    set_bound_update!,
+    BoundUpdateMode,
+    UpperDrives,
+    _backups_per_state,
     available,
     num_states,
-    num_actions,
     system_property,
     isoptimistic,
     _omax_marginal,
@@ -183,8 +186,10 @@ rollout:
     `_gap_weight` takes for [`PolynomialGap`](@ref), and it also keeps a
     decayed temperature inside `[t_min, t_max]`.
   * `n` — the number of Bellman updates the strategy has issued so far, i.e.
-    `Σ length(batch) * (num_actions + 1)` over the previous `sample` calls,
-    which is exactly the `bellman_updates` count GSRDP reports to its callback.
+    `Σ length(batch) * _backups_per_state(mode, model)` over the previous
+    `sample` calls — `num_actions + 1` per state, or `2num_actions` under
+    `BothDrive` — which is exactly the `bellman_updates` count GSRDP
+    reports to its callback.
 """
 struct TemperatureContext
     diff::Float64
@@ -1362,8 +1367,8 @@ policy and the successor policy each get their own `T` from their own schedule
   starts from. Exploration therefore fades where the bounds have already met.
 * [`UpdateDecayTemperature`](@ref) — `T = max(t_min, t_max·τⁿ)`, where `n` is
   the number of Bellman updates the strategy has issued so far — the same
-  `length(states) * (num_actions + 1)` per iteration GSRDP reports to its
-  callback, accumulated across `sample` calls and reset by
+  per-iteration count GSRDP reports to its callback (see `set_bound_update!`),
+  accumulated across `sample` calls and reset by
   `reset_sampling_strategy!`.
 
 In Gauss-Seidel mode the temperature belongs to the rollout, not the batch: a
@@ -1446,6 +1451,9 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
     # here because `sample` is not handed the solver's iteration count; see the
     # increment in §8.
     updates::Base.RefValue{Int}
+    # GSRDP's bound-update mode, which sets what one relaxed state costs; see
+    # `set_bound_update!`.
+    bound_update::Base.RefValue{BoundUpdateMode}
 
     function TrajectorySampling(;
         action_policy::SelectionPolicy = EpsilonGreedy(0.1),
@@ -1475,9 +1483,13 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
             Ref{Any}(nothing),
             Ref(0),
             Ref(0),
+            Ref{BoundUpdateMode}(UpperDrives()),
         )
     end
 end
+
+set_bound_update!(ss::TrajectorySampling, mode::BoundUpdateMode) =
+    (ss.bound_update[] = mode; nothing)
 
 function reset_sampling_strategy!(ss::TrajectorySampling)
     # Discard a partially-consumed trajectory: it was sampled against the
@@ -1665,16 +1677,15 @@ end
     _count_updates!(ss, model, batch) -> batch
 
 Record the Bellman updates `batch` is about to cause, which is `n` for
-[`UpdateDecayTemperature`](@ref). It mirrors GSRDP's own `_bellman_update_count`
-exactly — the sampler hands back a `StateIterator`, on which
-`project_to_state_sequence` is the identity, and every state in it gets a full
-action sweep plus the state backup.
+[`UpdateDecayTemperature`](@ref). It charges GSRDP's own per-state cost under the
+solve's bound-update mode (see `set_bound_update!`), so the schedule anneals over
+the same count the solver reports.
 
 The count is taken *after* the rollout it belongs to, so a rollout's
 temperature reads the backups issued before it.
 """
 function _count_updates!(ss::TrajectorySampling, model, batch)
-    ss.updates[] += length(batch) * (num_actions(model) + 1)
+    ss.updates[] += length(batch) * _backups_per_state(ss.bound_update[], model)
     return batch
 end
 

@@ -357,6 +357,55 @@ end
     end
 end
 
+@testitem "GSRDP bound-update modes reach RVI's value" tags =
+    [:base, :gsrdp_bound_update_parity] begin
+    using IntervalMDP
+    @testset "bound_update = $mode" for N in [Float32, Float64],
+        mode in [IntervalMDP.UpperDrives(), IntervalMDP.LowerDrives(), IntervalMDP.BothDrive()]
+
+        prob = IntervalAmbiguitySets(;
+            lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
+            upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
+        )
+        prob2 = IntervalAmbiguitySets(;
+            lower = N[1 // 10 1 // 5 0; 1 // 5 1 // 5 0; 3 // 10 2 // 5 1],
+            upper = N[1 // 2 1 // 2 0; 1 // 2 2 // 5 0; 2 // 5 2 // 5 1],
+        )
+        mdp = IntervalMarkovDecisionProcess([prob, prob2, prob2], [1])
+        rvi = RobustValueIteration(default_bellman_algorithm(mdp))
+        gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(mdp);
+            bound_update = mode,
+        )
+        @test IntervalMDP.bound_update(gsdp) === mode
+        @test IntervalMDP.bound_update(
+            GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp)),
+        ) isa IntervalMDP.UpperDrives
+        eps = N(1 // 1000000)
+        prop = InfiniteTimeReachability([3], eps)
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = ControlSynthesisProblem(mdp, spec)
+        sol_rvi = solve(problem, rvi)
+
+        callback_counts = Int[]
+        sol_gsdp = solve(
+            problem,
+            gsdp;
+            callback = (V, bellman_updates) -> push!(callback_counts, bellman_updates),
+        )
+        @test maximum(abs, value_function(sol_rvi) .- value_function(sol_gsdp)) <= 2 * eps
+
+        # Both bounds optimizing costs a full action sweep each; otherwise the follower
+        # evaluates the single chosen action.
+        expected_increment = if mode isa IntervalMDP.BothDrive
+            num_states(mdp) * 2 * num_actions(mdp)
+        else
+            num_states(mdp) * (num_actions(mdp) + 1)
+        end
+        @test all(diff(callback_counts) .== expected_increment)
+    end
+end
+
 @testitem "IntervalValueFunction gap shrinks monotonically" tags =
     [:base, :gsrdp_gap_shrinks_monotonically] begin
     using IntervalMDP

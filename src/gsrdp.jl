@@ -1,5 +1,5 @@
 """
-    GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg; sampling_strategy, term_criteria)
+    GeneralizedSamplingbasedRobustDynamicProgramming(bellman_alg; sampling_strategy, bound_update)
 
 Generalized sampling-based robust dynamic programming. Drives an
 `IntervalValueFunction` — i.e. simultaneous lower and upper
@@ -12,9 +12,18 @@ Restrictions:
   Finite-horizon properties have a fixed-iteration termination criterion
   that's incompatible with gap-based convergence.
 
-The optimal action at each visited state is picked from the upper
-bound. The chosen action is then applied to the lower bound through 
-a `NonOptimizingStrategyCache` so both bounds track the same policy.
+`bound_update` selects which bound receives the full (optimizing) Bellman
+update each iteration; defaults to [`UpperDrives`](@ref):
+
+* `UpperDrives()` — the optimal action at each visited state is picked from
+  the upper bound, then applied to the lower bound through a
+  `NonOptimizingStrategyCache` so both bounds track the same policy.
+* `LowerDrives()` — the mirror image: the lower bound optimizes and the upper
+  bound follows its action. The upper bound is then *not* guaranteed to stay
+  above the optimal value; if it crosses the lower bound, `gap` throws an
+  `InvertedBracketError`.
+* `BothDrive()` — both bounds optimize independently. The returned strategy
+  is the upper bound's.
 
 `sampling_strategy` controls which states (or `(a, s)` pairs) are
 relaxed each iteration; defaults to [`ExhaustiveState`](@ref). State-action
@@ -40,14 +49,17 @@ struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm} <
        ModelCheckingAlgorithm
     bellman_alg::B
     sampling_strategy::SamplingStrategy
+    bound_update::BoundUpdateMode
 
     function GeneralizedSamplingbasedRobustDynamicProgramming(
         bellman_alg::B;
         sampling_strategy::Union{Nothing, SamplingStrategy} = nothing,
+        bound_update::BoundUpdateMode = UpperDrives(),
     ) where {B <: BellmanAlgorithm}
         new{B}(
             bellman_alg,
             isnothing(sampling_strategy) ? ExhaustiveState() : sampling_strategy,
+            bound_update,
         )
     end
 end
@@ -55,6 +67,7 @@ end
 bellman_algorithm(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.bellman_alg
 sampling_strategy(alg::GeneralizedSamplingbasedRobustDynamicProgramming) =
     alg.sampling_strategy
+bound_update(alg::GeneralizedSamplingbasedRobustDynamicProgramming) = alg.bound_update
 
 construct_value_function(::GeneralizedSamplingbasedRobustDynamicProgramming, problem) =
     IntervalValueFunction(
@@ -154,6 +167,7 @@ function _gsrdp!(
     term_criteria = termination_criteria(alg, spec, mp)
     sampling_strat = sampling_strategy(alg)
     reset_sampling_strategy!(sampling_strat)
+    set_bound_update!(sampling_strat, bound_update(alg))
 
     value_function = construct_value_function(alg, problem)
     _gsrdp_initialize!(value_function, prop)
@@ -172,7 +186,7 @@ function _gsrdp!(
         spec,
     )
     state_seq = project_to_state_sequence(update_sequence)
-    bellman_updates += _bellman_update_count(state_seq, mp)
+    bellman_updates += _bellman_update_count(bound_update(alg), state_seq, mp)
     bellman_update!(
         alg,
         workspace,
@@ -198,7 +212,7 @@ function _gsrdp!(
             spec,
         )
         state_seq = project_to_state_sequence(update_sequence)
-        bellman_updates += _bellman_update_count(state_seq, mp)
+        bellman_updates += _bellman_update_count(bound_update(alg), state_seq, mp)
         bellman_update!(
             alg,
             workspace,
@@ -220,9 +234,6 @@ function _gsrdp!(
 
     return value_function.lower.current, k, gap(value_function), strategy_cache
 end
-
-_bellman_update_count(update_sequence, mp) =
-    length(project_to_state_sequence(update_sequence)) * (num_actions(mp) + 1)
 
 # Invoke a user callback at whichever arity it supports.
 #
@@ -285,15 +296,15 @@ function _gsrdp_strategy_cache(problem::AbstractIntervalMDPProblem)
     return StationaryStrategyCache(strategy_arr)
 end
 
-# Wrap the upper bellman call's strategy cache as a non-optimizing
-# follower for the lower bellman call. After `bellman_v!` with the
+# Wrap the driving bellman call's strategy cache as a non-optimizing
+# follower for the other bound's call. After `bellman_v!` with the
 # stationary cache, `cache.strategy` holds the chosen action per state;
-# we expose it as an `ActiveGivenStrategyCache` for the lower call.
+# we expose it as an `ActiveGivenStrategyCache` for the follower.
 _follow_strategy_cache(cache::StationaryStrategyCache) =
     ActiveGivenStrategyCache(cache.strategy)
 
 function bellman_update!(
-    ::GeneralizedSamplingbasedRobustDynamicProgramming,
+    alg::GeneralizedSamplingbasedRobustDynamicProgramming,
     workspace,
     strategy_cache,
     update_sequence,
@@ -304,45 +315,57 @@ function bellman_update!(
 )
     state_seq = project_to_state_sequence(update_sequence)
     model = select_model(mp, k)
+    sc = select_strategy_cache(strategy_cache, k)
 
-    #TODO: upper drives action selection; lower follows.
-    # Upper bound drives optimistic action selection, lower bound follows. 
-    upper, lower = value_function.upper, value_function.lower
-
-    # `upper_bound` is the *adversary's* direction inside the ambiguity set
-    # (`true` = O-maximization), not a tag for which bracket is being written.
-    # `value_function.lower` and `value_function.upper` bracket the *same* fixed
-    # point from below and above, so both calls must use the direction the
-    # satisfaction mode dictates - the same value `RobustValueIteration` passes.
-    # Keep these two `upper_bound` arguments identical; that is what makes the
-    # bracket valid.
-    upper_sc = select_strategy_cache(strategy_cache, k)
-    bellman_v!(
+    _update_bounds!(
+        bound_update(alg),
         workspace,
-        upper_sc,
-        StateValueArray(upper.current),
-        StateValueArray(upper.previous),
+        sc,
+        value_function,
         model,
-        state_seq;
-        upper_bound = isoptimistic(spec),
-        maximize = ismaximize(spec),
-        prop = system_property(spec),
-    )
-
-    lower_sc = _follow_strategy_cache(upper_sc)
-    bellman_v!(
-        workspace,
-        lower_sc,
-        StateValueArray(lower.current),
-        StateValueArray(lower.previous),
-        model,
-        state_seq;
-        upper_bound = isoptimistic(spec),
-        maximize = ismaximize(spec),
-        prop = system_property(spec),
+        state_seq,
+        spec,
     )
 
     step_postprocess_value_function!(value_function.lower, spec)
     step_postprocess_value_function!(value_function.upper, spec)
     step_postprocess_strategy_cache!(strategy_cache)
+end
+
+# The driving bound always runs first, so the follower reads this iteration's action.
+function _update_bounds!(::UpperDrives, workspace, sc, V, model, state_seq, spec)
+    _bellman_bound!(workspace, sc, V.upper, model, state_seq, spec)
+    _bellman_bound!(workspace, _follow_strategy_cache(sc), V.lower, model, state_seq, spec)
+end
+
+function _update_bounds!(::LowerDrives, workspace, sc, V, model, state_seq, spec)
+    _bellman_bound!(workspace, sc, V.lower, model, state_seq, spec)
+    _bellman_bound!(workspace, _follow_strategy_cache(sc), V.upper, model, state_seq, spec)
+end
+
+# The upper bound records the returned strategy; the lower bound optimizes without one.
+function _update_bounds!(::BothDrive, workspace, sc, V, model, state_seq, spec)
+    _bellman_bound!(workspace, sc, V.upper, model, state_seq, spec)
+    _bellman_bound!(workspace, NoStrategyCache(), V.lower, model, state_seq, spec)
+end
+
+# `upper_bound` is the *adversary's* direction inside the ambiguity set
+# (`true` = O-maximization), not a tag for which bracket is being written.
+# `value_function.lower` and `value_function.upper` bracket the *same* fixed
+# point from below and above, so both calls must use the direction the
+# satisfaction mode dictates - the same value `RobustValueIteration` passes.
+# Keep this `upper_bound` argument the same for both bounds; that is what makes the
+# bracket valid.
+function _bellman_bound!(workspace, sc, bound, model, state_seq, spec)
+    bellman_v!(
+        workspace,
+        sc,
+        StateValueArray(bound.current),
+        StateValueArray(bound.previous),
+        model,
+        state_seq;
+        upper_bound = isoptimistic(spec),
+        maximize = ismaximize(spec),
+        prop = system_property(spec),
+    )
 end
