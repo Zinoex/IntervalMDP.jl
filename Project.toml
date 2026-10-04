@@ -16,9 +16,9 @@ StyledStrings = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 [weakdeps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
-cuSPARSE = "b26da814-b3bc-49ef-b0ee-c816305aa060"
 GPUArrays = "0c68f7d7-f131-5f86-a1c3-88cf8149b2d7"
 LLVM = "929cbde3-209d-540e-8aea-75f648917ca0"
+cuSPARSE = "b26da814-b3bc-49ef-b0ee-c816305aa060"
 
 [extensions]
 IntervalMDPCudaExt = ["Adapt", "CUDA", "cuSPARSE", "GPUArrays", "LLVM"]
@@ -26,15 +26,15 @@ IntervalMDPCudaExt = ["Adapt", "CUDA", "cuSPARSE", "GPUArrays", "LLVM"]
 [compat]
 Adapt = "4"
 CUDA = "6.0"
-cuSPARSE = "6.0"
 CommonSolve = "0.2.4"
 GPUArrays = "11.4"
 HiGHS = "1.19.0"
 JSON = "1.2"
 JuMP = "1.29.0"
-LLVM = "7, 8, 9"
+LLVM = "7, 8, 9, 10"
 NCDatasets = "0.13, 0.14"
 StyledStrings = "1.0.3"
+cuSPARSE = "6.0"
 julia = "1.11"
 
 [extras]
