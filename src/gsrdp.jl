@@ -18,6 +18,9 @@ update each iteration; defaults to [`UpperDrives`](@ref):
 * `UpperDrives()` — the optimal action at each visited state is picked from
   the upper bound, then applied to the lower bound through a
   `NonOptimizingStrategyCache` so both bounds track the same policy.
+* `UpperDrivesMonotone()` — `UpperDrives`, but each relaxed state keeps
+  `L(s) ← max(L(s), L(s, a*))`, so the lower bound never decreases when the
+  upper bound's action switches. Same backup count.
 * `LowerDrives()` — the mirror image: the lower bound optimizes and the upper
   bound follows its action. The upper bound is then *not* guaranteed to stay
   above the optimal value; if it crosses the lower bound, `gap` throws an
@@ -337,6 +340,20 @@ function _update_bounds!(::UpperDrives, workspace, sc, V, model, state_seq, spec
     _bellman_bound!(workspace, sc, V.upper, model, state_seq, spec)
     _bellman_bound!(workspace, _follow_strategy_cache(sc), V.lower, model, state_seq, spec)
 end
+
+# Undiscounted, so `L.previous` is itself a sound lower bound and the running max is too.
+# Only relaxed states can have moved: `nextiteration!` copied `current` from `previous`.
+function _update_bounds!(::UpperDrivesMonotone, workspace, sc, V, model, state_seq, spec)
+    _update_bounds!(UpperDrives(), workspace, sc, V, model, state_seq, spec)
+    cur, prev = V.lower.current, V.lower.previous
+    @inbounds for s in state_seq
+        i = _state_index(s)
+        cur[i] = max(cur[i], prev[i])
+    end
+end
+
+_state_index(s::Tuple) = CartesianIndex(s)
+_state_index(s) = s
 
 function _update_bounds!(::LowerDrives, workspace, sc, V, model, state_seq, spec)
     _bellman_bound!(workspace, sc, V.lower, model, state_seq, spec)

@@ -363,12 +363,24 @@ end
     BoundUpdateMode
 
 Which bound of GSRDP's `IntervalValueFunction` runs the optimizing Bellman update:
-[`UpperDrives`](@ref), [`LowerDrives`](@ref) or [`BothDrive`](@ref).
+[`UpperDrives`](@ref), [`UpperDrivesMonotone`](@ref), [`LowerDrives`](@ref) or
+[`BothDrive`](@ref).
 """
 abstract type BoundUpdateMode end
 
 "Upper bound optimizes, lower bound follows its action. The default."
 struct UpperDrives <: BoundUpdateMode end
+
+"""
+    UpperDrivesMonotone()
+
+[`UpperDrives`](@ref), with the lower bound kept as a running max:
+`L(s) ← max(L(s), L(s, a*))` at every relaxed state, where `a*` is the upper bound's
+action. Following `a*` alone lets `L(s)` drop when `a*` switches to an action with a
+lower L-value; both arguments of the max are sound lower bounds, so the max is too,
+and `L` becomes non-decreasing. Same backup count as `UpperDrives`.
+"""
+struct UpperDrivesMonotone <: BoundUpdateMode end
 
 "Lower bound optimizes, upper bound follows its action. The upper bound is not sound."
 struct LowerDrives <: BoundUpdateMode end

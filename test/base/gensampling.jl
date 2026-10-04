@@ -361,7 +361,12 @@ end
     [:base, :gsrdp_bound_update_parity] begin
     using IntervalMDP
     @testset "bound_update = $mode" for N in [Float32, Float64],
-        mode in [IntervalMDP.UpperDrives(), IntervalMDP.LowerDrives(), IntervalMDP.BothDrive()]
+        mode in [
+            IntervalMDP.UpperDrives(),
+            IntervalMDP.UpperDrivesMonotone(),
+            IntervalMDP.LowerDrives(),
+            IntervalMDP.BothDrive(),
+        ]
 
         prob = IntervalAmbiguitySets(;
             lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
@@ -403,6 +408,49 @@ end
             num_states(mdp) * (num_actions(mdp) + 1)
         end
         @test all(diff(callback_counts) .== expected_increment)
+    end
+end
+
+@testitem "GSRDP UpperDrivesMonotone keeps the lower bound non-decreasing" tags =
+    [:base, :gsrdp_upper_drives_monotone] begin
+    using IntervalMDP
+    @testset "UpperDrivesMonotone ($N)" for N in [Float32, Float64]
+        prob = IntervalAmbiguitySets(;
+            lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
+            upper = N[1 // 2 7 // 10 0; 3 // 5 1 // 2 0; 7 // 10 3 // 10 1],
+        )
+        prob2 = IntervalAmbiguitySets(;
+            lower = N[1 // 10 1 // 5 0; 1 // 5 1 // 5 0; 3 // 10 2 // 5 1],
+            upper = N[1 // 2 1 // 2 0; 1 // 2 2 // 5 0; 2 // 5 2 // 5 1],
+        )
+        mdp = IntervalMarkovDecisionProcess([prob, prob2, prob2], [1])
+        prop = InfiniteTimeReachability([3], N(1 // 1000000))
+        spec = Specification(prop, Pessimistic, Maximize)
+        problem = ControlSynthesisProblem(mdp, spec)
+
+        # Per-iteration snapshots of both bounds under a deterministic sampler.
+        function trace(mode)
+            lowers, uppers = Vector{N}[], Vector{N}[]
+            alg = GeneralizedSamplingbasedRobustDynamicProgramming(
+                default_bellman_algorithm(mdp);
+                bound_update = mode,
+            )
+            sol = solve(problem, alg; callback = (V, _) -> begin
+                push!(lowers, copy(vec(V.lower.current)))
+                push!(uppers, copy(vec(V.upper.current)))
+            end)
+            return sol, lowers, uppers
+        end
+        sol_up, L_up, U_up = trace(IntervalMDP.UpperDrives())
+        sol_mono, L_mono, U_mono = trace(IntervalMDP.UpperDrivesMonotone())
+
+        @test all(all(L_mono[e + 1] .>= L_mono[e]) for e in 1:(length(L_mono) - 1))
+        # U never reads L, so it is identical; the running max can only raise L.
+        n = min(length(L_up), length(L_mono))
+        @test all(U_mono[e] == U_up[e] for e in 1:n)
+        @test all(all(L_mono[e] .>= L_up[e]) for e in 1:n)
+        @test num_iterations(sol_mono) <= num_iterations(sol_up)
+        @test maximum(abs, value_function(sol_mono) .- value_function(sol_up)) <= 2 * N(1 // 1000000)
     end
 end
 
