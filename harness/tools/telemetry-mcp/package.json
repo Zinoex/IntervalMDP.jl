@@ -1,0 +1,13 @@
+{
+  "name": "telemetry-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "bin": {
+    "telemetry-mcp": "./index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "sqlite3": "^5.1.7"
+  }
+}

@@ -9,3 +9,13 @@
 /docs/build/
 
 .vscode/
+
+# Agent harness (harness/, .claude/, .mcp.json)
+harness/tools/telemetry-mcp/node_modules/
+harness/tools/telemetry-mcp/telemetry.db
+harness/tools/telemetry-mcp/telemetry.db-journal
+harness/tests/harness/fixtures/**/Manifest.toml
+__pycache__/
+*.pyc
+.lake/
+.claude/settings.local.json

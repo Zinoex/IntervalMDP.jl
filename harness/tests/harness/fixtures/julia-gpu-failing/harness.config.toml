@@ -1,0 +1,3 @@
+# GPU runner configured; whether hardware is usable is decided at QE time.
+[gpu]
+test = "julia --project=. -e 'ENV[\"FIXTURE_TEST_GPU\"]=\"true\"; using Pkg; Pkg.test()'"

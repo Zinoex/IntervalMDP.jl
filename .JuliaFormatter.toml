@@ -9,3 +9,5 @@ indent_submodule = true
 separate_kwargs_with_semicolon = true
 surround_whereop_typeparameters = true
 always_for_in = true
+# Agent harness fixtures are intentionally unformatted test inputs
+ignore = ["harness"]

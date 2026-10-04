@@ -1,0 +1,48 @@
+# Example harness target configuration.
+#
+# Place as <target-root>/harness.config.toml, or keep it in the harness repo and
+# pass `--config <path>` / set HARNESS_CONFIG (so the upstream target repo need
+# not be modified). Precedence (highest first):
+#   1. spec "Commands / Toolchain" section   (orchestrator passes --set key=value)
+#   2. this file
+#   3. discovery from Project.toml / Manifest.toml / lean-toolchain / lakefile / package.json
+#   4. blocker (never a guessed command)
+# Relative paths are resolved against the target root. Commands run from the
+# target root unless stated otherwise (Lean commands run from lean.root).
+
+[target]
+# root = "/abs/path/to/IntervalMDP.jl"     # used when not given on the /harness command line
+# kinds = ["julia", "lean"]               # restrict detection (default: auto)
+
+[julia]
+# project = "."                           # directory containing Project.toml
+# channel = "1.10"                        # juliaup channel -> `julia +1.10`; must satisfy [compat] julia
+# instantiate = "julia --project=. -e 'using Pkg; Pkg.instantiate()'"
+# test = "julia --project=. -e 'using Pkg; Pkg.test()'"
+
+[lean]
+# root = "lean"                           # directory with lean-toolchain + lakefile.{lean,toml}
+# build = "lake build"
+# test = "lake test"
+# approved_axioms = ["propext", "Classical.choice", "Quot.sound"]
+# toolchain = "..."                       # ONLY to assert the expected pin; never used to switch toolchains
+
+[gpu]
+# Required GPU checks need an explicit runner; it is never inferred.
+# test = "julia --project=. -e 'using Pkg; Pkg.test()'"   # e.g. with the project's CUDA test switch
+# Default probe (discovered when CUDA is a dep/weakdep): runs in a TEMPORARY Julia env
+# (develops the target + adds CUDA from the depot, offline), so it also works when CUDA is
+# only a weakdep / test extra. `julia --project=. -e 'using CUDA'` would ERROR there.
+# Probe ERROR is NOT "no GPU" (it is a FAIL/blocker to investigate); only NOT_FUNCTIONAL
+# means UNAVAILABLE.
+# probe = "python3 <harness>/tools/harness/gpu_check.py probe ."
+# Outcome classification (exit code alone never yields PASS):
+#   python3 <harness>/tools/harness/gpu_check.py run . --cmd "<gpu.test>" [--gpu-testset '<regex>']
+
+[benchmark]
+# cmd = "julia --project=benchmark benchmark/benchmarks.jl"
+
+[node]
+# install = "npm install"
+# test = "npm test"
+# start = "npm start"
