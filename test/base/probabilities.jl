@@ -1,8 +1,5 @@
-using Revise, Test
-using IntervalMDP
-
-@testset for N in [Float32, Float64, Rational{BigInt}]
-    @testset "getters" begin
+@testitem "base/probabilities: getters" begin
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         l = N[0 1//2; 1//10 3//10; 2//10 1//10]
         u = N[5//10 7//10; 6//10 5//10; 7//10 3//10]
 
@@ -23,8 +20,10 @@ using IntervalMDP
         @test occursin("Number of target states: 3", str)
         @test occursin("Number of ambiguity sets: 2", str)
     end
+end
 
-    @testset "vertex enumerator" begin
+@testitem "base/probabilities: vertex enumerator" begin
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = N[0 1//2; 1//10 3//10; 2//10 1//10]
         upper = N[5//10 7//10; 6//10 5//10; 7//10 3//10]
 
@@ -47,7 +46,7 @@ using IntervalMDP
 
         ambiguity_set = prob[2] # Second ambiguity set
         verts = IntervalMDP.vertices(ambiguity_set)
-        @test length(verts) <= 6  # = number of permutations of 3 elements 
+        @test length(verts) <= 6  # = number of permutations of 3 elements
 
         expected_verts = N[  # duplicates due to budget < gap for all elements
             6 // 10 3//10 1//10
@@ -57,8 +56,10 @@ using IntervalMDP
         @test length(verts) ≥ size(expected_verts, 1)  # at least the unique ones
         @test all(any(v2 -> v1 ≈ v2, verts) for v1 in eachrow(expected_verts))
     end
+end
 
-    @testset "check vs no check" begin
+@testitem "base/probabilities: check vs no check" begin
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = N[0 1//2; 1//10 3//10; 2//10 1//10]
         upper = N[5//10 7//10; 6//10 5//10; 7//10 3//10]
         gap = upper - lower
@@ -69,8 +70,10 @@ using IntervalMDP
         @test prob.lower == prob_no_check.lower
         @test prob.gap == prob_no_check.gap
     end
+end
 
-    @testset "dimension mismatch" begin
+@testitem "base/probabilities: dimension mismatch" begin
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = N[0 1//2; 1//10 3//10; 2//10 1//10]
         upper = N[5//10 7//10; 6//10 5//10] # Wrong size
 
@@ -81,43 +84,55 @@ using IntervalMDP
 
         @test_throws DimensionMismatch IntervalAmbiguitySets(lower, gap)
     end
+end
 
-    @testset "negative lower bound" begin
+@testitem "base/probabilities: negative lower bound" begin
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = N[0 1//2; -1//10 3//10; 2//10 1//10] # Negative entry
         upper = N[5//10 7//10; 6//10 5//10; 7//10 3//10]
 
         @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
+end
 
-    @testset "lower bound greater than one" begin
+@testitem "base/probabilities: lower bound greater than one" begin
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = N[0 1//2; 1//10 3//10; 2//10 11//10]
         upper = N[5//10 7//10; 6//10 5//10; 7//10 3//10]
 
         @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
+end
 
-    @testset "lower greater than upper" begin
+@testitem "base/probabilities: lower greater than upper" begin
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = N[0 1//2; 1//10 3//10; 2//10 1//10]
         upper = N[5//10 7//10; 6//10 2//10; 7//10 3//10] # Lower bound greater than upper bound
 
         @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
+end
 
-    @testset "upper bound greater than one" begin
+@testitem "base/probabilities: upper bound greater than one" begin
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = N[0 1//2; 1//10 3//10; 2//10 1//10]
         upper = N[5//10 7//10; 6//10 5//10; 7//10 13//10] # Entry greater than 1
 
         @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
+end
 
-    @testset "sum lower greater than one" begin
+@testitem "base/probabilities: sum lower greater than one" begin
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = N[0 1//2; 1//10 3//10; 6//10 1//2] # Column sums to more than 1
         upper = N[5//10 7//10; 6//10 5//10; 7//10 1//2]
 
         @test_throws ArgumentError IntervalAmbiguitySets(; lower = lower, upper = upper)
     end
+end
 
-    @testset "sum upper less than one" begin
+@testitem "base/probabilities: sum upper less than one" begin
+    @testset for N in [Float32, Float64, Rational{BigInt}]
         lower = N[0 1//2; 1//10 3//10; 2//10 1//10]
         upper = N[1//10 7//10; 2//10 5//10; 3//10 6//10] # Column sums to less than 1
 
@@ -125,7 +140,7 @@ using IntervalMDP
     end
 end
 
-@testset "marginal" begin
+@testitem "base/probabilities: marginal" begin
     N = Float64
     l = N[0 1//2; 1//10 3//10; 2//10 1//10]
     u = N[5//10 7//10; 6//10 5//10; 7//10 3//10]

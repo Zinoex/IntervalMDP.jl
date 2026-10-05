@@ -1,12 +1,12 @@
-using Revise, Test
-using IntervalMDP, IntervalMDP.Data, SparseArrays
+@testitem "data/intervalmdp: io model" begin
+    using IntervalMDP.Data
+    using SparseArrays
 
-mdp, tstates = read_bmdp_tool_file("data/multiObj_robotIMDP.txt")
-write_intervalmdp_jl_model("data/multiObj_robotIMDP.nc", mdp)
+    mdp, tstates = read_bmdp_tool_file("multiObj_robotIMDP.txt")
+    write_intervalmdp_jl_model("multiObj_robotIMDP.nc", mdp)
 
-@testset "io model" begin
     # Read MDP
-    mdp = read_intervalmdp_jl_model("data/multiObj_robotIMDP.nc")
+    mdp = read_intervalmdp_jl_model("multiObj_robotIMDP.nc")
 
     # Write it back
     new_path = tempname() * ".nc"
@@ -34,7 +34,10 @@ write_intervalmdp_jl_model("data/multiObj_robotIMDP.nc", mdp)
     @test as.gap ≈ new_as.gap
 end
 
-@testset "io specification" begin
+@testitem "data/intervalmdp: io specification" begin
+    using IntervalMDP.Data
+    using SparseArrays
+
     # Test specification
     prop = FiniteTimeReachability([3], 10)
     pes_min_spec = Specification(prop, Pessimistic, Minimize)
@@ -173,8 +176,14 @@ end
     @test convergence_eps(new_prop) ≈ 1e-6
 end
 
-@testset "io joint" begin
-    mdp = read_intervalmdp_jl_model("data/multiObj_robotIMDP.nc")
+@testitem "data/intervalmdp: io joint" begin
+    using IntervalMDP.Data
+    using SparseArrays
+
+    mdp, tstates = read_bmdp_tool_file("multiObj_robotIMDP.txt")
+    write_intervalmdp_jl_model("multiObj_robotIMDP.nc", mdp)
+
+    mdp = read_intervalmdp_jl_model("multiObj_robotIMDP.nc")
 
     prop = FiniteTimeReachability([207], 10)
     spec = Specification(prop, Pessimistic, Minimize)

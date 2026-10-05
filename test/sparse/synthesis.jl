@@ -1,123 +1,153 @@
-using Revise, Test
-using IntervalMDP, SparseArrays
+@testmodule SparseSynthesisModels begin
+    using IntervalMDP
+    using SparseArrays
 
-prob1 = IntervalAmbiguitySets(;
-    lower = sparse([
-        0.0 0.5
-        0.1 0.3
-        0.2 0.1
-    ]),
-    upper = sparse([
-        0.5 0.7
-        0.6 0.5
-        0.7 0.3
-    ]),
-)
+    prob1 = IntervalAmbiguitySets(;
+        lower = sparse([
+            0.0 0.5
+            0.1 0.3
+            0.2 0.1
+        ]),
+        upper = sparse([
+            0.5 0.7
+            0.6 0.5
+            0.7 0.3
+        ]),
+    )
 
-prob2 = IntervalAmbiguitySets(;
-    lower = sparse([
-        0.1 0.2
-        0.2 0.3
-        0.3 0.4
-    ]),
-    upper = sparse([
-        0.6 0.6
-        0.5 0.5
-        0.4 0.4
-    ]),
-)
+    prob2 = IntervalAmbiguitySets(;
+        lower = sparse([
+            0.1 0.2
+            0.2 0.3
+            0.3 0.4
+        ]),
+        upper = sparse([
+            0.6 0.6
+            0.5 0.5
+            0.4 0.4
+        ]),
+    )
 
-prob3 = IntervalAmbiguitySets(;
-    lower = sparse([
-        0.0 0.0
-        0.0 0.0
-        1.0 1.0
-    ]),
-    upper = sparse([
-        0.0 0.0
-        0.0 0.0
-        1.0 1.0
-    ]),
-)
+    prob3 = IntervalAmbiguitySets(;
+        lower = sparse([
+            0.0 0.0
+            0.0 0.0
+            1.0 1.0
+        ]),
+        upper = sparse([
+            0.0 0.0
+            0.0 0.0
+            1.0 1.0
+        ]),
+    )
 
-transition_probs = [prob1, prob2, prob3]
-istates = [Int32(1)]
+    transition_probs = [prob1, prob2, prob3]
+    istates = [Int32(1)]
 
-mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
-
-# Finite time reachability
-prop = FiniteTimeReachability([3], 10)
-spec = Specification(prop, Pessimistic, Maximize)
-problem = ControlSynthesisProblem(mdp, spec)
-sol = solve(problem)
-policy, V, k, res = sol
-
-@test strategy(sol) == policy
-@test value_function(sol) == V
-@test num_iterations(sol) == k
-@test residual(sol) == res
-
-@test policy isa TimeVaryingStrategy
-@test time_length(policy) == 10
-for k in 1:time_length(policy)
-    @test policy[k] == [(1,), (2,), (1,)]
+    mdp = IntervalMarkovDecisionProcess(transition_probs, istates)
 end
 
-# Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
-problem = VerificationProblem(mdp, spec, policy)
-V_mc, k, res = solve(problem)
-@test V ≈ V_mc
+@testitem "sparse/synthesis: finite time reachability" setup = [SparseSynthesisModels] begin
+    using SparseArrays
 
-# Finite time reward
-prop = FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10)
-spec = Specification(prop, Pessimistic, Maximize)
-problem = ControlSynthesisProblem(mdp, spec)
-policy, V, k, res = solve(problem)
+    (; mdp) = SparseSynthesisModels
 
-@test policy isa TimeVaryingStrategy
-@test time_length(policy) == 10
-for k in 1:time_length(policy)
-    @test policy[k] == [(2,), (2,), (1,)]
+    # Finite time reachability
+    prop = FiniteTimeReachability([3], 10)
+    spec = Specification(prop, Pessimistic, Maximize)
+    problem = ControlSynthesisProblem(mdp, spec)
+    sol = solve(problem)
+    policy, V, k, res = sol
+
+    @test strategy(sol) == policy
+    @test value_function(sol) == V
+    @test num_iterations(sol) == k
+    @test residual(sol) == res
+
+    @test policy isa TimeVaryingStrategy
+    @test time_length(policy) == 10
+    for k in 1:time_length(policy)
+        @test policy[k] == [(1,), (2,), (1,)]
+    end
+
+    # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
+    problem = VerificationProblem(mdp, spec, policy)
+    V_mc, k, res = solve(problem)
+    @test V ≈ V_mc
 end
 
-# Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
-problem = VerificationProblem(mdp, spec, policy)
-V_mc, k, res = solve(problem)
-@test V ≈ V_mc
+@testitem "sparse/synthesis: finite time reward" setup = [SparseSynthesisModels] begin
+    using SparseArrays
 
-# Infinite time reachability
-prop = InfiniteTimeReachability([3], 1e-6)
-spec = Specification(prop, Pessimistic, Maximize)
-problem = ControlSynthesisProblem(mdp, spec)
-policy, V, k, res = solve(problem)
+    (; mdp) = SparseSynthesisModels
 
-@test policy isa StationaryStrategy
-@test policy[1] == [(1,), (2,), (1,)]
+    # Finite time reward
+    prop = FiniteTimeReward([2.0, 1.0, 0.0], 0.9, 10)
+    spec = Specification(prop, Pessimistic, Maximize)
+    problem = ControlSynthesisProblem(mdp, spec)
+    policy, V, k, res = solve(problem)
 
-# Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
-problem = VerificationProblem(mdp, spec, policy)
-V_mc, k, res = solve(problem)
-@test V ≈ V_mc atol=1e-6
+    @test policy isa TimeVaryingStrategy
+    @test time_length(policy) == 10
+    for k in 1:time_length(policy)
+        @test policy[k] == [(2,), (2,), (1,)]
+    end
 
-# Finite time safety
-prop = FiniteTimeSafety([3], 10)
-spec = Specification(prop, Pessimistic, Maximize)
-problem = ControlSynthesisProblem(mdp, spec)
-policy, V, k, res = solve(problem)
-
-@test all(V .>= 0.0)
-@test V[3] ≈ 0.0
-
-@test policy isa TimeVaryingStrategy
-@test time_length(policy) == 10
-for k in 1:(time_length(policy) - 1)
-    @test policy[k] == [(2,), (2,), (1,)]
+    # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
+    problem = VerificationProblem(mdp, spec, policy)
+    V_mc, k, res = solve(problem)
+    @test V ≈ V_mc
 end
 
-# The last time step (aka. the first value iteration step) has a different strategy.
-@test policy[time_length(policy)] == [(2,), (1,), (1,)]
+@testitem "sparse/synthesis: infinite time reachability" setup = [SparseSynthesisModels] begin
+    using SparseArrays
 
-@testset "implicit sink state" begin
+    (; mdp) = SparseSynthesisModels
+
+    # Infinite time reachability
+    prop = InfiniteTimeReachability([3], 1e-6)
+    spec = Specification(prop, Pessimistic, Maximize)
+    problem = ControlSynthesisProblem(mdp, spec)
+    policy, V, k, res = solve(problem)
+
+    @test policy isa StationaryStrategy
+    @test policy[1] == [(1,), (2,), (1,)]
+
+    # Check if the value iteration for the IMDP with the policy applied is the same as the value iteration for the original IMDP
+    problem = VerificationProblem(mdp, spec, policy)
+    V_mc, k, res = solve(problem)
+    @test V ≈ V_mc atol=1e-6
+end
+
+@testitem "sparse/synthesis: finite time safety" setup = [SparseSynthesisModels] begin
+    using SparseArrays
+
+    (; mdp) = SparseSynthesisModels
+
+    # Finite time safety
+    prop = FiniteTimeSafety([3], 10)
+    spec = Specification(prop, Pessimistic, Maximize)
+    problem = ControlSynthesisProblem(mdp, spec)
+    policy, V, k, res = solve(problem)
+
+    @test all(V .>= 0.0)
+    @test V[3] ≈ 0.0
+
+    @test policy isa TimeVaryingStrategy
+    @test time_length(policy) == 10
+    for k in 1:(time_length(policy) - 1)
+        @test policy[k] == [(2,), (2,), (1,)]
+    end
+
+    # The last time step (aka. the first value iteration step) has a different strategy.
+    @test policy[time_length(policy)] == [(2,), (1,), (1,)]
+end
+
+@testitem "sparse/synthesis: implicit sink state" setup = [SparseSynthesisModels] begin
+    using SparseArrays
+
+    (; prob1, prob2) = SparseSynthesisModels
+
     transition_probs = [prob1, prob2]
     mdp = IntervalMarkovDecisionProcess(transition_probs)
 

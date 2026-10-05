@@ -1,25 +1,35 @@
-using Revise, Test
-using IntervalMDP, CUDA
+@testmodule CudaDenseBellmanModels begin
+    using IntervalMDP, CUDA
 
-@testset for N in [Float32, Float64]
-    prob = IntervalAmbiguitySets(;
-        lower = N[
-            0 1//2
-            1//10 3//10
-            2//10 1//10
-        ],
-        upper = N[
-            5//10 7//10
-            6//10 5//10
-            7//10 3//10
-        ],
-    )
-    prob = IntervalMDP.cu(prob)
+    function build(N)
+        prob = IntervalAmbiguitySets(;
+            lower = N[
+                0 1//2
+                1//10 3//10
+                2//10 1//10
+            ],
+            upper = N[
+                5//10 7//10
+                6//10 5//10
+                7//10 3//10
+            ],
+        )
+        prob = IntervalMDP.cu(prob)
 
-    V = IntervalMDP.cu(N[1, 2, 3])
+        V = IntervalMDP.cu(N[1, 2, 3])
 
-    #### Maximization
-    @testset "maximization" begin
+        return (; prob, V)
+    end
+end
+
+@testitem "cuda/dense/bellman: maximization" setup = [CudaDenseBellmanModels] tags =
+    [:cuda] begin
+    using CUDA
+
+    @testset for N in [Float32, Float64]
+        (; prob, V) = CudaDenseBellmanModels.build(N)
+
+        #### Maximization
         ws = IntervalMDP.construct_workspace(prob)
         strategy_cache = IntervalMDP.construct_strategy_cache(prob)
         Vres = CUDA.zeros(N, 2)
@@ -27,9 +37,16 @@ using IntervalMDP, CUDA
         Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
         @test Vres ≈ N[27 // 10, 17 // 10] # [0.3 * 2 + 0.7 * 3, 0.5 * 1 + 0.3 * 2 + 0.2 * 3]
     end
+end
 
-    #### Minimization
-    @testset "minimization" begin
+@testitem "cuda/dense/bellman: minimization" setup = [CudaDenseBellmanModels] tags =
+    [:cuda] begin
+    using CUDA
+
+    @testset for N in [Float32, Float64]
+        (; prob, V) = CudaDenseBellmanModels.build(N)
+
+        #### Minimization
         ws = IntervalMDP.construct_workspace(prob)
         strategy_cache = IntervalMDP.construct_strategy_cache(prob)
         Vres = CUDA.zeros(N, 2)

@@ -1,18 +1,25 @@
-using Revise, Test
-using IntervalMDP
+@testmodule BaseBellmanModels begin
+    using IntervalMDP
 
-@testset for N in [Float32, Float64, Rational{BigInt}]
-    prob = IntervalAmbiguitySets(;
-        lower = N[0 1//2; 1//10 3//10; 2//10 1//10],
-        upper = N[5//10 7//10; 6//10 5//10; 7//10 3//10],
-    )
+    function build(N)
+        prob = IntervalAmbiguitySets(;
+            lower = N[0 1//2; 1//10 3//10; 2//10 1//10],
+            upper = N[5//10 7//10; 6//10 5//10; 7//10 3//10],
+        )
 
-    V = N[1, 2, 3]
+        V = N[1, 2, 3]
 
-    states = FullUpdateSequence(prob)
+        states = FullUpdateSequence(prob)
 
-    #### Maximization
-    @testset "maximization" begin
+        return (; prob, V, states)
+    end
+end
+
+@testitem "base/bellman: maximization" setup = [BaseBellmanModels] begin
+    @testset for N in [Float32, Float64, Rational{BigInt}]
+        (; prob, V, states) = BaseBellmanModels.build(N)
+
+        #### Maximization
         ws = IntervalMDP.construct_workspace(prob)
         strategy_cache = IntervalMDP.construct_strategy_cache(prob)
         Vres = zeros(N, 2)
@@ -40,9 +47,13 @@ using IntervalMDP
         )
         @test Vres ≈ N[27 // 10, 17 // 10]
     end
+end
 
-    #### Minimization
-    @testset "minimization" begin
+@testitem "base/bellman: minimization" setup = [BaseBellmanModels] begin
+    @testset for N in [Float32, Float64, Rational{BigInt}]
+        (; prob, V, states) = BaseBellmanModels.build(N)
+
+        #### Minimization
         ws = IntervalMDP.construct_workspace(prob)
         strategy_cache = IntervalMDP.construct_strategy_cache(prob)
         Vres = zeros(N, 2)
@@ -70,9 +81,11 @@ using IntervalMDP
         )
         @test Vres ≈ N[17 // 10, 15 // 10]
     end
+end
 
-    #### Default `states` matches explicit FullUpdateSequence (public bellman! API on an IMDP)
-    @testset "FullUpdateSequence == default" begin
+@testitem "base/bellman: FullUpdateSequence == default" setup = [BaseBellmanModels] begin
+    @testset for N in [Float32, Float64, Rational{BigInt}]
+        #### Default `states` matches explicit FullUpdateSequence (public bellman! API on an IMDP)
         # 3 source states × 1 action, 3 targets (square IMDP so bellman! works)
         square = IntervalAmbiguitySets(;
             lower = N[0 1//2 0; 1//10 3//10 0; 1//5 1//10 1],
