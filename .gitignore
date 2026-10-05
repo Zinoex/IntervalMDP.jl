@@ -19,3 +19,6 @@ __pycache__/
 *.pyc
 .lake/
 .claude/settings.local.json
+
+# Lean proofs (lean/)
+lean/.lake/
