@@ -1,0 +1,19 @@
+name = "JuliaGpuFailing"
+uuid = "6b0e6f1e-2a51-4a7e-9a59-1f0e8a3c0004"
+version = "0.1.0"
+
+[weakdeps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+
+[extensions]
+JuliaGpuFailingCUDAExt = "CUDA"
+
+[compat]
+julia = "1.9"
+
+[extras]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test", "CUDA"]

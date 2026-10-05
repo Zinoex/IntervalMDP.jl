@@ -1,0 +1,3 @@
+[lean]
+root = "lean"
+approved_axioms = ["propext", "Classical.choice", "Quot.sound"]

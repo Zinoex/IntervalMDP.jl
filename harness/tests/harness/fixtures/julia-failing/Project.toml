@@ -1,0 +1,12 @@
+name = "JuliaFailing"
+uuid = "6b0e6f1e-2a51-4a7e-9a59-1f0e8a3c0002"
+version = "0.1.0"
+
+[compat]
+julia = "1.9"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
