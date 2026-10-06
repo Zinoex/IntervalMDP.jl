@@ -351,6 +351,49 @@ function reset_sampling_strategy!(ss::SamplingStrategy)
 end
 
 ###################################
+# Lifecycle: bound-update mode     #
+###################################
+# Which GSRDP bound runs the optimizing Bellman update. Defined here rather than in
+# `gsrdp.jl` because samplers that anneal over the backup count (`TrajectorySampling`,
+# `PrioritizedSweep`) charge backups themselves, mid-`sample`, and must charge what
+# GSRDP charges: `_gsrdp!` hands them the mode through `set_bound_update!`, once per
+# `solve`, right after `reset_sampling_strategy!`.
+
+"""
+    BoundUpdateMode
+
+Which bound of GSRDP's `IntervalValueFunction` runs the optimizing Bellman update:
+[`UpperDrives`](@ref) or [`BothDrive`](@ref).
+"""
+abstract type BoundUpdateMode end
+
+"Upper bound optimizes, lower bound follows its action. The default."
+struct UpperDrives <: BoundUpdateMode end
+
+"Both bounds optimize independently."
+struct BothDrive <: BoundUpdateMode end
+
+# Backups one relaxed state costs: one bound optimizes over every action and the other
+# evaluates the single chosen one, unless both optimize.
+_backups_per_state(::BoundUpdateMode, mp) = num_actions(mp) + 1
+_backups_per_state(::BothDrive, mp) = 2 * num_actions(mp)
+
+_bellman_update_count(mode::BoundUpdateMode, update_sequence, mp) =
+    length(project_to_state_sequence(update_sequence)) * _backups_per_state(mode, mp)
+
+"""
+    set_bound_update!(ss::SamplingStrategy, mode::BoundUpdateMode)
+
+Tell `ss` which bound-update mode the solve it is about to serve uses, so a strategy
+that counts Bellman backups itself charges `_backups_per_state(mode, model)` per state.
+Defaults to propagating to `sub_strategies`; only backup-counting strategies store it.
+"""
+function set_bound_update!(ss::SamplingStrategy, mode::BoundUpdateMode)
+    foreach(sub -> set_bound_update!(sub, mode), sub_strategies(ss))
+    return nothing
+end
+
+###################################
 # 1. Exhaustive sampling           #
 ###################################
 

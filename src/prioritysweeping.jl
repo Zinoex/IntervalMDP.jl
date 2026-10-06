@@ -49,7 +49,10 @@ import ..IntervalMDP:
     compute_priority,
     sample,
     reset_sampling_strategy!,
-    num_actions,
+    set_bound_update!,
+    BoundUpdateMode,
+    UpperDrives,
+    _backups_per_state,
     system_property,
     convergence_eps,
     ismaximize,
@@ -909,6 +912,9 @@ struct PrioritizedSweep{P <: StatePriority, R <: PropagationRule, S <: Selection
     # Bellman updates issued so far — `n` for `UpdateDecayTemperature`. Tracked
     # here because `sample` is not handed the solver's iteration count.
     updates::Base.RefValue{Int}
+    # GSRDP's bound-update mode, which sets what one relaxed state costs; see
+    # `set_bound_update!`.
+    bound_update::Base.RefValue{BoundUpdateMode}
 
     function PrioritizedSweep(;
         priority::P = GapPriority(),
@@ -936,9 +942,13 @@ struct PrioritizedSweep{P <: StatePriority, R <: PropagationRule, S <: Selection
             Ref(Tuple{Float64, Float64}[]),
             Ref(Vector{Tuple{Int, Float64}}[]),
             Ref(0),
+            Ref{BoundUpdateMode}(UpperDrives()),
         )
     end
 end
+
+set_bound_update!(ss::PrioritizedSweep, mode::BoundUpdateMode) =
+    (ss.bound_update[] = mode; nothing)
 
 function reset_sampling_strategy!(ss::PrioritizedSweep)
     ss.initialized[] = false
@@ -994,11 +1004,10 @@ function _max_gap(value_function)
     return m
 end
 
-# Mirrors GSRDP's own `_bellman_update_count` exactly — the sampler hands back a
-# `StateIterator`, on which `project_to_state_sequence` is the identity, and
-# every state in it gets a full action sweep plus the state backup.
+# GSRDP's own per-state cost under the solve's bound-update mode (see
+# `set_bound_update!`), so the schedule anneals over the count the solver reports.
 function _count_updates!(ss::PrioritizedSweep, model, batch)
-    ss.updates[] += length(batch) * (num_actions(model) + 1)
+    ss.updates[] += length(batch) * _backups_per_state(ss.bound_update[], model)
     return batch
 end
 

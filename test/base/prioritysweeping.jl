@@ -670,10 +670,11 @@ end
         @test ss.updates[] == 0
     end
 
-    @testset "the backup counter tracks GSRDP's bellman_updates" begin
+    @testset "the backup counter tracks GSRDP's bellman_updates ($mode)" for mode in
+                                                                             [IntervalMDP.UpperDrives(), IntervalMDP.BothDrive()]
         # `n` for UpdateDecayTemperature is meant to BE the solver's backup
         # count, but the strategy has to reconstruct it (`sample` is not handed
-        # the iteration). Check the two never drift.
+        # the iteration). Check the two never drift, under every bound-update mode.
         ss = PQ.PrioritizedSweep(;
             policy = TS.Boltzmann(TS.UpdateDecayTemperature(0.5, 1.0, 0.999)),
             k = 2,
@@ -690,8 +691,10 @@ end
         gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
             default_bellman_algorithm(mdp);
             sampling_strategy = ss,
+            bound_update = mode,
         )
         solve(problem, gsdp; callback = callback)
+        @test ss.bound_update[] === mode
         @test seen[] > 0
         @test agree[]
     end

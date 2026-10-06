@@ -1289,8 +1289,10 @@ end
         # count, but the strategy has to reconstruct it (`sample` is not handed
         # the iteration). Check the two never drift: GSRDP reports its own
         # count to the callback, and the strategy has just finished charging
-        # itself for that same batch.
-        @testset "the backup counter tracks GSRDP's bellman_updates" begin
+        # itself for that same batch. Under every bound-update mode: `BothDrive`
+        # charges `2|A|` per state rather than `|A| + 1`.
+        @testset "the backup counter tracks GSRDP's bellman_updates ($mode)" for mode in
+                                                                                 [IntervalMDP.UpperDrives(), IntervalMDP.BothDrive()]
             ss = TS.TrajectorySampling(;
                 state_policy = TS.Boltzmann(TS.UpdateDecayTemperature(0.5, 1.0, 0.999)),
             )
@@ -1306,10 +1308,23 @@ end
             gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
                 default_bellman_algorithm(mdp);
                 sampling_strategy = ss,
+                bound_update = mode,
             )
             solve(problem, gsdp; callback = callback)
+            @test ss.bound_update[] === mode
             @test seen[] > 0
             @test agree[]
+        end
+
+        # A composite forwards the mode to the strategy that does the counting.
+        @testset "set_bound_update! reaches a wrapped strategy" begin
+            ss = TS.TrajectorySampling()
+            @test ss.bound_update[] isa IntervalMDP.UpperDrives
+            IntervalMDP.set_bound_update!(
+                IntervalMDP.RandomlyThinned(ss, 0.5),
+                IntervalMDP.BothDrive(),
+            )
+            @test ss.bound_update[] isa IntervalMDP.BothDrive
         end
     end
 end
