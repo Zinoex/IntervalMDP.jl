@@ -1,0 +1,20 @@
+name = "IntervalMDPProofs"
+version = "0.1.0"
+defaultTargets = ["IntervalMDPProofs"]
+
+# Mathlib is pinned to a release tag. `lean-toolchain` is copied verbatim from
+# that tag (leanprover/lean4:v4.33.0-rc2). Never bump one without the other.
+[[require]]
+name = "mathlib"
+git = "https://github.com/leanprover-community/mathlib4"
+rev = "v4.33.0-rc2"
+
+[[lean_lib]]
+name = "IntervalMDPProofs"
+
+[lean_lib.leanOptions]
+autoImplicit = false
+relaxedAutoImplicit = false
+# Every public declaration (def, structure, theorem) must carry a docstring
+# (core counterpart of Mathlib's `docBlame` / `docBlameThm` environment linters).
+linter.missingDocs = true

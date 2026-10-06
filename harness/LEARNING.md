@@ -76,3 +76,33 @@ Each entry should be dated and attributed to the stage that learned it:
 - **Problem:** The harness began as a standalone repo (`rmdp`) with `tools/`, `tests/`, `specs/` and `README.md` at its root. Those collide with the package's own `test/`, `README.md` and `.gitignore`, and JuliaFormatter's `format(".")` CI step would reformat the deliberately unformatted Julia fixtures.
 - **Root cause:** Every harness path was written relative to a standalone repo root.
 - **Fix / guardrail:** `.claude/` and `.mcp.json` stay at the repo root, because Claude Code only finds them there; everything else lives under `harness/`. Docs and agents use `harness/...` paths, and the tests resolve `.claude/` one level above `harness/`. `.JuliaFormatter.toml` has `ignore = ["harness"]`. The default target root is now the repository root, never `harness/` or its fixtures. Run `sh harness/tests/harness/run.sh` from the repo root after moving files.
+
+### 2026-10-05 — QE — Julia 1.13 changed `CartesianIndex` printing
+- **Problem:** `test/base/specification.jl` failed 11 tests on Julia 1.13.1.
+- **Root cause:** Julia 1.13 prints `CartesianIndex` without the trailing comma, and the expected `show` strings were hard-coded for the old format.
+- **Fix / guardrail:** Build expected `show` strings by interpolating the same value (`"... $(CartesianIndex(...)) ..."`) instead of hard-coding the printed form. Keep such fixes in their own commit, separate from feature work.
+
+### 2026-10-05 — QE/Ops — `Pkg.test()` rewrites a tracked data file
+- **Problem:** Running the test suite modifies `test/data/multiObj_robotIMDP.nc`, which leaves a dirty working tree.
+- **Root cause:** A test writes the NetCDF file back to the tracked fixture path.
+- **Fix / guardrail:** After test runs, `git checkout -- test/data/multiObj_robotIMDP.nc`. Ops must never commit it as part of an unrelated change.
+
+### 2026-10-05 — Dev/Formal Verification — Choose a Mathlib tag that matches an installed toolchain
+- **Problem:** A Mathlib tag whose `lean-toolchain` is not installed triggers a silent toolchain download through the elan proxy.
+- **Root cause:** Each Mathlib tag pins its own Lean toolchain.
+- **Fix / guardrail:** Pick a Mathlib tag whose `lean-toolchain` equals an installed toolchain (Phase 0 used Mathlib v4.33.0-rc2). Run `lake` from `~/.elan/toolchains/<tc>/bin`, never through the proxy. Commit `lake-manifest.json`, and add `lean/.lake/` to `.gitignore`.
+
+### 2026-10-05 — QE — Spec docstring rules need a machine check
+- **Problem:** QE failed cycle 1 because 83 Lean docstrings had no Julia counterpart reference, even though the spec required one.
+- **Root cause:** The rule was prose in the spec, so neither Dev nor Verify checked it mechanically.
+- **Fix / guardrail:** `lean/scripts/check_julia_refs.py` enforces it now. Any spec rule about documentation or traceability should come with a script that Dev runs before handing off.
+
+### 2026-10-05 — Dev/Planner — Raise modeling conflicts with the literature as Findings
+- **Problem:** Dev initially modeled the factored IMDP ambiguity set as a convex hull, but the literature (arXiv:2411.11803, arXiv:2508.00707) uses the literal, non-convex product set.
+- **Root cause:** A modeling choice that made proofs easier quietly diverged from the reference semantics.
+- **Fix / guardrail:** Surface such conflicts as Findings (F-numbered) for the operator, not silent resolutions. Phase 0 resolved F1 by modeling the literal `productSet` and proving `productSet_not_convex`.
+
+### 2026-10-05 — Ops — Check that local main is not ahead of origin before opening a PR
+- **Problem:** If local `main` has unpushed commits (e.g. local merges), a feature branch from HEAD would carry them into the PR.
+- **Root cause:** Merges made locally on `main` are not on `origin/main`.
+- **Fix / guardrail:** Run `git fetch origin` and `git rev-list --count origin/main..main` before branching. If the count is non-zero, do not push or open a PR. Report the commits and the operator commands (`git push origin main`, or rebase the branch onto `origin/main`). In this run the count was 0, so the PR went ahead. Also, the shell here is zsh: `R="python3 x.py"; $R ...` does not word-split, so define a function `R(){ python3 x.py "$@"; }` for the telemetry wrapper.

@@ -66,7 +66,7 @@ end
     str = String(take!(io))
     @test occursin("FiniteTimeReachability", str)
     @test occursin("Time horizon: 10", str)
-    @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+    @test occursin("Reach states: $([CartesianIndex(3)])", str)
 
     prop = InfiniteTimeReachability([3], 1e-6)
     @test !IntervalMDP.isfinitetime(prop)
@@ -79,7 +79,7 @@ end
     str = String(take!(io))
     @test occursin("InfiniteTimeReachability", str)
     @test occursin("Convergence threshold: 1.0e-6", str)
-    @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+    @test occursin("Reach states: $([CartesianIndex(3)])", str)
 
     prop = ExactTimeReachability([3], 10)
     @test IntervalMDP.isfinitetime(prop)
@@ -92,7 +92,7 @@ end
     str = String(take!(io))
     @test occursin("ExactTimeReachability", str)
     @test occursin("Time horizon: 10", str)
-    @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+    @test occursin("Reach states: $([CartesianIndex(3)])", str)
 end
 
 @testitem "base/specification: getters — reach-avoid" begin
@@ -108,8 +108,8 @@ end
     str = String(take!(io))
     @test occursin("FiniteTimeReachAvoid", str)
     @test occursin("Time horizon: 10", str)
-    @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
-    @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(4,)]", str)
+    @test occursin("Reach states: $([CartesianIndex(3)])", str)
+    @test occursin("Avoid states: $([CartesianIndex(4)])", str)
 
     prop = InfiniteTimeReachAvoid([3], [4], 1e-6)
     @test !IntervalMDP.isfinitetime(prop)
@@ -123,8 +123,8 @@ end
     str = String(take!(io))
     @test occursin("InfiniteTimeReachAvoid", str)
     @test occursin("Convergence threshold: 1.0e-6", str)
-    @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
-    @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(4,)]", str)
+    @test occursin("Reach states: $([CartesianIndex(3)])", str)
+    @test occursin("Avoid states: $([CartesianIndex(4)])", str)
 
     prop = ExactTimeReachAvoid([3], [4], 10)
     @test IntervalMDP.isfinitetime(prop)
@@ -138,8 +138,8 @@ end
     str = String(take!(io))
     @test occursin("ExactTimeReachAvoid", str)
     @test occursin("Time horizon: 10", str)
-    @test occursin("Reach states: CartesianIndex{1}[CartesianIndex(3,)]", str)
-    @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(4,)]", str)
+    @test occursin("Reach states: $([CartesianIndex(3)])", str)
+    @test occursin("Avoid states: $([CartesianIndex(4)])", str)
 end
 
 @testitem "base/specification: getters — safety" begin
@@ -154,7 +154,7 @@ end
     str = String(take!(io))
     @test occursin("FiniteTimeSafety", str)
     @test occursin("Time horizon: 10", str)
-    @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+    @test occursin("Avoid states: $([CartesianIndex(3)])", str)
 
     prop = InfiniteTimeSafety([3], 1e-6)
     @test !IntervalMDP.isfinitetime(prop)
@@ -167,7 +167,7 @@ end
     str = String(take!(io))
     @test occursin("InfiniteTimeSafety", str)
     @test occursin("Convergence threshold: 1.0e-6", str)
-    @test occursin("Avoid states: CartesianIndex{1}[CartesianIndex(3,)]", str)
+    @test occursin("Avoid states: $([CartesianIndex(3)])", str)
 end
 
 @testitem "base/specification: getters — reward" begin
