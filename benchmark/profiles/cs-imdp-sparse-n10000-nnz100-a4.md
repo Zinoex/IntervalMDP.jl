@@ -470,3 +470,544 @@ No errors detected
 
 ```
 
+## Run: backend cpu, Float64, 1 thread(s)
+
+- date (UTC): 2026-10-07T16:49:47.620; git 4a42913 (src/ext dirty: false)
+- Julia 1.13.1; pinning: compact (thread→CPU: interactive Int64[], default [0]); sampling delay 0.5 ms, 6.0 s per entry
+
+### Entry `bellman_cs` (strategy cache of `solve_cs_stationary`: `StationaryStrategyCache`)
+
+- one call after warm-up: 77.354 ms, 2560000 bytes allocated (`@allocated`), `Base.@allocations` = 80000
+- **steady-state `bellman!` allocation: 2560000 bytes per call (does NOT meet the zero-allocation goal)**
+- correctness: pass (max |ΔV| vs `bellman!` with the default strategy cache = 0.0; no stored reference exists for this pseudo-entry)
+
+#### Allocation profile (`Profile.Allocs`, one call)
+
+`Base.@allocations` = 80000 per call; sample_rate = 1; 80000 allocations (2560000 bytes) recorded.
+
+By innermost IntervalMDP frame:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `state_action_bellman @ src/bellman.jl:550` | 80000 | 2560000 |
+
+By type:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}` | 40000 | 1920000 |
+| `@NamedTuple{scratch::Vector{Tuple{Float64, Float64}}}` | 40000 | 640000 |
+
+#### JET.@report_opt (target_modules = (IntervalMDP,))
+
+0 report(s).
+
+```
+No errors detected
+
+```
+
+### Entry `bellman_cs` (strategy cache of `solve_cs_timevarying`: `TimeVaryingStrategyCache`)
+
+- one call after warm-up: 164.256 ms, 2560000 bytes allocated (`@allocated`), `Base.@allocations` = 80000
+- **steady-state `bellman!` allocation: 2560000 bytes per call (does NOT meet the zero-allocation goal)**
+- correctness: pass (max |ΔV| vs `bellman!` with the default strategy cache = 0.0; no stored reference exists for this pseudo-entry)
+
+#### Allocation profile (`Profile.Allocs`, one call)
+
+`Base.@allocations` = 80000 per call; sample_rate = 1; 80000 allocations (2560000 bytes) recorded.
+
+By innermost IntervalMDP frame:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `state_action_bellman @ src/bellman.jl:550` | 80000 | 2560000 |
+
+By type:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}` | 40000 | 1920000 |
+| `@NamedTuple{scratch::Vector{Tuple{Float64, Float64}}}` | 40000 | 640000 |
+
+#### JET.@report_opt (target_modules = (IntervalMDP,))
+
+0 report(s).
+
+```
+No errors detected
+
+```
+
+## Run: backend cpu, Float64, 16 thread(s)
+
+- date (UTC): 2026-10-07T17:13:45.343; git 4a42913 (src/ext dirty: false)
+- Julia 1.13.1; pinning: compact (thread→CPU: interactive [0], default [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]); sampling delay 0.5 ms, 6.0 s per entry
+
+### Entry `solve_cs_stationary`
+
+Descriptive fields: `{"algorithm":"RobustValueIteration","problem":"ControlSynthesisProblem","property":"InfiniteTimeReachability","workspace_type":"ThreadedSparseIntervalOMaxWorkspace"}`
+
+- correctness check vs stored reference (`benchmark/reference/cpu-Float64`): **pass** (max |ΔV| = 0, tolerance 1e-05)
+- one call after warm-up: 1216.512 ms, 182580392 bytes allocated (`@allocated`)
+- BenchmarkTools single call: allocs = 5365714, memory = 182580392 bytes
+
+#### CPU sampling profile
+
+5 calls profiled, 16599 samples on the compute threads (default threadpool; mincount 5 for listed frames). Self-time share of a frame = Overhead / 16599.
+
+Top frames by **self time** (`Overhead` column = samples whose leaf is this frame):
+
+```
+ Count  Overhead File                                                             Line Function
+ =====  ======== ====                                                             ==== ========
+ 13085     13030 @Base/task.jl                                                   1297 wait()
+   884       883 @Base/array.jl                                                  1025 _setindex!
+   355       355 @Base/ordering.jl                                                136 _by(by::Function, order::Base.Order.ForwardOrdering)
+   279       279 @Base/essentials.jl                                              975 getindex
+  2932       275 @Base/sort.jl                                                   1741 sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Functio…
+   201       201 @Base/int.jl                                                      83 <
+   121       121 @Base/int.jl                                                     419 xor
+   102       102 @Base/sort.jl                                                      ? _sort!(v::Vector{Tuple{Float64, Float64}}, ::Base.Sort.InsertionSortAlg, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@NamedTuple{sc…
+    85        85 @Base/float.jl                                                   494 *
+   125        79 @Base/float.jl                                                   637 isless
+    76        76 @Base/essentials.jl                                              854 ifelse
+    70        70 @Base/float.jl                                                   492 +
+    69        69 @Base/int.jl                                                      87 +
+    64        64 @Base/int.jl                                                     344 rem
+    53        53 @Base/essentials.jl                                              788 reinterpret
+    52        52 @Base/sort.jl                                                      ? partition!(t::Vector{Tuple{Float64, Float64}}, lo::Int64, hi::Int64, offset::Int64, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, v::Vect…
+    48        48 @Base/cmem.jl                                                     28 memmove
+    46        46 @Base/float.jl                                                   621 ==
+    42        42 @Base/namedtuple.jl                                              385 get
+    40        40 @IntervalMDP/src/bellman.jl                                        ? gap_value
+```
+
+Top frames by **inclusive** count:
+
+```
+ Count  Overhead File                                                             Line Function
+ =====  ======== ====                                                             ==== ========
+ 13086     13031 @Base/task.jl                                                   1297 wait()
+ 12182         0 @Base/task.jl                                                   1196 wait_forever()
+  3480         0 @Base/threadingconstructs.jl                                     178 (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOM…
+  3480         0 @IntervalMDP/src/threading.jl                                      7 #48
+  3473         0 @IntervalMDP/src/threading.jl                                     41 (::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.StationaryStrategyC…
+  3471         0 @IntervalMDP/src/bellman.jl                                      428 macro expansion
+  3455         0 @IntervalMDP/src/bellman.jl                                      473 state_bellman!
+  2937         0 @IntervalMDP/src/bellman.jl                                      550 state_action_bellman
+  2937         2 @Base/sort.jl                                                   1734 sort!
+  2932       275 @Base/sort.jl                                                   1741 sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Functio…
+  2295         1 @Base/sort.jl                                                   1594 _sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}, ::Base.Sort.DefaultStable, o::Base.Order…
+  2289         0 @Base/sort.jl                                                    574 _sort!
+  2289         0 @Base/sort.jl                                                    686 _sort!
+  2289         0 @Base/sort.jl                                                    747 _sort!
+  2289         0 @Base/sort.jl                                                    802 _sort!
+  2289         0 @Base/sort.jl                                                    731 _sort!
+  2289         0 @Base/sort.jl                                                    780 _sort!
+  2269         0 @Base/sort.jl                                                   1380 _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.StableCheckSorted{Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}}, o::…
+  2269         8 @Base/sort.jl                                                   1123 _sort!
+  1164         0 @Base/sort.jl                                                   1165 _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), …
+   981         0 @Base/client.jl                                                  577 _start()
+   981         0 @Base/client.jl                                                  344 exec_options(opts::Base.JLOptions)
+   981         0 @Base/Base.jl                                                    309 include(mod::Module, _path::String)
+   981         0 @Base/loading.jl                                                3093 _include(mapexpr::Function, mod::Module, _path::String)
+   981         0 @Base/loading.jl                                                3033 include_string(mapexpr::typeof(identity), mod::Module, code::String, filename::String)
+```
+
+<details><summary>Pruned call tree (frames with ≥1% of samples)</summary>
+
+```
+Overhead ╎ [+additional indent] Count File:Line  Function
+=========================================================
+     ╎981   @Base/client.jl:577  _start()
+     ╎ 981   @Base/client.jl:344  exec_options(opts::Base.JLOptions)
+     ╎  981   @Base/Base.jl:309  include(mod::Module, _path::String)
+     ╎   981   @Base/loading.jl:3093  _include(mapexpr::Function, mod::Module, _path::String)
+     ╎    981   @Base/loading.jl:3033  include_string(mapexpr::typeof(identity), mod::Module, code::String, filename::String)
+     ╎     981   @Base/boot.jl:489  eval(m::Module, e::Any)
+     ╎    ╎ 981   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:277  main()
+     ╎    ╎  981   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:81  sampling_profile(f::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{OMaximization}, ControlSynthesisProblem{FactoredRobustMarkovDecisionP…
+     ╎    ╎   981   @Profile/src/Profile.jl:60  macro expansion
+     ╎    ╎    981   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:82  macro expansion
+     ╎    ╎     981   /home/fresen/.julia/dev/IntervalMDP/benchmark/lib/measure.jl:80  (::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{OMaximization}, ControlSynthesisProblem{FactoredRobustMarkovDecisionProcess{1, …
+     ╎    ╎    ╎ 981   @IntervalMDP/src/robust_value_iteration.jl:163  solve
+     ╎    ╎    ╎  981   @IntervalMDP/src/robust_value_iteration.jl:164  #solve#93
+     ╎    ╎    ╎   981   @IntervalMDP/src/robust_value_iteration.jl:170  _value_iteration!
+     ╎    ╎    ╎    917   @IntervalMDP/src/robust_value_iteration.jl:193  _value_iteration!(problem::ControlSynthesisProblem{FactoredRobustMarkovDecisionProcess{1, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseMatrixCSC{Float64, I…
+     ╎    ╎    ╎     916   @IntervalMDP/src/robust_value_iteration.jl:237  step!
+     ╎    ╎    ╎    ╎ 916   @IntervalMDP/src/bellman.jl:202  bellman!
+     ╎    ╎    ╎    ╎  916   @IntervalMDP/src/bellman.jl:202  bellman!
+     ╎    ╎    ╎    ╎   916   @IntervalMDP/src/bellman.jl:213  #bellman!#35
+     ╎    ╎    ╎    ╎    916   @IntervalMDP/src/bellman.jl:411  _bellman_helper!
+     ╎    ╎    ╎    ╎     916   @IntervalMDP/src/bellman.jl:426  #_bellman_helper!#46
+     ╎    ╎    ╎    ╎    ╎ 916   @IntervalMDP/src/threading.jl:46  macro expansion
+     ╎    ╎    ╎    ╎    ╎  903   @Base/threadingconstructs.jl:192  threading_run(fun::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.StationaryStrategyCach…
+     ╎    ╎    ╎    ╎    ╎   903   @Base/task.jl:312  _wait(t::Task)
+     ╎    ╎    ╎    ╎    ╎    903   @Base/condition.jl:136  wait
+     ╎    ╎    ╎    ╎    ╎     899   @Base/condition.jl:141  wait(c::Base.GenericCondition{Base.Threads.SpinLock}; first::Bool)
+  896╎    ╎    ╎    ╎    ╎    ╎ 898   @Base/task.jl:1297  wait()
+     ╎12182 @Base/task.jl:1196  wait_forever()
+12126╎ 12179 @Base/task.jl:1297  wait()
+     ╎3480  @Base/threadingconstructs.jl:178  (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.Station…
+     ╎ 3480  @IntervalMDP/src/threading.jl:7  #48
+     ╎  3473  @IntervalMDP/src/threading.jl:41  (::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.StationaryStrategyCache{1, Vector{Tuple{Int32}}}, Vector{F…
+     ╎   3471  @IntervalMDP/src/bellman.jl:428  macro expansion
+     ╎    3455  @IntervalMDP/src/bellman.jl:473  state_bellman!
+     ╎     2937  @IntervalMDP/src/bellman.jl:550  state_action_bellman
+    2╎    ╎ 2937  @Base/sort.jl:1734  sort!
+  275╎    ╎  2932  @Base/sort.jl:1741  sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Function, by::Function, rev::Bool, order::Base.Order.Fo…
+    3╎    ╎   359   @Base/ordering.jl:158  ord(lt::Function, by::Function, rev::Bool, order::Base.Order.ForwardOrdering)
+    1╎    ╎    356   @Base/ordering.jl:131  _ord
+  355╎    ╎     355   @Base/ordering.jl:136  _by(by::Function, order::Base.Order.ForwardOrdering)
+    1╎    ╎   2295  @Base/sort.jl:1594  _sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}, ::Base.Sort.DefaultStable, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering},…
+     ╎    ╎    2289  @Base/sort.jl:574  _sort!
+     ╎    ╎     2289  @Base/sort.jl:686  _sort!
+     ╎    ╎    ╎ 2289  @Base/sort.jl:747  _sort!
+     ╎    ╎    ╎  2289  @Base/sort.jl:802  _sort!
+     ╎    ╎    ╎   2289  @Base/sort.jl:731  _sort!
+     ╎    ╎    ╎    2289  @Base/sort.jl:780  _sort!
+     ╎    ╎    ╎     2269  @Base/sort.jl:1380  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.StableCheckSorted{Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}}, o::Base.Order.By{typeof(first), Base.Order.…
+    1╎    ╎    ╎    ╎ 2269  @Base/sort.jl:1123  _sort!
+    3╎    ╎    ╎    ╎  301   @Base/sort.jl:1135  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@Name…
+    6╎    ╎    ╎    ╎  349   @Base/sort.jl:1137  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@Name…
+     ╎    ╎    ╎    ╎  707   @Base/sort.jl:1154  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@Name…
+     ╎    ╎    ╎    ╎   693   @Base/sort.jl:1123  _sort!
+     ╎    ╎    ╎    ╎    409   @Base/sort.jl:1165  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@Na…
+     ╎    ╎    ╎    ╎  623   @Base/sort.jl:1158  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@Name…
+    4╎    ╎    ╎    ╎   618   @Base/sort.jl:1123  _sort!
+     ╎    ╎    ╎    ╎    327   @Base/sort.jl:1165  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@Na…
+     ╎    ╎    ╎    ╎  244   @Base/sort.jl:1165  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@Name…
+     ╎     339   @IntervalMDP/src/bellman.jl:552  state_action_bellman
+Total snapshots: 16683. Utilization: 23% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+
+```
+</details>
+
+#### Allocation profile (`Profile.Allocs`, one call)
+
+`Base.@allocations` = 5365714 per call; sample_rate = 0.03727; 198193 allocations (6676272 bytes) recorded — counts below are samples, multiply by 1/sample_rate for totals.
+
+By innermost IntervalMDP frame:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `state_action_bellman @ src/bellman.jl:550` | 197987 | 6334544 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:127` | 6 | 320144 |
+| `macro expansion @ src/threading.jl:46` | 198 | 21520 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:128` | 1 | 32 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:130` | 1 | 32 |
+
+By type:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}` | 98961 | 4750128 |
+| `@NamedTuple{scratch::Vector{Tuple{Float64, Float64}}}` | 99026 | 1584416 |
+| `Profile.Allocs.BufferType` | 1 | 320000 |
+| `Task` | 44 | 9856 |
+| `Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.StationaryStrategyCache{1, Vector{Tuple{Int32}}}, Vector{Float64}, Vector{Float64}, FactoredRobustMarkovDecisionProcess{1, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseMatrixCSC{Float64, Int32}}, 1, 1}}, AllAvailableActions{1}, AllStates}, FullUpdateSequence{1, Tuple{Base.OneTo{Int64}}}}}, Int64}` | 45 | 8640 |
+| `Base.IntrusiveLinkedList{Task}` | 36 | 1152 |
+| `Base.GenericCondition{Base.Threads.SpinLock}` | 34 | 1088 |
+| `Base.Threads.SpinLock` | 36 | 576 |
+| `Memory{Task}` | 1 | 144 |
+| `Vector{Float64}` | 4 | 128 |
+
+#### JET.@report_opt (target_modules = (IntervalMDP,))
+
+0 report(s).
+
+```
+No errors detected
+
+```
+
+### Entry `solve_cs_timevarying`
+
+Descriptive fields: `{"algorithm":"RobustValueIteration","problem":"ControlSynthesisProblem","property":"FiniteTimeReachability","workspace_type":"ThreadedSparseIntervalOMaxWorkspace"}`
+
+- correctness check vs stored reference (`benchmark/reference/cpu-Float64`): **pass** (max |ΔV| = 0, tolerance 1e-11)
+- one call after warm-up: 215.156 ms, 36583992 bytes allocated (`@allocated`)
+- BenchmarkTools single call: allocs = 801078, memory = 36583992 bytes
+
+#### CPU sampling profile
+
+27 calls profiled, 21596 samples on the compute threads (default threadpool; mincount 5 for listed frames). Self-time share of a frame = Overhead / 21596.
+
+Top frames by **self time** (`Overhead` column = samples whose leaf is this frame):
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+ 17307     17249 @Base/task.jl                                                 1297 wait()
+   932       932 @Base/array.jl                                                1025 _setindex!
+   471       471 @Base/ordering.jl                                              136 _by(by::Function, order::Base.Order.ForwardOrdering)
+  3373       452 @Base/sort.jl                                                 1741 sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Functio…
+   364       364 @Base/essentials.jl                                            975 getindex
+   222       222 @Base/int.jl                                                    83 <
+   193       193 @Base/float.jl                                                 492 +
+   133       133 @Base/int.jl                                                    87 +
+   121       121 @Base/sort.jl                                                    ? _sort!(v::Vector{Tuple{Float64, Float64}}, ::Base.Sort.InsertionSortAlg, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@NamedTuple{sc…
+   168        97 @Base/float.jl                                                 637 isless
+    90        90 @Base/essentials.jl                                            854 ifelse
+    84        84 @Base/int.jl                                                   419 xor
+    77        77 @Base/float.jl                                                 494 *
+    71        71 @Base/float.jl                                                 621 ==
+    69        69 @Base/sort.jl                                                    ? partition!(t::Vector{Tuple{Float64, Float64}}, lo::Int64, hi::Int64, offset::Int64, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, v::Vect…
+    61        61 @IntervalMDP/src/bellman.jl                                      ? gap_value
+    61        61 @Base/int.jl                                                   344 rem
+    53        53 @Base/float.jl                                                 493 -
+    50        50 @Base/cmem.jl                                                   28 memmove
+    47        47 @Base/essentials.jl                                            788 reinterpret
+```
+
+Top frames by **inclusive** count:
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+ 17307     17249 @Base/task.jl                                                 1297 wait()
+ 16362         0 @Base/task.jl                                                 1196 wait_forever()
+  4015         0 @Base/threadingconstructs.jl                                   178 (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOM…
+  4015         0 @IntervalMDP/src/threading.jl                                    7 #48
+  4011         0 @IntervalMDP/src/threading.jl                                   41 (::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.TimeVaryingStrategy…
+  4007         0 @IntervalMDP/src/bellman.jl                                    428 macro expansion
+  3994         0 @IntervalMDP/src/bellman.jl                                    473 state_bellman!
+  3384         0 @IntervalMDP/src/bellman.jl                                    550 state_action_bellman
+  3384         5 @Base/sort.jl                                                 1734 sort!
+  3373       452 @Base/sort.jl                                                 1741 sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Functio…
+  2443         5 @Base/sort.jl                                                 1594 _sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}, ::Base.Sort.DefaultStable, o::Base.Order…
+  2436         0 @Base/sort.jl                                                  574 _sort!
+  2436         0 @Base/sort.jl                                                  686 _sort!
+  2436         0 @Base/sort.jl                                                  747 _sort!
+  2436         0 @Base/sort.jl                                                  802 _sort!
+  2436         0 @Base/sort.jl                                                  731 _sort!
+  2436         0 @Base/sort.jl                                                  780 _sort!
+  2405         0 @Base/sort.jl                                                 1380 _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.StableCheckSorted{Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}}, o::…
+  2405        10 @Base/sort.jl                                                 1123 _sort!
+  1275         0 @Base/client.jl                                                577 _start()
+  1275         0 @Base/client.jl                                                344 exec_options(opts::Base.JLOptions)
+  1275         0 @Base/Base.jl                                                  309 include(mod::Module, _path::String)
+  1275         0 @Base/loading.jl                                              3093 _include(mapexpr::Function, mod::Module, _path::String)
+  1275         0 @Base/loading.jl                                              3033 include_string(mapexpr::typeof(identity), mod::Module, code::String, filename::String)
+  1275         0 @Base/boot.jl                                                  489 eval(m::Module, e::Any)
+```
+
+<details><summary>Pruned call tree (frames with ≥1% of samples)</summary>
+
+```
+Overhead ╎ [+additional indent] Count File:Line  Function
+=========================================================
+     ╎1275  @Base/client.jl:577  _start()
+     ╎ 1275  @Base/client.jl:344  exec_options(opts::Base.JLOptions)
+     ╎  1275  @Base/Base.jl:309  include(mod::Module, _path::String)
+     ╎   1275  @Base/loading.jl:3093  _include(mapexpr::Function, mod::Module, _path::String)
+     ╎    1275  @Base/loading.jl:3033  include_string(mapexpr::typeof(identity), mod::Module, code::String, filename::String)
+     ╎     1275  @Base/boot.jl:489  eval(m::Module, e::Any)
+     ╎    ╎ 1275  /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:277  main()
+     ╎    ╎  1275  /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:81  sampling_profile(f::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{OMaximization}, ControlSynthesisProblem{FactoredRobustMarkovDecisionP…
+     ╎    ╎   1275  @Profile/src/Profile.jl:60  macro expansion
+     ╎    ╎    1275  /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:82  macro expansion
+     ╎    ╎     1275  /home/fresen/.julia/dev/IntervalMDP/benchmark/lib/measure.jl:80  (::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{OMaximization}, ControlSynthesisProblem{FactoredRobustMarkovDecisionProcess{1, …
+     ╎    ╎    ╎ 1275  @IntervalMDP/src/robust_value_iteration.jl:163  solve
+     ╎    ╎    ╎  1275  @IntervalMDP/src/robust_value_iteration.jl:164  #solve#93
+     ╎    ╎    ╎   1275  @IntervalMDP/src/robust_value_iteration.jl:170  _value_iteration!
+     ╎    ╎    ╎    306   @IntervalMDP/src/robust_value_iteration.jl:176  _value_iteration!(problem::ControlSynthesisProblem{FactoredRobustMarkovDecisionProcess{1, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseMatrixCSC{Float64, I…
+     ╎    ╎    ╎     306   @IntervalMDP/src/workspace.jl:31  construct_workspace
+     ╎    ╎    ╎    ╎ 306   @IntervalMDP/src/workspace.jl:31  #construct_workspace#13
+     ╎    ╎    ╎    ╎  306   @IntervalMDP/src/workspace.jl:34  construct_workspace
+     ╎    ╎    ╎    ╎   306   @IntervalMDP/src/workspace.jl:42  #construct_workspace#14
+     ╎    ╎    ╎    ╎    306   @IntervalMDP/src/workspace.jl:152  construct_workspace
+     ╎    ╎    ╎    ╎     306   @IntervalMDP/src/workspace.jl:162  #construct_workspace#18
+     ╎    ╎    ╎    ╎    ╎ 306   @IntervalMDP/src/workspace.jl:145  ThreadedSparseIntervalOMaxWorkspace
+     ╎    ╎    ╎    ╎    ╎  294   @Base/array.jl:838  collect(itr::Base.Generator{UnitRange{Int64}, IntervalMDP.var"#ThreadedSparseIntervalOMaxWorkspace##0#ThreadedSparseIntervalOMaxWorkspace##1"{IntervalAmbiguitySets{Float64, SparseMatrix…
+     ╎    ╎    ╎    ╎    ╎   294   @Base/array.jl:864  collect_to_with_first!
+     ╎    ╎    ╎    ╎    ╎    294   @Base/array.jl:886  collect_to!
+     ╎    ╎    ╎    ╎    ╎     294   @Base/generator.jl:48  iterate
+     ╎    ╎    ╎    ╎    ╎    ╎ 294   none:?  #ThreadedSparseIntervalOMaxWorkspace##0
+     ╎    ╎    ╎    ╎    ╎    ╎  294   @IntervalMDP/src/workspace.jl:127  IntervalMDP.SparseIntervalOMaxWorkspace(ambiguity_sets::IntervalAmbiguitySets{Float64, SparseMatrixCSC{Float64, Int32}}, nactions::Int64)
+     ╎    ╎    ╎    ╎    ╎    ╎   267   @Base/reducedim.jl:998  sum
+     ╎    ╎    ╎    ╎    ╎    ╎    267   @Base/reducedim.jl:998  #sum#748
+     ╎    ╎    ╎    ╎    ╎    ╎     267   @Base/reducedim.jl:1028  _sum
+     ╎    ╎    ╎    ╎    ╎    ╎    ╎ 267   @Base/reducedim.jl:1028  #_sum#774
+     ╎    ╎    ╎    ╎    ╎    ╎    ╎  267   @Base/reducedim.jl:1029  _sum
+     ╎    ╎    ╎    ╎    ╎    ╎    ╎   267   @Base/reducedim.jl:1029  #_sum#775
+     ╎    ╎    ╎    ╎    ╎    ╎    ╎    267   @Base/reducedim.jl:330  mapreduce
+     ╎    ╎    ╎    ╎    ╎    ╎    ╎     267   @Base/reducedim.jl:330  #mapreduce#741
+     ╎    ╎    ╎    ╎    ╎    ╎    ╎    ╎ 267   @Base/reducedim.jl:353  _mapreduce_dim
+     ╎    ╎    ╎    ╎    ╎    ╎    ╎    ╎  256   @Base/reducedim.jl:297  mapreducedim!
+     ╎    ╎    ╎    ╎    ╎    ╎    ╎    ╎   256   @SparseArrays/src/sparsematrix.jl:2508  _mapreducedim!(f::typeof(identity), op::typeof(Base.add_sum), R::Matrix{Float64}, A::SparseMatrixCSC{Float64, Int32})
+     ╎    ╎    ╎    ╎    ╎    ╎    ╎    ╎    252   @SparseArrays/src/sparsematrix.jl:2470  _mapreducerows!(f::typeof(identity), op::typeof(Base.add_sum), R::Matrix{Float64}, A::SparseMatrixCSC{Float64, Int32})
+     ╎    ╎    ╎    875   @IntervalMDP/src/robust_value_iteration.jl:193  _value_iteration!(problem::ControlSynthesisProblem{FactoredRobustMarkovDecisionProcess{1, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseMatrixCSC{Float64, I…
+     ╎    ╎    ╎     871   @IntervalMDP/src/robust_value_iteration.jl:237  step!(workspace::IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, strategy_cache::IntervalMDP.TimeVaryingStrategyCache{1, Vector{Tuple{Int32}}}, value_func…
+     ╎    ╎    ╎    ╎ 871   @IntervalMDP/src/bellman.jl:202  bellman!
+     ╎    ╎    ╎    ╎  871   @IntervalMDP/src/bellman.jl:202  bellman!
+     ╎    ╎    ╎    ╎   871   @IntervalMDP/src/bellman.jl:213  #bellman!#35
+     ╎    ╎    ╎    ╎    871   @IntervalMDP/src/bellman.jl:411  _bellman_helper!
+     ╎    ╎    ╎    ╎     871   @IntervalMDP/src/bellman.jl:426  #_bellman_helper!#46
+     ╎    ╎    ╎    ╎    ╎ 871   @IntervalMDP/src/threading.jl:46  macro expansion
+     ╎    ╎    ╎    ╎    ╎  865   @Base/threadingconstructs.jl:192  threading_run(fun::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.TimeVaryingStrategyCac…
+     ╎    ╎    ╎    ╎    ╎   865   @Base/task.jl:312  _wait(t::Task)
+     ╎    ╎    ╎    ╎    ╎    865   @Base/condition.jl:136  wait
+     ╎    ╎    ╎    ╎    ╎     864   @Base/condition.jl:141  wait(c::Base.GenericCondition{Base.Threads.SpinLock}; first::Bool)
+  862╎    ╎    ╎    ╎    ╎    ╎ 864   @Base/task.jl:1297  wait()
+     ╎16362 @Base/task.jl:1196  wait_forever()
+16305╎ 16360 @Base/task.jl:1297  wait()
+     ╎4015  @Base/threadingconstructs.jl:178  (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.TimeVar…
+     ╎ 4015  @IntervalMDP/src/threading.jl:7  #48
+     ╎  4011  @IntervalMDP/src/threading.jl:41  (::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.TimeVaryingStrategyCache{1, Vector{Tuple{Int32}}}, Vector{…
+     ╎   4007  @IntervalMDP/src/bellman.jl:428  macro expansion
+     ╎    3994  @IntervalMDP/src/bellman.jl:473  state_bellman!
+     ╎     3384  @IntervalMDP/src/bellman.jl:550  state_action_bellman
+    5╎    ╎ 3384  @Base/sort.jl:1734  sort!
+  452╎    ╎  3373  @Base/sort.jl:1741  sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Function, by::Function, rev::Bool, order::Base.Order.Fo…
+    3╎    ╎   475   @Base/ordering.jl:158  ord(lt::Function, by::Function, rev::Bool, order::Base.Order.ForwardOrdering)
+    1╎    ╎    472   @Base/ordering.jl:131  _ord
+  471╎    ╎     471   @Base/ordering.jl:136  _by(by::Function, order::Base.Order.ForwardOrdering)
+    1╎    ╎   2439  @Base/sort.jl:1594  _sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}, ::Base.Sort.DefaultStable, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering},…
+     ╎    ╎    2436  @Base/sort.jl:574  _sort!
+     ╎    ╎     2436  @Base/sort.jl:686  _sort!
+     ╎    ╎    ╎ 2436  @Base/sort.jl:747  _sort!
+     ╎    ╎    ╎  2436  @Base/sort.jl:802  _sort!
+     ╎    ╎    ╎   2436  @Base/sort.jl:731  _sort!
+     ╎    ╎    ╎    2436  @Base/sort.jl:780  _sort!
+     ╎    ╎    ╎     2405  @Base/sort.jl:1380  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.StableCheckSorted{Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}}, o::Base.Order.By{typeof(first), Base.Order.…
+    1╎    ╎    ╎    ╎ 2405  @Base/sort.jl:1123  _sort!
+    4╎    ╎    ╎    ╎  321   @Base/sort.jl:1135  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@Name…
+    4╎    ╎    ╎    ╎  437   @Base/sort.jl:1137  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@Name…
+     ╎    ╎    ╎    ╎  682   @Base/sort.jl:1154  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@Name…
+    1╎    ╎    ╎    ╎   677   @Base/sort.jl:1123  _sort!
+    2╎    ╎    ╎    ╎    432   @Base/sort.jl:1165  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@Na…
+     ╎    ╎    ╎    ╎  635   @Base/sort.jl:1158  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@Name…
+    6╎    ╎    ╎    ╎   627   @Base/sort.jl:1123  _sort!
+    1╎    ╎    ╎    ╎    336   @Base/sort.jl:1165  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@Na…
+    1╎    ╎    ╎    ╎  268   @Base/sort.jl:1165  _sort!(v::Vector{Tuple{Float64, Float64}}, a::Base.Sort.ScratchQuickSort{Missing, Missing, Base.Sort.InsertionSortAlg}, o::Base.Order.By{typeof(first), Base.Order.ForwardOrdering}, kw::@Name…
+     ╎     383   @IntervalMDP/src/bellman.jl:552  state_action_bellman
+Total snapshots: 21675. Utilization: 21% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+
+```
+</details>
+
+#### Allocation profile (`Profile.Allocs`, one call)
+
+`Base.@allocations` = 801078 per call; sample_rate = 0.2497; 199388 allocations (7804472 bytes) recorded — counts below are samples, multiply by 1/sample_rate for totals.
+
+By innermost IntervalMDP frame:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `state_action_bellman @ src/bellman.jl:550` | 199103 | 6368912 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:127` | 24 | 1280672 |
+| `step_postprocess_strategy_cache! @ src/strategy_cache.jl:97` | 11 | 80312 |
+| `arrayfactory @ src/utils.jl:9` | 2 | 40032 |
+| `macro expansion @ src/threading.jl:46` | 228 | 24336 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:128` | 7 | 4976 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:129` | 6 | 4944 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:130` | 4 | 144 |
+| `cachetostrategy @ src/strategy_cache.jl:73` | 2 | 128 |
+| `#_value_iteration!#94 @ src/robust_value_iteration.jl:170` | 1 | 16 |
+
+By type:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}` | 99477 | 4774896 |
+| `@NamedTuple{scratch::Vector{Tuple{Float64, Float64}}}` | 99626 | 1594016 |
+| `Profile.Allocs.BufferType` | 7 | 1400000 |
+| `Task` | 53 | 11872 |
+| `Memory{Tuple{Float64, Float64}}` | 6 | 9696 |
+| `Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.TimeVaryingStrategyCache{1, Vector{Tuple{Int32}}}, Vector{Float64}, Vector{Float64}, FactoredRobustMarkovDecisionProcess{1, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseMatrixCSC{Float64, Int32}}, 1, 1}}, AllAvailableActions{1}, AllStates}, FullUpdateSequence{1, Tuple{Base.OneTo{Int64}}}}}, Int64}` | 46 | 8832 |
+| `Base.IntrusiveLinkedList{Task}` | 46 | 1472 |
+| `Base.GenericCondition{Base.Threads.SpinLock}` | 43 | 1376 |
+| `Base.Threads.SpinLock` | 38 | 608 |
+| `Vector{Float64}` | 13 | 416 |
+
+#### JET.@report_opt (target_modules = (IntervalMDP,))
+
+0 report(s).
+
+```
+No errors detected
+
+```
+
+### Entry `bellman_cs` (strategy cache of `solve_cs_stationary`: `StationaryStrategyCache`)
+
+- one call after warm-up: 17.114 ms, 2568384 bytes allocated (`@allocated`), `Base.@allocations` = 80082
+- **steady-state `bellman!` allocation: 2568384 bytes per call (does NOT meet the zero-allocation goal)**
+- correctness: pass (max |ΔV| vs `bellman!` with the default strategy cache = 0.0; no stored reference exists for this pseudo-entry)
+
+#### Allocation profile (`Profile.Allocs`, one call)
+
+`Base.@allocations` = 80082 per call; sample_rate = 1; 80082 allocations (2568112 bytes) recorded.
+
+By innermost IntervalMDP frame:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `state_action_bellman @ src/bellman.jl:550` | 80000 | 2560000 |
+| `macro expansion @ src/threading.jl:46` | 82 | 8112 |
+
+By type:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}` | 40000 | 1920000 |
+| `@NamedTuple{scratch::Vector{Tuple{Float64, Float64}}}` | 40000 | 640000 |
+| `Task` | 16 | 3584 |
+| `Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.StationaryStrategyCache{1, Vector{Tuple{Int32}}}, Vector{Float64}, Vector{Float64}, FactoredRobustMarkovDecisionProcess{1, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseMatrixCSC{Float64, Int32}}, 1, 1}}, AllAvailableActions{1}, AllStates}, FullUpdateSequence{1, Tuple{Base.OneTo{Int64}}}}}, Int64}` | 16 | 3072 |
+| `Base.IntrusiveLinkedList{Task}` | 16 | 512 |
+| `Base.GenericCondition{Base.Threads.SpinLock}` | 16 | 512 |
+| `Base.Threads.SpinLock` | 16 | 256 |
+| `Memory{Task}` | 1 | 144 |
+| `Vector{Task}` | 1 | 32 |
+
+#### JET.@report_opt (target_modules = (IntervalMDP,))
+
+0 report(s).
+
+```
+No errors detected
+
+```
+
+### Entry `bellman_cs` (strategy cache of `solve_cs_timevarying`: `TimeVaryingStrategyCache`)
+
+- one call after warm-up: 20.069 ms, 2568384 bytes allocated (`@allocated`), `Base.@allocations` = 80082
+- **steady-state `bellman!` allocation: 2568384 bytes per call (does NOT meet the zero-allocation goal)**
+- correctness: pass (max |ΔV| vs `bellman!` with the default strategy cache = 0.0; no stored reference exists for this pseudo-entry)
+
+#### Allocation profile (`Profile.Allocs`, one call)
+
+`Base.@allocations` = 80082 per call; sample_rate = 1; 80082 allocations (2568112 bytes) recorded.
+
+By innermost IntervalMDP frame:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `state_action_bellman @ src/bellman.jl:550` | 80000 | 2560000 |
+| `macro expansion @ src/threading.jl:46` | 82 | 8112 |
+
+By type:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}` | 40000 | 1920000 |
+| `@NamedTuple{scratch::Vector{Tuple{Float64, Float64}}}` | 40000 | 640000 |
+| `Task` | 16 | 3584 |
+| `Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.TimeVaryingStrategyCache{1, Vector{Tuple{Int32}}}, Vector{Float64}, Vector{Float64}, FactoredRobustMarkovDecisionProcess{1, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseMatrixCSC{Float64, Int32}}, 1, 1}}, AllAvailableActions{1}, AllStates}, FullUpdateSequence{1, Tuple{Base.OneTo{Int64}}}}}, Int64}` | 16 | 3072 |
+| `Base.IntrusiveLinkedList{Task}` | 16 | 512 |
+| `Base.GenericCondition{Base.Threads.SpinLock}` | 16 | 512 |
+| `Base.Threads.SpinLock` | 16 | 256 |
+| `Memory{Task}` | 1 | 144 |
+| `Vector{Task}` | 1 | 32 |
+
+#### JET.@report_opt (target_modules = (IntervalMDP,))
+
+0 report(s).
+
+```
+No errors detected
+
+```
+

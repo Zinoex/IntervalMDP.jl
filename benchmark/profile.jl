@@ -12,7 +12,13 @@
 #   * steady-state allocations of one call (@allocated after warm-up);
 #   * JET.@report_opt (runtime dispatch / optimisation failures) restricted to
 #     IntervalMDP code;
-#   * on CUDA: the CUDA.@profile trace summary.
+#   * on CUDA: the CUDA.@profile trace summary;
+#   * the correctness check of the profiled call against the stored reference
+#     (lib/reference.jl, same check as run.jl); a failing entry must not be used.
+# Cases without a `bellman` entry (control synthesis) get the pseudo-entry
+# `bellman_cs`: steady-state allocation, Profile.Allocs and JET of one `bellman!`
+# call with the strategy cache `solve(ControlSynthesisProblem)` uses (runs by
+# default; select it alone with `--entries bellman_cs`).
 # Only summaries are saved, never raw dumps.
 
 const POPTS = let
@@ -158,6 +164,61 @@ function jet_summary(f)
     return (; n = length(reports), txt)
 end
 
+# Control-synthesis cases have no `bellman` entry in the registry. Report the
+# steady-state allocation of one `bellman!` call with the strategy cache that
+# `solve(ControlSynthesisProblem)` builds (construct_strategy_cache(problem)), on
+# fixed input values. Its result is checked against `bellman!` with the default
+# cache (construct_strategy_cache(model)) and a fresh workspace: with
+# maximize = true both give the same values.
+function cs_bellman_probe(io, ctx, T)
+    for pname in sort(collect(keys(ctx.problems)))
+        prob = ctx.problems[pname].problem
+        prob isa ControlSynthesisProblem || continue
+        mp = IntervalMDP.system(prob)
+        V = BACKEND.to_dev(input_values(StableRNG(20251006), mp, T))
+        Vres = similar(V, Int.(IntervalMDP.source_shape(mp)))
+        Vchk = similar(Vres)
+        ws = IntervalMDP.construct_workspace(mp, ctx.alg)
+        sc = IntervalMDP.construct_strategy_cache(prob)
+        f = () -> begin
+            IntervalMDP.bellman!(ws, sc, Vres, V, mp; upper_bound = false, maximize = true)
+            BACKEND.sync()
+            Vres
+        end
+        IntervalMDP.bellman!(IntervalMDP.construct_workspace(mp, ctx.alg), IntervalMDP.construct_strategy_cache(mp), Vchk, V, mp; upper_bound = false, maximize = true)
+        f(); f()
+        err = maximum(abs.(Array(Vres) .- Array(Vchk)))
+        GC.gc()
+        a1 = @allocated f()
+        tb = @elapsed f()
+        println(io, "### Entry `bellman_cs` (strategy cache of `$(pname)`: `$(nameof(typeof(sc)))`)\n")
+        println(io, @sprintf("- one call after warm-up: %.3f ms, %d bytes allocated (`@allocated`), `Base.@allocations` = %d", tb * 1e3, a1, Base.@allocations(f())))
+        println(io, "- **steady-state `bellman!` allocation: ", a1 == 0 ? "0 bytes (meets the zero-allocation goal)" : "$(a1) bytes per call (does NOT meet the zero-allocation goal)", "**")
+        println(io, "- correctness: ", err == 0 ? "pass" : "FAIL", " (max |ΔV| vs `bellman!` with the default strategy cache = $(err); no stored reference exists for this pseudo-entry)\n")
+        report_allocs_jet(io, f)
+    end
+end
+
+function report_allocs_jet(io, f)
+    al = allocs_summary(f)
+    println(io, "#### Allocation profile (`Profile.Allocs`, one call)\n")
+    println(io, @sprintf("`Base.@allocations` = %d per call; sample_rate = %.4g; %d allocations (%d bytes) recorded%s.\n", al.nalloc, al.rate, al.n, al.total, al.rate < 1 ? " — counts below are samples, multiply by 1/sample_rate for totals" : ""))
+    if al.n > 0
+        println(io, "By innermost IntervalMDP frame:\n")
+        println(io, table(al.bysite, 12))
+        println(io, "By type:\n")
+        println(io, table(al.bytype, 10))
+    end
+    println(io, "#### JET.@report_opt (target_modules = (IntervalMDP,))\n")
+    js = try
+        jet_summary(f)
+    catch err
+        (; n = -1, txt = "JET failed: " * first(sprint(showerror, err), 500))
+    end
+    println(io, "$(js.n) report(s).\n")
+    println(io, "```\n", head_lines(js.txt, 60), "\n```\n")
+end
+
 function main()
     cname = POPTS["case"]
     idx = findfirst(c -> c.name == cname, CASES)
@@ -166,6 +227,9 @@ function main()
     T = POPTS["eltype"] == "Float32" ? Float32 : Float64
     ctx = c.build(T, BACKEND)
     entries = isnothing(POPTS["entries"]) ? [e.name for e in c.entries if e.name != "workspace"] : split(POPTS["entries"], ',')
+    if isnothing(POPTS["entries"]) && !any(e -> e.name == "bellman", c.entries) && c.row == "Control synthesis"
+        push!(entries, "bellman_cs")
+    end
     seconds = parse(Float64, POPTS["seconds"])
     out = isnothing(POPTS["out"]) ? joinpath(@__DIR__, "profiles", cname * ".md") : POPTS["out"]
     mkpath(dirname(out))
@@ -180,13 +244,24 @@ function main()
     println(io, "- date (UTC): $(Dates.now(Dates.UTC)); git $(git["short_sha"]) (src/ext dirty: $(git["src_ext_dirty"]))")
     println(io, "- Julia $(VERSION); pinning: $(POPTS["pin"]) (thread→CPU: interactive $(ThreadPinning.getcpuids(; threadpool = :interactive)), default $(ThreadPinning.getcpuids(; threadpool = :default))); sampling delay 0.5 ms, $(seconds) s per entry")
     println(io)
+    refd = refdir(BACKEND_NAME, T)
+    refindex = load_index(refd)
     for en in entries
+        if en == "bellman_cs"
+            cs_bellman_probe(io, ctx, T)
+            continue
+        end
         e = c.entries[findfirst(x -> x.name == en, c.entries)]
-        f, _, extra = entry_closure(c, e, ctx, T, BACKEND)
-        delete!(extra, "_policy_eval_factory")
-        f(); f()
+        f, outf, extra = entry_closure(c, e, ctx, T, BACKEND)
+        pef = pop!(extra, "_policy_eval_factory", nothing)
+        f()
+        r = f()
+        chk = check_reference(refindex, refd, "$(cname)/$(en)", outf(r), T; policy_eval = isnothing(pef) ? nothing : pef(r))
         println(io, "### Entry `$(en)`\n")
         println(io, "Descriptive fields: `", JSON.json(extra), "`\n")
+        println(io, "- correctness check vs stored reference (`", relpath(refd, dirname(@__DIR__)), "`): **", chk["status"], "**",
+            haskey(chk, "max_abs_diff") ? @sprintf(" (max |ΔV| = %.3g, tolerance %.3g)", chk["max_abs_diff"], chk["tolerance"]) : "",
+            haskey(chk, "reason") ? " — " * chk["reason"] : "")
         GC.gc()
         a1 = @allocated f()
         tb = @elapsed f()
@@ -218,24 +293,7 @@ function main()
             println(io, "```\n", head_lines(txt, 80), "\n```\n")
         end
 
-        al = allocs_summary(f)
-        println(io, "#### Allocation profile (`Profile.Allocs`, one call)\n")
-        println(io, @sprintf("`Base.@allocations` = %d per call; sample_rate = %.4g; %d allocations (%d bytes) recorded%s.\n", al.nalloc, al.rate, al.n, al.total, al.rate < 1 ? " — counts below are samples, multiply by 1/sample_rate for totals" : ""))
-        if al.n > 0
-            println(io, "By innermost IntervalMDP frame:\n")
-            println(io, table(al.bysite, 12))
-            println(io, "By type:\n")
-            println(io, table(al.bytype, 10))
-        end
-
-        println(io, "#### JET.@report_opt (target_modules = (IntervalMDP,))\n")
-        js = try
-            jet_summary(f)
-        catch err
-            (; n = -1, txt = "JET failed: " * first(sprint(showerror, err), 500))
-        end
-        println(io, "$(js.n) report(s).\n")
-        println(io, "```\n", head_lines(js.txt, 60), "\n```\n")
+        report_allocs_jet(io, f)
         flush(stdout)
     end
     open(out, POPTS["append"] ? "a" : "w") do f

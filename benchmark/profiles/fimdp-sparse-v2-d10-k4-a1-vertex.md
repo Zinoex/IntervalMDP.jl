@@ -460,3 +460,421 @@ No errors detected
 
 ```
 
+## Run: backend cpu, Float64, 16 thread(s)
+
+- date (UTC): 2026-10-07T17:01:41.621; git 4a42913 (src/ext dirty: false)
+- Julia 1.13.1; pinning: compact (thread→CPU: interactive [0], default [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]); sampling delay 0.5 ms, 6.0 s per entry
+
+### Entry `bellman`
+
+Descriptive fields: `{"strategy_cache":"NoStrategyCache","workspace_type":"ThreadedFactoredVertexIteratorWorkspace"}`
+
+- correctness check vs stored reference (`benchmark/reference/cpu-Float64`): **pass** (max |ΔV| = 0, tolerance 1e-12)
+- one call after warm-up: 2.208 ms, 1129904 bytes allocated (`@allocated`)
+- BenchmarkTools single call: allocs = 33249, memory = 1129904 bytes
+- **steady-state `bellman!` allocation: 1129904 bytes per call (does NOT meet the zero-allocation goal)**
+
+#### CPU sampling profile
+
+3049 calls profiled, 26178 samples on the compute threads (default threadpool; mincount 5 for listed frames). Self-time share of a frame = Overhead / 26178.
+
+Top frames by **self time** (`Overhead` column = samples whose leaf is this frame):
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+ 20115     19397 @Base/task.jl                                                 1297 wait()
+  1719      1719 @IntervalMDP/src/probabilities/IntervalAmbiguitySets.jl        500 iterate(it::IntervalMDP.IntervalAmbiguitySetVertexIterator{Float64, SubArray{Float64, 1, SparseMatrixCSC{Float64, Int32}, Tuple{Base.Slice{Base.OneTo{Int64}}…
+   712       712 @Base/float.jl                                                 492 +
+   529       529 @Base/promotion.jl                                             641 ==
+   446       446 @Base/float.jl                                                 494 *
+   338       338 @Base/essentials.jl                                            975 getindex
+   262       262 @Base/essentials.jl                                              ? *
+   222       221 @Base/array.jl                                                1025 _setindex!
+   206       206 @Base/reduce.jl                                                 94 MappingRF
+   182       182 @Base/int.jl                                                    87 +
+   235       157 @Base/sort.jl                                                  192 searchsortedfirst
+   153       149 @Base/abstractarray.jl                                         728 checkbounds_indices
+   127       127 @Base/Base_compiler.jl                                          57 getproperty
+   109       109 @Base/int.jl                                                   559 <
+   445        92 @Base/multidimensional.jl                                      477 __inc
+    87        87 @Base/partr.jl                                                 208 multiq_deletemin()
+    84        84 @Base/int.jl                                                    83 <
+    73        73 @Base/int.jl                                                     ? searchsortedfirst
+    69        69 @Base/partr.jl                                                  30 get_ptls_rng
+    64        64 @Base/boot.jl                                                  588 GenericMemory
+```
+
+Top frames by **inclusive** count:
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+ 20115     19397 @Base/task.jl                                                 1297 wait()
+ 18716         0 @Base/task.jl                                                 1196 wait_forever()
+  5952         2 @Base/threadingconstructs.jl                                   178 (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#86#87"{IntervalMDP.var"#88#89"{Bool, Bool, IntervalMDP.ThreadedFactoredVertexIterato…
+  5950         0 @IntervalMDP/src/threading.jl                                    7 #86
+  5925         0 @IntervalMDP/src/threading.jl                                   41 (::IntervalMDP.var"#86#87"{IntervalMDP.var"#88#89"{Bool, Bool, IntervalMDP.ThreadedFactoredVertexIteratorWorkspace{2, Float64, Vector{Float64}}, IntervalMDP.…
+  5923         0 @IntervalMDP/src/bellman.jl                                    976 macro expansion
+  5917         0 @IntervalMDP/src/bellman.jl                                   1003 state_bellman!
+  3847         0 @IntervalMDP/src/bellman.jl                                   1048 state_action_bellman
+  3847         0 @Base/iterators.jl                                            1215 iterate
+  3667        21 @Base/iterators.jl                                            1202 _piterate1
+  1945        16 @IntervalMDP/src/bellman.jl                                   1043 state_action_bellman
+  1925         0 @Base/reduce.jl                                                564 sum
+  1925         0 @Base/reduce.jl                                                564 #sum#279
+  1925         0 @Base/reduce.jl                                                535 sum
+  1925         0 @Base/reduce.jl                                                535 #sum#278
+  1925         0 @Base/reduce.jl                                                306 mapreduce
+  1925         0 @Base/reduce.jl                                                306 #mapreduce#275
+  1925         0 @Base/reduce.jl                                                173 mapfoldl
+  1925         0 @Base/reduce.jl                                                173 #mapfoldl#271
+  1719         0 @Base/reduce.jl                                                 42 mapfoldl_impl
+  1719      1719 @IntervalMDP/src/probabilities/IntervalAmbiguitySets.jl        500 iterate(it::IntervalMDP.IntervalAmbiguitySetVertexIterator{Float64, SubArray{Float64, 1, SparseMatrixCSC{Float64, Int32}, Tuple{Base.Slice{Base.OneTo{Int64}}…
+  1717        16 @Base/reduce.jl                                                 46 foldl_impl
+  1553         0 @Base/client.jl                                                577 _start()
+  1553         0 @Base/client.jl                                                344 exec_options(opts::Base.JLOptions)
+  1553         0 @Base/Base.jl                                                  309 include(mod::Module, _path::String)
+```
+
+<details><summary>Pruned call tree (frames with ≥1% of samples)</summary>
+
+```
+Overhead ╎ [+additional indent] Count File:Line  Function
+=========================================================
+     ╎1553  @Base/client.jl:577  _start()
+     ╎ 1553  @Base/client.jl:344  exec_options(opts::Base.JLOptions)
+     ╎  1553  @Base/Base.jl:309  include(mod::Module, _path::String)
+     ╎   1553  @Base/loading.jl:3093  _include(mapexpr::Function, mod::Module, _path::String)
+     ╎    1553  @Base/loading.jl:3033  include_string(mapexpr::typeof(identity), mod::Module, code::String, filename::String)
+     ╎     1553  @Base/boot.jl:489  eval(m::Module, e::Any)
+     ╎    ╎ 1553  /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:277  main()
+     ╎    ╎  1553  /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:81  sampling_profile(f::var"#entry_closure##4#entry_closure##5"{Backend, Matrix{Float64}, Matrix{Float64}, IntervalMDP.NoStrategyCache, IntervalMDP.ThreadedFactore…
+     ╎    ╎   1553  @Profile/src/Profile.jl:60  macro expansion
+     ╎    ╎    1553  /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:82  macro expansion
+     ╎    ╎     1553  /home/fresen/.julia/dev/IntervalMDP/benchmark/lib/measure.jl:70  (::var"#entry_closure##4#entry_closure##5"{Backend, Matrix{Float64}, Matrix{Float64}, IntervalMDP.NoStrategyCache, IntervalMDP.ThreadedFactoredVertexIte…
+     ╎    ╎    ╎ 1553  @IntervalMDP/src/bellman.jl:202  bellman!
+     ╎    ╎    ╎  1553  @IntervalMDP/src/bellman.jl:202  bellman!
+     ╎    ╎    ╎   1553  @IntervalMDP/src/bellman.jl:213  #bellman!#35
+     ╎    ╎    ╎    1553  @IntervalMDP/src/bellman.jl:964  _bellman_helper!
+     ╎    ╎    ╎     1553  @IntervalMDP/src/bellman.jl:974  #_bellman_helper!#84
+     ╎    ╎    ╎    ╎ 1553  @IntervalMDP/src/threading.jl:46  macro expansion
+     ╎    ╎    ╎    ╎  1462  @Base/threadingconstructs.jl:192  threading_run(fun::IntervalMDP.var"#86#87"{IntervalMDP.var"#88#89"{Bool, Bool, IntervalMDP.ThreadedFactoredVertexIteratorWorkspace{2, Float64, Vector{Float64}}, IntervalMDP.NoS…
+     ╎    ╎    ╎    ╎   1460  @Base/task.jl:312  _wait(t::Task)
+     ╎    ╎    ╎    ╎    1460  @Base/condition.jl:136  wait
+     ╎    ╎    ╎    ╎     1415  @Base/condition.jl:141  wait(c::Base.GenericCondition{Base.Threads.SpinLock}; first::Bool)
+ 1402╎    ╎    ╎    ╎    ╎ 1413  @Base/task.jl:1297  wait()
+     ╎18716 @Base/task.jl:1196  wait_forever()
+17994╎ 18701 @Base/task.jl:1297  wait()
+     ╎  621   @Base/task.jl:1267  trypoptask(W::Base.IntrusiveLinkedListSynchronized{Task})
+    2╎5952  @Base/threadingconstructs.jl:178  (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#86#87"{IntervalMDP.var"#88#89"{Bool, Bool, IntervalMDP.ThreadedFactoredVertexIteratorWorkspace{2, Float64, Vector{Float6…
+     ╎ 5950  @IntervalMDP/src/threading.jl:7  #86
+     ╎  5925  @IntervalMDP/src/threading.jl:41  (::IntervalMDP.var"#86#87"{IntervalMDP.var"#88#89"{Bool, Bool, IntervalMDP.ThreadedFactoredVertexIteratorWorkspace{2, Float64, Vector{Float64}}, IntervalMDP.NoStrategyCache, Matrix{Float64}, …
+     ╎   5923  @IntervalMDP/src/bellman.jl:976  macro expansion
+     ╎    5917  @IntervalMDP/src/bellman.jl:1003  state_bellman!
+   16╎     1945  @IntervalMDP/src/bellman.jl:1043  state_action_bellman
+     ╎    ╎ 1925  @Base/reduce.jl:564  sum
+     ╎    ╎  1925  @Base/reduce.jl:564  #sum#279
+     ╎    ╎   1925  @Base/reduce.jl:535  sum
+     ╎    ╎    1925  @Base/reduce.jl:535  #sum#278
+     ╎    ╎     1925  @Base/reduce.jl:306  mapreduce
+     ╎    ╎    ╎ 1925  @Base/reduce.jl:306  #mapreduce#275
+     ╎    ╎    ╎  1925  @Base/reduce.jl:173  mapfoldl
+     ╎    ╎    ╎   1925  @Base/reduce.jl:173  #mapfoldl#271
+     ╎    ╎    ╎    1719  @Base/reduce.jl:42  mapfoldl_impl
+   16╎    ╎    ╎     1717  @Base/reduce.jl:46  foldl_impl
+     ╎    ╎    ╎    ╎ 1005  @Base/reduce.jl:60  _foldl_impl(op::Base.MappingRF{IntervalMDP.var"#state_action_bellman##0#state_action_bellman##1"{Matrix{Float64}, Tuple{IntervalMDP.IntervalAmbiguitySet{Float64, SubArray{Float64, 1, SparseMa…
+     ╎    ╎    ╎    ╎  1005  @Base/reduce.jl:98  MappingRF
+     ╎    ╎    ╎    ╎   859   none:?  #state_action_bellman##0
+  305╎    ╎    ╎    ╎    305   @Base/float.jl:494  *
+     ╎    ╎    ╎    ╎    369   @Base/reducedim.jl:999  prod
+     ╎    ╎    ╎    ╎     369   @Base/reducedim.jl:999  #prod#753
+     ╎    ╎    ╎    ╎    ╎ 369   @Base/reducedim.jl:1003  _prod
+     ╎    ╎    ╎    ╎    ╎  369   @Base/reducedim.jl:1003  #_prod#755
+     ╎    ╎    ╎    ╎    ╎   369   @Base/reducedim.jl:330  mapreduce
+     ╎    ╎    ╎    ╎    ╎    369   @Base/reducedim.jl:330  #mapreduce#741
+     ╎    ╎    ╎    ╎    ╎     369   @Base/reducedim.jl:347  _mapreduce_dim
+     ╎    ╎    ╎    ╎    ╎    ╎ 369   @Base/reduce.jl:440  _mapreduce
+     ╎    ╎    ╎    ╎    ╎    ╎  361   @Base/reduce.jl:30  mul_prod
+  262╎    ╎    ╎    ╎    ╎    ╎   262   @Base/essentials.jl:0  *
+   15╎    ╎    ╎    ╎ 527   @Base/reduce.jl:61  _foldl_impl(op::Base.MappingRF{IntervalMDP.var"#state_action_bellman##0#state_action_bellman##1"{Matrix{Float64}, Tuple{IntervalMDP.IntervalAmbiguitySet{Float64, SubArray{Float64, 1, SparseMa…
+     ╎    ╎    ╎    ╎  512   @Base/iterators.jl:697  iterate
+     ╎    ╎    ╎    ╎   512   @Base/multidimensional.jl:453  iterate
+   90╎    ╎    ╎    ╎    432   @Base/multidimensional.jl:477  __inc
+     ╎    ╎    ╎    ╎     342   @Base/operators.jl:320  !=
+  342╎    ╎    ╎    ╎    ╎ 342   @Base/promotion.jl:641  ==
+     ╎     3847  @IntervalMDP/src/bellman.jl:1048  state_action_bellman
+     ╎    ╎ 3847  @Base/iterators.jl:1215  iterate
+   20╎    ╎  3335  @Base/iterators.jl:1202  _piterate1
+     ╎    ╎   585   @IntervalMDP/src/probabilities/IntervalAmbiguitySets.jl:480  iterate(it::IntervalMDP.IntervalAmbiguitySetVertexIterator{Float64, SubArray{Float64, 1, SparseMatrixCSC{Float64, Int32}, Tuple{Base.Slice{Base.OneTo{Int64}},…
+   13╎    ╎    465   @Base/abstractarray.jl:1080  copyto!
+     ╎    ╎     278   @Base/abstractarray.jl:1107  copyto_unaliased!(deststyle::IndexLinear, dest::Vector{Float64}, srcstyle::IndexCartesian, src::SubArray{Float64, 1, SparseMatrixCSC{Float64, Int32}, Tuple{Base.Slice{Base.OneTo{Int64}}, I…
+     ╎    ╎    ╎ 278   @Base/abstractarray.jl:1247  iterate
+     ╎    ╎    ╎  262   @Base/abstractarray.jl:1251  _iterate_abstractarray
+     ╎    ╎    ╎   262   @Base/subarray.jl:311  getindex
+     ╎    ╎   498   @IntervalMDP/src/probabilities/IntervalAmbiguitySets.jl:481  iterate(it::IntervalMDP.IntervalAmbiguitySetVertexIterator{Float64, SubArray{Float64, 1, SparseMatrixCSC{Float64, Int32}, Tuple{Base.Slice{Base.OneTo{Int64}},…
+     ╎    ╎    496   @Base/reducedim.jl:998  sum
+     ╎    ╎     496   @Base/reducedim.jl:998  #sum#748
+     ╎    ╎    ╎ 496   @Base/reducedim.jl:1002  _sum
+     ╎    ╎    ╎  496   @Base/reducedim.jl:1002  #_sum#750
+     ╎    ╎    ╎   496   @Base/reducedim.jl:1003  _sum
+     ╎    ╎    ╎    496   @Base/reducedim.jl:1003  #_sum#751
+     ╎    ╎    ╎     496   @Base/reducedim.jl:330  mapreduce
+     ╎    ╎    ╎    ╎ 496   @Base/reducedim.jl:330  #mapreduce#741
+     ╎    ╎    ╎    ╎  496   @Base/reducedim.jl:347  _mapreduce_dim
+     ╎    ╎    ╎    ╎   281   @Base/reduce.jl:440  _mapreduce
+     ╎    ╎    ╎    ╎    281   @Base/reduce.jl:19  add_sum
+  281╎    ╎    ╎    ╎     281   @Base/float.jl:492  +
+ 1589╎    ╎   1589  @IntervalMDP/src/probabilities/IntervalAmbiguitySets.jl:500  iterate(it::IntervalMDP.IntervalAmbiguitySetVertexIterator{Float64, SubArray{Float64, 1, SparseMatrixCSC{Float64, Int32}, Tuple{Base.Slice{Base.OneTo{Int64}},…
+     ╎    ╎  332   @Base/iterators.jl:1205  _piterate1
+    1╎    ╎   332   @Base/iterators.jl:1202  _piterate1
+Total snapshots: 26418. Utilization: 34% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+
+```
+</details>
+
+#### Allocation profile (`Profile.Allocs`, one call)
+
+`Base.@allocations` = 33246 per call; sample_rate = 1; 33246 allocations (1100336 bytes) recorded.
+
+By innermost IntervalMDP frame:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `iterate @ src/probabilities/IntervalAmbiguitySets.jl:500` | 29516 | 944512 |
+| `iterate @ src/probabilities/IntervalAmbiguitySets.jl:419` | 3648 | 145920 |
+| `macro expansion @ src/threading.jl:46` | 82 | 9904 |
+
+By type:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `Tuple{Vector{Float64}, Tuple{Vector{Int64}, Int64}}` | 29516 | 944512 |
+| `Memory{Int64}` | 1824 | 87552 |
+| `Vector{Int64}` | 1824 | 58368 |
+| `Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#86#87"{IntervalMDP.var"#88#89"{Bool, Bool, IntervalMDP.ThreadedFactoredVertexIteratorWorkspace{2, Float64, Vector{Float64}}, IntervalMDP.NoStrategyCache, Matrix{Float64}, Matrix{Float64}, FactoredRobustMarkovDecisionProcess{2, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseMatrixCSC{Float64, Int32}}, 2, 1}, Marginal{IntervalAmbiguitySets{Float64, SparseMatrixCSC{Float64, Int32}}, 2, 1}}, AllAvailableActions{1}, AllStates}, FullUpdateSequence{2, Tuple{Base.OneTo{Int64}, Base.OneTo{Int64}}}}}, Int64}` | 16 | 4864 |
+| `Task` | 16 | 3584 |
+| `Base.GenericCondition{Base.Threads.SpinLock}` | 16 | 512 |
+| `Base.IntrusiveLinkedList{Task}` | 16 | 512 |
+| `Base.Threads.SpinLock` | 16 | 256 |
+| `Memory{Task}` | 1 | 144 |
+| `Vector{Task}` | 1 | 32 |
+
+#### JET.@report_opt (target_modules = (IntervalMDP,))
+
+0 report(s).
+
+```
+No errors detected
+
+```
+
+### Entry `solve_rvi`
+
+Descriptive fields: `{"algorithm":"RobustValueIteration","problem":"VerificationProblem","property":"InfiniteTimeReachability","workspace_type":"ThreadedFactoredVertexIteratorWorkspace"}`
+
+- correctness check vs stored reference (`benchmark/reference/cpu-Float64`): **pass** (max |ΔV| = 0, tolerance 1e-05)
+- one call after warm-up: 235.819 ms, 114117008 bytes allocated (`@allocated`)
+- BenchmarkTools single call: allocs = 3357949, memory = 114117008 bytes
+
+#### CPU sampling profile
+
+31 calls profiled, 26999 samples on the compute threads (default threadpool; mincount 5 for listed frames). Self-time share of a frame = Overhead / 26999.
+
+Top frames by **self time** (`Overhead` column = samples whose leaf is this frame):
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+ 20461     19663 @Base/task.jl                                                 1297 wait()
+  1951      1951 @IntervalMDP/src/probabilities/IntervalAmbiguitySets.jl        500 iterate(it::IntervalMDP.IntervalAmbiguitySetVertexIterator{Float64, SubArray{Float64, 1, SparseMatrixCSC{Float64, Int32}, Tuple{Base.Slice{Base.OneTo{Int64}}, Int64},…
+   689       689 @Base/float.jl                                                 492 +
+   554       554 @Base/promotion.jl                                             641 ==
+   455       455 @Base/float.jl                                                 494 *
+   421       421 @Base/essentials.jl                                            975 getindex
+   249       249 @Base/essentials.jl                                              ? *
+   241       241 @Base/array.jl                                                1025 _setindex!
+   234       234 @Base/reduce.jl                                                 94 MappingRF
+   218       205 @Base/abstractarray.jl                                         728 checkbounds_indices
+   185       185 @Base/int.jl                                                    87 +
+   242       156 @Base/sort.jl                                                  192 searchsortedfirst
+   125       125 @Base/Base_compiler.jl                                          57 getproperty
+   109       109 @Base/int.jl                                                    83 <
+   109       109 @Base/int.jl                                                   559 <
+   101       101 @Base/partr.jl                                                 208 multiq_deletemin()
+   468        94 @Base/multidimensional.jl                                      477 __inc
+    85        85 @Base/partr.jl                                                  30 get_ptls_rng
+    76        76 @Base/int.jl                                                     ? searchsortedfirst
+    62        62 @Base/partr.jl                                                   ? multiq_deletemin()
+```
+
+Top frames by **inclusive** count:
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+ 20461     19663 @Base/task.jl                                                 1297 wait()
+ 18983         0 @Base/task.jl                                                 1196 wait_forever()
+  6442         1 @Base/threadingconstructs.jl                                   178 (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#86#87"{IntervalMDP.var"#88#89"{Bool, Bool, IntervalMDP.ThreadedFactoredVertexIteratorWorkspac…
+  6441         0 @IntervalMDP/src/threading.jl                                    7 #86
+  6412         0 @IntervalMDP/src/threading.jl                                   41 (::IntervalMDP.var"#86#87"{IntervalMDP.var"#88#89"{Bool, Bool, IntervalMDP.ThreadedFactoredVertexIteratorWorkspace{2, Float64, Vector{Float64}}, IntervalMDP.NoStrateg…
+  6410         0 @IntervalMDP/src/bellman.jl                                    976 macro expansion
+  6401         0 @IntervalMDP/src/bellman.jl                                   1003 state_bellman!
+  4176         0 @IntervalMDP/src/bellman.jl                                   1048 state_action_bellman
+  4176         0 @Base/iterators.jl                                            1215 iterate
+  4011        20 @Base/iterators.jl                                            1202 _piterate1
+  2091        20 @IntervalMDP/src/bellman.jl                                   1043 state_action_bellman
+  2068         0 @Base/reduce.jl                                                564 sum
+  2068         0 @Base/reduce.jl                                                564 #sum#279
+  2068         0 @Base/reduce.jl                                                535 sum
+  2068         0 @Base/reduce.jl                                                535 #sum#278
+  2068         0 @Base/reduce.jl                                                306 mapreduce
+  2068         0 @Base/reduce.jl                                                306 #mapreduce#275
+  2068         0 @Base/reduce.jl                                                173 mapfoldl
+  2068         0 @Base/reduce.jl                                                173 #mapfoldl#271
+  1951      1951 @IntervalMDP/src/probabilities/IntervalAmbiguitySets.jl        500 iterate(it::IntervalMDP.IntervalAmbiguitySetVertexIterator{Float64, SubArray{Float64, 1, SparseMatrixCSC{Float64, Int32}, Tuple{Base.Slice{Base.OneTo{Int64}}, Int64},…
+  1834         0 @Base/reduce.jl                                                 42 mapfoldl_impl
+  1834        17 @Base/reduce.jl                                                 46 foldl_impl
+  1601         0 @Base/client.jl                                                577 _start()
+  1601         0 @Base/client.jl                                                344 exec_options(opts::Base.JLOptions)
+  1601         0 @Base/Base.jl                                                  309 include(mod::Module, _path::String)
+```
+
+<details><summary>Pruned call tree (frames with ≥1% of samples)</summary>
+
+```
+Overhead ╎ [+additional indent] Count File:Line  Function
+=========================================================
+     ╎1601  @Base/client.jl:577  _start()
+     ╎ 1601  @Base/client.jl:344  exec_options(opts::Base.JLOptions)
+     ╎  1601  @Base/Base.jl:309  include(mod::Module, _path::String)
+     ╎   1601  @Base/loading.jl:3093  _include(mapexpr::Function, mod::Module, _path::String)
+     ╎    1601  @Base/loading.jl:3033  include_string(mapexpr::typeof(identity), mod::Module, code::String, filename::String)
+     ╎     1601  @Base/boot.jl:489  eval(m::Module, e::Any)
+     ╎    ╎ 1601  /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:277  main()
+     ╎    ╎  1601  /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:81  sampling_profile(f::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{VertexEnumeration}, VerificationProblem{FactoredRobustMarkovDecisionP…
+     ╎    ╎   1601  @Profile/src/Profile.jl:60  macro expansion
+     ╎    ╎    1601  /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:82  macro expansion
+     ╎    ╎     1601  /home/fresen/.julia/dev/IntervalMDP/benchmark/lib/measure.jl:80  (::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{VertexEnumeration}, VerificationProblem{FactoredRobustMarkovDecisionProcess{2, …
+     ╎    ╎    ╎ 1601  @IntervalMDP/src/robust_value_iteration.jl:158  solve
+     ╎    ╎    ╎  1601  @IntervalMDP/src/robust_value_iteration.jl:159  #solve#92
+     ╎    ╎    ╎   1601  @IntervalMDP/src/robust_value_iteration.jl:170  _value_iteration!
+     ╎    ╎    ╎    1583  @IntervalMDP/src/robust_value_iteration.jl:193  _value_iteration!(problem::VerificationProblem{FactoredRobustMarkovDecisionProcess{2, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseMatrixCSC{Float64, Int32…
+     ╎    ╎    ╎     1583  @IntervalMDP/src/robust_value_iteration.jl:237  step!
+     ╎    ╎    ╎    ╎ 1583  @IntervalMDP/src/bellman.jl:202  bellman!
+     ╎    ╎    ╎    ╎  1583  @IntervalMDP/src/bellman.jl:202  bellman!
+     ╎    ╎    ╎    ╎   1583  @IntervalMDP/src/bellman.jl:213  #bellman!#35
+     ╎    ╎    ╎    ╎    1583  @IntervalMDP/src/bellman.jl:964  _bellman_helper!
+     ╎    ╎    ╎    ╎     1583  @IntervalMDP/src/bellman.jl:974  #_bellman_helper!#84
+     ╎    ╎    ╎    ╎    ╎ 1583  @IntervalMDP/src/threading.jl:46  macro expansion
+     ╎    ╎    ╎    ╎    ╎  1495  @Base/threadingconstructs.jl:192  threading_run(fun::IntervalMDP.var"#86#87"{IntervalMDP.var"#88#89"{Bool, Bool, IntervalMDP.ThreadedFactoredVertexIteratorWorkspace{2, Float64, Vector{Float64}}, IntervalMD…
+     ╎    ╎    ╎    ╎    ╎   1494  @Base/task.jl:312  _wait(t::Task)
+     ╎    ╎    ╎    ╎    ╎    1494  @Base/condition.jl:136  wait
+     ╎    ╎    ╎    ╎    ╎     1481  @Base/condition.jl:141  wait(c::Base.GenericCondition{Base.Threads.SpinLock}; first::Bool)
+ 1466╎    ╎    ╎    ╎    ╎    ╎ 1481  @Base/task.jl:1297  wait()
+     ╎18983 @Base/task.jl:1196  wait_forever()
+18183╎ 18965 @Base/task.jl:1297  wait()
+     ╎  687   @Base/task.jl:1267  trypoptask(W::Base.IntrusiveLinkedListSynchronized{Task})
+    1╎6442  @Base/threadingconstructs.jl:178  (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#86#87"{IntervalMDP.var"#88#89"{Bool, Bool, IntervalMDP.ThreadedFactoredVertexIteratorWorkspace{2, Float64, Vector{Float6…
+     ╎ 6441  @IntervalMDP/src/threading.jl:7  #86
+     ╎  6412  @IntervalMDP/src/threading.jl:41  (::IntervalMDP.var"#86#87"{IntervalMDP.var"#88#89"{Bool, Bool, IntervalMDP.ThreadedFactoredVertexIteratorWorkspace{2, Float64, Vector{Float64}}, IntervalMDP.NoStrategyCache, Matrix{Float64}, …
+     ╎   6410  @IntervalMDP/src/bellman.jl:976  macro expansion
+     ╎    6401  @IntervalMDP/src/bellman.jl:1003  state_bellman!
+   20╎     2091  @IntervalMDP/src/bellman.jl:1043  state_action_bellman
+     ╎    ╎ 2068  @Base/reduce.jl:564  sum
+     ╎    ╎  2068  @Base/reduce.jl:564  #sum#279
+     ╎    ╎   2068  @Base/reduce.jl:535  sum
+     ╎    ╎    2068  @Base/reduce.jl:535  #sum#278
+     ╎    ╎     2068  @Base/reduce.jl:306  mapreduce
+     ╎    ╎    ╎ 2068  @Base/reduce.jl:306  #mapreduce#275
+     ╎    ╎    ╎  2068  @Base/reduce.jl:173  mapfoldl
+     ╎    ╎    ╎   2068  @Base/reduce.jl:173  #mapfoldl#271
+     ╎    ╎    ╎    1834  @Base/reduce.jl:42  mapfoldl_impl
+   17╎    ╎    ╎     1834  @Base/reduce.jl:46  foldl_impl
+     ╎    ╎    ╎    ╎ 1056  @Base/reduce.jl:60  _foldl_impl(op::Base.MappingRF{IntervalMDP.var"#state_action_bellman##0#state_action_bellman##1"{Matrix{Float64}, Tuple{IntervalMDP.IntervalAmbiguitySet{Float64, SubArray{Float64, 1, SparseMa…
+     ╎    ╎    ╎    ╎  1056  @Base/reduce.jl:98  MappingRF
+     ╎    ╎    ╎    ╎   907   none:?  #state_action_bellman##0
+  306╎    ╎    ╎    ╎    306   @Base/float.jl:494  *
+     ╎    ╎    ╎    ╎    361   @Base/reducedim.jl:999  prod
+     ╎    ╎    ╎    ╎     361   @Base/reducedim.jl:999  #prod#753
+     ╎    ╎    ╎    ╎    ╎ 361   @Base/reducedim.jl:1003  _prod
+     ╎    ╎    ╎    ╎    ╎  361   @Base/reducedim.jl:1003  #_prod#755
+     ╎    ╎    ╎    ╎    ╎   361   @Base/reducedim.jl:330  mapreduce
+     ╎    ╎    ╎    ╎    ╎    361   @Base/reducedim.jl:330  #mapreduce#741
+     ╎    ╎    ╎    ╎    ╎     361   @Base/reducedim.jl:347  _mapreduce_dim
+     ╎    ╎    ╎    ╎    ╎    ╎ 361   @Base/reduce.jl:440  _mapreduce
+     ╎    ╎    ╎    ╎    ╎    ╎  352   @Base/reduce.jl:30  mul_prod
+   19╎    ╎    ╎    ╎ 557   @Base/reduce.jl:61  _foldl_impl(op::Base.MappingRF{IntervalMDP.var"#state_action_bellman##0#state_action_bellman##1"{Matrix{Float64}, Tuple{IntervalMDP.IntervalAmbiguitySet{Float64, SubArray{Float64, 1, SparseMa…
+     ╎    ╎    ╎    ╎  538   @Base/iterators.jl:697  iterate
+     ╎    ╎    ╎    ╎   538   @Base/multidimensional.jl:453  iterate
+   93╎    ╎    ╎    ╎    451   @Base/multidimensional.jl:477  __inc
+     ╎    ╎    ╎    ╎     358   @Base/operators.jl:320  !=
+  358╎    ╎    ╎    ╎    ╎ 358   @Base/promotion.jl:641  ==
+     ╎     4176  @IntervalMDP/src/bellman.jl:1048  state_action_bellman
+     ╎    ╎ 4176  @Base/iterators.jl:1215  iterate
+   19╎    ╎  3680  @Base/iterators.jl:1202  _piterate1
+     ╎    ╎   635   @IntervalMDP/src/probabilities/IntervalAmbiguitySets.jl:480  iterate(it::IntervalMDP.IntervalAmbiguitySetVertexIterator{Float64, SubArray{Float64, 1, SparseMatrixCSC{Float64, Int32}, Tuple{Base.Slice{Base.OneTo{Int64}},…
+   13╎    ╎    505   @Base/abstractarray.jl:1080  copyto!
+     ╎    ╎     318   @Base/abstractarray.jl:1107  copyto_unaliased!(deststyle::IndexLinear, dest::Vector{Float64}, srcstyle::IndexCartesian, src::SubArray{Float64, 1, SparseMatrixCSC{Float64, Int32}, Tuple{Base.Slice{Base.OneTo{Int64}}, I…
+     ╎    ╎    ╎ 318   @Base/abstractarray.jl:1247  iterate
+     ╎    ╎    ╎  307   @Base/abstractarray.jl:1251  _iterate_abstractarray
+     ╎    ╎    ╎   307   @Base/subarray.jl:311  getindex
+     ╎    ╎   503   @IntervalMDP/src/probabilities/IntervalAmbiguitySets.jl:481  iterate(it::IntervalMDP.IntervalAmbiguitySetVertexIterator{Float64, SubArray{Float64, 1, SparseMatrixCSC{Float64, Int32}, Tuple{Base.Slice{Base.OneTo{Int64}},…
+     ╎    ╎    501   @Base/reducedim.jl:998  sum
+     ╎    ╎     501   @Base/reducedim.jl:998  #sum#748
+     ╎    ╎    ╎ 501   @Base/reducedim.jl:1002  _sum
+     ╎    ╎    ╎  501   @Base/reducedim.jl:1002  #_sum#750
+     ╎    ╎    ╎   501   @Base/reducedim.jl:1003  _sum
+     ╎    ╎    ╎    501   @Base/reducedim.jl:1003  #_sum#751
+     ╎    ╎    ╎     501   @Base/reducedim.jl:330  mapreduce
+     ╎    ╎    ╎    ╎ 501   @Base/reducedim.jl:330  #mapreduce#741
+     ╎    ╎    ╎    ╎  501   @Base/reducedim.jl:347  _mapreduce_dim
+     ╎    ╎    ╎    ╎   272   @Base/reduce.jl:440  _mapreduce
+     ╎    ╎    ╎    ╎    272   @Base/reduce.jl:19  add_sum
+  272╎    ╎    ╎    ╎     272   @Base/float.jl:492  +
+ 1822╎    ╎   1822  @IntervalMDP/src/probabilities/IntervalAmbiguitySets.jl:500  iterate(it::IntervalMDP.IntervalAmbiguitySetVertexIterator{Float64, SubArray{Float64, 1, SparseMatrixCSC{Float64, Int32}, Tuple{Base.Slice{Base.OneTo{Int64}},…
+     ╎    ╎  332   @Base/iterators.jl:1205  _piterate1
+    1╎    ╎   331   @Base/iterators.jl:1202  _piterate1
+Total snapshots: 27228. Utilization: 35% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+
+```
+</details>
+
+#### Allocation profile (`Profile.Allocs`, one call)
+
+`Base.@allocations` = 3357949 per call; sample_rate = 0.05956; 199792 allocations (6608720 bytes) recorded — counts below are samples, multiply by 1/sample_rate for totals.
+
+By innermost IntervalMDP frame:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `iterate @ src/probabilities/IntervalAmbiguitySets.jl:500` | 177221 | 5671072 |
+| `iterate @ src/probabilities/IntervalAmbiguitySets.jl:419` | 22094 | 884560 |
+| `macro expansion @ src/threading.jl:46` | 469 | 52592 |
+| `#FactoredVertexIteratorWorkspace##0 @ src/workspace.jl:299` | 6 | 448 |
+| `FactoredVertexIteratorWorkspace @ src/workspace.jl:300` | 2 | 48 |
+
+By type:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `Tuple{Vector{Float64}, Tuple{Vector{Int64}, Int64}}` | 177221 | 5671072 |
+| `Memory{Int64}` | 11097 | 532656 |
+| `Vector{Int64}` | 10997 | 351904 |
+| `Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#86#87"{IntervalMDP.var"#88#89"{Bool, Bool, IntervalMDP.ThreadedFactoredVertexIteratorWorkspace{2, Float64, Vector{Float64}}, IntervalMDP.NoStrategyCache, Matrix{Float64}, Matrix{Float64}, FactoredRobustMarkovDecisionProcess{2, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseMatrixCSC{Float64, Int32}}, 2, 1}, Marginal{IntervalAmbiguitySets{Float64, SparseMatrixCSC{Float64, Int32}}, 2, 1}}, AllAvailableActions{1}, AllStates}, FullUpdateSequence{2, Tuple{Base.OneTo{Int64}, Base.OneTo{Int64}}}}}, Int64}` | 93 | 28272 |
+| `Task` | 72 | 16128 |
+| `Base.GenericCondition{Base.Threads.SpinLock}` | 104 | 3328 |
+| `Base.IntrusiveLinkedList{Task}` | 85 | 2720 |
+| `Base.Threads.SpinLock` | 110 | 1760 |
+| `Memory{Float64}` | 6 | 432 |
+| `Memory{Task}` | 2 | 288 |
+
+#### JET.@report_opt (target_modules = (IntervalMDP,))
+
+0 report(s).
+
+```
+No errors detected
+
+```
+

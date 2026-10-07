@@ -508,3 +508,510 @@ No errors detected
 
 ```
 
+## Run: backend cpu, Float64, 16 thread(s)
+
+- date (UTC): 2026-10-07T17:10:02.297; git 4a42913 (src/ext dirty: false)
+- Julia 1.13.1; pinning: compact (thread→CPU: interactive [0], default [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]); sampling delay 0.5 ms, 6.0 s per entry
+
+### Entry `bellman`
+
+Descriptive fields: `{"strategy_cache":"NoStrategyCache","workspace_type":"ThreadedSparseIntervalOMaxWorkspace"}`
+
+- correctness check vs stored reference (`benchmark/reference/cpu-Float64`): **pass** (max |ΔV| = 0, tolerance 1e-12)
+- one call after warm-up: 0.088 ms, 61376 bytes allocated (`@allocated`)
+- BenchmarkTools single call: allocs = 1741, memory = 61488 bytes
+- **steady-state `bellman!` allocation: 61376 bytes per call (does NOT meet the zero-allocation goal)**
+
+#### CPU sampling profile
+
+44378 calls profiled, 12669 samples on the compute threads (default threadpool; mincount 5 for listed frames). Self-time share of a frame = Overhead / 12669.
+
+Top frames by **self time** (`Overhead` column = samples whose leaf is this frame):
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+ 11039      9825 @Base/task.jl                                                 1297 wait()
+   915       563 @Base/sort.jl                                                 1741 sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Function, by::Function, …
+   501       501 @Base/task.jl                                                 1015 enq_work(t::Task)
+   290       290 @Base/ordering.jl                                              136 _by(by::Function, order::Base.Order.ForwardOrdering)
+   236       236 @Base/essentials.jl                                            975 getindex
+   175       175 @Base/int.jl                                                   559 <
+   140       140 @Base/threadingconstructs.jl                                   195 threading_run(fun::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.NoStrategyCache, Vec…
+   118       118 @Base/partr.jl                                                 208 multiq_deletemin()
+   101       101 @Base/partr.jl                                                  30 get_ptls_rng
+    97        97 @Base/promotion.jl                                             641 ==
+    75        75 @Base/partr.jl                                                   ? multiq_deletemin()
+    54        54 @Base/partr.jl                                                  32 set_ptls_rng
+    57        53 @Base/essentials.jl                                            385 checkbounds
+    90        47 @Base/partr.jl                                                 256 multiq_check_empty()
+    46        46 @Base/Base_compiler.jl                                          57 getproperty
+    34        34 @Base/partr.jl                                                 259 multiq_check_empty()
+    32        32 @Base/int.jl                                                    87 +
+    32        32 @Base/int.jl                                                   574 >>
+   196        21 @Base/partr.jl                                                 205 multiq_deletemin()
+    21        21 @Base/linked_list.jl                                             7 IntrusiveLinkedList
+```
+
+Top frames by **inclusive** count:
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+ 11040      9826 @Base/task.jl                                                 1297 wait()
+ 10974         0 @Base/task.jl                                                 1196 wait_forever()
+  1069         0 @Base/task.jl                                                 1267 trypoptask(W::Base.IntrusiveLinkedListSynchronized{Task})
+   990         0 @Base/threadingconstructs.jl                                   178 (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float…
+   990         0 @IntervalMDP/src/threading.jl                                    7 #48
+   986         0 @IntervalMDP/src/threading.jl                                   41 (::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.NoStrategyCache, Vector{Float64}, Ve…
+   984         0 @IntervalMDP/src/bellman.jl                                    428 macro expansion
+   958         0 @IntervalMDP/src/bellman.jl                                    473 state_bellman!
+   924         0 @IntervalMDP/src/bellman.jl                                    550 state_action_bellman
+   924         1 @Base/sort.jl                                                 1734 sort!
+   915       563 @Base/sort.jl                                                 1741 sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Function, by::Function, …
+   772         0 @Base/client.jl                                                577 _start()
+   772         0 @Base/client.jl                                                344 exec_options(opts::Base.JLOptions)
+   772         0 @Base/Base.jl                                                  309 include(mod::Module, _path::String)
+   772         0 @Base/loading.jl                                              3093 _include(mapexpr::Function, mod::Module, _path::String)
+   772         0 @Base/loading.jl                                              3033 include_string(mapexpr::typeof(identity), mod::Module, code::String, filename::String)
+   772         0 @Base/boot.jl                                                  489 eval(m::Module, e::Any)
+   772         0 /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl       277 main()
+   772         0 /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl        81 sampling_profile(f::var"#entry_closure##4#entry_closure##5"{Backend, Vector{Float64}, Vector{Float64}, IntervalMDP.NoStrategyCache, IntervalMDP.ThreadedSparseIntervalOMa…
+   772         0 @Profile/src/Profile.jl                                         60 macro expansion
+   772         0 /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl        82 macro expansion
+   772         0 /home/fresen/.julia/dev/IntervalMDP/benchmark/lib/measure.jl    70 (::var"#entry_closure##4#entry_closure##5"{Backend, Vector{Float64}, Vector{Float64}, IntervalMDP.NoStrategyCache, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float6…
+   772         0 @IntervalMDP/src/bellman.jl                                    202 bellman!
+   772         0 @IntervalMDP/src/bellman.jl                                    213 #bellman!#35
+   772         0 @IntervalMDP/src/bellman.jl                                    411 _bellman_helper!
+```
+
+<details><summary>Pruned call tree (frames with ≥1% of samples)</summary>
+
+```
+Overhead ╎ [+additional indent] Count File:Line  Function
+=========================================================
+    ╎772   @Base/client.jl:577  _start()
+    ╎ 772   @Base/client.jl:344  exec_options(opts::Base.JLOptions)
+    ╎  772   @Base/Base.jl:309  include(mod::Module, _path::String)
+    ╎   772   @Base/loading.jl:3093  _include(mapexpr::Function, mod::Module, _path::String)
+    ╎    772   @Base/loading.jl:3033  include_string(mapexpr::typeof(identity), mod::Module, code::String, filename::String)
+    ╎     772   @Base/boot.jl:489  eval(m::Module, e::Any)
+    ╎    ╎ 772   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:277  main()
+    ╎    ╎  772   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:81  sampling_profile(f::var"#entry_closure##4#entry_closure##5"{Backend, Vector{Float64}, Vector{Float64}, IntervalMDP.NoStrategyCache, IntervalMDP.ThreadedSparseIn…
+    ╎    ╎   772   @Profile/src/Profile.jl:60  macro expansion
+    ╎    ╎    772   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:82  macro expansion
+    ╎    ╎     772   /home/fresen/.julia/dev/IntervalMDP/benchmark/lib/measure.jl:70  (::var"#entry_closure##4#entry_closure##5"{Backend, Vector{Float64}, Vector{Float64}, IntervalMDP.NoStrategyCache, IntervalMDP.ThreadedSparseIntervalOMax…
+    ╎    ╎    ╎ 772   @IntervalMDP/src/bellman.jl:202  bellman!
+    ╎    ╎    ╎  772   @IntervalMDP/src/bellman.jl:202  bellman!
+    ╎    ╎    ╎   772   @IntervalMDP/src/bellman.jl:213  #bellman!#35
+    ╎    ╎    ╎    772   @IntervalMDP/src/bellman.jl:411  _bellman_helper!
+    ╎    ╎    ╎     772   @IntervalMDP/src/bellman.jl:426  #_bellman_helper!#46
+    ╎    ╎    ╎    ╎ 772   @IntervalMDP/src/threading.jl:46  macro expansion
+    ╎    ╎    ╎    ╎  517   @Base/threadingconstructs.jl:189  threading_run(fun::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.NoStrategyCache, Vector{Floa…
+    ╎    ╎    ╎    ╎   517   @Base/task.jl:1027  schedule
+ 501╎    ╎    ╎    ╎    501   @Base/task.jl:1015  enq_work(t::Task)
+ 140╎    ╎    ╎    ╎  140   @Base/threadingconstructs.jl:195  threading_run(fun::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.NoStrategyCache, Vector{Floa…
+    ╎10974 @Base/task.jl:1196  wait_forever()
+9746╎ 10956 @Base/task.jl:1297  wait()
+    ╎  1062  @Base/task.jl:1267  trypoptask(W::Base.IntrusiveLinkedListSynchronized{Task})
+    ╎   147   @Base/partr.jl:201  multiq_deletemin()
+    ╎    147   @Base/partr.jl:28  cong
+    ╎   242   @Base/partr.jl:204  multiq_deletemin()
+    ╎    202   @Base/abstractarray.jl:1366  getindex
+ 160╎     160   @Base/essentials.jl:975  getindex
+  21╎   196   @Base/partr.jl:205  multiq_deletemin()
+    ╎    175   @Base/operators.jl:425  >
+ 175╎     175   @Base/int.jl:559  <
+    ╎990   @Base/threadingconstructs.jl:178  (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.NoStrate…
+    ╎ 990   @IntervalMDP/src/threading.jl:7  #48
+    ╎  986   @IntervalMDP/src/threading.jl:41  (::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.NoStrategyCache, Vector{Float64}, Vector{Float64}, Factored…
+    ╎   984   @IntervalMDP/src/bellman.jl:428  macro expansion
+    ╎    958   @IntervalMDP/src/bellman.jl:473  state_bellman!
+    ╎     924   @IntervalMDP/src/bellman.jl:550  state_action_bellman
+   1╎    ╎ 924   @Base/sort.jl:1734  sort!
+ 563╎    ╎  915   @Base/sort.jl:1741  sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Function, by::Function, rev::Bool, order::Base.Order.For…
+   2╎    ╎   295   @Base/ordering.jl:158  ord(lt::Function, by::Function, rev::Bool, order::Base.Order.ForwardOrdering)
+   3╎    ╎    293   @Base/ordering.jl:131  _ord
+ 290╎    ╎     290   @Base/ordering.jl:136  _by(by::Function, order::Base.Order.ForwardOrdering)
+Total snapshots: 13112. Utilization: 52% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+
+```
+</details>
+
+#### Allocation profile (`Profile.Allocs`, one call)
+
+`Base.@allocations` = 1738 per call; sample_rate = 1; 1738 allocations (61104 bytes) recorded.
+
+By innermost IntervalMDP frame:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `state_action_bellman @ src/bellman.jl:550` | 1656 | 52992 |
+| `macro expansion @ src/threading.jl:46` | 82 | 8112 |
+
+By type:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}` | 828 | 39744 |
+| `@NamedTuple{scratch::Vector{Tuple{Float64, Float64}}}` | 828 | 13248 |
+| `Task` | 16 | 3584 |
+| `Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.NoStrategyCache, Vector{Float64}, Vector{Float64}, FactoredRobustMarkovDecisionProcess{1, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseArrays.FixedSparseCSC{Float64, Int32}}, 1, 1}}, AllAvailableActions{1}, Vector{Int32}}, FullUpdateSequence{1, Tuple{Base.OneTo{Int64}}}}}, Int64}` | 16 | 3072 |
+| `Base.IntrusiveLinkedList{Task}` | 16 | 512 |
+| `Base.GenericCondition{Base.Threads.SpinLock}` | 16 | 512 |
+| `Base.Threads.SpinLock` | 16 | 256 |
+| `Memory{Task}` | 1 | 144 |
+| `Vector{Task}` | 1 | 32 |
+
+#### JET.@report_opt (target_modules = (IntervalMDP,))
+
+0 report(s).
+
+```
+No errors detected
+
+```
+
+### Entry `solve_rvi`
+
+Descriptive fields: `{"algorithm":"RobustValueIteration","problem":"VerificationProblem","property":"InfiniteTimeReachability","workspace_type":"ThreadedSparseIntervalOMaxWorkspace"}`
+
+- correctness check vs stored reference (`benchmark/reference/cpu-Float64`): **pass** (max |ΔV| = 0, tolerance 1e-05)
+- one call after warm-up: 16.714 ms, 5320176 bytes allocated (`@allocated`)
+- BenchmarkTools single call: allocs = 144469, memory = 5320176 bytes
+
+#### CPU sampling profile
+
+534 calls profiled, 12895 samples on the compute threads (default threadpool; mincount 5 for listed frames). Self-time share of a frame = Overhead / 12895.
+
+Top frames by **self time** (`Overhead` column = samples whose leaf is this frame):
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+ 11293      9948 @Base/task.jl                                                 1297 wait()
+   512       512 @Base/task.jl                                                 1015 enq_work(t::Task)
+   882       507 @Base/sort.jl                                                 1741 sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Functio…
+   332       332 @Base/ordering.jl                                              136 _by(by::Function, order::Base.Order.ForwardOrdering)
+   270       270 @Base/essentials.jl                                            975 getindex
+   220       220 @Base/int.jl                                                   559 <
+   136       136 @Base/threadingconstructs.jl                                   195 threading_run(fun::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.NoS…
+   122       122 @Base/promotion.jl                                             641 ==
+   118       118 @Base/partr.jl                                                 208 multiq_deletemin()
+   109       109 @Base/partr.jl                                                  30 get_ptls_rng
+    63        63 @Base/partr.jl                                                   ? multiq_deletemin()
+    58        58 @Base/partr.jl                                                  32 set_ptls_rng
+    61        55 @Base/essentials.jl                                            385 checkbounds
+    54        54 @Base/Base_compiler.jl                                          57 getproperty
+   110        47 @Base/partr.jl                                                 256 multiq_check_empty()
+    40        40 @Base/int.jl                                                   574 >>
+    40        40 @Base/partr.jl                                                 259 multiq_check_empty()
+    31        31 @Base/int.jl                                                    87 +
+    21        21 @Base/linked_list.jl                                             7 IntrusiveLinkedList
+    20        18 @Base/partr.jl                                                 188 multiq_deletemin()
+```
+
+Top frames by **inclusive** count:
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+ 11293      9948 @Base/task.jl                                                 1297 wait()
+ 11224         0 @Base/task.jl                                                 1196 wait_forever()
+  1152         0 @Base/task.jl                                                 1267 trypoptask(W::Base.IntrusiveLinkedListSynchronized{Task})
+   962         0 @Base/threadingconstructs.jl                                   178 (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOM…
+   962         0 @IntervalMDP/src/threading.jl                                    7 #48
+   961         0 @IntervalMDP/src/threading.jl                                   41 (::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.NoStrategyCache, Ve…
+   960         0 @IntervalMDP/src/bellman.jl                                    428 macro expansion
+   936         0 @IntervalMDP/src/bellman.jl                                    473 state_bellman!
+   888         0 @IntervalMDP/src/bellman.jl                                    550 state_action_bellman
+   888         3 @Base/sort.jl                                                 1734 sort!
+   882       507 @Base/sort.jl                                                 1741 sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Functio…
+   787         0 @Base/client.jl                                                577 _start()
+   787         0 @Base/client.jl                                                344 exec_options(opts::Base.JLOptions)
+   787         0 @Base/Base.jl                                                  309 include(mod::Module, _path::String)
+   787         0 @Base/loading.jl                                              3093 _include(mapexpr::Function, mod::Module, _path::String)
+   787         0 @Base/loading.jl                                              3033 include_string(mapexpr::typeof(identity), mod::Module, code::String, filename::String)
+   787         0 @Base/boot.jl                                                  489 eval(m::Module, e::Any)
+   787         0 /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl       277 main()
+   787         0 /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl        81 sampling_profile(f::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{OMaximization}, VerificationProblem{FactoredRobustMarkovDecisi…
+   787         0 @Profile/src/Profile.jl                                         60 macro expansion
+   787         0 /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl        82 macro expansion
+   787         0 /home/fresen/.julia/dev/IntervalMDP/benchmark/lib/measure.jl    80 (::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{OMaximization}, VerificationProblem{FactoredRobustMarkovDecisionProcess{1, 1, T…
+   787         0 @IntervalMDP/src/robust_value_iteration.jl                     158 solve
+   787         0 @IntervalMDP/src/robust_value_iteration.jl                     159 #solve#92
+   787         0 @IntervalMDP/src/robust_value_iteration.jl                     170 _value_iteration!
+```
+
+<details><summary>Pruned call tree (frames with ≥1% of samples)</summary>
+
+```
+Overhead ╎ [+additional indent] Count File:Line  Function
+=========================================================
+    ╎787   @Base/client.jl:577  _start()
+    ╎ 787   @Base/client.jl:344  exec_options(opts::Base.JLOptions)
+    ╎  787   @Base/Base.jl:309  include(mod::Module, _path::String)
+    ╎   787   @Base/loading.jl:3093  _include(mapexpr::Function, mod::Module, _path::String)
+    ╎    787   @Base/loading.jl:3033  include_string(mapexpr::typeof(identity), mod::Module, code::String, filename::String)
+    ╎     787   @Base/boot.jl:489  eval(m::Module, e::Any)
+    ╎    ╎ 787   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:277  main()
+    ╎    ╎  787   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:81  sampling_profile(f::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{OMaximization}, VerificationProblem{FactoredRobustMarkovDecisionProces…
+    ╎    ╎   787   @Profile/src/Profile.jl:60  macro expansion
+    ╎    ╎    787   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:82  macro expansion
+    ╎    ╎     787   /home/fresen/.julia/dev/IntervalMDP/benchmark/lib/measure.jl:80  (::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{OMaximization}, VerificationProblem{FactoredRobustMarkovDecisionProcess{1, 1, Tu…
+    ╎    ╎    ╎ 787   @IntervalMDP/src/robust_value_iteration.jl:158  solve
+    ╎    ╎    ╎  787   @IntervalMDP/src/robust_value_iteration.jl:159  #solve#92
+    ╎    ╎    ╎   787   @IntervalMDP/src/robust_value_iteration.jl:170  _value_iteration!
+    ╎    ╎    ╎    770   @IntervalMDP/src/robust_value_iteration.jl:193  _value_iteration!(problem::VerificationProblem{FactoredRobustMarkovDecisionProcess{1, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseArrays.FixedSparseCSC{Flo…
+    ╎    ╎    ╎     769   @IntervalMDP/src/robust_value_iteration.jl:237  step!
+    ╎    ╎    ╎    ╎ 769   @IntervalMDP/src/bellman.jl:202  bellman!
+    ╎    ╎    ╎    ╎  769   @IntervalMDP/src/bellman.jl:202  bellman!
+    ╎    ╎    ╎    ╎   769   @IntervalMDP/src/bellman.jl:213  #bellman!#35
+    ╎    ╎    ╎    ╎    769   @IntervalMDP/src/bellman.jl:411  _bellman_helper!
+    ╎    ╎    ╎    ╎     769   @IntervalMDP/src/bellman.jl:426  #_bellman_helper!#46
+    ╎    ╎    ╎    ╎    ╎ 769   @IntervalMDP/src/threading.jl:46  macro expansion
+    ╎    ╎    ╎    ╎    ╎  522   @Base/threadingconstructs.jl:189  threading_run(fun::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.NoStrategyCache, Vector…
+    ╎    ╎    ╎    ╎    ╎   522   @Base/task.jl:1027  schedule
+ 506╎    ╎    ╎    ╎    ╎    506   @Base/task.jl:1015  enq_work(t::Task)
+ 135╎    ╎    ╎    ╎    ╎  135   @Base/threadingconstructs.jl:195  threading_run(fun::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.NoStrategyCache, Vector…
+    ╎11224 @Base/task.jl:1196  wait_forever()
+9872╎ 11212 @Base/task.jl:1297  wait()
+    ╎  1145  @Base/task.jl:1267  trypoptask(W::Base.IntrusiveLinkedListSynchronized{Task})
+    ╎   150   @Base/partr.jl:201  multiq_deletemin()
+    ╎    150   @Base/partr.jl:28  cong
+    ╎   259   @Base/partr.jl:204  multiq_deletemin()
+    ╎    218   @Base/abstractarray.jl:1366  getindex
+ 173╎     173   @Base/essentials.jl:975  getindex
+  13╎   231   @Base/partr.jl:205  multiq_deletemin()
+    ╎    218   @Base/operators.jl:425  >
+ 218╎     218   @Base/int.jl:559  <
+    ╎962   @Base/threadingconstructs.jl:178  (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.NoStrate…
+    ╎ 962   @IntervalMDP/src/threading.jl:7  #48
+    ╎  961   @IntervalMDP/src/threading.jl:41  (::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.NoStrategyCache, Vector{Float64}, Vector{Float64}, Factored…
+    ╎   960   @IntervalMDP/src/bellman.jl:428  macro expansion
+    ╎    936   @IntervalMDP/src/bellman.jl:473  state_bellman!
+    ╎     888   @IntervalMDP/src/bellman.jl:550  state_action_bellman
+   3╎    ╎ 888   @Base/sort.jl:1734  sort!
+ 507╎    ╎  882   @Base/sort.jl:1741  sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Function, by::Function, rev::Bool, order::Base.Order.For…
+   1╎    ╎   334   @Base/ordering.jl:158  ord(lt::Function, by::Function, rev::Bool, order::Base.Order.ForwardOrdering)
+   1╎    ╎    333   @Base/ordering.jl:131  _ord
+ 332╎    ╎     332   @Base/ordering.jl:136  _by(by::Function, order::Base.Order.ForwardOrdering)
+Total snapshots: 13365. Utilization: 52% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+
+```
+</details>
+
+#### Allocation profile (`Profile.Allocs`, one call)
+
+`Base.@allocations` = 144469 per call; sample_rate = 1; 144469 allocations (5295008 bytes) recorded.
+
+By innermost IntervalMDP frame:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `state_action_bellman @ src/bellman.jl:550` | 137448 | 4398336 |
+| `macro expansion @ src/threading.jl:46` | 6806 | 673296 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:127` | 112 | 214528 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:128` | 32 | 1792 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:129` | 32 | 1792 |
+| `ValueFunction @ src/robust_value_iteration.jl:217` | 2 | 1704 |
+| `arrayfactory @ src/utils.jl:9` | 2 | 1704 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:130` | 32 | 1280 |
+| `ThreadedSparseIntervalOMaxWorkspace @ src/workspace.jl:145` | 2 | 560 |
+| `#_value_iteration!#94 @ src/robust_value_iteration.jl:170` | 1 | 16 |
+
+By type:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}` | 68724 | 3298752 |
+| `@NamedTuple{scratch::Vector{Tuple{Float64, Float64}}}` | 68724 | 1099584 |
+| `Task` | 1328 | 297472 |
+| `Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.NoStrategyCache, Vector{Float64}, Vector{Float64}, FactoredRobustMarkovDecisionProcess{1, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseArrays.FixedSparseCSC{Float64, Int32}}, 1, 1}}, AllAvailableActions{1}, Vector{Int32}}, FullUpdateSequence{1, Tuple{Base.OneTo{Int64}}}}}, Int64}` | 1328 | 254976 |
+| `Profile.Allocs.BufferType` | 32 | 211968 |
+| `Base.IntrusiveLinkedList{Task}` | 1328 | 42496 |
+| `Base.GenericCondition{Base.Threads.SpinLock}` | 1328 | 42496 |
+| `Base.Threads.SpinLock` | 1328 | 21248 |
+| `Memory{Task}` | 83 | 11952 |
+| `Memory{Float64}` | 50 | 4880 |
+
+#### JET.@report_opt (target_modules = (IntervalMDP,))
+
+0 report(s).
+
+```
+No errors detected
+
+```
+
+### Entry `solve_cs_stationary`
+
+Descriptive fields: `{"algorithm":"RobustValueIteration","problem":"ControlSynthesisProblem","property":"InfiniteTimeReachability","workspace_type":"ThreadedSparseIntervalOMaxWorkspace"}`
+
+- correctness check vs stored reference (`benchmark/reference/cpu-Float64`): **pass** (max |ΔV| = 0, tolerance 1e-05)
+- one call after warm-up: 14.152 ms, 5321104 bytes allocated (`@allocated`)
+- BenchmarkTools single call: allocs = 144471, memory = 5321104 bytes
+
+#### CPU sampling profile
+
+523 calls profiled, 12907 samples on the compute threads (default threadpool; mincount 5 for listed frames). Self-time share of a frame = Overhead / 12907.
+
+Top frames by **self time** (`Overhead` column = samples whose leaf is this frame):
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+ 11204      9898 @Base/task.jl                                                 1297 wait()
+   986       605 @Base/sort.jl                                                 1741 sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Functio…
+   505       505 @Base/task.jl                                                 1015 enq_work(t::Task)
+   335       335 @Base/ordering.jl                                              136 _by(by::Function, order::Base.Order.ForwardOrdering)
+   261       261 @Base/essentials.jl                                            975 getindex
+   199       199 @Base/int.jl                                                   559 <
+   121       121 @Base/threadingconstructs.jl                                   195 threading_run(fun::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.Sta…
+   116       116 @Base/partr.jl                                                 208 multiq_deletemin()
+   102       102 @Base/partr.jl                                                  30 get_ptls_rng
+    86        86 @Base/partr.jl                                                   ? multiq_deletemin()
+    81        81 @Base/promotion.jl                                             641 ==
+    72        72 @Base/partr.jl                                                  32 set_ptls_rng
+    65        58 @Base/essentials.jl                                            385 checkbounds
+    49        49 @Base/Base_compiler.jl                                          57 getproperty
+    41        41 @Base/int.jl                                                    87 +
+    82        40 @Base/partr.jl                                                 256 multiq_check_empty()
+    39        39 @Base/partr.jl                                                 259 multiq_check_empty()
+    32        32 @Base/int.jl                                                   574 >>
+    29        29 @Base/linked_list.jl                                             7 IntrusiveLinkedList
+   220        21 @Base/partr.jl                                                 205 multiq_deletemin()
+```
+
+Top frames by **inclusive** count:
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+ 11204      9898 @Base/task.jl                                                 1297 wait()
+ 11137         0 @Base/task.jl                                                 1196 wait_forever()
+  1138         0 @Base/task.jl                                                 1267 trypoptask(W::Base.IntrusiveLinkedListSynchronized{Task})
+  1056         0 @Base/threadingconstructs.jl                                   178 (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOM…
+  1056         0 @IntervalMDP/src/threading.jl                                    7 #48
+  1049         0 @IntervalMDP/src/threading.jl                                   41 (::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.StationaryStrategyC…
+  1046         0 @IntervalMDP/src/bellman.jl                                    428 macro expansion
+  1029         0 @IntervalMDP/src/bellman.jl                                    473 state_bellman!
+   991         0 @IntervalMDP/src/bellman.jl                                    550 state_action_bellman
+   991         2 @Base/sort.jl                                                 1734 sort!
+   986       605 @Base/sort.jl                                                 1741 sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Functio…
+   779         0 @Base/client.jl                                                577 _start()
+   779         0 @Base/client.jl                                                344 exec_options(opts::Base.JLOptions)
+   779         0 @Base/Base.jl                                                  309 include(mod::Module, _path::String)
+   779         0 @Base/loading.jl                                              3093 _include(mapexpr::Function, mod::Module, _path::String)
+   779         0 @Base/loading.jl                                              3033 include_string(mapexpr::typeof(identity), mod::Module, code::String, filename::String)
+   779         0 @Base/boot.jl                                                  489 eval(m::Module, e::Any)
+   779         0 /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl       277 main()
+   779         0 /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl        81 sampling_profile(f::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{OMaximization}, ControlSynthesisProblem{FactoredRobustMarkovDe…
+   779         0 @Profile/src/Profile.jl                                         60 macro expansion
+   779         0 /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl        82 macro expansion
+   779         0 /home/fresen/.julia/dev/IntervalMDP/benchmark/lib/measure.jl    80 (::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{OMaximization}, ControlSynthesisProblem{FactoredRobustMarkovDecisionProcess{1, …
+   779         0 @IntervalMDP/src/robust_value_iteration.jl                     163 solve
+   779         0 @IntervalMDP/src/robust_value_iteration.jl                     164 #solve#93
+   779         0 @IntervalMDP/src/robust_value_iteration.jl                     170 _value_iteration!
+```
+
+<details><summary>Pruned call tree (frames with ≥1% of samples)</summary>
+
+```
+Overhead ╎ [+additional indent] Count File:Line  Function
+=========================================================
+    ╎779   @Base/client.jl:577  _start()
+    ╎ 779   @Base/client.jl:344  exec_options(opts::Base.JLOptions)
+    ╎  779   @Base/Base.jl:309  include(mod::Module, _path::String)
+    ╎   779   @Base/loading.jl:3093  _include(mapexpr::Function, mod::Module, _path::String)
+    ╎    779   @Base/loading.jl:3033  include_string(mapexpr::typeof(identity), mod::Module, code::String, filename::String)
+    ╎     779   @Base/boot.jl:489  eval(m::Module, e::Any)
+    ╎    ╎ 779   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:277  main()
+    ╎    ╎  779   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:81  sampling_profile(f::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{OMaximization}, ControlSynthesisProblem{FactoredRobustMarkovDecisionPr…
+    ╎    ╎   779   @Profile/src/Profile.jl:60  macro expansion
+    ╎    ╎    779   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:82  macro expansion
+    ╎    ╎     779   /home/fresen/.julia/dev/IntervalMDP/benchmark/lib/measure.jl:80  (::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{OMaximization}, ControlSynthesisProblem{FactoredRobustMarkovDecisionProcess{1, 1…
+    ╎    ╎    ╎ 779   @IntervalMDP/src/robust_value_iteration.jl:163  solve
+    ╎    ╎    ╎  779   @IntervalMDP/src/robust_value_iteration.jl:164  #solve#93
+    ╎    ╎    ╎   779   @IntervalMDP/src/robust_value_iteration.jl:170  _value_iteration!
+    ╎    ╎    ╎    762   @IntervalMDP/src/robust_value_iteration.jl:193  _value_iteration!(problem::ControlSynthesisProblem{FactoredRobustMarkovDecisionProcess{1, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseArrays.FixedSparseCSC…
+    ╎    ╎    ╎     762   @IntervalMDP/src/robust_value_iteration.jl:237  step!
+    ╎    ╎    ╎    ╎ 762   @IntervalMDP/src/bellman.jl:202  bellman!
+    ╎    ╎    ╎    ╎  762   @IntervalMDP/src/bellman.jl:202  bellman!
+    ╎    ╎    ╎    ╎   762   @IntervalMDP/src/bellman.jl:213  #bellman!#35
+    ╎    ╎    ╎    ╎    762   @IntervalMDP/src/bellman.jl:411  _bellman_helper!
+    ╎    ╎    ╎    ╎     762   @IntervalMDP/src/bellman.jl:426  #_bellman_helper!#46
+    ╎    ╎    ╎    ╎    ╎ 762   @IntervalMDP/src/threading.jl:46  macro expansion
+    ╎    ╎    ╎    ╎    ╎  513   @Base/threadingconstructs.jl:189  threading_run(fun::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.StationaryStrategyCache…
+    ╎    ╎    ╎    ╎    ╎   513   @Base/task.jl:1027  schedule
+ 498╎    ╎    ╎    ╎    ╎    498   @Base/task.jl:1015  enq_work(t::Task)
+    ╎11137 @Base/task.jl:1196  wait_forever()
+9818╎ 11120 @Base/task.jl:1297  wait()
+    ╎  1130  @Base/task.jl:1267  trypoptask(W::Base.IntrusiveLinkedListSynchronized{Task})
+    ╎   153   @Base/partr.jl:201  multiq_deletemin()
+    ╎    153   @Base/partr.jl:28  cong
+    ╎   258   @Base/partr.jl:204  multiq_deletemin()
+    ╎    218   @Base/abstractarray.jl:1366  getindex
+ 174╎     174   @Base/essentials.jl:975  getindex
+  21╎   218   @Base/partr.jl:205  multiq_deletemin()
+    ╎    197   @Base/operators.jl:425  >
+ 197╎     197   @Base/int.jl:559  <
+    ╎1056  @Base/threadingconstructs.jl:178  (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.Stationa…
+    ╎ 1056  @IntervalMDP/src/threading.jl:7  #48
+    ╎  1049  @IntervalMDP/src/threading.jl:41  (::IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.StationaryStrategyCache{1, Vector{Tuple{Int32}}}, Vector{Fl…
+    ╎   1046  @IntervalMDP/src/bellman.jl:428  macro expansion
+    ╎    1029  @IntervalMDP/src/bellman.jl:473  state_bellman!
+    ╎     991   @IntervalMDP/src/bellman.jl:550  state_action_bellman
+   2╎    ╎ 991   @Base/sort.jl:1734  sort!
+ 605╎    ╎  986   @Base/sort.jl:1741  sort!(v::SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}; alg::Base.Sort.DefaultStable, lt::Function, by::Function, rev::Bool, order::Base.Order.For…
+   1╎    ╎   338   @Base/ordering.jl:158  ord(lt::Function, by::Function, rev::Bool, order::Base.Order.ForwardOrdering)
+   2╎    ╎    337   @Base/ordering.jl:131  _ord
+ 335╎    ╎     335   @Base/ordering.jl:136  _by(by::Function, order::Base.Order.ForwardOrdering)
+Total snapshots: 13243. Utilization: 52% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+
+```
+</details>
+
+#### Allocation profile (`Profile.Allocs`, one call)
+
+`Base.@allocations` = 144471 per call; sample_rate = 1; 144471 allocations (5295884 bytes) recorded.
+
+By innermost IntervalMDP frame:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `state_action_bellman @ src/bellman.jl:550` | 137448 | 4398336 |
+| `macro expansion @ src/threading.jl:46` | 6806 | 673296 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:127` | 112 | 214528 |
+| `arrayfactory @ src/utils.jl:9` | 4 | 2580 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:128` | 32 | 1792 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:129` | 32 | 1792 |
+| `ValueFunction @ src/robust_value_iteration.jl:217` | 2 | 1704 |
+| `SparseIntervalOMaxWorkspace @ src/workspace.jl:130` | 32 | 1280 |
+| `ThreadedSparseIntervalOMaxWorkspace @ src/workspace.jl:145` | 2 | 560 |
+| `#_value_iteration!#94 @ src/robust_value_iteration.jl:170` | 1 | 16 |
+
+By type:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `SubArray{Tuple{Float64, Float64}, 1, Vector{Tuple{Float64, Float64}}, Tuple{UnitRange{Int64}}, true}` | 68724 | 3298752 |
+| `@NamedTuple{scratch::Vector{Tuple{Float64, Float64}}}` | 68724 | 1099584 |
+| `Task` | 1328 | 297472 |
+| `Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#48#49"{IntervalMDP.var"#50#51"{Bool, Bool, IntervalMDP.ThreadedSparseIntervalOMaxWorkspace{Float64}, IntervalMDP.StationaryStrategyCache{1, Vector{Tuple{Int32}}}, Vector{Float64}, Vector{Float64}, FactoredRobustMarkovDecisionProcess{1, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseArrays.FixedSparseCSC{Float64, Int32}}, 1, 1}}, AllAvailableActions{1}, Vector{Int32}}, FullUpdateSequence{1, Tuple{Base.OneTo{Int64}}}}}, Int64}` | 1328 | 254976 |
+| `Profile.Allocs.BufferType` | 32 | 211968 |
+| `Base.IntrusiveLinkedList{Task}` | 1328 | 42496 |
+| `Base.GenericCondition{Base.Threads.SpinLock}` | 1328 | 42496 |
+| `Base.Threads.SpinLock` | 1328 | 21248 |
+| `Memory{Task}` | 83 | 11952 |
+| `Memory{Float64}` | 50 | 4880 |
+
+#### JET.@report_opt (target_modules = (IntervalMDP,))
+
+0 report(s).
+
+```
+No errors detected
+
+```
+

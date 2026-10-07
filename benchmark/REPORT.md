@@ -268,26 +268,53 @@ A/B rounds in one session with matching clock probes (`common.md` § Evidence Pr
 
 ## 5. Profiles (`profiles/*.md`)
 
-At least one per case-matrix row; each has a CPU sampling profile (self-time and inclusive top frames, pruned tree),
-a `Profile.Allocs` summary, the steady-state allocation of one call and `JET.@report_opt` (target IntervalMDP).
+One file per profiled case, at least one per case-matrix row, each at **1 and 16 threads** (CPU, Float64, compact
+pinning). Each run section has a CPU sampling profile (self-time and inclusive top frames, pruned tree; 6 s per entry,
+0.5 ms sampling), a `Profile.Allocs` summary, the steady-state allocation of one `bellman!` call (`@allocated` after
+warm-up) and `JET.@report_opt` (`target_modules = (IntervalMDP,)`). Control-synthesis cases have no `bellman` entry in
+the registry, so `profile.jl` adds the pseudo-entry `bellman_cs`: one `bellman!` with the strategy cache that
+`solve(ControlSynthesisProblem)` builds (stationary and time-varying), checked against `bellman!` with the default cache.
 
-| Profile | Where the time goes (share of samples, self time) | Steady-state `bellman!` allocation |
-|---|---|---|
-| `imdp-dense-n1000-a4` / `imdp-dense-n4000-a4` (t=1) | gap walk `gap_value` 79–81% (`min(budget, gap[i])` 42%, float add/mul 37%), `dot(V, lower)` (BLAS) 17–19% | 0 B ✓ |
-| `imdp-dense-n4000-a4` (t=16) | idle/wait 59% (main thread waiting + workers waiting on the slowest chunk), gap walk 31% | 7.2 KB, 82 allocs (task spawn of `@threadstid`) |
-| `imdp-dense-n100-a4` (t=16) | idle/wait 87%, `threading_run` scheduling | 7.5 KB, 82 allocs |
-| `imdp-sparse-n10000-nnz100-a4`, `-n100000-nnz100-a1` (t=1) | building the (V, gap) tuples (`setindex!`, gather of `V[support]`) 25%, `sort!` 10–12%, dynamic `_by` ordering 8% | 64 B per column (2 allocs: `SubArray` 48 B + kw `NamedTuple` 16 B) — 6.4 MB per call for 10⁵ columns |
-| `real-multiObj_robotIMDP`, `product-imdp-sparse-n10000-nnz10-a4-dfa4` (small supports) | **dynamic `Base.Order._by(by::Function, …)` 50–69%**, `sort!` 13–17% | 64 B per column |
-| `fimdp-dense-v2-d50-a1-omax`, `fimdp-sparse-v3-d20-k5-a1-omax` | `_by` 21% / 58%, `sort!` 11–13%, tuple building 7–13% | 8.2 MB / 15.9 MB per call (32 B/alloc) |
-| `fimdp-sparse-v2-d10-k4-a1-mccormick` | HiGHS 80% (`Highs_run`, `Highs_create`/`destroy`, `addRow`): one JuMP model rebuilt per state–action | 21.6 MB per call, 411 000 allocs |
-| `fimdp-sparse-v2-d10-k4-a1-vertex`, `fimdp-sparse-v3-d10-k3-a1-vertex` | products in the vertex sum (`promotion.jl`) 36–38%, vertex iterator | 1.1 MB / 7.7 MB per call |
-| `cs-imdp-dense-n1000-a4`, `cs-imdp-sparse-n10000-nnz100-a4` | same as the IMDP kernels; strategy extraction not visible (< 3%) | as IMDP |
-| CUDA (`cuda-*.md`) | `CUDA.@profile` traces, see § 6.3 | n/a |
+Provenance and correctness: the 1-thread sections (and the 16-thread IMDP sections) were recorded at `91bc0c8`, the new
+16-thread sections and `bellman_cs` at `4a42913`; both have `src/`/`ext/` trees identical to `20fc03b` (src
+`290f675`, ext `5a4cf21`) and `src/ext dirty: false`. New sections record the reference check of the profiled call in
+the file (all **pass**, max |ΔV| = 0). The older sections are covered by `run.jl --reference-only` over the 15 profiled
+cases at t=1 and t=16 (48 entries each: 35 pass, 13 not-applicable `workspace`, 0 fail).
 
-JET (`@report_opt`, `target_modules = (IntervalMDP,)`) reports **0** problems for every hot function except 1 report in
-the fIMDP solve. This filter hides the main type instability: the runtime dispatch happens inside `Base.sort!` because
-IntervalMDP passes `rev = upper_bound` (a runtime `Bool`) and `by = first` as keywords, so `Base.Order.ord` returns an
-ordering whose type depends on a runtime value. `Profile.Allocs` and the self-time profile show it (H1).
+Shares are self-time samples / all samples of the main thread and the default-pool threads. At t=16 the sampler counts
+idle threads, so `wait()` is mostly idle time (main thread blocked on `@threads`, workers waiting for the slowest
+chunk); the remaining frames show the per-thread kernel mix.
+
+| Row | Profile (threads) | Where the time goes (self time) | Steady-state `bellman!` allocation |
+|---|---|---|---|
+| IMDP dense | `imdp-dense-n1000-a4`, `imdp-dense-n4000-a4` (t=1) | gap walk `gap_value` 79–81% (`min(budget, gap[i])` 42%, float add/mul 37%), `dot(V, lower)` (BLAS) 17–19% | 0 B ✓ |
+| IMDP dense | `imdp-dense-n4000-a4` (t=16) | idle/wait 59%, gap walk 31% | 7.2 KB, 82 allocs (task spawn of `@threadstid`) |
+| IMDP dense | `imdp-dense-n100-a4` (t=16) | idle/wait 87%, `threading_run` scheduling | 7.5 KB, 82 allocs |
+| IMDP sparse | `imdp-sparse-n10000-nnz100-a4`, `imdp-sparse-n100000-nnz100-a1` (t=1) | building the (V, gap) tuples (`setindex!`, gather of `V[support]`) 25%, `sort!` 10–12%, dynamic `_by` ordering 8% | 64 B per column (`SubArray` 48 B + kw `NamedTuple` 16 B): 2.56 MB / 6.4 MB per call |
+| IMDP sparse | `imdp-sparse-n100000-nnz100-a1` (t=16) | wait 78%; `_setindex!` 5%, `getindex` 3%, `sort!` 2%, `_by` 2% | 6.41 MB (64 B/column + task spawn) |
+| fIMDP O-max | `fimdp-dense-v2-d50-a1-omax`, `fimdp-sparse-v3-d20-k5-a1-omax` (t=1) | `_by` 21% / 58%, `sort!` 11–13%, tuple building 7–13% | 8.2 MB / 15.9 MB per call (32 B/alloc) |
+| fIMDP O-max | `fimdp-dense-v2-d50-a1-omax` (t=16) | wait 77%; `sort!` 5%, `_by` 4%, `_setindex!` 3% | 8.17 MB |
+| fIMDP McCormick | `fimdp-sparse-v2-d10-k4-a1-mccormick` (t=1) | HiGHS 80% (`Highs_run`, `Highs_create`/`destroy`, `addRow`): one JuMP model rebuilt per state–action | 21.6 MB, 411 000 allocs |
+| fIMDP McCormick | same (t=16) | wait 73%; `Highs_run` 11.5%, `GenericMemory` 3.6%, `Highs_create` 2% | 21.6 MB |
+| fIMDP vertex | `fimdp-sparse-v2-d10-k4-a1-vertex`, `fimdp-sparse-v3-d10-k3-a1-vertex` (t=1) | products in the vertex sum (`promotion.jl`) 36–38%, vertex iterator | 1.1 MB / 7.7 MB per call |
+| fIMDP vertex | `fimdp-sparse-v2-d10-k4-a1-vertex` (t=16) | wait 74%; vertex iterator `iterate` 6.6%, `+`/`==`/`*` 6% | 1.13 MB |
+| Product IMDP × DFA | `product-imdp-dense-n1000-a4-dfa4` (t=1) | dense gap walk: `min` 38%, `dot` 19%, `*`/`+`/`-` 38% | 0 B ✓ |
+| Product IMDP × DFA | same (t=16) | wait 68–72%; `min` 6–8%, `+` 6–7%, `dot` 3–4% | 30.6 KB (task spawn) |
+| Product IMDP × DFA | `product-imdp-sparse-n10000-nnz10-a4-dfa4` (t=1) | **dynamic `Base.Order._by(by::Function, …)` 50%**, `_setindex!` 11%, `sort!` 10% (small supports, nnz 10) | 10.2 MB (64 B per column) |
+| Product IMDP × DFA | same (t=16) | wait 73%; `sort!` 11–13%, `_by` 7.5% | 10.3 MB |
+| Real model | `real-multiObj_robotIMDP` (t=1) | **dynamic `_by` 67%**, `sort!` 13% (small supports) | 53 KB (64 B per column) |
+| Real model | same (t=16) | wait 77%; `sort!` 4–5%, `enq_work` 4% (task scheduling; 0.1 ms calls), `_by` 2–3% | 61 KB |
+| Control synthesis | `cs-imdp-dense-n1000-a4`, `cs-imdp-sparse-n10000-nnz100-a4` (t=1) | same as the IMDP kernels; strategy extraction not visible (< 3%) | `bellman_cs`: 0 B ✓ (dense) / 2.56 MB (sparse), both caches |
+| Control synthesis | same (t=16) | wait 71–80%; dense: `min`/`+`/`dot` 3–6% each; sparse: `_setindex!` 4–5%, `_by` 2%, `sort!` 2% | `bellman_cs`: 7.4 KB (dense) / 2.57 MB (sparse) |
+| CUDA | `cuda-*.md` | `CUDA.@profile` traces, see § 6.3 | n/a |
+
+JET (`@report_opt`, `target_modules = (IntervalMDP,)`) reports **0** problems for every hot function at both thread
+counts except 1 report in the fIMDP O-max solve (`fimdp-dense-v2-d50-a1-omax`/`solve_rvi`). This filter hides the main
+type instability: the runtime dispatch happens inside `Base.sort!` because IntervalMDP passes `rev = upper_bound` (a
+runtime `Bool`) and `by = first` as keywords, so `Base.Order.ord` returns an ordering whose type depends on a runtime
+value. `Profile.Allocs` and the self-time profile show it (H1). At t=16 every threaded `bellman!` allocates a few KB for
+task spawning even where t=1 allocates 0 B, and the large idle share means the per-call work is too small or too
+unevenly split for 16 threads on these sizes (§ 6.1).
 
 ## 6. Scaling and roofline
 

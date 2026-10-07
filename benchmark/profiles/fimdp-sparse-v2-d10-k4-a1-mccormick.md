@@ -468,3 +468,402 @@ No errors detected
 
 ```
 
+## Run: backend cpu, Float64, 16 thread(s)
+
+- date (UTC): 2026-10-07T16:58:13.874; git 4a42913 (src/ext dirty: false)
+- Julia 1.13.1; pinning: compact (thread→CPU: interactive [0], default [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]); sampling delay 0.5 ms, 6.0 s per entry
+
+### Entry `bellman`
+
+Descriptive fields: `{"strategy_cache":"NoStrategyCache","workspace_type":"ThreadedFactoredIntervalMcCormickWorkspace"}`
+
+- correctness check vs stored reference (`benchmark/reference/cpu-Float64`): **pass** (max |ΔV| = 0, tolerance 1e-12)
+- one call after warm-up: 18.565 ms, 21579776 bytes allocated (`@allocated`)
+- BenchmarkTools single call: allocs = 411082, memory = 21579776 bytes
+- **steady-state `bellman!` allocation: 21579776 bytes per call (does NOT meet the zero-allocation goal)**
+
+#### CPU sampling profile
+
+261 calls profiled, 13284 samples on the compute threads (default threadpool; mincount 5 for listed frames). Self-time share of a frame = Overhead / 13284.
+
+Top frames by **self time** (`Overhead` column = samples whose leaf is this frame):
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+  9735      9701 @Base/task.jl                                                 1297 wait()
+  1529      1524 @HiGHS/src/gen/libhighs.jl                                     344 Highs_run
+   484       483 @Base/boot.jl                                                  588 GenericMemory
+   264       264 @HiGHS/src/gen/libhighs.jl                                     135 Highs_create
+   203       203 @HiGHS/src/MOI_wrapper.jl                                      596 set(model::HiGHS.Optimizer, param::MathOptInterface.RawOptimizerAttribute, value::Bool)
+   196       193 @Base/boot.jl                                                  649 Array
+   191       191 @HiGHS/src/gen/libhighs.jl                                     149 Highs_destroy
+   186       186 @HiGHS/src/gen/libhighs.jl                                    1443 Highs_addRow
+    70        70 @HiGHS/src/gen/libhighs.jl                                    1369 Highs_addCol
+    39        39 @HiGHS/src/gen/libhighs.jl                                    1685 Highs_changeColBounds
+    33        33 @Base/array.jl                                                 386 copy
+    27        27 @MathOptInterface/src/functions.jl                             140 ScalarAffineFunction
+    24        24 @Base/Base_compiler.jl                                          57 getproperty
+    44        18 @MathOptInterface/src/Utilities/copy.jl                        258 _pass_constraints(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.…
+    18        18 @Base/essentials.jl                                            975 getindex
+    18        18 @Base/libc.jl                                                  295 time
+    18        18 @Base/genericmemory.jl                                         263 _setindex!
+    19        17 @MathOptInterface/src/Utilities/DoubleDicts.jl                 101 MathOptInterface.Utilities.DoubleDicts.IndexDoubleDictInner{MathOptInterface.VariableIndex, MathOptInterface.GreaterThan{Float64}}(d::MathOptInterface.Uti…
+    17        16 @JuMP/src/variables.jl                                         820 set_lower_bound(v::JuMP.VariableRef, lower::Float64)
+    12        12 @MathOptInterface/src/Utilities/objective_container.jl         262 get(o::MathOptInterface.Utilities.ObjectiveContainer{Float64}, ::MathOptInterface.ListOfModelAttributesSet)
+```
+
+Top frames by **inclusive** count:
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+  9736      9702 @Base/task.jl                                                 1297 wait()
+  8924         0 @Base/task.jl                                                 1196 wait_forever()
+  3573         0 @Base/threadingconstructs.jl                                   178 (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#55#56"{IntervalMDP.var"#57#58"{Bool, Bool, IntervalMDP.ThreadedFactoredIntervalMc…
+  3573         0 @IntervalMDP/src/threading.jl                                    7 #55
+  3573         0 @IntervalMDP/src/threading.jl                                   41 (::IntervalMDP.var"#55#56"{IntervalMDP.var"#57#58"{Bool, Bool, IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace{JuMP.Model, Float64, Vector{Float64}…
+  3573         0 @IntervalMDP/src/bellman.jl                                    609 macro expansion
+  3573         0 @IntervalMDP/src/bellman.jl                                    636 state_bellman!
+  2818         0 @IntervalMDP/src/bellman.jl                                    684 state_action_bellman
+  2818         0 @JuMP/src/optimizer_interface.jl                               569 optimize!
+  2813         3 @JuMP/src/optimizer_interface.jl                               633 optimize!(model::JuMP.Model; ignore_optimize_hook::Bool, _differentiation_backend::MathOptInterface.Nonlinear.SparseReverseMode, kwargs::Base.Pairs{Symbol…
+  2711         0 @MathOptInterface/src/Utilities/cachingoptimizer.jl            370 optimize!(m::MathOptInterface.Utilities.CachingOptimizer{MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, MathOptInterface.Utilities.Univers…
+  1616         0 @MathOptInterface/src/MathOptInterface.jl                      122 optimize!
+  1616         0 @MathOptInterface/src/Bridges/bridge_optimizer.jl              367 optimize!
+  1535         0 @HiGHS/src/MOI_wrapper.jl                                     2341 optimize!(model::HiGHS.Optimizer)
+  1535         0 @Base/c.jl                                                     167 disable_sigint(f::HiGHS.var"#44#45"{HiGHS.Optimizer})
+  1535         1 @HiGHS/src/MOI_wrapper.jl                                     2341 #44
+  1534         0 @HiGHS/src/MOI_wrapper.jl                                     2303 _Highs_run_workaround_issue_316
+  1529         0 @HiGHS/src/MOI_wrapper.jl                                     2279 _gc_safe_Highs_run(model::HiGHS.Optimizer)
+  1529      1524 @HiGHS/src/gen/libhighs.jl                                     344 Highs_run
+  1095         0 @MathOptInterface/src/MathOptInterface.jl                      121 optimize!
+  1095         0 @MathOptInterface/src/Bridges/bridge_optimizer.jl              448 copy_to
+   825         0 @Base/client.jl                                                577 _start()
+   825         0 @Base/client.jl                                                344 exec_options(opts::Base.JLOptions)
+   825         0 @Base/Base.jl                                                  309 include(mod::Module, _path::String)
+   825         0 @Base/loading.jl                                              3093 _include(mapexpr::Function, mod::Module, _path::String)
+```
+
+<details><summary>Pruned call tree (frames with ≥1% of samples)</summary>
+
+```
+Overhead ╎ [+additional indent] Count File:Line  Function
+=========================================================
+    ╎825   @Base/client.jl:577  _start()
+    ╎ 825   @Base/client.jl:344  exec_options(opts::Base.JLOptions)
+    ╎  825   @Base/Base.jl:309  include(mod::Module, _path::String)
+    ╎   825   @Base/loading.jl:3093  _include(mapexpr::Function, mod::Module, _path::String)
+    ╎    825   @Base/loading.jl:3033  include_string(mapexpr::typeof(identity), mod::Module, code::String, filename::String)
+    ╎     825   @Base/boot.jl:489  eval(m::Module, e::Any)
+    ╎    ╎ 825   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:277  main()
+    ╎    ╎  825   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:81  sampling_profile(f::var"#entry_closure##4#entry_closure##5"{Backend, Matrix{Float64}, Matrix{Float64}, IntervalMDP.NoStrategyCache, IntervalMDP.ThreadedFactored…
+    ╎    ╎   825   @Profile/src/Profile.jl:60  macro expansion
+    ╎    ╎    825   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:82  macro expansion
+    ╎    ╎     825   /home/fresen/.julia/dev/IntervalMDP/benchmark/lib/measure.jl:70  (::var"#entry_closure##4#entry_closure##5"{Backend, Matrix{Float64}, Matrix{Float64}, IntervalMDP.NoStrategyCache, IntervalMDP.ThreadedFactoredIntervalMc…
+    ╎    ╎    ╎ 825   @IntervalMDP/src/bellman.jl:202  bellman!
+    ╎    ╎    ╎  825   @IntervalMDP/src/bellman.jl:202  bellman!
+    ╎    ╎    ╎   825   @IntervalMDP/src/bellman.jl:213  #bellman!#35
+    ╎    ╎    ╎    825   @IntervalMDP/src/bellman.jl:597  _bellman_helper!
+    ╎    ╎    ╎     825   @IntervalMDP/src/bellman.jl:607  #_bellman_helper!#53
+    ╎    ╎    ╎    ╎ 825   @IntervalMDP/src/threading.jl:46  macro expansion
+    ╎    ╎    ╎    ╎  816   @Base/threadingconstructs.jl:192  threading_run(fun::IntervalMDP.var"#55#56"{IntervalMDP.var"#57#58"{Bool, Bool, IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace{JuMP.Model, Float64, Vector{Float64}}, Inte…
+    ╎    ╎    ╎    ╎   815   @Base/task.jl:312  _wait(t::Task)
+    ╎    ╎    ╎    ╎    815   @Base/condition.jl:136  wait
+    ╎    ╎    ╎    ╎     813   @Base/condition.jl:141  wait(c::Base.GenericCondition{Base.Threads.SpinLock}; first::Bool)
+ 812╎    ╎    ╎    ╎    ╎ 812   @Base/task.jl:1297  wait()
+    ╎8924  @Base/task.jl:1196  wait_forever()
+8890╎ 8924  @Base/task.jl:1297  wait()
+    ╎3573  @Base/threadingconstructs.jl:178  (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#55#56"{IntervalMDP.var"#57#58"{Bool, Bool, IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace{JuMP.Model, Float64, Ve…
+    ╎ 3573  @IntervalMDP/src/threading.jl:7  #55
+    ╎  3573  @IntervalMDP/src/threading.jl:41  (::IntervalMDP.var"#55#56"{IntervalMDP.var"#57#58"{Bool, Bool, IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace{JuMP.Model, Float64, Vector{Float64}}, IntervalMDP.NoStrategyCache, Matrix…
+    ╎   3573  @IntervalMDP/src/bellman.jl:609  macro expansion
+    ╎    3573  @IntervalMDP/src/bellman.jl:636  state_bellman!
+    ╎     348   @IntervalMDP/src/bellman.jl:673  state_action_bellman
+    ╎    ╎ 346   @JuMP/src/JuMP.jl:1022  empty!(model::JuMP.Model)
+    ╎    ╎  282   @MathOptInterface/src/Utilities/cachingoptimizer.jl:343  empty!(m::MathOptInterface.Utilities.CachingOptimizer{MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, MathOptInterface.Utilities.UniversalFallback{Ma…
+    ╎    ╎   280   @MathOptInterface/src/Bridges/bridge_optimizer.jl:383  empty!(b::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer})
+    ╎    ╎    133   @HiGHS/src/MOI_wrapper.jl:378  empty!(model::HiGHS.Optimizer)
+ 133╎    ╎     133   @HiGHS/src/gen/libhighs.jl:149  Highs_destroy
+    ╎    ╎    139   @HiGHS/src/MOI_wrapper.jl:380  empty!(model::HiGHS.Optimizer)
+ 139╎    ╎     139   @HiGHS/src/gen/libhighs.jl:135  Highs_create
+    ╎     383   @IntervalMDP/src/bellman.jl:676  state_action_bellman
+    ╎     2818  @IntervalMDP/src/bellman.jl:684  state_action_bellman
+    ╎    ╎ 2818  @JuMP/src/optimizer_interface.jl:569  optimize!
+   3╎    ╎  2813  @JuMP/src/optimizer_interface.jl:633  optimize!(model::JuMP.Model; ignore_optimize_hook::Bool, _differentiation_backend::MathOptInterface.Nonlinear.SparseReverseMode, kwargs::Base.Pairs{Symbol, Union{}, Nothing, @NamedTup…
+    ╎    ╎   2711  @MathOptInterface/src/Utilities/cachingoptimizer.jl:370  optimize!(m::MathOptInterface.Utilities.CachingOptimizer{MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, MathOptInterface.Utilities.UniversalFallbac…
+    ╎    ╎    1095  @MathOptInterface/src/MathOptInterface.jl:121  optimize!
+    ╎    ╎     1095  @MathOptInterface/src/Bridges/bridge_optimizer.jl:448  copy_to
+   1╎    ╎    ╎ 187   @MathOptInterface/src/Utilities/copy.jl:385  default_copy_to(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Floa…
+    ╎    ╎    ╎  185   @MathOptInterface/src/Bridges/bridge_optimizer.jl:383  empty!(b::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer})
+    ╎    ╎    ╎ 211   @MathOptInterface/src/Utilities/copy.jl:386  default_copy_to(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Floa…
+   1╎    ╎    ╎ 665   @MathOptInterface/src/Utilities/copy.jl:393  default_copy_to(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Floa…
+    ╎    ╎    ╎  507   @MathOptInterface/src/Utilities/copy.jl:251  _pass_constraints(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{F…
+    ╎    ╎    ╎   497   @MathOptInterface/src/Bridges/bridge_optimizer.jl:432  pass_nonvariable_constraints(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallback{MathOptInter…
+    ╎    ╎    ╎    497   @MathOptInterface/src/Utilities/copy.jl:229  pass_nonvariable_constraints
+   4╎    ╎    ╎     483   @MathOptInterface/src/Utilities/copy.jl:203  pass_nonvariable_constraints_fallback(dest::HiGHS.Optimizer, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Float64}}, index_map::Ma…
+    ╎    ╎    ╎    ╎ 478   @MathOptInterface/src/Utilities/copy.jl:192  _copy_constraints(dest::HiGHS.Optimizer, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Float64}}, index_map::MathOptInterface.Util…
+    ╎    ╎    ╎    ╎  144   @MathOptInterface/src/Utilities/copy.jl:178  _copy_constraints(dest::HiGHS.Optimizer, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Float64}}, index_map::MathOptInterface.Uti…
+    ╎    ╎    ╎    ╎   143   @MathOptInterface/src/Utilities/universalfallback.jl:902  get(uf::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Float64}}, attr::MathOptInterface.ConstraintFunction, ci::MathOptI…
+    ╎    ╎    ╎    ╎    141   @MathOptInterface/src/Utilities/model.jl:408  get
+    ╎    ╎    ╎    ╎     141   @MathOptInterface/src/Utilities/struct_of_constraints.jl:85  get
+    ╎    ╎    ╎    ╎    ╎ 141   @MathOptInterface/src/Utilities/struct_of_constraints.jl:85  get(model::MathOptInterface.Utilities.ModelScalarConstraints{Float64, MathOptInterface.Utilities.VectorOfConstraints{MathOptInterface.ScalarAffine…
+    ╎    ╎    ╎    ╎    ╎  135   @MathOptInterface/src/Utilities/vector_of_constraints.jl:106  get(v::MathOptInterface.Utilities.VectorOfConstraints{MathOptInterface.ScalarAffineFunction{Float64}, MathOptInterface.EqualTo{Float64}}, ::Math…
+    ╎    ╎    ╎    ╎    ╎   135   @MathOptInterface/src/functions.jl:147  copy
+    ╎    ╎    ╎    ╎  322   @MathOptInterface/src/Utilities/copy.jl:180  _copy_constraints(dest::HiGHS.Optimizer, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Float64}}, index_map::MathOptInterface.Uti…
+    ╎    ╎    ╎    ╎   186   @HiGHS/src/MOI_wrapper.jl:1830  add_constraint(model::HiGHS.Optimizer, f::MathOptInterface.ScalarAffineFunction{Float64}, s::MathOptInterface.EqualTo{Float64})
+ 186╎    ╎    ╎    ╎    186   @HiGHS/src/gen/libhighs.jl:1443  Highs_addRow
+    ╎    ╎    1616  @MathOptInterface/src/MathOptInterface.jl:122  optimize!
+    ╎    ╎     1616  @MathOptInterface/src/Bridges/bridge_optimizer.jl:367  optimize!
+    ╎    ╎    ╎ 1535  @HiGHS/src/MOI_wrapper.jl:2341  optimize!(model::HiGHS.Optimizer)
+    ╎    ╎    ╎  1535  @Base/c.jl:167  disable_sigint(f::HiGHS.var"#44#45"{HiGHS.Optimizer})
+   1╎    ╎    ╎   1535  @HiGHS/src/MOI_wrapper.jl:2341  #44
+    ╎    ╎    ╎    1534  @HiGHS/src/MOI_wrapper.jl:2303  _Highs_run_workaround_issue_316
+    ╎    ╎    ╎     1529  @HiGHS/src/MOI_wrapper.jl:2279  _gc_safe_Highs_run(model::HiGHS.Optimizer)
+1524╎    ╎    ╎    ╎ 1529  @HiGHS/src/gen/libhighs.jl:344  Highs_run
+ 203╎203   @HiGHS/src/MOI_wrapper.jl:596  set(model::HiGHS.Optimizer, param::MathOptInterface.RawOptimizerAttribute, value::Bool)
+Total snapshots: 14025. Utilization: 32% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+
+```
+</details>
+
+#### Allocation profile (`Profile.Allocs`, one call)
+
+`Base.@allocations` = 411082 per call; sample_rate = 0.4865; 199653 allocations (9619766 bytes) recorded — counts below are samples, multiply by 1/sample_rate for totals.
+
+By innermost IntervalMDP frame:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `state_action_bellman @ src/bellman.jl:684` | 69139 | 3641872 |
+| `mccormick_branch @ src/bellman.jl:732` | 29611 | 1301597 |
+| `mccormick_branch @ src/bellman.jl:747` | 29610 | 1299039 |
+| `mccormick_branch @ src/bellman.jl:742` | 29468 | 1290286 |
+| `mccormick_branch @ src/bellman.jl:737` | 29443 | 1290261 |
+| `mccormick_branch @ src/bellman.jl:754` | 2173 | 225309 |
+| `marginal_lp_constraints @ src/bellman.jl:699` | 3352 | 175959 |
+| `state_action_bellman @ src/bellman.jl:681` | 1179 | 120499 |
+| `mccormick_branch @ src/bellman.jl:727` | 1544 | 85168 |
+| `marginal_lp_constraints @ src/bellman.jl:692` | 970 | 54032 |
+| `state_action_bellman @ src/bellman.jl:673` | 861 | 44992 |
+| `marginal_lp_constraints @ src/bellman.jl:697` | 800 | 19216 |
+
+By type:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `Memory{MathOptInterface.ScalarAffineTerm{Float64}}` | 16415 | 1137440 |
+| `Memory{Int32}` | 13356 | 1090488 |
+| `Memory{JuMP.VariableRef}` | 10362 | 777248 |
+| `OrderedCollections.OrderedDict{JuMP.VariableRef, Float64}` | 9688 | 775040 |
+| `Memory{Float64}` | 13600 | 625400 |
+| `Memory{Int64}` | 1988 | 624112 |
+| `Vector{MathOptInterface.ScalarAffineTerm{Float64}}` | 16561 | 529952 |
+| `MathOptInterface.ScalarAffineFunction{Float64}` | 16466 | 526912 |
+| `Vector{Int32}` | 13273 | 424736 |
+| `Vector{Float64}` | 13253 | 424096 |
+
+#### JET.@report_opt (target_modules = (IntervalMDP,))
+
+0 report(s).
+
+```
+No errors detected
+
+```
+
+### Entry `solve_rvi`
+
+Descriptive fields: `{"algorithm":"RobustValueIteration","problem":"VerificationProblem","property":"InfiniteTimeReachability","workspace_type":"ThreadedFactoredIntervalMcCormickWorkspace"}`
+
+- correctness check vs stored reference (`benchmark/reference/cpu-Float64`): **pass** (max |ΔV| = 0, tolerance 1e-05)
+- one call after warm-up: 1965.549 ms, 2137095200 bytes allocated (`@allocated`)
+- BenchmarkTools single call: allocs = 40736558, memory = 2137095200 bytes
+
+#### CPU sampling profile
+
+3 calls profiled, 14342 samples on the compute threads (default threadpool; mincount 5 for listed frames). Self-time share of a frame = Overhead / 14342.
+
+Top frames by **self time** (`Overhead` column = samples whose leaf is this frame):
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+ 10581     10541 @Base/task.jl                                                 1297 wait()
+  1706      1701 @HiGHS/src/gen/libhighs.jl                                     344 Highs_run
+   411       411 @Base/boot.jl                                                  588 GenericMemory
+   267       267 @HiGHS/src/gen/libhighs.jl                                     135 Highs_create
+   252       252 @HiGHS/src/gen/libhighs.jl                                     149 Highs_destroy
+   245       244 @Base/boot.jl                                                  649 Array
+   188       188 @HiGHS/src/gen/libhighs.jl                                    1443 Highs_addRow
+   148       148 @HiGHS/src/MOI_wrapper.jl                                      596 set(model::HiGHS.Optimizer, param::MathOptInterface.RawOptimizerAttribute, value::Bool)
+    95        95 @HiGHS/src/gen/libhighs.jl                                    1369 Highs_addCol
+    37        37 @HiGHS/src/gen/libhighs.jl                                    1685 Highs_changeColBounds
+    68        23 @JuMP/src/constraints.jl                                      1030 add_constraint(model::JuMP.Model, con::JuMP.ScalarConstraint{JuMP.AffExpr, MathOptInterface.LessThan{Float64}}, name::String)
+    22        22 @Base/Base_compiler.jl                                          57 getproperty
+    26        22 @MathOptInterface/src/Utilities/DoubleDicts.jl                 101 MathOptInterface.Utilities.DoubleDicts.IndexDoubleDictInner{MathOptInterface.VariableIndex, MathOptInterface.GreaterThan{Float64}}(d::MathOptInte…
+    21        21 @JuMP/src/aff_expr.jl                                          140 GenericAffExpr
+    24        20 @JuMP/src/variables.jl                                        2199 add_variable(model::JuMP.Model, v::JuMP.ScalarVariable{Float64, Float64, Float64, Float64}, name::String)
+    18        18 @OrderedCollections/src/ordered_dict.jl                         12 OrderedDict
+    41        17 @MathOptInterface/src/Utilities/copy.jl                        258 _pass_constraints(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallback{MathOptI…
+    15        15 @MathOptInterface/src/functions.jl                             140 ScalarAffineFunction
+    15        15 @MathOptInterface/src/Bridges/bridge_optimizer.jl              426 pass_nonvariable_constraints(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallba…
+    14        14 @MathOptInterface/src/Bridges/bridge_optimizer.jl                ? pass_nonvariable_constraints(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallba…
+```
+
+Top frames by **inclusive** count:
+
+```
+ Count  Overhead File                                                           Line Function
+ =====  ======== ====                                                           ==== ========
+ 10582     10542 @Base/task.jl                                                 1297 wait()
+  9708         0 @Base/task.jl                                                 1196 wait_forever()
+  3823         0 @Base/threadingconstructs.jl                                   178 (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#55#56"{IntervalMDP.var"#57#58"{Bool, Bool, IntervalMDP.ThreadedFactoredI…
+  3823         0 @IntervalMDP/src/threading.jl                                    7 #55
+  3823         0 @IntervalMDP/src/threading.jl                                   41 (::IntervalMDP.var"#55#56"{IntervalMDP.var"#57#58"{Bool, Bool, IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace{JuMP.Model, Float64, Vector…
+  3823         0 @IntervalMDP/src/bellman.jl                                    609 macro expansion
+  3823         0 @IntervalMDP/src/bellman.jl                                    636 state_bellman!
+  2951         0 @IntervalMDP/src/bellman.jl                                    684 state_action_bellman
+  2951         0 @JuMP/src/optimizer_interface.jl                               569 optimize!
+  2942         2 @JuMP/src/optimizer_interface.jl                               633 optimize!(model::JuMP.Model; ignore_optimize_hook::Bool, _differentiation_backend::MathOptInterface.Nonlinear.SparseReverseMode, kwargs::Base.Pai…
+  2840         0 @MathOptInterface/src/Utilities/cachingoptimizer.jl            370 optimize!(m::MathOptInterface.Utilities.CachingOptimizer{MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, MathOptInterface.Utilitie…
+  1773         0 @MathOptInterface/src/MathOptInterface.jl                      122 optimize!
+  1773         0 @MathOptInterface/src/Bridges/bridge_optimizer.jl              367 optimize!
+  1708         0 @HiGHS/src/MOI_wrapper.jl                                     2341 optimize!(model::HiGHS.Optimizer)
+  1708         0 @Base/c.jl                                                     167 disable_sigint(f::HiGHS.var"#44#45"{HiGHS.Optimizer})
+  1708         0 @HiGHS/src/MOI_wrapper.jl                                     2341 #44
+  1708         0 @HiGHS/src/MOI_wrapper.jl                                     2303 _Highs_run_workaround_issue_316
+  1706         0 @HiGHS/src/MOI_wrapper.jl                                     2279 _gc_safe_Highs_run(model::HiGHS.Optimizer)
+  1706      1701 @HiGHS/src/gen/libhighs.jl                                     344 Highs_run
+  1067         0 @MathOptInterface/src/MathOptInterface.jl                      121 optimize!
+  1067         0 @MathOptInterface/src/Bridges/bridge_optimizer.jl              448 copy_to
+   888         0 @Base/client.jl                                                577 _start()
+   888         0 @Base/client.jl                                                344 exec_options(opts::Base.JLOptions)
+   888         0 @Base/Base.jl                                                  309 include(mod::Module, _path::String)
+   888         0 @Base/loading.jl                                              3093 _include(mapexpr::Function, mod::Module, _path::String)
+```
+
+<details><summary>Pruned call tree (frames with ≥1% of samples)</summary>
+
+```
+Overhead ╎ [+additional indent] Count File:Line  Function
+=========================================================
+    ╎888   @Base/client.jl:577  _start()
+    ╎ 888   @Base/client.jl:344  exec_options(opts::Base.JLOptions)
+    ╎  888   @Base/Base.jl:309  include(mod::Module, _path::String)
+    ╎   888   @Base/loading.jl:3093  _include(mapexpr::Function, mod::Module, _path::String)
+    ╎    888   @Base/loading.jl:3033  include_string(mapexpr::typeof(identity), mod::Module, code::String, filename::String)
+    ╎     888   @Base/boot.jl:489  eval(m::Module, e::Any)
+    ╎    ╎ 888   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:277  main()
+    ╎    ╎  888   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:81  sampling_profile(f::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{LPMcCormickRelaxation{DataType}}, VerificationProblem{FactoredRobustMa…
+    ╎    ╎   888   @Profile/src/Profile.jl:60  macro expansion
+    ╎    ╎    888   /home/fresen/.julia/dev/IntervalMDP/benchmark/profile.jl:82  macro expansion
+    ╎    ╎     888   /home/fresen/.julia/dev/IntervalMDP/benchmark/lib/measure.jl:80  (::var"#entry_closure##8#entry_closure##9"{Backend, RobustValueIteration{LPMcCormickRelaxation{DataType}}, VerificationProblem{FactoredRobustMarkovDecisi…
+    ╎    ╎    ╎ 888   @IntervalMDP/src/robust_value_iteration.jl:158  solve
+    ╎    ╎    ╎  888   @IntervalMDP/src/robust_value_iteration.jl:159  #solve#92
+    ╎    ╎    ╎   888   @IntervalMDP/src/robust_value_iteration.jl:170  _value_iteration!
+    ╎    ╎    ╎    869   @IntervalMDP/src/robust_value_iteration.jl:193  _value_iteration!(problem::VerificationProblem{FactoredRobustMarkovDecisionProcess{2, 1, Tuple{Marginal{IntervalAmbiguitySets{Float64, SparseMatrixCSC{Float64, Int32}…
+    ╎    ╎    ╎     868   @IntervalMDP/src/robust_value_iteration.jl:237  step!
+    ╎    ╎    ╎    ╎ 868   @IntervalMDP/src/bellman.jl:202  bellman!
+    ╎    ╎    ╎    ╎  868   @IntervalMDP/src/bellman.jl:202  bellman!
+    ╎    ╎    ╎    ╎   868   @IntervalMDP/src/bellman.jl:213  #bellman!#35
+    ╎    ╎    ╎    ╎    868   @IntervalMDP/src/bellman.jl:597  _bellman_helper!
+    ╎    ╎    ╎    ╎     868   @IntervalMDP/src/bellman.jl:607  #_bellman_helper!#53
+    ╎    ╎    ╎    ╎    ╎ 868   @IntervalMDP/src/threading.jl:46  macro expansion
+    ╎    ╎    ╎    ╎    ╎  866   @Base/threadingconstructs.jl:192  threading_run(fun::IntervalMDP.var"#55#56"{IntervalMDP.var"#57#58"{Bool, Bool, IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace{JuMP.Model, Float64, Vector{Float64}},…
+    ╎    ╎    ╎    ╎    ╎   866   @Base/task.jl:312  _wait(t::Task)
+    ╎    ╎    ╎    ╎    ╎    866   @Base/condition.jl:136  wait
+    ╎    ╎    ╎    ╎    ╎     865   @Base/condition.jl:141  wait(c::Base.GenericCondition{Base.Threads.SpinLock}; first::Bool)
+ 864╎    ╎    ╎    ╎    ╎    ╎ 864   @Base/task.jl:1297  wait()
+    ╎9708  @Base/task.jl:1196  wait_forever()
+9667╎ 9707  @Base/task.jl:1297  wait()
+    ╎3823  @Base/threadingconstructs.jl:178  (::Base.Threads.var"#threading_run##0#threading_run##1"{IntervalMDP.var"#55#56"{IntervalMDP.var"#57#58"{Bool, Bool, IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace{JuMP.Model, Float64, Ve…
+    ╎ 3823  @IntervalMDP/src/threading.jl:7  #55
+    ╎  3823  @IntervalMDP/src/threading.jl:41  (::IntervalMDP.var"#55#56"{IntervalMDP.var"#57#58"{Bool, Bool, IntervalMDP.ThreadedFactoredIntervalMcCormickWorkspace{JuMP.Model, Float64, Vector{Float64}}, IntervalMDP.NoStrategyCache, Matrix…
+    ╎   3823  @IntervalMDP/src/bellman.jl:609  macro expansion
+    ╎    3823  @IntervalMDP/src/bellman.jl:636  state_bellman!
+    ╎     414   @IntervalMDP/src/bellman.jl:673  state_action_bellman
+   2╎    ╎ 412   @JuMP/src/JuMP.jl:1022  empty!(model::JuMP.Model)
+    ╎    ╎  328   @MathOptInterface/src/Utilities/cachingoptimizer.jl:343  empty!(m::MathOptInterface.Utilities.CachingOptimizer{MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, MathOptInterface.Utilities.UniversalFallback{Ma…
+    ╎    ╎   327   @MathOptInterface/src/Bridges/bridge_optimizer.jl:383  empty!(b::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer})
+    ╎    ╎    180   @HiGHS/src/MOI_wrapper.jl:378  empty!(model::HiGHS.Optimizer)
+ 180╎    ╎     180   @HiGHS/src/gen/libhighs.jl:149  Highs_destroy
+    ╎     431   @IntervalMDP/src/bellman.jl:676  state_action_bellman
+    ╎     2951  @IntervalMDP/src/bellman.jl:684  state_action_bellman
+    ╎    ╎ 2951  @JuMP/src/optimizer_interface.jl:569  optimize!
+   2╎    ╎  2942  @JuMP/src/optimizer_interface.jl:633  optimize!(model::JuMP.Model; ignore_optimize_hook::Bool, _differentiation_backend::MathOptInterface.Nonlinear.SparseReverseMode, kwargs::Base.Pairs{Symbol, Union{}, Nothing, @NamedTup…
+    ╎    ╎   2840  @MathOptInterface/src/Utilities/cachingoptimizer.jl:370  optimize!(m::MathOptInterface.Utilities.CachingOptimizer{MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, MathOptInterface.Utilities.UniversalFallbac…
+    ╎    ╎    1067  @MathOptInterface/src/MathOptInterface.jl:121  optimize!
+    ╎    ╎     1067  @MathOptInterface/src/Bridges/bridge_optimizer.jl:448  copy_to
+    ╎    ╎    ╎ 199   @MathOptInterface/src/Utilities/copy.jl:385  default_copy_to(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Floa…
+    ╎    ╎    ╎  199   @MathOptInterface/src/Bridges/bridge_optimizer.jl:383  empty!(b::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer})
+    ╎    ╎    ╎ 260   @MathOptInterface/src/Utilities/copy.jl:386  default_copy_to(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Floa…
+   3╎    ╎    ╎  144   @MathOptInterface/src/Utilities/copy.jl:548  _copy_variables_with_set(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.…
+    ╎    ╎    ╎ 578   @MathOptInterface/src/Utilities/copy.jl:393  default_copy_to(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Floa…
+    ╎    ╎    ╎  437   @MathOptInterface/src/Utilities/copy.jl:251  _pass_constraints(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{F…
+    ╎    ╎    ╎   408   @MathOptInterface/src/Bridges/bridge_optimizer.jl:432  pass_nonvariable_constraints(dest::MathOptInterface.Bridges.LazyBridgeOptimizer{HiGHS.Optimizer}, src::MathOptInterface.Utilities.UniversalFallback{MathOptInter…
+    ╎    ╎    ╎    408   @MathOptInterface/src/Utilities/copy.jl:229  pass_nonvariable_constraints
+   3╎    ╎    ╎     397   @MathOptInterface/src/Utilities/copy.jl:203  pass_nonvariable_constraints_fallback(dest::HiGHS.Optimizer, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Float64}}, index_map::Ma…
+    ╎    ╎    ╎    ╎ 394   @MathOptInterface/src/Utilities/copy.jl:192  _copy_constraints(dest::HiGHS.Optimizer, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Float64}}, index_map::MathOptInterface.Util…
+    ╎    ╎    ╎    ╎  265   @MathOptInterface/src/Utilities/copy.jl:180  _copy_constraints(dest::HiGHS.Optimizer, src::MathOptInterface.Utilities.UniversalFallback{MathOptInterface.Utilities.Model{Float64}}, index_map::MathOptInterface.Uti…
+    ╎    ╎    ╎    ╎   188   @HiGHS/src/MOI_wrapper.jl:1830  add_constraint(model::HiGHS.Optimizer, f::MathOptInterface.ScalarAffineFunction{Float64}, s::MathOptInterface.EqualTo{Float64})
+ 188╎    ╎    ╎    ╎    188   @HiGHS/src/gen/libhighs.jl:1443  Highs_addRow
+    ╎    ╎    1773  @MathOptInterface/src/MathOptInterface.jl:122  optimize!
+    ╎    ╎     1773  @MathOptInterface/src/Bridges/bridge_optimizer.jl:367  optimize!
+    ╎    ╎    ╎ 1708  @HiGHS/src/MOI_wrapper.jl:2341  optimize!(model::HiGHS.Optimizer)
+    ╎    ╎    ╎  1708  @Base/c.jl:167  disable_sigint(f::HiGHS.var"#44#45"{HiGHS.Optimizer})
+    ╎    ╎    ╎   1708  @HiGHS/src/MOI_wrapper.jl:2341  #44
+    ╎    ╎    ╎    1708  @HiGHS/src/MOI_wrapper.jl:2303  _Highs_run_workaround_issue_316
+    ╎    ╎    ╎     1706  @HiGHS/src/MOI_wrapper.jl:2279  _gc_safe_Highs_run(model::HiGHS.Optimizer)
+1701╎    ╎    ╎    ╎ 1706  @HiGHS/src/gen/libhighs.jl:344  Highs_run
+ 148╎148   @HiGHS/src/MOI_wrapper.jl:596  set(model::HiGHS.Optimizer, param::MathOptInterface.RawOptimizerAttribute, value::Bool)
+Total snapshots: 15091. Utilization: 31% across all threads and tasks. Use the `groupby` kwarg to break down by thread and/or task.
+
+```
+</details>
+
+#### Allocation profile (`Profile.Allocs`, one call)
+
+`Base.@allocations` = 40736558 per call; sample_rate = 0.00491; 199892 allocations (9660262 bytes) recorded — counts below are samples, multiply by 1/sample_rate for totals.
+
+By innermost IntervalMDP frame:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `state_action_bellman @ src/bellman.jl:684` | 69376 | 3683048 |
+| `mccormick_branch @ src/bellman.jl:742` | 29841 | 1302354 |
+| `mccormick_branch @ src/bellman.jl:747` | 29362 | 1289850 |
+| `mccormick_branch @ src/bellman.jl:737` | 29391 | 1286362 |
+| `mccormick_branch @ src/bellman.jl:732` | 29299 | 1281394 |
+| `mccormick_branch @ src/bellman.jl:754` | 2156 | 227996 |
+| `marginal_lp_constraints @ src/bellman.jl:699` | 3335 | 176473 |
+| `state_action_bellman @ src/bellman.jl:681` | 1213 | 133313 |
+| `mccormick_branch @ src/bellman.jl:727` | 1584 | 87984 |
+| `marginal_lp_constraints @ src/bellman.jl:692` | 976 | 55520 |
+| `state_action_bellman @ src/bellman.jl:673` | 887 | 45232 |
+| `marginal_lp_constraints @ src/bellman.jl:697` | 806 | 19440 |
+
+By type:
+
+| site / type | count | bytes |
+|---|---:|---:|
+| `Memory{MathOptInterface.ScalarAffineTerm{Float64}}` | 16385 | 1138528 |
+| `Memory{Int32}` | 13298 | 1084656 |
+| `Memory{JuMP.VariableRef}` | 10363 | 791872 |
+| `OrderedCollections.OrderedDict{JuMP.VariableRef, Float64}` | 9554 | 764320 |
+| `Memory{Int64}` | 1964 | 633248 |
+| `Memory{Float64}` | 13929 | 629576 |
+| `MathOptInterface.ScalarAffineFunction{Float64}` | 16357 | 523424 |
+| `Vector{MathOptInterface.ScalarAffineTerm{Float64}}` | 16074 | 514368 |
+| `Vector{Int32}` | 13414 | 429248 |
+| `Vector{Float64}` | 13166 | 421312 |
+
+#### JET.@report_opt (target_modules = (IntervalMDP,))
+
+0 report(s).
+
+```
+No errors detected
+
+```
+
