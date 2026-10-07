@@ -1292,7 +1292,7 @@ end
         # itself for that same batch. Under every bound-update mode: `BothDrive`
         # charges `2|A|` per state rather than `|A| + 1`.
         @testset "the backup counter tracks GSRDP's bellman_updates ($mode)" for mode in
-                                                                                 [IntervalMDP.UpperDrives(), IntervalMDP.BothDrive()]
+                                                                                 [IntervalMDP.FollowDrive(), IntervalMDP.BothDrive()]
             ss = TS.TrajectorySampling(;
                 state_policy = TS.Boltzmann(TS.UpdateDecayTemperature(0.5, 1.0, 0.999)),
             )
@@ -1319,7 +1319,7 @@ end
         # A composite forwards the mode to the strategy that does the counting.
         @testset "set_bound_update! reaches a wrapped strategy" begin
             ss = TS.TrajectorySampling()
-            @test ss.bound_update[] isa IntervalMDP.UpperDrives
+            @test ss.bound_update[] isa IntervalMDP.FollowDrive
             IntervalMDP.set_bound_update!(
                 IntervalMDP.RandomlyThinned(ss, 0.5),
                 IntervalMDP.BothDrive(),

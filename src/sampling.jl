@@ -363,12 +363,18 @@ end
     BoundUpdateMode
 
 Which bound of GSRDP's `IntervalValueFunction` runs the optimizing Bellman update:
-[`UpperDrives`](@ref) or [`BothDrive`](@ref).
+[`FollowDrive`](@ref) or [`BothDrive`](@ref).
 """
 abstract type BoundUpdateMode end
 
-"Upper bound optimizes, lower bound follows its action. The default."
-struct UpperDrives <: BoundUpdateMode end
+"""
+    FollowDrive()
+
+One bound optimizes and the other follows its action. The default. The driver is the
+controller-optimistic bound: the upper bound under `Maximize`, the lower bound under
+`Minimize`.
+"""
+struct FollowDrive <: BoundUpdateMode end
 
 "Both bounds optimize independently."
 struct BothDrive <: BoundUpdateMode end

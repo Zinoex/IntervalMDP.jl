@@ -13,11 +13,13 @@ Restrictions:
   that's incompatible with gap-based convergence.
 
 `bound_update` selects which bound receives the full (optimizing) Bellman
-update each iteration; defaults to [`UpperDrives`](@ref):
+update each iteration; defaults to [`FollowDrive`](@ref):
 
-* `UpperDrives()` — the optimal action at each visited state is picked from
-  the upper bound, then applied to the lower bound through a
-  `NonOptimizingStrategyCache` so both bounds track the same policy.
+* `FollowDrive()` — the optimal action at each visited state is picked from
+  the driving bound, then applied to the other bound through a
+  `NonOptimizingStrategyCache` so both bounds track the same policy. The
+  upper bound drives under `Maximize` and the lower bound under `Minimize`;
+  the returned strategy is the driver's.
 * `BothDrive()` — both bounds optimize independently. The returned strategy
   is the upper bound's.
 
@@ -50,7 +52,7 @@ struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm} <
     function GeneralizedSamplingbasedRobustDynamicProgramming(
         bellman_alg::B;
         sampling_strategy::Union{Nothing, SamplingStrategy} = nothing,
-        bound_update::BoundUpdateMode = UpperDrives(),
+        bound_update::BoundUpdateMode = FollowDrive(),
     ) where {B <: BellmanAlgorithm}
         new{B}(
             bellman_alg,
@@ -328,10 +330,12 @@ function bellman_update!(
     step_postprocess_strategy_cache!(strategy_cache)
 end
 
+# The controller-optimistic bound drives: upper under Maximize, lower under Minimize.
 # The driving bound always runs first, so the follower reads this iteration's action.
-function _update_bounds!(::UpperDrives, workspace, sc, V, model, state_seq, spec)
-    _bellman_bound!(workspace, sc, V.upper, model, state_seq, spec)
-    _bellman_bound!(workspace, _follow_strategy_cache(sc), V.lower, model, state_seq, spec)
+function _update_bounds!(::FollowDrive, workspace, sc, V, model, state_seq, spec)
+    driver, follower = ismaximize(spec) ? (V.upper, V.lower) : (V.lower, V.upper)
+    _bellman_bound!(workspace, sc, driver, model, state_seq, spec)
+    _bellman_bound!(workspace, _follow_strategy_cache(sc), follower, model, state_seq, spec)
 end
 
 # The upper bound records the returned strategy; the lower bound optimizes without one.

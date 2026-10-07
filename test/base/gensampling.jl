@@ -360,8 +360,11 @@ end
 @testitem "GSRDP bound-update modes reach RVI's value" tags =
     [:base, :gsrdp_bound_update_parity] begin
     using IntervalMDP
-    @testset "bound_update = $mode" for N in [Float32, Float64],
-        mode in [IntervalMDP.UpperDrives(), IntervalMDP.BothDrive()]
+    # `FollowDrive` drives with the upper bound under Maximize and the lower under
+    # Minimize, so both satisfaction modes exercise a different driver.
+    @testset "bound_update = $mode, $sat" for N in [Float32, Float64],
+        mode in [IntervalMDP.FollowDrive(), IntervalMDP.BothDrive()],
+        sat in [Maximize, Minimize]
 
         prob = IntervalAmbiguitySets(;
             lower = N[0 1 // 2 0; 1 // 10 3 // 10 0; 1 // 5 1 // 10 1],
@@ -380,12 +383,19 @@ end
         @test IntervalMDP.bound_update(gsdp) === mode
         @test IntervalMDP.bound_update(
             GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp)),
-        ) isa IntervalMDP.UpperDrives
+        ) isa IntervalMDP.FollowDrive
         eps = N(1 // 1000000)
         prop = InfiniteTimeReachability([3], eps)
-        spec = Specification(prop, Pessimistic, Maximize)
+        spec = Specification(prop, Pessimistic, sat)
         problem = ControlSynthesisProblem(mdp, spec)
-        sol_rvi = solve(problem, rvi)
+        # RVI's residual test leaves it several `eps` off V* under Minimize here, so the
+        # reference is converged far tighter than the run under test.
+        ref_eps = N == Float32 ? N(1e-7) : N(1e-9)
+        ref_problem = ControlSynthesisProblem(
+            mdp,
+            Specification(InfiniteTimeReachability([3], ref_eps), Pessimistic, sat),
+        )
+        sol_rvi = solve(ref_problem, rvi)
 
         callback_counts = Int[]
         sol_gsdp = solve(

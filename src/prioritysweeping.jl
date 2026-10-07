@@ -51,7 +51,7 @@ import ..IntervalMDP:
     reset_sampling_strategy!,
     set_bound_update!,
     BoundUpdateMode,
-    UpperDrives,
+    FollowDrive,
     _backups_per_state,
     system_property,
     convergence_eps,
@@ -942,7 +942,7 @@ struct PrioritizedSweep{P <: StatePriority, R <: PropagationRule, S <: Selection
             Ref(Tuple{Float64, Float64}[]),
             Ref(Vector{Tuple{Int, Float64}}[]),
             Ref(0),
-            Ref{BoundUpdateMode}(UpperDrives()),
+            Ref{BoundUpdateMode}(FollowDrive()),
         )
     end
 end

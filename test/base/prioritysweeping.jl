@@ -671,7 +671,7 @@ end
     end
 
     @testset "the backup counter tracks GSRDP's bellman_updates ($mode)" for mode in
-                                                                             [IntervalMDP.UpperDrives(), IntervalMDP.BothDrive()]
+                                                                             [IntervalMDP.FollowDrive(), IntervalMDP.BothDrive()]
         # `n` for UpdateDecayTemperature is meant to BE the solver's backup
         # count, but the strategy has to reconstruct it (`sample` is not handed
         # the iteration). Check the two never drift, under every bound-update mode.

@@ -124,7 +124,7 @@ import ..IntervalMDP:
     reset_sampling_strategy!,
     set_bound_update!,
     BoundUpdateMode,
-    UpperDrives,
+    FollowDrive,
     _backups_per_state,
     available,
     num_states,
@@ -1483,7 +1483,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
             Ref{Any}(nothing),
             Ref(0),
             Ref(0),
-            Ref{BoundUpdateMode}(UpperDrives()),
+            Ref{BoundUpdateMode}(FollowDrive()),
         )
     end
 end
