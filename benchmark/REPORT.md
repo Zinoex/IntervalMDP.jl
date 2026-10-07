@@ -145,21 +145,126 @@ Spread = (max − min)/min of the per-run medians, separate processes, `compare.
 
 (First pass without clock guard, for comparison: t=1 69/131 > 5%, median 7.5%.)
 
-Causes of the remaining > 5% entries (full list with values: `results/noise-before-fix.md`):
+Causes of the remaining > 5% entries (every entry with its values, clock probes and cause code:
+`results/noise-before-fix.md`, section "Causes of the > 5% entries and re-measurement"). The cause is assigned from the
+`clock_probe_before_ns` of the entry in the two runs:
 
-1. **Clock-state changes** (clock-probe spread ≈ 28% or 184%, or `clock_state = deviating`): most of the t = 8/16 entries.
-2. **`workspace` entries** (µs-scale allocation of fresh arrays; first-touch page faults vary between processes).
-3. **Threaded small/medium kernels at t = 8/16** with equal clock probes (e.g. `imdp-sparse-n10000-nnz10-a4/bellman` 118%
+1. **CLK — clock-state change between the two runs** (probes differ by > 5%: ≈ 197 µs at 5.1 GHz, ≈ 436 µs in the 2.3 GHz
+   cap, ≈ 557 µs under all-core load; § 1.1). Before the fix: t=1 0, t=4 4, t=8 16, t=16 3 entries. (At t = 16 both
+   baseline runs sat at ≈ 557 µs, so the systematic `deviating` flag there is not counted as a cause.)
+2. **WS — `workspace` entries** with equal clocks (µs-scale allocation of fresh arrays; first-touch page faults and GC
+   state vary between processes): t=1 8, t=4 7, t=8 12, t=16 11.
+3. **THR — threaded kernels/solves at t ≥ 4** with equal clock probes (e.g. `imdp-sparse-n10000-nnz10-a4/bellman` 118%
    at t = 8, `imdp-dense-n100-a1/bellman` 85% at t = 8): static equal chunking makes the slowest pinned core (E/LP-E, or a core
-   shared with desktop work) determine the time, and that differs from process to process.
-4. **CUDA**: `workspace` entries take 2–80 ns (timer resolution), and host-synchronisation quantisation (§ 6.3) makes
+   shared with desktop work) determine the time, and that differs from process to process: t=4 11, t=8 8, t=16 31.
+4. **ST — single-threaded compute entry** with equal clocks: t=1 1 (`fimdp-sparse-v3-d10-k3-a1-vertex/bellman`, 8.1%).
+5. **CUDA**: `workspace` entries take 2–80 ns (timer resolution), and host-synchronisation quantisation (§ 6.3) makes
    short solves bimodal.
 
-Fix applied: budgets for `workspace` (1 s/10 → 3 s/50 samples) and `bellman` (2 s/20 → 4 s/40) were raised in
-`cases/registry.jl`, solves were sampled with `--budget-scale 2`, and every noisy entry was re-measured twice in separate
-processes with the clock guard (`results/noisefix/`). Result:
+Fix applied: budgets for `workspace` (1 s/≥10 → 3 s/≥50 samples) and `bellman` (2 s/≥20 → 4 s/≥40) were raised in
+`cases/registry.jl` (`E_ws`, `E_bellman`; committed with 0a, `333f674` — the baseline files of § 3 record the old budgets
+in `parameters.default_budgets`), solves were sampled with `--budget-scale 2`, and every noisy entry was re-measured twice
+in separate processes with the clock guard (`results/noisefix/`). Sizes were not changed. Result:
 
-<!--NOISEFIX-->
+Re-measured: every entry that was > 5% at its thread count (112 entries in 19 a/b file pairs
+`results/noisefix/noisefix-20fc03b-cpu-t<T>-<entry>-{a,b}.json`; 0 invalid; src/ext trees equal to `20fc03b`; AC power,
+EPP `balance_performance`, compact pinning). Run a: 2026-10-06 13:03–13:41 UTC, run b: 13:41–14:24 UTC, one process
+per file, no overlap. Spread = run a vs run b, `julia --project=benchmark benchmark/compare.jl --spread <…-a.json> <…-b.json>`.
+
+| threads | > 5% before | ≤ 5% after | still > 5% | of which CLK | WS | THR | ST | median spread after (re-measured entries) |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 9 | 2 | 7 | 1 | 6 | 0 | 0 | 11.3% |
+| 4 | 22 | 5 | 17 | 17 | 0 | 0 | 0 | 17.7% |
+| 8 | 36 | 15 | 21 | 18 | 3 | 0 | 0 | 5.4% |
+| 16 | 45 | 18 | 27 | 13 | 2 | 12 | 0 | 6.5% |
+| **total** | 112 | 40 | 72 | 49 | 11 | 12 | 0 | |
+
+Reading: the larger budgets fixed 40 of 112 entries. Of the 72 that are still > 5%, **49 (CLK) are not sampling noise**:
+the CPU switched between the 5.1 GHz state and the 2.3 GHz cap between run a and run b (§ 1.1), so their spread is the
+clock ratio; more samples cannot remove it, only measuring both sides in the same clock state can. The **11 WS** entries
+(sub-µs to ms allocations, ≥ 50 samples each) and the **12 THR** entries at t = 16 differ between processes with equal
+clocks; their per-process medians are stable within a run, so more samples per run do not help either, and larger sizes
+would change the suite (out of scope for 0d). A re-measurement of the CLK entries in a clock-stable session was not
+possible in 0d: the host was on battery (`online` 0, EPP `balance_power`) when 0d ran (2026-10-07).
+
+**Entries still > 5% — not usable as evidence from a single pair of runs.** Any later claim on them needs ≥ 3 interleaved
+A/B rounds in one session with matching clock probes (`common.md` § Evidence Protocol; `compare.jl` marks clock mismatches
+`CLOCK (not evidence)`), and the `Na` noise re-check of each phase must re-measure them on AC in one clock state first.
+
+| threads | case | entry | before | after | medians a / b | clock probes a / b (µs) | cause |
+|---:|---|---|---:|---:|---|---|---|
+| 1 | fimdp-sparse-v2-d10-k4-a1-vertex | workspace | 6.9% | 32.6% | 161 ns / 214 ns | 200 / 197 | WS |
+| 1 | fimdp-sparse-v3-d10-k3-a1-vertex | bellman | 8.1% | 13.7% | 195.03 ms / 171.53 ms | 557 / 197 | CLK |
+| 1 | fimdp-sparse-v3-d10-k3-a1-vertex | workspace | 27.1% | 11.3% | 256 ns / 230 ns | 197 / 197 | WS |
+| 1 | fimdp-sparse-v3-d20-k5-a1-omax | workspace | 22.1% | 81.1% | 197.1 µs / 108.8 µs | 197 / 197 | WS |
+| 1 | imdp-dense-n100-a1 | workspace | 32.3% | 41.1% | 3.7 µs / 5.2 µs | 197 / 197 | WS |
+| 1 | imdp-sparse-n10000-nnz10-a1 | workspace | 31.8% | 9.1% | 88.9 µs / 97.1 µs | 197 / 197 | WS |
+| 1 | product-imdp-sparse-n1000-nnz10-a1-dfa4 | workspace | 12.8% | 7.0% | 15.4 µs / 14.4 µs | 203 / 197 | WS |
+| 4 | fimdp-dense-v2-d10-a1-omax | workspace | 6.1% | 70.8% | 5.4 µs / 3.2 µs | 436 / 209 | CLK |
+| 4 | fimdp-dense-v3-d10-a1-omax | bellman | 10.4% | 72.0% | 17.08 ms / 9.93 ms | 559 / 199 | CLK |
+| 4 | fimdp-sparse-v2-d10-k4-a1-vertex | bellman | 42.7% | 44.8% | 2.55 ms / 1.76 ms | 436 / 197 | CLK |
+| 4 | fimdp-sparse-v2-d10-k4-a1-vertex | workspace | 5.9% | 96.1% | 372 ns / 190 ns | 436 / 197 | CLK |
+| 4 | fimdp-sparse-v2-d10-k4-a4-vertex | workspace | 20.5% | 38.0% | 382 ns / 277 ns | 436 / 197 | CLK |
+| 4 | fimdp-sparse-v3-d10-k3-a1-vertex | workspace | 17.0% | 9.4% | 576 ns / 527 ns | 437 / 197 | CLK |
+| 4 | imdp-dense-n100-a1 | bellman | 118.8% | 5.7% | 11.4 µs / 10.8 µs | 436 / 197 | CLK |
+| 4 | imdp-dense-n100-a1 | workspace | 12.2% | 12.8% | 2.6 µs / 2.3 µs | 436 / 197 | CLK |
+| 4 | imdp-sparse-n10000-nnz10-a4 | bellman | 18.4% | 13.9% | 6.78 ms / 5.95 ms | 559 / 197 | CLK |
+| 4 | imdp-sparse-n10000-nnz100-a1 | bellman | 22.4% | 90.5% | 10.93 ms / 5.74 ms | 559 / 197 | CLK |
+| 4 | imdp-sparse-n10000-nnz100-a1 | solve_ivi | 5.1% | 83.7% | 1.53 s / 831.66 ms | 436 / 197 | CLK |
+| 4 | imdp-sparse-n100000-nnz100-a1 | workspace | 7.7% | 34.0% | 32.86 ms / 24.53 ms | 436 / 197 | CLK |
+| 4 | imdp-sparse-n100000-nnz100-a4 | bellman | 8.7% | 16.9% | 441.63 ms / 377.63 ms | 436 / 197 | CLK |
+| 4 | product-imdp-sparse-n1000-nnz10-a1-dfa4 | bellman | 7.1% | 18.4% | 2.01 ms / 1.70 ms | 436 / 197 | CLK |
+| 4 | product-imdp-sparse-n10000-nnz10-a1-dfa4 | bellman | 8.4% | 65.2% | 12.89 ms / 7.80 ms | 436 / 197 | CLK |
+| 4 | product-imdp-sparse-n10000-nnz10-a4-dfa4 | bellman | 5.9% | 58.4% | 31.87 ms / 20.11 ms | 436 / 197 | CLK |
+| 4 | product-imdp-sparse-n10000-nnz10-a4-dfa4 | solve_dfa | 10.4% | 6.1% | 1.07 s / 1.13 s | 436 / 197 | CLK |
+| 8 | cs-imdp-dense-n1000-a4 | solve_cs_stationary | 7.2% | 52.7% | 305.30 ms / 199.90 ms | 436 / 557 | CLK |
+| 8 | fimdp-dense-v2-d10-a1-mccormick | workspace | 114.7% | 5.4% | 1.51 ms / 1.59 ms | 559 / 559 | WS |
+| 8 | fimdp-dense-v2-d10-a1-omax | bellman | 123.7% | 14.5% | 68.4 µs / 78.4 µs | 436 / 197 | CLK |
+| 8 | fimdp-dense-v2-d10-a4-omax | workspace | 12.8% | 5.4% | 20.7 µs / 21.8 µs | 209 / 560 | CLK |
+| 8 | fimdp-dense-v3-d10-a1-omax | bellman | 142.0% | 139.7% | 11.93 ms / 4.98 ms | 436 / 209 | CLK |
+| 8 | fimdp-sparse-v2-d10-k4-a1-vertex | bellman | 14.0% | 6.5% | 1.15 ms / 1.08 ms | 438 / 197 | CLK |
+| 8 | fimdp-sparse-v2-d50-k10-a1-omax | bellman | 95.0% | 96.3% | 3.81 ms / 1.94 ms | 436 / 559 | CLK |
+| 8 | fimdp-sparse-v2-d50-k10-a4-omax | workspace | 65.0% | 6.0% | 586.9 µs / 553.7 µs | 560 / 197 | CLK |
+| 8 | fimdp-sparse-v3-d10-k3-a1-vertex | workspace | 16.4% | 10.5% | 1.1 µs / 1.0 µs | 436 / 197 | CLK |
+| 8 | fimdp-sparse-v3-d20-k5-a1-omax | workspace | 75.9% | 81.8% | 1.05 ms / 578.4 µs | 436 / 197 | CLK |
+| 8 | imdp-dense-n100-a1 | bellman | 85.2% | 14.1% | 8.0 µs / 9.1 µs | 436 / 209 | CLK |
+| 8 | imdp-dense-n100-a4 | workspace | 5.4% | 64.8% | 5.3 µs / 8.8 µs | 540 / 559 | WS |
+| 8 | imdp-dense-n1000-a1 | bellman | 5.1% | 7.7% | 862.2 µs / 800.2 µs | 436 / 197 | CLK |
+| 8 | imdp-sparse-n10000-nnz10-a4 | bellman | 118.0% | 5.2% | 2.29 ms / 2.41 ms | 436 / 197 | CLK |
+| 8 | imdp-sparse-n100000-nnz10-a1 | workspace | 37.6% | 7.6% | 3.41 ms / 3.66 ms | 197 / 558 | CLK |
+| 8 | imdp-sparse-n100000-nnz10-a4 | workspace | 18.2% | 31.0% | 33.49 ms / 43.88 ms | 559 / 560 | WS |
+| 8 | product-imdp-sparse-n10000-nnz10-a1-dfa4 | bellman | 7.4% | 21.0% | 5.90 ms / 4.88 ms | 436 / 197 | CLK |
+| 8 | product-imdp-sparse-n10000-nnz10-a1-dfa4 | workspace | 56.6% | 43.9% | 295.7 µs / 425.6 µs | 456 / 559 | CLK |
+| 8 | product-imdp-sparse-n10000-nnz10-a4-dfa4 | bellman | 79.6% | 5.1% | 11.42 ms / 10.87 ms | 559 / 197 | CLK |
+| 8 | product-imdp-sparse-n10000-nnz10-a4-dfa4 | workspace | 69.0% | 71.0% | 2.17 ms / 1.27 ms | 299 / 557 | CLK |
+| 8 | real-multiObj_robotIMDP | bellman | 7.2% | 14.6% | 49.0 µs / 56.2 µs | 557 / 199 | CLK |
+| 16 | fimdp-dense-v2-d50-a1-omax | bellman | 9.2% | 7.8% | 21.88 ms / 20.30 ms | 197 / 197 | THR |
+| 16 | fimdp-dense-v2-d50-a1-omax | solve_rvi | 7.4% | 11.0% | 1.93 s / 1.74 s | 197 / 560 | CLK |
+| 16 | fimdp-sparse-v2-d10-k4-a1-vertex | bellman | 8.7% | 6.6% | 1.94 ms / 1.82 ms | 201 / 197 | THR |
+| 16 | fimdp-sparse-v2-d10-k4-a1-vertex | workspace | 15.1% | 20.2% | 1.5 µs / 1.2 µs | 197 / 559 | CLK |
+| 16 | fimdp-sparse-v2-d10-k4-a4-vertex | solve_rvi | 5.8% | 10.7% | 449.32 ms / 497.19 ms | 197 / 559 | CLK |
+| 16 | fimdp-sparse-v2-d10-k4-a4-vertex | workspace | 11.0% | 12.1% | 1.7 µs / 1.9 µs | 557 / 209 | CLK |
+| 16 | fimdp-sparse-v2-d50-k10-a4-omax | solve_rvi | 6.0% | 5.6% | 599.86 ms / 568.19 ms | 197 / 559 | CLK |
+| 16 | fimdp-sparse-v3-d10-k3-a1-vertex | bellman | 120.9% | 41.2% | 90.15 ms / 63.85 ms | 209 / 197 | CLK |
+| 16 | fimdp-sparse-v3-d10-k3-a1-vertex | workspace | 38.8% | 15.4% | 2.0 µs / 2.3 µs | 563 / 557 | WS |
+| 16 | fimdp-sparse-v3-d20-k5-a1-omax | bellman | 10.8% | 6.5% | 18.05 ms / 16.96 ms | 197 / 197 | THR |
+| 16 | fimdp-sparse-v3-d20-k5-a4-omax | bellman | 14.1% | 5.1% | 121.08 ms / 115.15 ms | 197 / 198 | THR |
+| 16 | fimdp-sparse-v3-d20-k5-a4-omax | solve_rvi | 5.9% | 23.7% | 10.53 s / 8.51 s | 197 / 197 | THR |
+| 16 | imdp-dense-n100-a1 | workspace | 33.4% | 29.1% | 1.6 µs / 2.1 µs | 436 / 559 | CLK |
+| 16 | imdp-dense-n1000-a4 | solve_rvi | 20.6% | 5.5% | 219.20 ms / 207.72 ms | 197 / 557 | CLK |
+| 16 | imdp-dense-n4000-a1 | solve_ivi | 20.9% | 27.3% | 1.09 s / 1.39 s | 197 / 436 | CLK |
+| 16 | imdp-dense-n4000-a1 | solve_rvi | 25.3% | 8.1% | 882.47 ms / 816.56 ms | 197 / 559 | CLK |
+| 16 | imdp-dense-n4000-a4 | solve_ivi | 11.7% | 5.2% | 2.69 s / 2.56 s | 197 / 436 | CLK |
+| 16 | imdp-sparse-n10000-nnz10-a4 | bellman | 20.9% | 13.7% | 2.91 ms / 2.55 ms | 197 / 197 | THR |
+| 16 | imdp-sparse-n100000-nnz10-a4 | bellman | 12.0% | 19.5% | 42.08 ms / 35.21 ms | 197 / 197 | THR |
+| 16 | imdp-sparse-n100000-nnz10-a4 | solve_ivi | 17.2% | 14.7% | 6.34 s / 5.53 s | 203 / 197 | THR |
+| 16 | imdp-sparse-n100000-nnz10-a4 | workspace | 7.4% | 7.2% | 77.79 ms / 83.38 ms | 559 / 559 | WS |
+| 16 | product-imdp-dense-n1000-a1-dfa4 | workspace | 15.4% | 7.4% | 180.7 µs / 168.3 µs | 197 / 559 | CLK |
+| 16 | product-imdp-sparse-n1000-nnz10-a4-dfa4 | bellman | 32.1% | 13.4% | 2.85 ms / 2.51 ms | 197 / 197 | THR |
+| 16 | product-imdp-sparse-n1000-nnz10-a4-dfa4 | solve_dfa | 36.6% | 7.7% | 156.73 ms / 168.83 ms | 557 / 557 | THR |
+| 16 | product-imdp-sparse-n10000-nnz10-a1-dfa4 | bellman | 9.4% | 59.0% | 5.94 ms / 3.74 ms | 197 / 197 | THR |
+| 16 | product-imdp-sparse-n10000-nnz10-a1-dfa4 | solve_dfa | 14.6% | 14.1% | 707.37 ms / 806.96 ms | 560 / 559 | THR |
+| 16 | real-multiObj_robotIMDP | workspace | 66.2% | 15.9% | 41.2 µs / 47.7 µs | 209 / 559 | CLK |
 
 ## 5. Profiles (`profiles/*.md`)
 

@@ -691,3 +691,156 @@ spread: median 2.06%, 90th percentile 17.24%, max 120.87%
 
 128 entries, 26 with spread > 5.0%.
 spread: median 0.92%, 90th percentile 28.83%, max 6886.89%
+
+## Causes of the > 5% entries and re-measurement (sub-phase 0d)
+
+Cause codes: **CLK** clock probes of the two runs differ by > 5% (firmware clock cap ≈ 2.3 GHz vs ≈ 5.1 GHz,
+REPORT.md § 1.1; at t = 16 also the 436 → 557 µs all-core probe); **WS** `workspace` entry with equal clocks
+(fresh-array allocation, first-touch page faults, GC state differ between processes); **THR** threaded entry
+(t ≥ 4) with equal clocks (static chunking on hybrid P/E/LP-E cores: the slowest core decides, and it differs
+between processes); **ST** single-threaded compute entry with equal clocks (process-level variation).
+
+Before: baseline vs rerun1 (budgets bellman 2 s/≥20, workspace 1 s/≥10, solves ×1). After: `results/noisefix/`
+run a vs run b, separate processes ≈ 40 min apart (budgets bellman 4 s/≥40, workspace 3 s/≥50, solves
+`--budget-scale 2`). Clock probe = `clock_probe_before_ns` of the entry in each run.
+
+### t = 1
+
+| case | entry | spread before | cause before | clock probes before (µs) | spread after | clock probes after (µs) | cause after |
+|---|---|---:|---|---|---:|---|---|
+| fimdp-dense-v3-d10-a1-omax | workspace | 9.4% | WS | 436 / 436 | 1.2% | 437 / 209 | fixed |
+| fimdp-sparse-v2-d10-k4-a1-vertex | workspace | 6.9% | WS | 438 / 439 | 32.6% | 200 / 197 | WS |
+| fimdp-sparse-v3-d10-k3-a1-vertex | bellman | 8.1% | ST | 445 / 436 | 13.7% | 557 / 197 | CLK |
+| fimdp-sparse-v3-d10-k3-a1-vertex | workspace | 27.1% | WS | 436 / 436 | 11.3% | 197 / 197 | WS |
+| fimdp-sparse-v3-d20-k5-a1-omax | workspace | 22.1% | WS | 436 / 438 | 81.1% | 197 / 197 | WS |
+| imdp-dense-n100-a1 | workspace | 32.3% | WS | 436 / 437 | 41.1% | 197 / 197 | WS |
+| imdp-dense-n1000-a4 | workspace | 36.5% | WS | 436 / 437 | 0.9% | 436 / 197 | fixed |
+| imdp-sparse-n10000-nnz10-a1 | workspace | 31.8% | WS | 436 / 438 | 9.1% | 197 / 197 | WS |
+| product-imdp-sparse-n1000-nnz10-a1-dfa4 | workspace | 12.8% | WS | 436 / 436 | 7.0% | 203 / 197 | WS |
+
+9 entries > 5% before; causes {'ST': 1, 'WS': 8}. After re-measurement: 2 ≤ 5%, 7 still > 5% ({'CLK': 1, 'WS': 6}). Spread after: median 11.3%.
+
+### t = 4
+
+| case | entry | spread before | cause before | clock probes before (µs) | spread after | clock probes after (µs) | cause after |
+|---|---|---:|---|---|---:|---|---|
+| fimdp-dense-v2-d10-a1-omax | workspace | 6.1% | WS | 436 / 437 | 70.8% | 436 / 209 | CLK |
+| fimdp-dense-v3-d10-a1-omax | bellman | 10.4% | THR | 436 / 437 | 72.0% | 559 / 199 | CLK |
+| fimdp-sparse-v2-d10-k4-a1-vertex | bellman | 42.7% | CLK | 557 / 436 | 44.8% | 436 / 197 | CLK |
+| fimdp-sparse-v2-d10-k4-a1-vertex | workspace | 5.9% | WS | 436 / 437 | 96.1% | 436 / 197 | CLK |
+| fimdp-sparse-v2-d10-k4-a4-vertex | workspace | 20.5% | WS | 437 / 436 | 38.0% | 436 / 197 | CLK |
+| fimdp-sparse-v3-d10-k3-a1-vertex | bellman | 6.4% | THR | 436 / 436 | 0.4% | 436 / 197 | fixed |
+| fimdp-sparse-v3-d10-k3-a1-vertex | workspace | 17.0% | WS | 437 / 436 | 9.4% | 437 / 197 | CLK |
+| imdp-dense-n100-a1 | bellman | 118.8% | CLK | 436 / 559 | 5.7% | 436 / 197 | CLK |
+| imdp-dense-n100-a1 | solve_ivi | 14.7% | THR | 436 / 436 | 0.2% | 437 / 197 | fixed |
+| imdp-dense-n100-a1 | workspace | 12.2% | WS | 436 / 437 | 12.8% | 436 / 197 | CLK |
+| imdp-dense-n1000-a1 | workspace | 118.9% | CLK | 436 / 557 | 1.4% | 436 / 197 | fixed |
+| imdp-sparse-n10000-nnz10-a4 | bellman | 18.4% | THR | 436 / 436 | 13.9% | 559 / 197 | CLK |
+| imdp-sparse-n10000-nnz100-a1 | bellman | 22.4% | THR | 437 / 436 | 90.5% | 559 / 197 | CLK |
+| imdp-sparse-n10000-nnz100-a1 | solve_ivi | 5.1% | THR | 436 / 436 | 83.7% | 436 / 197 | CLK |
+| imdp-sparse-n100000-nnz100-a1 | workspace | 7.7% | WS | 437 / 436 | 34.0% | 436 / 197 | CLK |
+| imdp-sparse-n100000-nnz100-a4 | bellman | 8.7% | THR | 436 / 436 | 16.9% | 436 / 197 | CLK |
+| product-imdp-sparse-n1000-nnz10-a1-dfa4 | bellman | 7.1% | THR | 436 / 438 | 18.4% | 436 / 197 | CLK |
+| product-imdp-sparse-n1000-nnz10-a1-dfa4 | workspace | 13.4% | WS | 437 / 436 | 2.2% | 436 / 436 | fixed |
+| product-imdp-sparse-n1000-nnz10-a4-dfa4 | solve_dfa | 54.9% | CLK | 436 / 557 | 2.1% | 436 / 197 | fixed |
+| product-imdp-sparse-n10000-nnz10-a1-dfa4 | bellman | 8.4% | THR | 436 / 437 | 65.2% | 436 / 197 | CLK |
+| product-imdp-sparse-n10000-nnz10-a4-dfa4 | bellman | 5.9% | THR | 436 / 436 | 58.4% | 436 / 197 | CLK |
+| product-imdp-sparse-n10000-nnz10-a4-dfa4 | solve_dfa | 10.4% | THR | 436 / 436 | 6.1% | 436 / 197 | CLK |
+
+22 entries > 5% before; causes {'CLK': 4, 'THR': 11, 'WS': 7}. After re-measurement: 5 ≤ 5%, 17 still > 5% ({'CLK': 17}). Spread after: median 17.7%.
+
+### t = 8
+
+| case | entry | spread before | cause before | clock probes before (µs) | spread after | clock probes after (µs) | cause after |
+|---|---|---:|---|---|---:|---|---|
+| cs-imdp-dense-n1000-a4 | solve_cs_stationary | 7.2% | THR | 557 / 559 | 52.7% | 436 / 557 | CLK |
+| cs-imdp-dense-n1000-a4 | solve_cs_timevarying | 35.2% | THR | 436 / 436 | 2.5% | 559 / 436 | fixed |
+| fimdp-dense-v2-d10-a1-mccormick | workspace | 114.7% | CLK | 557 / 437 | 5.4% | 559 / 559 | WS |
+| fimdp-dense-v2-d10-a1-omax | bellman | 123.7% | CLK | 559 / 437 | 14.5% | 436 / 197 | CLK |
+| fimdp-dense-v2-d10-a1-omax | workspace | 36.8% | CLK | 559 / 437 | 0.4% | 559 / 557 | fixed |
+| fimdp-dense-v2-d10-a4-omax | workspace | 12.8% | WS | 557 / 557 | 5.4% | 209 / 560 | CLK |
+| fimdp-dense-v2-d50-a4-omax | workspace | 106.4% | WS | 559 / 559 | 1.1% | 559 / 197 | fixed |
+| fimdp-dense-v3-d10-a1-omax | bellman | 142.0% | CLK | 436 / 557 | 139.7% | 436 / 209 | CLK |
+| fimdp-dense-v3-d10-a1-omax | workspace | 9.3% | WS | 436 / 436 | 3.3% | 559 / 501 | fixed |
+| fimdp-dense-v3-d10-a4-omax | workspace | 43.6% | WS | 557 / 557 | 1.6% | 561 / 559 | fixed |
+| fimdp-sparse-v2-d10-k4-a1-vertex | bellman | 14.0% | THR | 436 / 436 | 6.5% | 438 / 197 | CLK |
+| fimdp-sparse-v2-d10-k4-a1-vertex | workspace | 16.6% | WS | 557 / 557 | 1.9% | 567 / 557 | fixed |
+| fimdp-sparse-v2-d10-k4-a4-vertex | solve_rvi | 93.0% | CLK | 557 / 436 | 1.5% | 197 / 559 | fixed |
+| fimdp-sparse-v2-d50-k10-a1-omax | bellman | 95.0% | CLK | 437 / 557 | 96.3% | 436 / 559 | CLK |
+| fimdp-sparse-v2-d50-k10-a1-omax | workspace | 41.5% | CLK | 437 / 559 | 0.6% | 559 / 197 | fixed |
+| fimdp-sparse-v2-d50-k10-a4-omax | workspace | 65.0% | WS | 557 / 557 | 6.0% | 560 / 197 | CLK |
+| fimdp-sparse-v3-d10-k3-a1-vertex | workspace | 16.4% | CLK | 437 / 557 | 10.5% | 436 / 197 | CLK |
+| fimdp-sparse-v3-d20-k5-a1-omax | workspace | 75.9% | CLK | 557 / 441 | 81.8% | 436 / 197 | CLK |
+| imdp-dense-n100-a1 | bellman | 85.2% | THR | 436 / 436 | 14.1% | 436 / 209 | CLK |
+| imdp-dense-n100-a4 | workspace | 5.4% | WS | 559 / 557 | 64.8% | 540 / 559 | WS |
+| imdp-dense-n1000-a1 | bellman | 5.1% | CLK | 437 / 559 | 7.7% | 436 / 197 | CLK |
+| imdp-sparse-n10000-nnz10-a4 | bellman | 118.0% | THR | 436 / 436 | 5.2% | 436 / 197 | CLK |
+| imdp-sparse-n10000-nnz100-a4 | workspace | 7.0% | WS | 557 / 559 | 4.6% | 557 / 563 | fixed |
+| imdp-sparse-n100000-nnz10-a1 | solve_rvi | 124.0% | THR | 436 / 436 | 2.4% | 209 / 559 | fixed |
+| imdp-sparse-n100000-nnz10-a1 | workspace | 37.6% | CLK | 436 / 557 | 7.6% | 197 / 558 | CLK |
+| imdp-sparse-n100000-nnz10-a4 | workspace | 18.2% | WS | 557 / 557 | 31.0% | 559 / 560 | WS |
+| imdp-sparse-n100000-nnz100-a1 | workspace | 7.8% | CLK | 438 / 557 | 0.3% | 557 / 559 | fixed |
+| product-imdp-dense-n1000-a1-dfa4 | bellman | 6.9% | THR | 437 / 438 | 3.2% | 436 / 197 | fixed |
+| product-imdp-dense-n1000-a4-dfa4 | solve_dfa | 42.6% | CLK | 559 / 436 | 0.4% | 209 / 562 | fixed |
+| product-imdp-sparse-n1000-nnz10-a4-dfa4 | workspace | 60.1% | WS | 559 / 559 | 0.4% | 202 / 197 | fixed |
+| product-imdp-sparse-n10000-nnz10-a1-dfa4 | bellman | 7.4% | THR | 436 / 436 | 21.0% | 436 / 197 | CLK |
+| product-imdp-sparse-n10000-nnz10-a1-dfa4 | workspace | 56.6% | WS | 559 / 559 | 43.9% | 456 / 559 | CLK |
+| product-imdp-sparse-n10000-nnz10-a4-dfa4 | bellman | 79.6% | CLK | 436 / 557 | 5.1% | 559 / 197 | CLK |
+| product-imdp-sparse-n10000-nnz10-a4-dfa4 | solve_dfa | 93.5% | CLK | 436 / 557 | 1.3% | 197 / 559 | fixed |
+| product-imdp-sparse-n10000-nnz10-a4-dfa4 | workspace | 69.0% | WS | 559 / 559 | 71.0% | 299 / 557 | CLK |
+| real-multiObj_robotIMDP | bellman | 7.2% | CLK | 437 / 557 | 14.6% | 557 / 199 | CLK |
+
+36 entries > 5% before; causes {'CLK': 16, 'THR': 8, 'WS': 12}. After re-measurement: 15 ≤ 5%, 21 still > 5% ({'CLK': 18, 'WS': 3}). Spread after: median 5.4%.
+
+### t = 16
+
+| case | entry | spread before | cause before | clock probes before (µs) | spread after | clock probes after (µs) | cause after |
+|---|---|---:|---|---|---:|---|---|
+| cs-imdp-dense-n1000-a4 | solve_cs_stationary | 15.7% | THR | 557 / 557 | 2.4% | 566 / 197 | fixed |
+| cs-imdp-sparse-n10000-nnz100-a4 | solve_cs_timevarying | 6.1% | THR | 559 / 557 | 4.9% | 557 / 559 | fixed |
+| fimdp-dense-v2-d10-a1-omax | workspace | 71.5% | WS | 559 / 557 | 0.2% | 197 / 558 | fixed |
+| fimdp-dense-v2-d10-a4-omax | bellman | 14.5% | THR | 557 / 557 | 0.9% | 197 / 197 | fixed |
+| fimdp-dense-v2-d10-a4-omax | solve_rvi | 23.9% | THR | 557 / 559 | 2.4% | 197 / 560 | fixed |
+| fimdp-dense-v2-d10-a4-omax | workspace | 5.1% | WS | 557 / 557 | 0.8% | 557 / 559 | fixed |
+| fimdp-dense-v2-d50-a1-omax | bellman | 9.2% | THR | 557 / 559 | 7.8% | 197 / 197 | THR |
+| fimdp-dense-v2-d50-a1-omax | solve_rvi | 7.4% | THR | 559 / 557 | 11.0% | 197 / 560 | CLK |
+| fimdp-dense-v3-d10-a4-omax | bellman | 8.5% | THR | 557 / 559 | 4.5% | 197 / 197 | fixed |
+| fimdp-sparse-v2-d10-k4-a1-vertex | bellman | 8.7% | THR | 557 / 559 | 6.6% | 201 / 197 | THR |
+| fimdp-sparse-v2-d10-k4-a1-vertex | workspace | 15.1% | WS | 532 / 559 | 20.2% | 197 / 559 | CLK |
+| fimdp-sparse-v2-d10-k4-a4-vertex | solve_rvi | 5.8% | THR | 559 / 557 | 10.7% | 197 / 559 | CLK |
+| fimdp-sparse-v2-d10-k4-a4-vertex | workspace | 11.0% | WS | 557 / 557 | 12.1% | 557 / 209 | CLK |
+| fimdp-sparse-v2-d50-k10-a4-omax | solve_rvi | 6.0% | THR | 557 / 557 | 5.6% | 197 / 559 | CLK |
+| fimdp-sparse-v3-d10-k3-a1-vertex | bellman | 120.9% | THR | 559 / 557 | 41.2% | 209 / 197 | CLK |
+| fimdp-sparse-v3-d10-k3-a1-vertex | workspace | 38.8% | WS | 557 / 557 | 15.4% | 563 / 557 | WS |
+| fimdp-sparse-v3-d20-k5-a1-omax | bellman | 10.8% | THR | 557 / 559 | 6.5% | 197 / 197 | THR |
+| fimdp-sparse-v3-d20-k5-a4-omax | bellman | 14.1% | THR | 559 / 557 | 5.1% | 197 / 198 | THR |
+| fimdp-sparse-v3-d20-k5-a4-omax | solve_rvi | 5.9% | CLK | 197 / 559 | 23.7% | 197 / 197 | THR |
+| imdp-dense-n100-a1 | workspace | 33.4% | WS | 559 / 559 | 29.1% | 436 / 559 | CLK |
+| imdp-dense-n1000-a1 | solve_ivi | 5.0% | THR | 559 / 557 | 1.6% | 197 / 209 | fixed |
+| imdp-dense-n1000-a4 | solve_rvi | 20.6% | THR | 559 / 559 | 5.5% | 197 / 557 | CLK |
+| imdp-dense-n4000-a1 | bellman | 30.7% | THR | 559 / 557 | 2.4% | 197 / 209 | fixed |
+| imdp-dense-n4000-a1 | solve_ivi | 20.9% | THR | 559 / 559 | 27.3% | 197 / 436 | CLK |
+| imdp-dense-n4000-a1 | solve_rvi | 25.3% | THR | 559 / 559 | 8.1% | 197 / 559 | CLK |
+| imdp-dense-n4000-a4 | solve_ivi | 11.7% | CLK | 436 / 559 | 5.2% | 197 / 436 | CLK |
+| imdp-dense-n4000-a4 | solve_rvi | 5.2% | THR | 559 / 557 | 0.2% | 348 / 559 | fixed |
+| imdp-sparse-n10000-nnz10-a4 | bellman | 20.9% | THR | 557 / 559 | 13.7% | 197 / 197 | THR |
+| imdp-sparse-n10000-nnz10-a4 | solve_rvi | 10.8% | THR | 559 / 559 | 2.3% | 197 / 559 | fixed |
+| imdp-sparse-n100000-nnz10-a1 | solve_rvi | 9.4% | THR | 557 / 559 | 3.9% | 197 / 560 | fixed |
+| imdp-sparse-n100000-nnz10-a4 | bellman | 12.0% | THR | 557 / 557 | 19.5% | 197 / 197 | THR |
+| imdp-sparse-n100000-nnz10-a4 | solve_ivi | 17.2% | CLK | 557 / 197 | 14.7% | 203 / 197 | THR |
+| imdp-sparse-n100000-nnz10-a4 | solve_rvi | 15.0% | THR | 559 / 559 | 0.6% | 197 / 559 | fixed |
+| imdp-sparse-n100000-nnz10-a4 | workspace | 7.4% | WS | 557 / 559 | 7.2% | 559 / 559 | WS |
+| product-imdp-dense-n1000-a1-dfa4 | workspace | 15.4% | WS | 557 / 559 | 7.4% | 197 / 559 | CLK |
+| product-imdp-dense-n1000-a4-dfa4 | solve_dfa | 10.1% | THR | 559 / 559 | 1.9% | 560 / 559 | fixed |
+| product-imdp-dense-n1000-a4-dfa4 | workspace | 5.9% | WS | 557 / 559 | 0.4% | 559 / 560 | fixed |
+| product-imdp-sparse-n1000-nnz10-a1-dfa4 | workspace | 5.5% | WS | 559 / 557 | 1.8% | 561 / 559 | fixed |
+| product-imdp-sparse-n1000-nnz10-a4-dfa4 | bellman | 32.1% | THR | 559 / 558 | 13.4% | 197 / 197 | THR |
+| product-imdp-sparse-n1000-nnz10-a4-dfa4 | solve_dfa | 36.6% | THR | 559 / 557 | 7.7% | 557 / 557 | THR |
+| product-imdp-sparse-n10000-nnz10-a1-dfa4 | bellman | 9.4% | THR | 559 / 557 | 59.0% | 197 / 197 | THR |
+| product-imdp-sparse-n10000-nnz10-a1-dfa4 | solve_dfa | 14.6% | THR | 557 / 559 | 14.1% | 560 / 559 | THR |
+| product-imdp-sparse-n10000-nnz10-a4-dfa4 | bellman | 6.9% | THR | 559 / 559 | 4.2% | 197 / 197 | fixed |
+| product-imdp-sparse-n10000-nnz10-a4-dfa4 | solve_dfa | 6.3% | THR | 557 / 557 | 3.8% | 336 / 559 | fixed |
+| real-multiObj_robotIMDP | workspace | 66.2% | WS | 559 / 557 | 15.9% | 209 / 559 | CLK |
+
+45 entries > 5% before; causes {'CLK': 3, 'THR': 31, 'WS': 11}. After re-measurement: 18 ≤ 5%, 27 still > 5% ({'CLK': 13, 'THR': 12, 'WS': 2}). Spread after: median 6.5%.
+
