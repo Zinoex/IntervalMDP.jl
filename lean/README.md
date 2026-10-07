@@ -2,7 +2,7 @@
 
 This Lake package contains Lean 4 models of the objects IntervalMDP.jl operates on, and
 machine-checked proofs about them. It is developed in phases (see
-`harness/specs/lean-proofs-existing-algorithms.md`); the status of every row is tracked in
+`harness/specs/lean-proofs/`, shared rules in `common.md`, one spec per sub-phase); the status of every row is tracked in
 `harness/specs/inventory-intervalmdp.md`.
 
 **Current phase: 0** — models with their well-formedness theorems, and the generic

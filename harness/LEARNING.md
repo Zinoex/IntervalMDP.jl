@@ -62,11 +62,6 @@ Each entry should be dated and attributed to the stage that learned it:
 - **Root cause:** The runner reported success whenever no test failed.
 - **Fix / guardrail:** `harness/tests/harness/run.py` exits with 0 = PASS, 1 = FAIL and 2 = PASS-INCOMPLETE (some tests UNAVAILABLE). Report the incomplete count and the reason for each. (Follow-up N5: skips not marked "UNAVAILABLE:" still do not affect RESULT.)
 
-### 2026-10-05 — Orchestrator — A spec file vanished mid-run
-- **Problem:** `harness/specs/hello-world-api.md` disappeared during the run. No agent removed it.
-- **Root cause:** Something outside the agents changed the working tree.
-- **Fix / guardrail:** At run start, snapshot (or hash) the spec and fixture files, and re-check them before each gate. If inputs change unexpectedly, report it instead of carrying on silently.
-
 ### 2026-10-05 — Ops — Check that the git repo and remote really exist in the target dir
 - **Problem:** The operator said a repo had been initialised, but `/home/fresen/Documents/rmdp` was not a git repository and had no remote.
 - **Root cause:** The operator's "repo initialised" referred to a different directory (or to a step not yet done).
@@ -106,3 +101,28 @@ Each entry should be dated and attributed to the stage that learned it:
 - **Problem:** If local `main` has unpushed commits (e.g. local merges), a feature branch from HEAD would carry them into the PR.
 - **Root cause:** Merges made locally on `main` are not on `origin/main`.
 - **Fix / guardrail:** Run `git fetch origin` and `git rev-list --count origin/main..main` before branching. If the count is non-zero, do not push or open a PR. Report the commits and the operator commands (`git push origin main`, or rebase the branch onto `origin/main`). In this run the count was 0, so the PR went ahead. Also, the shell here is zsh: `R="python3 x.py"; $R ...` does not word-split, so define a function `R(){ python3 x.py "$@"; }` for the telemetry wrapper.
+
+### 2026-10-06 — Orchestrator — Split long phases into sub-phase spec files
+- **Problem:** A single Phase 0 run outgrew the Dev context window.
+- **Root cause:** One spec covered the whole phase (suite, baseline, profiles, report), so Dev had to load and act on all of it in one session.
+- **Fix / guardrail:** Specs are now one file per sub-phase (`harness/specs/perf-vi-bellman/`, `harness/specs/lean-proofs/`) with a shared `common.md`, a "read only these sections" line and a context-budget section. Sub-phase 0a ran with Dev at about 65k tokens.
+
+### 2026-10-06 — Ops — Committing a sub-phase out of a pre-existing working tree
+- **Problem:** The working tree held changes for several sub-phases and for the harness itself, so a broad `git add` would mix unrelated work into the 0a commit.
+- **Root cause:** Sub-phases share one branch (`perf/phase0`) and one working tree. Some files are also ignored: `benchmark/Manifest.toml` is in `.gitignore`.
+- **Fix / guardrail:** Stage explicit paths only and check `git diff --cached --name-status` against the expected list. Include every file the entry point `include`s, even if a later sub-phase owns it, so the commit runs on its own. Run `git check-ignore -v` on files the spec says to commit. `benchmark/Manifest.toml` needs `git add -f`.
+
+### 2026-10-06 — Ops — Feature branch built on unpushed local commits blocks the PR
+- **Problem:** `perf/phase0` was branched from a local HEAD that carried 2 commits not on `origin/main` (`91bc0c8` "Remove leftover", which deletes `harness/specs/hello-world-api.md`, and merge `f775c17`). `origin/main..main` was 0, so the existing check passed while the branch was still not clean.
+- **Root cause:** The check looked at local `main`, but the branch had been created from another local branch (`lean/phase0-models`) after its PR merged.
+- **Fix / guardrail:** Always check `git rev-list --count origin/main..HEAD` as well as `origin/main..main`. If it is non-zero, commit locally only and hand the operator the commands. Either push the leftover commit to main first, or rebase the sub-phase commits onto `origin/main`. Planners should create phase branches from a freshly fetched `origin/main`.
+
+### 2026-10-07 — Ops — Rebase a sub-phase commit off unpushed local commits with `--autostash`
+- **Problem:** The 0a commit on `perf/phase0` sat on top of 2 local-only commits (`91bc0c8`, merge `f775c17`). The working tree also held many unrelated uncommitted changes that had to survive.
+- **Root cause:** The branch had been created from a local branch after its PR merged, not from a freshly fetched `origin/main`.
+- **Fix / guardrail:** Run `git fetch origin`, record `git rev-parse HEAD` as a backup ref, then run `git rebase --autostash --onto origin/main <old-base> <branch>`. Autostash stashes the uncommitted work and puts it back afterwards. If there is a conflict, run `git rebase --abort` and check `git stash list`. Before pushing, verify that `git log --oneline origin/main..HEAD` is exactly the sub-phase commit. Also check `git diff --name-status origin/main HEAD` against the expected paths and compare `git status --short | wc -l` with its earlier count. Files deleted by the dropped commits come back into the tree; this is expected. In this run it was clean: `08958a0` became `333f674`, the 21 status lines were unchanged, and draft PR #112 was opened.
+
+### 2026-10-07 — Operator — Node.js support removed from the harness
+- **Problem:** The Node.js parts of the harness (the hello-world sample spec and fixture, Node discovery, and the telemetry MCP server launched with `node` via `.mcp.json`) were unused on this host (no `node`) and kept Node assumptions alive in agents, tests and docs.
+- **Root cause:** The harness started as a Node.js sample project and kept that workflow after moving to Julia/Lean.
+- **Fix / guardrail:** The operator asked to remove all Node.js support. Telemetry is now written only by `python3 harness/tools/harness/record_event.py <eventName> '<json>'` to `harness/tools/telemetry/telemetry.db` (gitignored; the existing DB was moved there). This supersedes the 2026-10-05 lessons that mention the telemetry MCP server and `.mcp.json`. `test_static_no_node_tooling` checks that no `package.json`, `.mcp.json`, `telemetry-mcp/` or `mcp__telemetry` reference comes back.

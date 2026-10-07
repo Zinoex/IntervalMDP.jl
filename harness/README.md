@@ -2,7 +2,7 @@
 
 A gated **Dev → Formal Verification → QE → Ops** workflow harness built on Claude Code subagents. You hand it a spec and a target repository; it implements, independently verifies proofs, tests, and ships a pull request, recording every step to a local SQLite telemetry DB and accumulating lessons in `harness/LEARNING.md`.
 
-It drives **Julia** scientific-computing packages (primary target: [`IntervalMDP.jl`](https://github.com/Zinoex/IntervalMDP.jl)) with **Lean** machine-checked proofs for every value-iteration (VI) / Bellman algorithm, and it keeps the original **Node.js** sample workflow.
+It drives **Julia** scientific-computing packages (primary target: [`IntervalMDP.jl`](https://github.com/Zinoex/IntervalMDP.jl)) with **Lean** machine-checked proofs for every value-iteration (VI) / Bellman algorithm.
 
 ## How it works
 
@@ -10,9 +10,9 @@ The `/harness` slash command runs in the main thread as an **orchestrator**. It 
 
 Stages:
 
-1. **Dev** (`.claude/agents/dev.md`) — implements the spec in the target root and writes/runs tests (`Pkg.test()` for Julia, `npm test` for Node). For any new or semantically changed VI/Bellman algorithm it also writes the Lean theorem + complete proof, runs `lake build`, and documents Julia↔Lean traceability and proof limitations. Gate: all tests pass (and the Lean build when proofs are required).
+1. **Dev** (`.claude/agents/dev.md`) — implements the spec in the target root and writes/runs tests (`Pkg.test()`). For any new or semantically changed VI/Bellman algorithm it also writes the Lean theorem + complete proof, runs `lake build`, and documents Julia↔Lean traceability and proof limitations. Gate: all tests pass (and the Lean build when proofs are required).
 2. **Formal Verification** (`.claude/agents/verifier.md`, new) — an independent, read-only verifier (tools: Read, Glob, Grep, Bash, telemetry; **no Write/Edit**). It builds the Lean project with the **pinned** toolchain, checks every expected theorem is present by name, and rejects `sorry`, `admit`, placeholder proofs, and unapproved axioms (static pre-check + `#print axioms`). It never edits proofs and never downloads or switches toolchains; a missing toolchain is a blocker, not a pass. It reports pass/fail per obligation and the **proof scope** (abstract/mathematical vs concrete implementation). Gate: every obligation passes. When a change adds/alters no VI/Bellman semantics and touches no proof dependency, the gate is recorded as `skip` with a reason (never as `pass`).
-3. **QE** (`.claude/agents/qe.md`) — independently re-runs the Julia test suite (CPU always; CUDA/GPU when the change affects GPU code), lints unit tests for brittle timing thresholds, checks benchmark evidence for performance-scoped specs, and for Node targets runs the original `npm test` + live `curl` checks. GPU outcomes are **PASS / FAIL / UNAVAILABLE**; UNAVAILABLE on a required GPU check is an unmet criterion, never a pass. Gate: every criterion green.
+3. **QE** (`.claude/agents/qe.md`) — independently re-runs the Julia test suite (CPU always; CUDA/GPU when the change affects GPU code), lints unit tests for brittle timing thresholds, and checks benchmark evidence for performance-scoped specs. GPU outcomes are **PASS / FAIL / UNAVAILABLE**; UNAVAILABLE on a required GPU check is an unmet criterion, never a pass. Gate: every criterion green.
 4. **Ops** (`.claude/agents/ops.md`) — runs **only** if Dev, Formal Verification (when required) and QE all passed in the same cycle. Branches, commits, opens a PR via `gh`, and appends lessons to `harness/LEARNING.md`. If the target is not a git repo, has no remote, or `gh` is missing, Ops reports a blocker instead of improvising.
 
 A failure in Dev, Formal Verification or QE loops back to Dev with the specific failure evidence. Maximum **2** Dev → gate cycles in total before the run aborts as `harness_failed`. Environment blockers (required toolchain/GPU UNAVAILABLE, command not inferable) end the run immediately. Ops never runs after a failed gate.
@@ -20,7 +20,7 @@ A failure in Dev, Formal Verification or QE loops back to Dev with the specific 
 Planner (`.claude/agents/planner.md`) is an optional helper for breaking down work; on **target onboarding** it produces the verification inventory (see below).
 
 Persistence:
-- **Telemetry** — `harness/tools/telemetry-mcp` is a local MCP server that appends events (`harness_started`, `delegation_start/end`, `verify_started/finished`, `gate_decision`, `loopback`, `harness_completed`, …) to a SQLite DB. Records *what happened*. If `node` is unavailable, `harness/tools/harness/record_event.py` writes the same events to the same schema.
+- **Telemetry** — `harness/tools/harness/record_event.py` appends events (`harness_started`, `delegation_start/end`, `verify_started/finished`, `gate_decision`, `loopback`, `harness_completed`, …) to a local SQLite DB, `harness/tools/telemetry/telemetry.db` (gitignored). Records *what happened*.
 - **harness/LEARNING.md** — durable, human-readable lessons appended at the end of each run. Records *what was learned*.
 
 ### ASCII flow
@@ -47,7 +47,7 @@ Persistence:
                           └───────────────────────────────┘
           blocker (toolchain / GPU UNAVAILABLE) ──▶ harness_failed (no Ops)
 
-   every transition ──▶  mcp__telemetry__recordTelemetry  ──▶  telemetry.db
+   every transition ──▶  record_event.py                  ──▶  telemetry.db
    end of run        ──▶  append lessons                  ──▶  harness/LEARNING.md
 ```
 
@@ -61,7 +61,6 @@ Vendored into the IntervalMDP.jl repository (paths relative to the repo root; ru
 .claude/
   agents/        dev.md  verifier.md  qe.md  ops.md  planner.md   (subagent definitions)
   commands/      harness.md                                     (the /harness slash command)
-.mcp.json                             (telemetry MCP server → harness/tools/telemetry-mcp)
 harness/
   README.md                           (this file)
   LEARNING.md                         (accumulated lessons)
@@ -70,23 +69,20 @@ harness/
     TEMPLATE-julia-lean.md            (Julia + Lean feature-spec template)
     TEMPLATE-onboarding-inventory.md  (VI/Bellman algorithm ↔ Lean proof inventory template)
     intervalmdp-harness-update.md     (spec for this harness adaptation)
-    hello-world-api.md                (Node.js sample spec)
   tools/
-    telemetry-mcp/                    (local MCP server, SQLite events; needs node)
+    telemetry/                        (telemetry.db, the local SQLite event store; gitignored)
     harness/
       discover.py                     (target root → kinds, commands, toolchain, blockers)
       proof_hygiene.py                (verifier static pre-check + lake/#print axioms pipeline)
       gpu_check.py                    (GPU probe/classifier: PASS / FAIL / UNAVAILABLE)
       timing_lint.py                  (flags wall-clock thresholds in Julia unit tests)
       gate_sim.py                     (executable model of the orchestrator gates)
-      record_event.py                 (telemetry fallback writer, same schema, no node)
-  tests/harness/                      (harness tests + fixtures: Julia, Lean, Node)
+      record_event.py                 (telemetry writer: appends events to tools/telemetry/telemetry.db)
+  tests/harness/                      (harness tests + fixtures: Julia, Lean)
 src/ test/ ext/ ...                   (the IntervalMDP.jl package — the default target root)
 ```
 
 The package's own `Pkg.test()` only runs `test/`; the harness suite is separate: `sh harness/tests/harness/run.sh`. A target-specific `harness.config.toml` goes at the target root.
-
-> The Node sample *target project* (`hello-world-api/`) is **not** checked into this directory; only its spec (`harness/specs/hello-world-api.md`) is. A `/harness harness/specs/hello-world-api.md <empty-dir>` run creates it. The previously referenced `specs/goodbye-endpoint.md` is not present either. A discovery-only Node fixture lives in `harness/tests/harness/fixtures/node-sample/`.
 
 ## Configuring a Julia + Lean target
 
@@ -98,12 +94,11 @@ The harness is vendored into IntervalMDP.jl, so by default the target root is th
 
 1. **Spec** — the *Commands / Toolchain* section of the task spec (passed as `--set key=value`).
 2. **Config** — `harness.config.toml` (`--config PATH`, `$HARNESS_CONFIG`, or `<target-root>/harness.config.toml`). See `harness/harness.config.example.toml`; keep it in the harness repo if you don't want to modify the upstream target.
-3. **Discovery** — `python3 harness/tools/harness/discover.py <target-root> [--require julia,lean,gpu,node]`:
-   - Julia: `Project.toml` (+ `Manifest.toml`), Julia version must satisfy `[compat] julia` (IntervalMDP.jl: 1.9+ unless stricter); commands `julia --project=<root> -e 'using Pkg; Pkg.instantiate()'` and `julia --project=<root> -e 'using Pkg; Pkg.test()'`. No npm/Jest/curl for Julia targets.
+3. **Discovery** — `python3 harness/tools/harness/discover.py <target-root> [--require julia,lean,gpu]`:
+   - Julia: `Project.toml` (+ `Manifest.toml`), Julia version must satisfy `[compat] julia` (IntervalMDP.jl: 1.9+ unless stricter); commands `julia --project=<root> -e 'using Pkg; Pkg.instantiate()'` and `julia --project=<root> -e 'using Pkg; Pkg.test()'`.
    - Lean: `lean-toolchain` (pinned; never switched or downloaded) + `lakefile.lean`/`lakefile.toml`, at the root or a subdirectory (≤2 levels); command `lake build` from the Lean root, plus a configured `lean.test` (e.g. `lake test`). Approved axioms default to `propext`, `Classical.choice`, `Quot.sound`.
    - GPU: CUDA/AMDGPU/Metal/KernelAbstractions in `[deps]`/`[weakdeps]`/`ext/` marks GPU code; the GPU **test runner is never inferred** — configure `gpu.test`. `gpu.probe` is `harness/tools/harness/gpu_check.py probe <root>`, which probes CUDA in a **temporary** Julia environment (develops the target + adds CUDA from the local depot, offline), so it works when CUDA is only a weak dependency / test extra (IntervalMDP.jl layout). Probe `NOT_FUNCTIONAL` → GPU UNAVAILABLE; probe `ERROR` is **not** evidence of "no GPU" — it is a FAIL / blocker to investigate.
    - Lean: if the pinned toolchain is already installed under `$ELAN_HOME/toolchains` (default `~/.elan`), `lean.toolchain_installed=yes` and `lean.toolchain_bin` points at its own `bin/` (use that `lake` directly — it can never trigger a download, unlike the elan proxy).
-   - Node: `package.json` → `npm install`, `npm test`, `npm start`.
 4. **Blocker** — if a required value can't be inferred (no project files, ambiguous Lean roots, no pinned toolchain, Julia version outside compat, required tool missing), discovery prints `blocker=…` and exits 2.
 
 ### CPU / GPU matrix
@@ -126,7 +121,6 @@ On a new target, run the Planner to produce `harness/specs/inventory-<target>.md
 ## Writing your own spec
 
 - **Julia + Lean work**: copy `harness/specs/TEMPLATE-julia-lean.md` (Objective; Commands / Toolchain; Julia behavior & tests; Algorithm ↔ Theorem mapping; Proof obligations & limitations; Proof policy; CPU/GPU matrix; Performance evidence; Acceptance criteria; File list; Out of scope).
-- **Node work**: follow `harness/specs/hello-world-api.md` — Objective, Module Contracts, Endpoint / Behavior Specification, Test Specification, Acceptance Criteria (checkboxes QE verifies one by one), File List, Out of Scope.
 
 Then: `/harness harness/specs/<your-spec>.md <target-root>`.
 
@@ -135,7 +129,6 @@ Then: `/harness harness/specs/<your-spec>.md <target-root>`.
 ### Prereqs
 
 - [Claude Code](https://docs.claude.com/claude-code) CLI, `python3` ≥ 3.11 (harness helpers)
-- Node.js ≥ 18 + `npm` — for the telemetry MCP server (`cd harness/tools/telemetry-mcp && npm install`) and Node targets
 - Julia (version per target `[compat]`, e.g. via juliaup) — Julia targets
 - elan/Lean with the target's pinned toolchain **pre-installed** — Lean proof gate
 - CUDA-capable GPU + configured `gpu.test` — only for required GPU checks
@@ -163,15 +156,6 @@ Expected status lines:
 ✓ harness_completed — PR <url>
 ```
 
-### Node sample
-
-```bash
-mkdir -p hello-world-api
-claude
-/harness harness/specs/hello-world-api.md /abs/path/hello-world-api
-```
-Formal Verification is recorded as `skip` (no VI/Bellman algorithm); QE runs `npm test` and the `curl` checks from the spec.
-
 ## Harness tests
 
 ```bash
@@ -182,12 +166,11 @@ Result line / exit code: `RESULT: PASS` (exit 0) only when every check ran and p
 Real runs use temporary copies of the fixtures (no Manifest.toml / `.lake` written into `harness/tests/harness/fixtures`):
 - **GPU**: when `julia` exists the suite probes CUDA (`gpu_check.py probe`, temp env, offline) and, if functional, runs the configured `gpu.test` on `julia-gpu` (expects classifier **PASS**), `julia-gpu-failing` (expects **FAIL**) and `julia-gpu` with `CUDA_VISIBLE_DEVICES=-1` (expects **UNAVAILABLE**); it also shows that a CPU-only command exiting 0 is classified FAIL, never GPU PASS. If the probe is not functional those checks are UNAVAILABLE with the probe's reason.
 - **Lean**: `lake build` + `#print axioms` (via `proof_hygiene.lean_pipeline`) run only with the fixture's **pinned** toolchain already installed, using the toolchain's own `bin/lake` (never the elan proxy, never a download); otherwise UNAVAILABLE. Opt-in `HARNESS_LEAN_TOOLCHAIN_OVERRIDE=<installed toolchain>` (e.g. `leanprover/lean4:v4.33.0-rc2`) rewrites the pin in the temp copies to exercise the real pipeline — the runner labels that **NON-PINNED evidence**; it does not show acceptance under the pinned toolchain.
-- **Node**: with `node`/`npm` present, `test_case7_node_sample_tests` is only a smoke check that the unchanged `harness/tools/telemetry-mcp/telemetry.js` loads; the hello-world `npm test` + `curl` workflow stays QE's job.
-Covers all eight Test Specification cases of `harness/specs/intervalmdp-harness-update.md`: static checks that the instruction files encode the rules, discovery against Julia/Lean/Node fixtures, the proof-hygiene scanner against valid/sorry/admit/axiom/missing/placeholder Lean fixtures plus adversarial ones (sorry hidden between `'"'` char literals, `axiom propext` inside a namespace, multi-line `True` placeholder, kernel bypass via `debug.skipKernelTC`/`implemented_by`/`extern`/`unsafe`, decl name on the next line), the gate state machine (order, loopback max 2, blockers, Ops-only-after-all-gates), GPU PASS/FAIL/UNAVAILABLE mapping and classifier (synthetic + real CUDA runs), timing-threshold lint, real `Pkg.test()` runs of the Julia fixtures (when `julia` exists), and the telemetry schema. Checks that need the pinned Lean toolchain, `node`/`npm` or a functional GPU are reported as **UNAVAILABLE** (distinct from PASS) when missing.
+Covers all eight Test Specification cases of `harness/specs/intervalmdp-harness-update.md`: static checks that the instruction files encode the rules, discovery against Julia/Lean fixtures, the proof-hygiene scanner against valid/sorry/admit/axiom/missing/placeholder Lean fixtures plus adversarial ones (sorry hidden between `'"'` char literals, `axiom propext` inside a namespace, multi-line `True` placeholder, kernel bypass via `debug.skipKernelTC`/`implemented_by`/`extern`/`unsafe`, decl name on the next line), the gate state machine (order, loopback max 2, blockers, Ops-only-after-all-gates), GPU PASS/FAIL/UNAVAILABLE mapping and classifier (synthetic + real CUDA runs), timing-threshold lint, real `Pkg.test()` runs of the Julia fixtures (when `julia` exists), and the telemetry schema. Checks that need the pinned Lean toolchain or a functional GPU are reported as **UNAVAILABLE** (distinct from PASS) when missing.
 
 ## Telemetry
 
-Events stream to a SQLite DB (`harness/tools/telemetry-mcp/telemetry.db`, table `events(id, ts, event_name, details)`) via the `mcp__telemetry__recordTelemetry` tool exposed by `harness/tools/telemetry-mcp`, or via `python3 harness/tools/harness/record_event.py <event> '<json>'` when node is unavailable. Inspect runs with `sqlite3` (or `python3 -c "import sqlite3; ..."`).
+Events are appended with `python3 harness/tools/harness/record_event.py <event> '<json>'` to a SQLite DB (`harness/tools/telemetry/telemetry.db`, table `events(id, ts, event_name, details)`; override with `HARNESS_TELEMETRY_DB`). In zsh, wrap the call in a function (`R(){ python3 harness/tools/harness/record_event.py "$@"; }`). Inspect runs with `sqlite3` (or `python3 -c "import sqlite3; ..."`).
 
 ## Notes
 

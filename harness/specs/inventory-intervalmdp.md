@@ -1,6 +1,6 @@
 # IntervalMDP.jl — Verification Inventory
 
-> Created in Phase 0 of `harness/specs/lean-proofs-existing-algorithms.md` from
+> Created in Phase 0 of `harness/specs/lean-proofs-existing-algorithms.md` (now split into `harness/specs/lean-proofs/`) from
 > `TEMPLATE-onboarding-inventory.md`. Dev keeps it current whenever a proof is added or an
 > algorithm changes. This inventory is a status report, **not** a verification claim.
 

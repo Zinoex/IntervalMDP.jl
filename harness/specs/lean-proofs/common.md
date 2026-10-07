@@ -1,15 +1,50 @@
-# Lean Proofs for Existing VI/Bellman Algorithms — Specification (Julia + Lean)
+# Lean Proofs for Existing VI/Bellman Algorithms — Shared Reference
 
-> Migration spec. IntervalMDP.jl has **no Lean project** today, so every existing VI/Bellman
-> algorithm is a legacy verification gap. This spec covers the whole migration but is
-> executed as **separate `/harness` runs, one per phase** (§ Phases). Set the line below
-> before each run. Every agent scopes its mapping-table rows and its acceptance criteria to
-> that phase. Earlier phases' theorems must stay green. A phase may not start until the
-> previous phase has merged.
+> **Not a runnable spec.** This file holds what every sub-phase of the Lean migration shares. Run the harness on one
+> sub-phase spec in this directory at a time, e.g. `/harness harness/specs/lean-proofs/1a-index-foundations.md`.
+> Each sub-phase spec lists the sections of this file its agents must read, and carries its own rows of the mapping
+> table (the verifier checks exactly those names) and its own acceptance criteria. Earlier sub-phases' theorems must
+> stay green.
 
-**Active phase: 0**
+## Run order
 
-## Objective *(required)*
+| Spec | Phase | Content |
+|---|---|---|
+| `0` | 0 | Scaffold, models, A1 — **done** (merged, commit `c2825bc`) |
+| `1a-index-foundations.md` | 1 | Julia↔`Fin` conversion, linear index, sparse support, sort permutation |
+| `1b-marginal-index.md` | 1 | `Marginal.sub2ind`, `IntervalAmbiguitySets.sub2ind`; `indexing_reference.jl` |
+| `1c-omax-dense.md` | 1 | Dense O-maximization exactness |
+| `1d-omax-sparse.md` | 1 | Sparse O-maximization; `omax_reference.jl`; Phase 1 close |
+| `2a-bellman-general.md` | 2 | Robust Bellman operator on general `RMDP` |
+| `2b-bellman-interval-strategy.md` | 2 | Interval specialisation, strategy lookup/extraction, policy evaluation (A8); Phase 2 close |
+| `3a-vi-reach.md` | 3 | VI reachability / reach-avoid, A4 |
+| `3b-vi-safety-exit.md` | 3 | VI safety (shift) and expected exit time |
+| `3c-vi-reward.md` | 3 | VI reward, contraction and A5 error bound |
+| `3d-vi-strategy.md` | 3 | Synthesized strategies (A7); Phase 3 close |
+| `4a-ivi-bracket.md` | 4 | IVI `lower_le_upper`, `bracket` (A6) |
+| `4b-ivi-stop.md` | 4 | IVI gap stopping (A6); Phase 4 close |
+| `5a-factored-vertex.md` | 5 | Factored successor index, vertex enumeration exactness |
+| `5b-factored-omax.md` | 5 | Recursive O-max soundness (A2) |
+| `5c-factored-mccormick.md` | 5 | McCormick soundness (A3); `approx_soundness_reference.jl`; Phase 5 close |
+| `6a-product-index.md` | 6 | Product-state indexing |
+| `6b-product-bellman.md` | 6 | Product Bellman = flat Bellman, DFA reachability/safety; Phase 6 close |
+
+Each phase is one branch `lean/phase-N` and one PR: the first sub-phase of a phase branches from `origin/main` and opens
+a **draft** PR; later sub-phases push to it; the last sub-phase of the phase (marked "Phase N close") marks it ready
+(`gh pr ready`). A phase may not start until the previous phase it depends on has merged (Phase 5 needs 2 and 3; Phase 6
+needs 3). Sub-phases of one phase run in order.
+
+## Context budget (every agent, every sub-phase)
+
+- Never print a whole `lake build` log: filter it (`… 2>&1 | grep -E "error|warning|sorry" | head -50`, then `tail`).
+  Never print `lake-manifest.json` or whole Mathlib files.
+- Find Mathlib lemmas with `grep -rn` over `lean/.lake/packages/mathlib/Mathlib` limited to a few lines, or with
+  `#check`/`exact?`/`apply?` in a small scratch file — not by reading Mathlib source files.
+- For files of earlier phases, read only the signatures you need (`grep -n "^theorem\|^lemma\|^def\|^structure"`),
+  not whole files. Read whole files only for the files this sub-phase owns.
+- Do not re-read a file after editing it. Keep the hand-off short: one line per theorem / criterion with evidence.
+
+## Objective
 
 Create a Lean 4 project inside IntervalMDP.jl with three parts:
 
@@ -23,20 +58,20 @@ Adds or semantically changes a VI/Bellman algorithm: **no**. The Julia code is n
 
 Model families: interval MDP (IMDP), factored interval MDP (fIMDP), product of IMDP × DFA. Definitions must be written over a general ambiguity set where the proof allows (a nonempty closed set of distributions — **not** necessarily convex, see § Factored ambiguity is not convex), and specialised to intervals only for the interval-specific results. This keeps L1-MDPs and mixtures open for later.
 
-## Commands / Toolchain *(required)*
+## Commands / Toolchain
 
 - Target root: `/home/fresen/.julia/dev/IntervalMDP`
 - Julia version / compat: `[compat] julia = "1.11"`; local `julia` is 1.13.1 (satisfies compat).
 - Julia instantiate: `julia --project=. -e 'using Pkg; Pkg.instantiate()'`
-- Julia test: `julia --project=. -e 'using Pkg; Pkg.test()'`
-- Lean root: `<root>/lean` (new; lake package `IntervalMDPProofs`, library root `IntervalMDPProofs.lean`).
-- Lean toolchain: **Phase 0 sets the pin.** Use Mathlib, and copy `lean-toolchain` verbatim from the Mathlib release tag that `lakefile.toml` pins. Only `leanprover/lean4:v4.33.0-rc2` is installed locally (`~/.elan`, which is not on `PATH`; call `~/.elan/bin/lake`). Fetching a different toolchain or the Mathlib cache (`lake exe cache get`) needs network access, and this spec approves that **once, in Phase 0 only**. After Phase 0, the toolchain must never change silently.
-- Lean build: `lake build` (run from `lean/`)
-- Lean axiom check: `lake env lean lean/AxiomCheck.lean`. This file contains one `#print axioms <thm>` line per theorem in the mapping tables, and the verifier compares its output against the approved axioms.
-- GPU test: not applicable (§ CPU / GPU Matrix).
-- Benchmark: not in scope.
+- Julia test: `julia --project=. -e 'using Pkg; Pkg.test()'`; afterwards `git checkout -- test/data/multiObj_robotIMDP.nc` (see `harness/LEARNING.md`).
+- Lean root: `<root>/lean` (lake package `IntervalMDPProofs`, library root `IntervalMDPProofs.lean`).
+- Lean toolchain: pinned in Phase 0 to `leanprover/lean4:v4.33.0-rc2` (Mathlib v4.33.0-rc2). It must not change. Always call the toolchain binaries directly, never the elan proxy: `~/.elan/toolchains/leanprover--lean4---v4.33.0-rc2/bin/lake`.
+- Lean build (from `lean/`): `~/.elan/toolchains/leanprover--lean4---v4.33.0-rc2/bin/lake build`
+- Lean axiom check (from `lean/`): `~/.elan/toolchains/leanprover--lean4---v4.33.0-rc2/bin/lake env lean AxiomCheck.lean`
+- Julia reference check: `python3 lean/scripts/check_julia_refs.py`
+- GPU test: not applicable. Benchmark: not in scope.
 
-## Julia Behavior & Tests *(required)*
+## Julia Behavior & Tests
 
 - No Julia source changes. `src/` must be byte-identical to the base ref. `test/` may only gain the optional cross-check files described below.
 - **Optional cross-check tests** (these show the Lean model describes the Julia code; they are not a substitute for the proofs):
@@ -61,16 +96,9 @@ Model families: interval MDP (IMDP), factored interval MDP (fIMDP), product of I
 | 5 | Factored IMDPs: marginal-product indexing, vertex enumeration exactness, **soundness** of recursive O-max and of LP McCormick, end-to-end VI soundness | 2, 3 |
 | 6 | Product with DFA: **product-state indexing**, product Bellman equals the Bellman of the flattened product, DFA reachability/safety | 3 |
 
-Phase 0 passes when:
-
-- `lake build` succeeds with the pinned toolchain;
-- every Phase 0 row of the mapping tables is proved;
-- `harness/specs/inventory-intervalmdp.md` exists (from `TEMPLATE-onboarding-inventory.md`), listing every algorithm row with status `none` and every model, index and approximation row with its status.
-
-## Lean Model Structure & Readability *(required)*
+## Lean Model Structure & Readability
 
 The models are the part a reviewer reads first. They must be understandable by someone who knows the IntervalMDP.jl docs but not Lean.
-
 ### Layout
 
 One concept per file under `lean/IntervalMDPProofs/Models/`. Files build on each other in the order listed:
@@ -87,7 +115,6 @@ One concept per file under `lean/IntervalMDPProofs/Models/`. Files build on each
 | `Models/Product.lean` | `ProductProcess` {`mdp`, `dfa`, `labelling`}, and `ProductProcess.toRMDP` | `ProductProcess` | — |
 | `Models/Strategy.lean` | `StationaryStrategy S A`, `TimeVaryingStrategy S A` (horizon-indexed), plus validity w.r.t. `available` | `StationaryStrategy`, `TimeVaryingStrategy`, `GivenStrategyCache` | the chosen action is available |
 | `Models/Specification.lean` | `inductive Property` (one constructor per Julia property struct), `SatisfactionMode` (`pessimistic`/`optimistic`), `StrategyMode` (`maximize`/`minimize`), `Specification` | `Property` subtypes, `SatisfactionMode`, `StrategyMode`, `Specification` in `src/specification.jl` | reach ∩ avoid = ∅; `0 < discount`; horizon ≥ 1 for finite-time properties (match `checkreward`/`checkdisjoint`) |
-
 ### Style rules (checked by the verifier and QE as acceptance criteria)
 
 - **Invariants live in structures.** A model's validity conditions are fields of its structure, not hypotheses repeated in every theorem. Theorems take a `(M : IMDP S A)`, not `(lower upper : …) (h₁ : …) (h₂ : …) …`.
@@ -100,7 +127,7 @@ One concept per file under `lean/IntervalMDPProofs/Models/`. Files build on each
 - **Overview document.** `lean/README.md` gives the model hierarchy as a diagram or list, a Julia↔Lean glossary (type ↔ structure, function ↔ definition), the file map, and how to build. Keep it current every phase.
 - `lake build` emits no linter warnings in `IntervalMDPProofs/` (unused variables, deprecated names). Mathlib's `docBlame` linter is turned on for the library.
 
-## Factored ambiguity is not convex *(required)*
+## Factored ambiguity is not convex
 
 The ambiguity set of a factored IMDP is the set of product distributions `{⊗ᵢ pᵢ : pᵢ ∈ Pᵢ}`. This set is **not convex** in general: with two binary variables, the point masses on `(0,0)` and `(1,1)` are products, but their midpoint is not. This is known in the literature (arXiv:2411.11803 by the package author; arXiv:2508.00707 by Schnitzer et al.), so the Lean models must reflect it rather than work around it:
 
@@ -119,7 +146,7 @@ The factored algorithms follow published results. Each Lean proof must follow th
 
 If a Lean proof shows that the Julia code departs from the paper's algorithm (for example in the reduction order or tree shape), that is a Finding, not a reason to change the theorem.
 
-## Indexing Correctness *(required)*
+## Indexing Correctness
 
 Julia computes indices by hand in several places. Lean models these index functions exactly, over `Fin`, and proves they are correct. Julia is 1-based and Lean's `Fin n` is 0-based. The conversion is defined **once**, in `Index/Julia.lean` (`toJulia : Fin n → ℕ := (· + 1)` and its inverse on `1..n`), and every index theorem is stated through it.
 
@@ -136,7 +163,7 @@ Index obligations (all in the mapping table):
 - **Product-state indexing.** `V[idx, dfa[state, lf[idx]]]` in the product Bellman (`src/bellman.jl`) reads the value at the successor product state `(s', δ(q, L(s')))`. The DFA transition uses the *successor's* label. `selectdim(Vres, ndims(Vres), state)` writes the slice for DFA state `q`. Together these make a bijection `S × Q ≃ Fin (|S|·|Q|)` with the DFA state as the last (slowest) dimension.
 - **Strategy indexing.** `CartesianIndex(strategy_cache[jₛ])` returns an action that is in `available(model, jₛ)`, for strategies that pass validation.
 
-## Approximation Soundness *(required)*
+## Approximation Soundness
 
 Definition, stated once in `Approx/Sound.lean`. A computed value `Ṽ` is **sound** for a specification with satisfaction mode `m` when `Ṽ ≤ V*` for `pessimistic` and `Ṽ ≥ V*` for `optimistic`, where `V*` is the exact robust value of the same specification, in pointwise order on states. Proofs must use this definition `Sound m Ṽ V*`, not a re-derived inequality in each file.
 
@@ -153,7 +180,7 @@ Every place where IntervalMDP.jl returns something other than the exact value, a
 | A7 | Synthesized strategy | Phase 3 | finite horizon: the returned time-varying strategy *achieves* the computed `V_K` (evaluating it gives `V_K`). Infinite horizon: the returned stationary strategy's value is sound w.r.t. the computed value, **or** a counterexample is filed under Findings (greedy stationary strategies are known to fail this for maximizing reachability with end components). |
 | A8 | Given-strategy verification (`NonOptimizingStrategyCache`) | Phase 2 | policy evaluation `T_π` is exact for the given strategy, and is sound w.r.t. the optimal `T` in the strategy-mode direction |
 
-## Algorithm ↔ Theorem Mapping *(required)*
+## Algorithm ↔ Theorem Mapping (full table, for reference)
 
 The verifier checks exactly these theorem names for the phase being run. Names are fixed by this spec. If a name needs to change, update this spec before the run. Every Lean file lives under `lean/IntervalMDPProofs/`.
 
@@ -162,7 +189,6 @@ Notation used below:
 - `P(l,u) = {p ∈ ProbVec S : l ≤ p ≤ u}` (`IntervalAmbiguity.toSet`).
 - `opt` is max when `upper_bound = true` (optimistic) and min otherwise.
 - `T V s = opt_strat_{a ∈ available s} opt_{p ∈ ambiguity s a} ⟨p,V⟩`, where `opt_strat` is max if `maximize` and min otherwise.
-
 ### Models (Phase 0)
 
 | Model | Julia | Lean definition | Lean theorem(s) |
@@ -174,7 +200,7 @@ Notation used below:
 | Examples | docstrings of `RobustValueIteration`, `FactoredRobustMarkovDecisionProcess` | `IntervalMDP.Examples.docIMDP`, `IntervalMDP.Examples.docFIMDP` — `Models/Examples.lean` | (definitions that typecheck; no theorem) |
 | Generic soundness lift | — | `IntervalMDP.Approx.Sound` — `Approx/Sound.lean` | `IntervalMDP.Approx.iter_sound` — `Approx/Lift.lean` (A1) |
 
-### Indexing (Phase 1, except where tagged)
+### Indexing
 
 | Ph | Index computation | Julia (function — file) | Lean definition | Lean theorem(s) |
 |---|---|---|---|---|
@@ -208,7 +234,7 @@ Notation used below:
 
 `T_add_const`, `T_nonexpansive` and `T_mono` must be proved for the **general** `RMDP`, not only for intervals.
 
-## Proof Obligations & Limitations *(required)*
+## Proof Obligations & Limitations
 
 - **Domain:** exactly the structure invariants in § Lean Model Structure & Readability. A theorem may add a hypothesis only when its row says so (for example `ν < 1`).
 - **Objectives:** every algorithm theorem is stated for all four combinations of satisfaction mode × strategy mode, or states explicitly which ones it covers. Soundness theorems are stated with `Sound m`.
@@ -238,7 +264,7 @@ The rows most likely to trigger this policy are:
 - IVI `bracket` (Phase 4);
 - a mismatch between the Julia factored algorithms and the cited papers (Phase 5).
 
-## Proof Policy *(required)*
+## Proof Policy
 
 - Approved axioms: `propext`, `Classical.choice`, `Quot.sound`.
 - Forbidden:
@@ -250,36 +276,6 @@ The rows most likely to trigger this policy are:
 - Mathlib is approved as a dependency. Mathlib lemmas count as proofs. Mathlib's axioms reduce to the approved set.
 - Statements may not be specialised to small concrete instances (for example `Fin 3`) unless the table says so. `Models/Examples.lean` is the only place where concrete instances appear.
 - Soundness theorems must go through `IntervalMDP.Approx.iter_sound` (A1), not re-prove the induction.
-
-## CPU / GPU Matrix *(required)*
-
-| Check | Backend | Required? | Command | Notes |
-|---|---|---|---|---|
-| Package tests | CPU | yes | Julia test command | Must stay green. With no `src/` change this is a regression guard, plus the optional cross-check tests. |
-| GPU tests | CUDA | no | — | No GPU code changes. CUDA kernels are a stated proof limitation. |
-
-## Performance Evidence
-
-Not in scope.
-
-## Acceptance Criteria *(QE verifies, for the phase being run)*
-
-- [ ] `julia --project=. -e 'using Pkg; Pkg.test()'` passes on CPU. `git diff <base> -- src/` is empty.
-- [ ] `lake build` in `lean/` succeeds with the pinned toolchain and no linter warnings in `IntervalMDPProofs/`. `lean-toolchain` matches the pinned Mathlib release, and has not changed since Phase 0 unless this spec was amended.
-- [ ] Every theorem tagged with this phase in the Models, Indexing and Algorithms tables exists under its exact name, with a complete proof and no forbidden constructs.
-- [ ] `lean/AxiomCheck.lean` lists every theorem from this phase and every earlier phase. Its output contains only approved axioms.
-- [ ] Each theorem statement matches its row: the right hypotheses (structure invariants only, plus the ones the row names), all four modes or an explicit restriction, and no vacuous hypotheses.
-- [ ] **Model readability:**
-  - the § Layout files and structures exist with invariants as fields;
-  - every definition, structure and theorem has a docstring naming its Julia counterpart and file;
-  - names follow the Julia names;
-  - the IMDP, fIMDP and product models all go through `toRMDP`, with no duplicated Bellman operator;
-  - `Models/Examples.lean` builds the docstring examples;
-  - `lean/README.md` has the hierarchy, the Julia↔Lean glossary and the file map, and is current for this phase.
-- [ ] **Indexing:** the index theorems for this phase are proved. Every Lean index function that transcribes a Julia loop says so in its docstring and keeps the Julia loop's structure (same loop order and the same `- 1`/`+ 1` steps), so a reviewer can compare them line by line.
-- [ ] **Approximation soundness:** every A-row due in this phase is proved, or recorded as a Finding, and is stated with `Sound m`. Every end-to-end soundness theorem uses `iter_sound`.
-- [ ] `harness/specs/inventory-intervalmdp.md` is updated: status, theorem links, scope `abstract`, limitations, and Findings for each model, index, approximation and algorithm row.
-- [ ] Cross-check tests added in this phase, if any, pass and cover the listed cases.
 
 ## File List
 
