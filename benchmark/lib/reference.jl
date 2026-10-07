@@ -19,6 +19,34 @@ const MAX_REF_LEN = 2^17
 refstride(n) = n > MAX_REF_LEN ? cld(n, MAX_REF_LEN) : 1
 
 refdir(backend, T) = joinpath(REFERENCE_ROOT, "$(backend)-$(T)")
+
+"""
+    base_ref_guard(repo_root, base_ref) -> (ok::Bool, reason::String)
+
+Reference values may only be written from the base ref sources: `src/` and `ext/`
+must have no committed difference to `base_ref` (`git diff --quiet base_ref HEAD -- src ext`)
+and no uncommitted, staged or untracked changes (`git status --porcelain -- src ext`).
+Any git failure counts as "not equal" (the write is refused).
+"""
+function base_ref_guard(repo_root, base_ref)
+    git(args...) = Cmd(`git -C $repo_root $args`; ignorestatus = true)
+    committed = try
+        p = run(pipeline(git("diff", "--quiet", base_ref, "HEAD", "--", "src", "ext"); stdout = devnull, stderr = devnull))
+        p.exitcode
+    catch
+        -1
+    end
+    committed == 0 || return (false, committed == 1 ? "src/ or ext/ at HEAD differ from $base_ref (committed diff)" :
+                                     "git diff against $base_ref failed (exit $committed)")
+    status = try
+        read(pipeline(git("status", "--porcelain", "--untracked-files=all", "--", "src", "ext"); stderr = devnull), String)
+    catch
+        nothing
+    end
+    isnothing(status) && return (false, "git status failed")
+    isempty(strip(status)) || return (false, "uncommitted changes under src/ or ext/:\n" * status)
+    return (true, "")
+end
 _fname(key) = replace(key, "/" => "__")
 
 """

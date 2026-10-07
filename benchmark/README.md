@@ -132,9 +132,19 @@ One JSON file per run:
 
 ## Correctness check
 
-`reference/<backend>-<eltype>/` holds the outcome of every entry produced by the base ref
-(`run.jl --write-reference --reference-only`, refused when `src/` or `ext/` are dirty).
-Each run compares against it (`lib/reference.jl`) with the tolerances of the spec:
+`reference/<backend>-<eltype>/` (local only, gitignored) holds the outcome of every entry produced by the
+base ref, written with
+
+```sh
+julia --project=benchmark --threads=1 benchmark/run.jl --suite full --write-reference --reference-only
+```
+
+`--write-reference` refuses to run (exit 3, no override) unless `src/` and `ext/` have no committed difference
+to the base ref (`git diff --quiet $BENCH_BASE_REF HEAD -- src ext`, default `20fc03b`) and no uncommitted,
+staged or untracked changes (`git status --porcelain -- src ext`). `--reference-only` skips timing; without
+`--write-reference` it only checks every outcome against the reference (a fast full correctness pass).
+`--out` is optional with `--reference-only` (default `results/logs/reference-{write,check}-<sha>-<backend>.json`).
+Every run compares against the reference (`lib/reference.jl`) with the tolerances of the spec:
 
 | Outcome | Bound on ‖V − V_ref‖∞ | Iterations |
 |---|---|---|
@@ -149,7 +159,22 @@ tolerance of the reference value (ties). A failed or missing check sets `valid =
 result may not be used as evidence and `compare.jl` reports it as `INVALID`.
 
 The reference values are raw little-endian `Float64` (values) / `Int32` (strategies) files
-plus an `index.json` with lengths, iteration counts, kinds and tolerances.
+plus an `index.json` with lengths, iteration counts, kinds and tolerances. Vectors longer than 2¹⁷ are stored
+(and compared) as the stride subsample `v[1:stride:end]` (only the n = 10⁶ size case). Entries without an
+observable outcome (`workspace`) are `not-applicable` and stay valid.
+
+## Comparing results
+
+`compare.jl BASE.json CAND.json` (or interleaved rounds with `--base A1,A2,… --cand B1,B2,…`) prints one row per
+case/entry/eltype present in all files: base and candidate median, ratio cand/base, the per-round ratios, the
+Mann–Whitney U p-value on the pooled samples, the verdict and the allocations. Verdicts (§ Evidence Protocol):
+`speedup` if the ratio is ≤ 0.95 and holds in every round (or p < 0.01); `regression` if the ratio is ≥ 1.03
+under the same test; `no change` otherwise; `INVALID` if either side failed its correctness check;
+`CLOCK (not evidence)` if the difference would count but the clock probes of the two sides differ by > 5% or an
+entry ran with a deviating clock. `ALLOC+` flags more allocations in a steady-state `bellman` entry. The exit code
+is 1 if any entry is a regression or invalid. `compare.jl --spread R1.json R2.json …` prints, per entry, the
+medians of the repeated runs, their spread (max − min)/min, the clock-probe spread and `NOISY` above 5%
+(`--noise`). Both modes accept `--md FILE` and `--json FILE` to save the table.
 
 ## Case sizing and deviations from the case matrix
 

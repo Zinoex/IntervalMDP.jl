@@ -12,14 +12,16 @@ usage: julia --project=benchmark --threads=T benchmark/run.jl --suite NAME --out
   --suite NAME[,NAME]   suites to run (full, quick, scaling, sizes); a case runs if it is in any of them
   --backend cpu|cuda    default cpu
   --eltype T            Float64 | Float32 | all (default: Float64 on cpu, all on cuda)
-  --out FILE            output JSON path (required)
+  --out FILE            output JSON path (required unless --reference-only)
   --filter REGEX        only cases whose name matches REGEX
   --entries LIST        only these entries (comma separated, e.g. bellman,solve_rvi)
   --pin compact|none    thread pinning (default compact: Julia thread i -> CPU i-1)
-  --write-reference     store outcomes as the reference (only when src/ and ext/ equal the base ref, BENCH_BASE_REF, default 20fc03b)
+  --write-reference     store outcomes as the reference; refused (exit 3, no override) unless src/ and ext/ have no
+                        committed or uncommitted difference to the base ref (BENCH_BASE_REF, default 20fc03b)
   --budget-scale X      multiply all sampling budgets by X (default 1)
   --max-entry-seconds S cap on the sampling time of one entry (default 90)
-  --reference-only      with --write-reference: compute outcomes only, skip timing
+  --reference-only      compute outcomes only, skip timing; with --write-reference: write the reference, without:
+                        check every outcome against it. --out is optional (default benchmark/results/logs/)
   --clock-retries N     re-measure an entry up to N times when the clock deviates (default 3; 0 = record only)
   --list                list the selected cases and exit (without --suite: all registered cases)
 """
@@ -37,14 +39,13 @@ function parse_args(args)
         "budget-scale" => 1.0,
         "max-entry-seconds" => 90.0,
         "list" => false,
-        "force" => false,
         "reference-only" => false,
         "clock-retries" => "3",
     )
     i = 1
     while i <= length(args)
         a = args[i]
-        if a in ("--write-reference", "--list", "--force", "--reference-only")
+        if a in ("--write-reference", "--list", "--reference-only")
             opts[a[3:end]] = true
             i += 1
         elseif startswith(a, "--") && i < length(args)
@@ -127,16 +128,24 @@ function main()
         end
         return
     end
-    isnothing(opts["out"]) && (println(stderr, USAGE); exit(2))
+    if opts["write-reference"]
+        # Reference values come from the base ref only; there is no override.
+        ok, reason = base_ref_guard(REPO_ROOT, BASE_REF)
+        ok || (println(stderr, "refusing --write-reference: ", reason); exit(3))
+    end
+    if isnothing(opts["out"])
+        # --reference-only runs need no timing file; keep their record in the (gitignored) logs dir.
+        opts["reference-only"] || (println(stderr, USAGE); exit(2))
+        sha = _cmd(`git -C $REPO_ROOT rev-parse --short HEAD`; default = "nogit")
+        opts["out"] = joinpath(@__DIR__, "results", "logs",
+            "$(opts["write-reference"] ? "reference-write" : "reference-check")-$(sha)-$(BACKEND_NAME).json")
+    end
     entry_filter = isnothing(opts["entries"]) ? nothing : split(opts["entries"], ',')
 
     env = environment_block(;
         pinning = opts["pin"] == "compact" ? "compact: default-pool thread i -> CPU i-1, interactive/main thread -> CPU 0 (ThreadPinning.jl)" : "none (OS scheduler)",
         gpu = BACKEND_NAME === :cuda ? gpu_info_cuda(CUDA) : gpu_info_unqueried(),
     )
-    if opts["write-reference"] && !env["git"]["src_ext_equal_to_base_ref"] && !opts["force"]
-        error("--write-reference requires src/ and ext/ to be identical to the base ref $(env["git"]["base_ref"]) (tree hashes; no uncommitted changes); use --force to override")
-    end
 
     CLOCK_RETRIES[] = parse(Int, string(opts["clock-retries"]))
     init_clock_reference!()

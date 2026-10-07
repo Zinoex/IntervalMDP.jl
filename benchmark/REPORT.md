@@ -53,10 +53,17 @@ see `README.md`. `run.jl --list` prints all 53 registered cases: `full` 40 cases
 size-scaling cases. Deviations from the spec's matrix (memory, run time, missing CUDA implementations) are listed in
 `README.md` → "Case sizing and deviations".
 
-Reference values: `reference/cpu-Float64/` (144 entries) and `reference/cuda-Float64/`, `reference/cuda-Float32/`
-(156 entries), written from the base ref with `--write-reference --reference-only`. Every baseline and re-run entry passed
-its check (`valid = true`, 0 invalid in every file). Size of `reference/`: ≈ 16 MB (vectors of length > 2¹⁷ are stored as a
-stride subsample; only the n = 10⁶ size case).
+Reference values (local only, gitignored): `reference/cpu-Float64/` holds 106 outcomes (93 of the 131 `full` CPU entries
+plus 13 size-scaling entries; the other 38 `full` entries are `workspace` timings without an outcome, `not-applicable`),
+written from the base ref sources (`src`/`ext` equal to `20fc03b`) with `run.jl --suite full,sizes --write-reference
+--reference-only` (record: `results/reference-run-20fc03b-cpu-t1.json`). `--write-reference` refuses to run (exit 3) when
+`src/` or `ext/` differ from the base ref, committed or uncommitted. Check of the stored reference on 2026-10-07 (`run.jl
+--suite full --reference-only`, 1 thread): 131 entries, 93 pass with ‖ΔV‖∞ = 0 and identical iteration counts and
+strategies, 38 not-applicable, 0 invalid. `--suite quick` at 1 thread (`results/quick-0b-cpu-t1.json`): 54 entries, all
+`valid = true` (39 pass, 15 not-applicable). A reference value perturbed by 1e-9 was reported `fail` / `valid = false`
+(‖ΔV‖∞ = 1.0e-9 > 1e-12; demonstration only, reference restored). `reference/cuda-Float64/`, `reference/cuda-Float32/`
+(156 entries) belong to § 6.3. Size: `reference/cpu-Float64/` ≈ 16 MB, `reference/` ≈ 31 MB (vectors of length > 2¹⁷ are stored as a stride subsample;
+only the n = 10⁶ size case).
 
 ## 3. Baseline files
 
