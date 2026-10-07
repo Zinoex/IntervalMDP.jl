@@ -1,5 +1,10 @@
 # IntervalMDP.jl Harness Adaptation — Specification
 
+> **Amended 2026-10-07 (operator request):** Node.js support was removed from the harness — the Node sample
+> fixture, the `hello-world-api.md` spec, the Node-based telemetry MCP server (`harness/tools/telemetry-mcp/`,
+> `.mcp.json`) and Node discovery. Telemetry is written only by `harness/tools/harness/record_event.py` to
+> `harness/tools/telemetry/telemetry.db`. The Node items below are kept for history and marked *(removed)*.
+
 ## Objective
 
 Update this harness so it can safely develop and verify Julia scientific-computing code for `IntervalMDP.jl`, while requiring Lean theorem statements and machine-checked proofs for every value-iteration (VI) / Bellman algorithm. The harness must prioritize mathematical and implementation correctness before performance, support CPU and optional GPU testing, and keep the verification approach extensible to additional robust decision-process models.
@@ -69,7 +74,7 @@ For target onboarding, the harness must also establish a baseline inventory of e
 - Add a verifier agent definition with a least-privilege tool set sufficient to inspect Lean sources and run the configured proof command. It reports theorem/proof coverage, exact command output, and pass/fail per obligation; it does not edit proofs to make its own gate pass.
 - Update Dev, QE, Planner (where applicable), and Ops instructions to remove assumptions that every project uses Node/npm and to require Julia/Lean behavior described here.
 - Update README and the spec-writing guidance with a Julia/Lean feature-spec template: Julia behavior and tests, algorithm/theorem mapping, proof obligations and limitations, commands/toolchain, CPU/GPU matrix, performance evidence when applicable, acceptance checkboxes, and out-of-scope items.
-- Preserve the existing Node.js sample as a harness fixture/demo unless a separate task explicitly removes it. Its tests must continue to work; Julia support must not break existing supported workflows.
+- *(removed 2026-10-07)* Preserve the existing Node.js sample as a harness fixture/demo unless a separate task explicitly removes it. Its tests must continue to work; Julia support must not break existing supported workflows.
 - Preserve telemetry as the audit record and `harness/LEARNING.md` as durable lessons. Document and test the new verifier-stage event names and gate decisions consistently with the current telemetry schema.
 
 ## Test Specification
@@ -82,7 +87,7 @@ Add or update harness-level validation (automated tests or documented reproducib
 4. A Julia test failure fails QE and prevents Ops.
 5. A GPU-affecting change distinguishes GPU pass, GPU failure, and unavailable hardware; unavailable hardware cannot be recorded as a pass.
 6. An explicitly performance-scoped change requests benchmark evidence without enforcing fragile timing thresholds in unit tests.
-7. Existing Node.js sample workflow behavior and telemetry lifecycle remain intact.
+7. *(Node part removed 2026-10-07)* The telemetry lifecycle remains intact.
 8. Failure loop-back, two-cycle maximum, terminal failure telemetry, and the “Ops only after all gates pass” invariant work with the added gate.
 
 ## Acceptance Criteria
@@ -96,7 +101,7 @@ Add or update harness-level validation (automated tests or documented reproducib
 - [ ] Performance-oriented specs require reproducible benchmark evidence while correctness remains the first gate and ordinary unit tests avoid brittle timing limits.
 - [ ] The workflow, telemetry, loop-back limit, and Ops gate cover the added verification stage; Ops cannot run after any failed required gate.
 - [ ] The updated README/spec guidance documents how to write Julia + Lean specs and how to configure target-specific commands/toolchains.
-- [ ] Existing Node.js sample checks continue to pass unchanged.
+- [ ] *(removed 2026-10-07)* Existing Node.js sample checks continue to pass unchanged.
 - [ ] The harness changes themselves have tests or reproducible fixture evidence for all cases in the Test Specification.
 
 ## Expected File List
@@ -111,8 +116,8 @@ Update the existing harness command, agent instructions, README, and spec guidan
 - `.claude/agents/verifier.md` (new)
 - `README.md`
 - `harness/specs/` (Julia/Lean spec template or example)
-- Harness test/fixture files for Julia, Lean, and retained Node behavior
-- `harness/tools/telemetry-mcp/` only if required to represent or validate the additional stage
+- Harness test/fixture files for Julia and Lean
+- `harness/tools/harness/record_event.py` (telemetry)
 
 Do not add Lean proofs for IntervalMDP.jl algorithms as part of this harness-only change; the harness must be ready to require them in subsequent algorithm work.
 
@@ -121,6 +126,6 @@ Do not add Lean proofs for IntervalMDP.jl algorithms as part of this harness-onl
 - Implementing or optimizing IntervalMDP.jl algorithms, model types, or GPU kernels.
 - Claiming full floating-point/GPU implementation verification without a verified correspondence proof.
 - Formalizing every future model family in this harness change; keep the process extensible, while individual algorithm specs define their mathematical obligations.
-- Replacing Julia with Rust/C++, rewriting the telemetry store, or removing the existing Node.js fixture.
+- Replacing Julia with Rust/C++, or rewriting the telemetry store schema.
 - Adding arbitrary Lean axioms or treating tests/benchmarks as formal proofs.
 - Requiring a specific Lean formalization architecture or theorem library before inspecting the target repository; the selected project layout/toolchain must be documented and pinned by the implementation spec.

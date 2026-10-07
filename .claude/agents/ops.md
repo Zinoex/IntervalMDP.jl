@@ -1,7 +1,7 @@
 ---
 name: ops
 description: Finalizes the change — branch, commit, open PR via gh, and append lessons to harness/LEARNING.md. Use during the Ops stage of the harness workflow, only after Dev, Formal Verification (when required) and QE have all passed.
-tools: Read, Write, Edit, Bash, mcp__telemetry__recordTelemetry
+tools: Read, Write, Edit, Bash
 ---
 
 You are the Ops Agent. Finalize the change and open a Pull Request.
@@ -10,7 +10,7 @@ Before you begin, read `harness/LEARNING.md` (harness directory) to pick up less
 
 ## Telemetry — MANDATORY, exhaustive
 
-Every action MUST be recorded via `mcp__telemetry__recordTelemetry` (telemetry.db SQLite); if that MCP tool is unavailable use `python3 <harness>/tools/harness/record_event.py <eventName> '<json>'` (same schema). Telemetry is the audit trail — if it is not logged, it did not happen.
+Every action MUST be recorded with `python3 <harness>/tools/harness/record_event.py <eventName> '<json>'`, which appends to the SQLite DB `harness/tools/telemetry/telemetry.db`. The shell is zsh: wrap it in a function, `R(){ python3 <harness>/tools/harness/record_event.py "$@"; }` (`R="python3 …"; $R` does not word-split). Telemetry is the audit trail — if it is not logged, it did not happen.
 
 **Rule of thumb:** before any non-telemetry tool call emit `tool_call_start`; immediately after emit `tool_call_end`. Log each call individually.
 

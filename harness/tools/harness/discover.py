@@ -2,7 +2,7 @@
 """Target project / toolchain discovery for the Claude Code harness.
 
 Given a TARGET ROOT (independent of the harness repository) this prints the
-detected project kinds (julia, lean, node), the commands each stage must run,
+detected project kinds (julia, lean), the commands each stage must run,
 tool availability, and any BLOCKERS. It never installs, downloads or switches
 toolchains; it only inspects files and runs `--version` style probes.
 
@@ -12,12 +12,12 @@ Precedence for every command/path value (highest first):
   2. config    -- harness.config.toml (`--config PATH`, else
                   $HARNESS_CONFIG, else <target>/harness.config.toml)
   3. discovered-- inferred from Project.toml / Manifest.toml / lean-toolchain /
-                  lakefile.{lean,toml} / package.json
+                  lakefile.{lean,toml}
   4. blocker   -- if a required value cannot be inferred safely
 
 Usage:
   discover.py <target-root> [--config PATH] [--set key=value ...]
-              [--require julia,lean,gpu,node] [--json] [--no-probe]
+              [--require julia,lean,gpu] [--json] [--no-probe]
 
 Exit codes: 0 = no blockers, 2 = blockers present, 1 = usage error.
 
@@ -39,10 +39,10 @@ try:
 except ImportError:  # pragma: no cover
     tomllib = None
 
-SKIP_DIRS = {".git", ".lake", "lake-packages", "node_modules", ".julia", "build", "dist"}
+SKIP_DIRS = {".git", ".lake", "lake-packages", ".julia", "build", "dist"}
 DEFAULT_APPROVED_AXIOMS = ["propext", "Classical.choice", "Quot.sound"]
 GPU_PACKAGES = ["CUDA", "AMDGPU", "Metal", "oneAPI", "KernelAbstractions"]
-TOOLS = ["julia", "lean", "lake", "elan", "node", "npm", "nvidia-smi"]
+TOOLS = ["julia", "lean", "lake", "elan", "nvidia-smi"]
 
 
 def load_toml(path):
@@ -341,28 +341,6 @@ class Discovery:
             self.unavailable.append("lean-toolchain:" + str(pinned))
         return True
 
-    # -- node -------------------------------------------------------------
-    def node(self):
-        pj = os.path.join(self.root, "package.json")
-        if not os.path.isfile(pj):
-            return False
-        self.values["node.package_json"] = pj
-        try:
-            with open(pj) as fh:
-                pkg = json.load(fh)
-        except ValueError as exc:
-            self.blockers.append("package.json unparseable: %s" % exc)
-            return True
-        scripts = pkg.get("scripts") or {}
-        self.put("node.install", "npm install")
-        self.put("node.test", "npm test" if "test" in scripts else None)
-        self.put("node.start", "npm start" if "start" in scripts else None)
-        if "node.test" not in self.values:
-            self.blockers.append("package.json has no scripts.test and no configured node.test")
-        if not shutil.which("npm"):
-            self.unavailable.append("npm")
-        return True
-
     # ---------------------------------------------------------------------
     def run(self):
         if not os.path.isdir(self.root):
@@ -375,7 +353,7 @@ class Discovery:
         if isinstance(kinds_cfg, str):
             kinds_cfg = [k.strip() for k in kinds_cfg.split(",") if k.strip()]
         kinds = []
-        for k, fn in (("julia", self.julia), ("lean", self.lean), ("node", self.node)):
+        for k, fn in (("julia", self.julia), ("lean", self.lean)):
             if kinds_cfg is not None and k not in kinds_cfg:
                 continue
             if fn():
@@ -386,7 +364,7 @@ class Discovery:
                     self.blockers.append("configured kind '%s' not detected at target root" % k)
         self.values["kinds"] = ",".join(kinds) if kinds else "none"
         if not kinds:
-            self.blockers.append("no Julia/Lean/Node project detected: cannot infer commands")
+            self.blockers.append("no Julia/Lean project detected: cannot infer commands")
         # Required capabilities -> blockers when unavailable / uninferable.
         for req in sorted(self.require):
             if req == "julia" and ("julia" not in kinds or "julia" in self.unavailable):
@@ -395,8 +373,6 @@ class Discovery:
                 self.blockers.append("required Lean verification cannot run: Lean project/toolchain UNAVAILABLE")
             elif req == "gpu" and not self.values.get("gpu.test"):
                 self.blockers.append("required GPU check has no configured gpu.test runner: GPU UNAVAILABLE")
-            elif req == "node" and ("node" not in kinds or "npm" in self.unavailable):
-                self.blockers.append("required node/npm unavailable or not detected")
         return self
 
     def as_dict(self):

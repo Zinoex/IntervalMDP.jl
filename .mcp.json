@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "telemetry": {
-      "command": "node",
-      "args": ["./harness/tools/telemetry-mcp/index.js"]
-    }
-  }
-}

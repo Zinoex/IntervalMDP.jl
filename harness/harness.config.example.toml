@@ -5,7 +5,7 @@
 # not be modified). Precedence (highest first):
 #   1. spec "Commands / Toolchain" section   (orchestrator passes --set key=value)
 #   2. this file
-#   3. discovery from Project.toml / Manifest.toml / lean-toolchain / lakefile / package.json
+#   3. discovery from Project.toml / Manifest.toml / lean-toolchain / lakefile
 #   4. blocker (never a guessed command)
 # Relative paths are resolved against the target root. Commands run from the
 # target root unless stated otherwise (Lean commands run from lean.root).
@@ -42,7 +42,3 @@
 [benchmark]
 # cmd = "julia --project=benchmark benchmark/benchmarks.jl"
 
-[node]
-# install = "npm install"
-# test = "npm test"
-# start = "npm start"
