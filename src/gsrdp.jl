@@ -21,7 +21,10 @@ update each iteration; defaults to [`FollowDrive`](@ref):
   upper bound drives under `Maximize` and the lower bound under `Minimize`;
   the returned strategy is the driver's.
 * `BothDrive()` — both bounds optimize independently. The returned strategy
-  is the upper bound's.
+  is the controller-pessimistic bound's (the lower bound under `Maximize`, the
+  upper under `Minimize`): the bracket certifies that one, `V^π ≥ L` resp.
+  `V^π ≤ U`, while the optimistic bound's greedy action can be arbitrarily bad
+  once that bound saturates.
 
 `sampling_strategy` controls which states (or `(a, s)` pairs) are
 relaxed each iteration; defaults to [`ExhaustiveState`](@ref). State-action
@@ -338,10 +341,15 @@ function _update_bounds!(::FollowDrive, workspace, sc, V, model, state_seq, spec
     _bellman_bound!(workspace, _follow_strategy_cache(sc), follower, model, state_seq, spec)
 end
 
-# The upper bound records the returned strategy; the lower bound optimizes without one.
+# The controller-pessimistic bound records the returned strategy, the other optimizes
+# without one. Each bound is monotone under `BothDrive`, so the strategy greedy on L
+# satisfies L ≤ T^π L ≤ V^π (Maximize) and the one greedy on U satisfies U ≥ T^π U ≥ V^π
+# (Minimize). U's greedy action under Maximize carries no such guarantee: with U
+# saturated at 1 it is decided by ties.
 function _update_bounds!(::BothDrive, workspace, sc, V, model, state_seq, spec)
-    _bellman_bound!(workspace, sc, V.upper, model, state_seq, spec)
-    _bellman_bound!(workspace, NoStrategyCache(), V.lower, model, state_seq, spec)
+    recorder, other = ismaximize(spec) ? (V.lower, V.upper) : (V.upper, V.lower)
+    _bellman_bound!(workspace, sc, recorder, model, state_seq, spec)
+    _bellman_bound!(workspace, NoStrategyCache(), other, model, state_seq, spec)
 end
 
 # `upper_bound` is the *adversary's* direction inside the ambiguity set

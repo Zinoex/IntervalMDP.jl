@@ -398,23 +398,31 @@ _resolve_policy(policy::Boltzmann, ctx::TemperatureContext) =
     ActionScore
 
 `f_A(s, a)`, the score an action carries at the current state, consumed by a
-[`SelectionPolicy`](@ref). `U(s, a)` and `L(s, a)` denote the O-max Q-values of
-`a` at `s` against the upper and lower bound respectively, both realized in the
-same adversary direction as the strategy's [`ConcreteTransition`](@ref).
+[`SelectionPolicy`](@ref), which prefers high scores. `U(s, a)` and `L(s, a)` denote
+the O-max Q-values of `a` at `s` against the upper and lower bound respectively, both
+realized in the same adversary direction as the strategy's [`ConcreteTransition`](@ref).
+
+Scores are oriented to the controller. Under `Maximize` they read the bracket as is.
+Under `Minimize` they read its complement, `U'(s, a) = 1 − L(s, a)` and
+`L'(s, a) = 1 − U(s, a)` — the bracket of the dual maximization problem — so
+"upper" keeps meaning *controller-optimistic*: [`UpperBoundScore`](@ref) picks
+`argmin L` for a minimizer, as the termination argument requires (the optimistic
+action of a minimizer is its lowest plausible value).
 """
 abstract type ActionScore end
 
-"`f_A(s, a) = U(s, a)`, the upper-bound (optimistic) Q-value."
+"`f_A(s, a) = U(s, a)`, the controller-optimistic Q-value (`1 − L(s, a)` under `Minimize`)."
 struct UpperBoundScore <: ActionScore end
 
-"`f_A(s, a) = L(s, a)`, the lower-bound (pessimistic) Q-value."
+"`f_A(s, a) = L(s, a)`, the controller-pessimistic Q-value (`1 − U(s, a)` under `Minimize`)."
 struct LowerBoundScore <: ActionScore end
 
 """
     WeightedAverageScore(beta)
 
 `f_A(s, a) = L(s, a) + β·[U(s, a) − L(s, a)]`, the gap-uncertainty /
-weighted-average score. `β = 0` is the lower bound, `β = 1` the upper bound,
+weighted-average score (on the complemented bracket under `Minimize`, see
+[`ActionScore`](@ref)). `β = 0` is the lower bound, `β = 1` the upper bound,
 and values in between interpolate — larger `β` weights an action's remaining
 uncertainty more heavily. `β` must be in `[0, 1]`.
 """
@@ -456,23 +464,28 @@ reach-avoid value function carries negative values on avoid states until
 _safe_log(x) = x > 0 ? log(Float64(x)) : -Inf
 
 """
-    _action_score(score, ambiguity_set, U, L, dir) -> Float64
+    _action_score(score, ambiguity_set, U, L, dir; maximize = true) -> Float64
 
 `f_A` for one action, given that action's `ambiguity_set` at the current state.
 `dir` is the adversary direction (`true` = O-maximization) that
-[`_omax_expectation`](@ref) realizes the Q-values under.
+[`_omax_expectation`](@ref) realizes the Q-values under. `maximize = false` scores a
+minimizing controller on the complemented bracket (see [`ActionScore`](@ref)).
 """
-_action_score(::UpperBoundScore, as, U, L, dir) = Float64(_omax_expectation(as, U, dir))
-_action_score(::LowerBoundScore, as, U, L, dir) = Float64(_omax_expectation(as, L, dir))
+_action_score(::UpperBoundScore, as, U, L, dir; maximize::Bool = true) =
+    maximize ? _q(as, U, dir) : 1 - _q(as, L, dir)
+_action_score(::LowerBoundScore, as, U, L, dir; maximize::Bool = true) =
+    maximize ? _q(as, L, dir) : 1 - _q(as, U, dir)
 
-function _action_score(score::WeightedAverageScore, as, U, L, dir)
-    l = Float64(_omax_expectation(as, L, dir))
-    u = Float64(_omax_expectation(as, U, dir))
+function _action_score(score::WeightedAverageScore, as, U, L, dir; maximize::Bool = true)
+    l = _action_score(LowerBoundScore(), as, U, L, dir; maximize)
+    u = _action_score(UpperBoundScore(), as, U, L, dir; maximize)
     return l + score.beta * (u - l)
 end
 
-_action_score(score::LogScore, as, U, L, dir) =
-    _safe_log(_action_score(score.inner, as, U, L, dir))
+_action_score(score::LogScore, as, U, L, dir; maximize::Bool = true) =
+    _safe_log(_action_score(score.inner, as, U, L, dir; maximize))
+
+_q(as, V, dir) = Float64(_omax_expectation(as, V, dir))
 
 ###################################
 # 3. Concrete transition           #
@@ -1538,7 +1551,8 @@ _terminate_post(ss::TrajectorySampling, s, a, probs, trajectory, i, vf, model, s
 """
     _sample_action(ss, s, vf, model, spec, marginal, dir, policy = ss.action_policy) -> Union{CartesianIndex, Nothing}
 
-Score every action available at `s` with `ss.action_score` and draw one under
+Score every action available at `s` with `ss.action_score`, oriented to the
+specification's strategy mode (see [`ActionScore`](@ref)), and draw one under
 `policy` — the strategy's action policy with its temperature already resolved
 for this rollout (`_resolve_policy`). `nothing` if `s` has no available
 actions.
@@ -1557,7 +1571,10 @@ function _sample_action(
     isempty(actions) && return nothing
 
     U, L = vf.upper.current, vf.lower.current
-    scores = [_action_score(ss.action_score, marginal[a, s], U, L, dir) for a in actions]
+    maximize = _ismaximize(spec)
+    scores = [
+        _action_score(ss.action_score, marginal[a, s], U, L, dir; maximize) for a in actions
+    ]
     return _select(policy, actions, scores)
 end
 

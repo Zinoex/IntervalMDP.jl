@@ -416,6 +416,50 @@ end
     end
 end
 
+@testitem "GSRDP returns a strategy the bracket certifies" tags =
+    [:base, :gsrdp_certified_strategy] begin
+    using IntervalMDP
+    # s0 = 1: a1 loops on s0, a2 reaches the target (2) surely; 3 is a sink. Under
+    # Maximize V* = 1, and U(s0, a1) = U(s0) = 1 ties with a2 forever, so U's greedy
+    # (sticky) action stays a1 — a strategy worth 0. L only rises, through a2, so L's
+    # greedy strategy is the certified one (V^π ≥ L): `BothDrive` must return a2.
+    det(t) = Float64.(1:3 .== t)
+    s0 = IntervalAmbiguitySets(; lower = hcat(det(1), det(2)), upper = hcat(det(1), det(2)))
+    absorb(t) = IntervalAmbiguitySets(; lower = hcat(det(t), det(t)), upper = hcat(det(t), det(t)))
+    mdp = IntervalMarkovDecisionProcess([s0, absorb(2), absorb(3)], [1])
+    prop = InfiniteTimeReachAvoid([2], [3], 1e-6)
+
+    # (`FollowDrive` is left out: its follower L evaluates the looping a1 and never
+    # closes the gap here — the stall that `BothDrive` exists to avoid.)
+    @testset "Maximize, $sat" for sat in [Pessimistic, Optimistic]
+        spec = Specification(prop, sat, Maximize)
+        alg = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(mdp);
+            bound_update = IntervalMDP.BothDrive(),
+        )
+        sol = solve(ControlSynthesisProblem(mdp, spec), alg)
+        @test value_function(sol)[1] ≈ 1.0
+        @test strategy(sol).strategy[1] == (2,)
+        vpi = value_function(
+            solve(VerificationProblem(mdp, spec, strategy(sol)), RobustValueIteration(default_bellman_algorithm(mdp))),
+        )
+        @test vpi[1] >= value_function(sol)[1] - 1e-6
+    end
+
+    # Minimize records U's strategy, which U certifies (V^π ≤ U): a2 into the avoid set
+    # (V^π = 0) vs a1 looping (also 0). Both are optimal here; check the recorder is U by
+    # its strict preference for a2 (U(s0, a2) = 0 < U(s0, a1) = 1).
+    @testset "Minimize records the upper bound's strategy" begin
+        spec = Specification(InfiniteTimeReachAvoid([3], [2], 1e-6), Pessimistic, Minimize)
+        alg = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(mdp);
+            bound_update = IntervalMDP.BothDrive(),
+        )
+        sol = solve(ControlSynthesisProblem(mdp, spec), alg)
+        @test strategy(sol).strategy[1] == (2,)
+    end
+end
+
 @testitem "IntervalValueFunction gap shrinks monotonically" tags =
     [:base, :gsrdp_gap_shrinks_monotonically] begin
     using IntervalMDP

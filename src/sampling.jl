@@ -376,7 +376,12 @@ controller-optimistic bound: the upper bound under `Maximize`, the lower bound u
 """
 struct FollowDrive <: BoundUpdateMode end
 
-"Both bounds optimize independently."
+"""
+    BothDrive()
+
+Both bounds optimize independently. The returned strategy is the controller-pessimistic
+bound's (lower under `Maximize`, upper under `Minimize`), the one the bracket certifies.
+"""
 struct BothDrive <: BoundUpdateMode end
 
 # Backups one relaxed state costs: one bound optimizes over every action and the other

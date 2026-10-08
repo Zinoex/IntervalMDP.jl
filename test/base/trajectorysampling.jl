@@ -119,6 +119,53 @@ end
         @test TS._action_score(TS.LogScore(TS.UpperBoundScore()), as, zero_U, L, true) ==
               -Inf
     end
+
+    # A minimizing controller is scored on the complemented bracket U' = 1 - L,
+    # L' = 1 - U, so "upper" stays controller-optimistic (lowest plausible value).
+    @testset "Minimize scores the complemented bracket" begin
+        @test TS._action_score(TS.UpperBoundScore(), as, U, L, true; maximize = false) ≈ 0.7
+        @test TS._action_score(TS.LowerBoundScore(), as, U, L, true; maximize = false) ≈ 0.4
+        @test TS._action_score(TS.WeightedAverageScore(0.5), as, U, L, true; maximize = false) ≈
+              0.55
+        @test TS._action_score(TS.LogScore(TS.UpperBoundScore()), as, U, L, true; maximize = false) ≈
+              log(0.7)
+        # The keyword defaults to Maximize.
+        @test TS._action_score(TS.UpperBoundScore(), as, U, L, true; maximize = true) ==
+              TS._action_score(TS.UpperBoundScore(), as, U, L, true)
+    end
+end
+
+@testitem "TrajectorySampling: rollout action follows the strategy mode" tags =
+    [:base, :trajectory_sampling, :trajectory_action_direction] begin
+    using IntervalMDP
+    const TS = IntervalMDP.TrajectorySampling
+
+    # State 1 has two deterministic actions: a1 -> state 2, a2 -> state 3; states 2-4 are
+    # absorbing. Q-values are then just U and L at states 2 and 3. A greedy rollout must
+    # pick argmax U under Maximize and argmin L (the minimizer's optimistic action) under
+    # Minimize — not argmax U (the old direction-blind rule) and not argmin U.
+    det(t) = Float64.(1:4 .== t)
+    s1 = IntervalAmbiguitySets(; lower = hcat(det(2), det(3)), upper = hcat(det(2), det(3)))
+    absorb(t) = IntervalAmbiguitySets(; lower = hcat(det(t), det(t)), upper = hcat(det(t), det(t)))
+    mdp = IntervalMarkovDecisionProcess([s1, absorb(2), absorb(3), absorb(4)], [1])
+    marginal = IntervalMDP._omax_marginal(mdp)
+    ss = TS.TrajectorySampling(; action_policy = TS.EpsilonGreedy(0.0))
+    pick(vf, strat) = Tuple(TS._sample_action(
+        ss, CartesianIndex(1), vf, mdp,
+        Specification(InfiniteTimeReachability([4], 1e-6), Pessimistic, strat),
+        marginal, false,
+    ))[1]
+    bracket(u2, l2, u3, l3) = (upper = (current = [1.0, u2, u3, 1.0],),
+                               lower = (current = [0.0, l2, l3, 1.0],))
+
+    # a1: [.25, .9], a2: [.2, .3]. argmax U = a1, argmin L = a2.
+    vf = bracket(0.9, 0.25, 0.3, 0.2)
+    @test pick(vf, Maximize) == 1
+    @test pick(vf, Minimize) == 2      # argmax U would give a1
+
+    # a1: [.05, .2], a2: [.08, .1]. argmin U = a2, argmin L = a1.
+    vf = bracket(0.2, 0.05, 0.1, 0.08)
+    @test pick(vf, Minimize) == 1      # argmin U would give a2
 end
 
 @testitem "TrajectorySampling: concrete transition" tags =
