@@ -29,9 +29,17 @@ function solve(problem::VerificationProblem, alg::IntervalValueIteration; kwargs
 end
 
 function solve(problem::ControlSynthesisProblem, alg::IntervalValueIteration; kwargs...)
-    V_lower, V_upper, k, gap, strategy_cache = _interval_value_iteration!(problem, alg; kwargs...)
+    V_lower, V_upper, k, gap, strategy_cache =
+        _interval_value_iteration!(problem, alg; kwargs...)
     strat = cachetostrategy(strategy_cache)
-    return _ivi_control_synthesis_solution(specification(problem), strat, V_lower, V_upper, gap, k)
+    return _ivi_control_synthesis_solution(
+        specification(problem),
+        strat,
+        V_lower,
+        V_upper,
+        gap,
+        k,
+    )
 end
 
 function _ivi_verification_solution(spec, V_lower, V_upper, gap, k)

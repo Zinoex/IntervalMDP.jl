@@ -47,8 +47,10 @@
         for jₛ in CartesianIndices(state_vars), jₐ in CartesianIndices(action_vars)
             s = Tuple(jₛ)
             a = Tuple(jₐ)
-            expected =
-                layout[getindex.((a,), action_indices)..., getindex.((s,), state_indices)...]
+            expected = layout[
+                getindex.((a,), action_indices)...,
+                getindex.((s,), state_indices)...,
+            ]
             @test sub2ind(marginal, a, s) == expected
             @test sub2ind(marginal, jₐ, jₛ) == expected
             push!(seen, sub2ind(marginal, a, s))

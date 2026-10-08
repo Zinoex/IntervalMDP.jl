@@ -37,8 +37,12 @@
         num_states = size(L, 2) ÷ num_actions
         return map(1:num_states) do s
             vals = [
-                lp_value(L[:, (s - 1) * num_actions + a], U[:, (s - 1) * num_actions + a], V,
-                    upper_bound) for a in 1:num_actions
+                lp_value(
+                    L[:, (s - 1) * num_actions + a],
+                    U[:, (s - 1) * num_actions + a],
+                    V,
+                    upper_bound,
+                ) for a in 1:num_actions
             ]
             maximize ? maximum(vals) : minimum(vals)
         end
@@ -53,7 +57,8 @@
         upper = Matrix(lower) + Matrix(prob.gap)
         ok = true
         for upper_bound in (false, true), maximize in (false, true)
-            Vres = IntervalMDP.bellman(V, mdp; upper_bound = upper_bound, maximize = maximize)
+            Vres =
+                IntervalMDP.bellman(V, mdp; upper_bound = upper_bound, maximize = maximize)
             Vref = reference_bellman(lower, upper, num_actions, V, upper_bound, maximize)
             ok &= isapprox(Vres, Vref; atol = TOL, rtol = 0)
         end
@@ -85,7 +90,8 @@
     end
 end
 
-@testitem "base/omax_reference: degenerate interval l = u (budget 0)" setup = [OMaxReference] begin
+@testitem "base/omax_reference: degenerate interval l = u (budget 0)" setup =
+    [OMaxReference] begin
     lower = [0.2 0.0 1.0; 0.3 1.0 0.0; 0.5 0.0 0.0]
     for prob in OMaxReference.dense_and_sparse(lower, copy(lower))
         @test OMaxReference.check(prob, 1, [1.0, 2.0, 3.0])
@@ -101,12 +107,14 @@ end
 @testitem "base/omax_reference: ties in V" setup = [OMaxReference] begin
     lower = [0.1 0.0 0.0 0.2; 0.1 0.2 0.0 0.0; 0.1 0.0 0.3 0.0; 0.1 0.0 0.0 0.1]
     upper = [0.6 0.5 0.4 0.5; 0.6 0.5 0.4 0.5; 0.6 0.5 0.4 0.5; 0.6 0.5 0.4 0.5]
-    for prob in OMaxReference.dense_and_sparse(lower, upper), V in (
-        [1.0, 1.0, 1.0, 1.0],
-        [2.0, 2.0, 1.0, 1.0],
-        [1.0, 3.0, 3.0, 0.0],
-        [0.5, 0.5, 0.5, 2.0],
-    )
+    for prob in OMaxReference.dense_and_sparse(lower, upper),
+        V in (
+            [1.0, 1.0, 1.0, 1.0],
+            [2.0, 2.0, 1.0, 1.0],
+            [1.0, 3.0, 3.0, 0.0],
+            [0.5, 0.5, 0.5, 2.0],
+        )
+
         @test OMaxReference.check(prob, 1, V)
     end
     # Two actions per state (8 columns, 4 states).
@@ -122,8 +130,9 @@ end
     # Column 3: one target has u = 1, the rest l = u = 0 is not stored in the sparse case.
     lower = [0.2 0.1 0.0; 0.0 0.2 0.0; 0.3 0.1 0.0]
     upper = [0.2 0.1 0.0; 0.5 0.8 1.0; 0.3 0.1 0.0]
-    for prob in OMaxReference.dense_and_sparse(lower, upper), V in
-        ([1.0, 2.0, 3.0], [3.0, 2.0, 1.0], [0.0, 5.0, 0.0])
+    for prob in OMaxReference.dense_and_sparse(lower, upper),
+        V in ([1.0, 2.0, 3.0], [3.0, 2.0, 1.0], [0.0, 5.0, 0.0])
+
         @test OMaxReference.check(prob, 1, V)
     end
 end

@@ -39,7 +39,8 @@ function git_info()
         "base_ref" => BASE_REF,
         "src_tree" => src_tree,
         "ext_tree" => ext_tree,
-        "src_ext_equal_to_base_ref" => (src_tree == base_src && ext_tree == base_ext && isempty(srcext)),
+        "src_ext_equal_to_base_ref" =>
+            (src_tree == base_src && ext_tree == base_ext && isempty(srcext)),
         "sha" => sha,
         "short_sha" => short,
         "branch" => branch,
@@ -59,7 +60,8 @@ low-power-island E-cores by maximum frequency.
 function core_type(cpu::Integer)
     pcores = _parse_cpulist(_read("/sys/devices/cpu_core/cpus", ""))
     ecores = _parse_cpulist(_read("/sys/devices/cpu_atom/cpus", ""))
-    maxf = tryparse(Int, _read("/sys/devices/system/cpu/cpu$cpu/cpufreq/cpuinfo_max_freq", ""))
+    maxf =
+        tryparse(Int, _read("/sys/devices/system/cpu/cpu$cpu/cpufreq/cpuinfo_max_freq", ""))
     cpu in pcores && return "P"
     cpu in ecores && return "E"
     return isnothing(maxf) ? "unknown" : "LP-E"
@@ -81,11 +83,21 @@ end
 
 function cpu_info()
     ncpu = Sys.CPU_THREADS
-    governors = [_read("/sys/devices/system/cpu/cpu$i/cpufreq/scaling_governor") for i in 0:(ncpu - 1)]
-    epp = [_read("/sys/devices/system/cpu/cpu$i/cpufreq/energy_performance_preference") for i in 0:(ncpu - 1)]
-    maxf = [_read("/sys/devices/system/cpu/cpu$i/cpufreq/cpuinfo_max_freq") for i in 0:(ncpu - 1)]
+    governors = [
+        _read("/sys/devices/system/cpu/cpu$i/cpufreq/scaling_governor") for
+        i in 0:(ncpu - 1)
+    ]
+    epp = [
+        _read("/sys/devices/system/cpu/cpu$i/cpufreq/energy_performance_preference") for
+        i in 0:(ncpu - 1)
+    ]
+    maxf = [
+        _read("/sys/devices/system/cpu/cpu$i/cpufreq/cpuinfo_max_freq") for
+        i in 0:(ncpu - 1)
+    ]
     ac = String[]
-    for d in (isdir("/sys/class/power_supply") ? readdir("/sys/class/power_supply") : String[])
+    for d in
+        (isdir("/sys/class/power_supply") ? readdir("/sys/class/power_supply") : String[])
         if startswith(d, "AC") || startswith(d, "ADP")
             push!(ac, "$d=" * _read("/sys/class/power_supply/$d/online"))
         end
@@ -135,7 +147,15 @@ function thread_info(pinning)
         end
         tids = Threads.threadpooltids(pool)
         for (i, c) in enumerate(cpuids)
-            push!(mapping, Dict("threadpool" => string(pool), "thread" => i <= length(tids) ? tids[i] : -1, "cpu" => c, "core_type" => core_type(c)))
+            push!(
+                mapping,
+                Dict(
+                    "threadpool" => string(pool),
+                    "thread" => i <= length(tids) ? tids[i] : -1,
+                    "cpu" => c,
+                    "core_type" => core_type(c),
+                ),
+            )
         end
     end
     return Dict(
@@ -187,7 +207,10 @@ end
 
 function _proc_nvidia_driver()
     try
-        m = match(r"Kernel Module\s+for\s+\S+\s+(\S+)|Kernel Module\s+(\S+)", read("/proc/driver/nvidia/version", String))
+        m = match(
+            r"Kernel Module\s+for\s+\S+\s+(\S+)|Kernel Module\s+(\S+)",
+            read("/proc/driver/nvidia/version", String),
+        )
         isnothing(m) || return something(m.captures...)
     catch
     end
@@ -213,7 +236,10 @@ function gpu_info_cuda(CUDA)
         "runtime_version" => string(CUDA.runtime_version()),
         "versioninfo_sha256" => bytes2hex(sha256(vi)),
         "versioninfo_head" => first(split(vi, '\n'), 12),
-        "nvidia_smi" => _cmd(`nvidia-smi --query-gpu=name,driver_version --format=csv,noheader`; default = "nvidia-smi failed (see probe output in REPORT.md)"),
+        "nvidia_smi" => _cmd(
+            `nvidia-smi --query-gpu=name,driver_version --format=csv,noheader`;
+            default = "nvidia-smi failed (see probe output in REPORT.md)",
+        ),
     )
 end
 

@@ -45,8 +45,7 @@
     const rvi_alg = RobustValueIteration(default_bellman_algorithm(mdp))
 end
 
-@testitem "base/ivi: finite-time reach-avoid — pessimistic-maximize" setup =
-    [BaseIviModels] begin
+@testitem "base/ivi: finite-time reach-avoid — pessimistic-maximize" setup = [BaseIviModels] begin
     mdp = BaseIviModels.mdp
     ivi_alg = BaseIviModels.ivi_alg
     rvi_alg = BaseIviModels.rvi_alg
@@ -80,8 +79,7 @@ end
     @test V_upper[2] ≈ 0.0
 end
 
-@testitem "base/ivi: finite-time reach-avoid — optimistic-maximize" setup =
-    [BaseIviModels] begin
+@testitem "base/ivi: finite-time reach-avoid — optimistic-maximize" setup = [BaseIviModels] begin
     mdp = BaseIviModels.mdp
     ivi_alg = BaseIviModels.ivi_alg
     rvi_alg = BaseIviModels.rvi_alg
@@ -157,8 +155,7 @@ end
     @test all(isapprox.(V_upper, value_function(sol_rvi); atol = tol))
 end
 
-@testitem "base/ivi: reach-avoid control synthesis — finite-time" setup =
-    [BaseIviModels] begin
+@testitem "base/ivi: reach-avoid control synthesis — finite-time" setup = [BaseIviModels] begin
     mdp = BaseIviModels.mdp
     ivi_alg = BaseIviModels.ivi_alg
     rvi_alg = BaseIviModels.rvi_alg
@@ -180,8 +177,7 @@ end
     @test V_mc ≈ V_lower
 end
 
-@testitem "base/ivi: reach-avoid control synthesis — infinite-time" setup =
-    [BaseIviModels] begin
+@testitem "base/ivi: reach-avoid control synthesis — infinite-time" setup = [BaseIviModels] begin
     mdp = BaseIviModels.mdp
     ivi_alg = BaseIviModels.ivi_alg
     rvi_alg = BaseIviModels.rvi_alg

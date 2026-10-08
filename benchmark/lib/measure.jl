@@ -28,8 +28,14 @@ function measurement_parameters(opts)
         "warmup_reuse_threshold_s" => WARMUP_REUSE_S,
         "gctrial" => true,
         "gcsample" => false,
-        "clock_guard" => Dict("probe_iterations" => CLOCK_ITERS, "tolerance" => CLOCK_TOL, "retries" => CLOCK_RETRIES[],
-            "pause_s" => CLOCK_PAUSE_S, "retry_only_if_sampling_s_below" => CLOCK_RETRY_MAX_S, "reference_probe_ns" => CLOCK_REF[]),
+        "clock_guard" => Dict(
+            "probe_iterations" => CLOCK_ITERS,
+            "tolerance" => CLOCK_TOL,
+            "retries" => CLOCK_RETRIES[],
+            "pause_s" => CLOCK_PAUSE_S,
+            "retry_only_if_sampling_s_below" => CLOCK_RETRY_MAX_S,
+            "reference_probe_ns" => CLOCK_REF[],
+        ),
         "default_budgets" => Dict(
             "workspace" => "3 s, ≥50 samples",
             "bellman" => "4 s, ≥40 samples",
@@ -66,13 +72,27 @@ function entry_closure(c, e, ctx, T, be)
         sc = IntervalMDP.construct_strategy_cache(model)
         V = ctx.V
         Vres = similar(V, Int.(IntervalMDP.source_shape(model)))
-        f = () -> begin
-            IntervalMDP.bellman!(ws, sc, Vres, V, model; upper_bound = false, maximize = true)
-            be.sync()
-            Vres
-        end
+        f =
+            () -> begin
+                IntervalMDP.bellman!(
+                    ws,
+                    sc,
+                    Vres,
+                    V,
+                    model;
+                    upper_bound = false,
+                    maximize = true,
+                )
+                be.sync()
+                Vres
+            end
         out = r -> Outcome(host_vec(be, r), -1, Int32[], :bellman, 0.0)
-        return f, out, Dict{String, Any}("workspace_type" => workspace_type(ws), "strategy_cache" => string(nameof(typeof(sc))))
+        return f,
+        out,
+        Dict{String, Any}(
+            "workspace_type" => workspace_type(ws),
+            "strategy_cache" => string(nameof(typeof(sc))),
+        )
     else
         sp = ctx.problems[e.name]
         prob, mc = sp.problem, sp.alg
@@ -83,19 +103,30 @@ function entry_closure(c, e, ctx, T, be)
         end
         out = function (sol)
             vals = host_vec(be, value_function(sol))
-            strat = sol isa IntervalMDP.ControlSynthesisSolution ? strategy_vector(strategy(sol)) : Int32[]
+            strat =
+                sol isa IntervalMDP.ControlSynthesisSolution ?
+                strategy_vector(strategy(sol)) : Int32[]
             return Outcome(vals, num_iterations(sol), strat, sp.kind, sp.eps)
         end
         extra = Dict{String, Any}(
             "problem" => string(nameof(typeof(prob))),
             "property" => string(nameof(typeof(system_property(specification(prob))))),
             "algorithm" => string(nameof(typeof(mc))),
-            "workspace_type" => workspace_type(IntervalMDP.construct_workspace(IntervalMDP.system(prob), IntervalMDP.bellman_algorithm(mc))),
+            "workspace_type" => workspace_type(
+                IntervalMDP.construct_workspace(
+                    IntervalMDP.system(prob),
+                    IntervalMDP.bellman_algorithm(mc),
+                ),
+            ),
         )
         if prob isa ControlSynthesisProblem
             extra["_policy_eval_factory"] = function (sol)
                 return () -> begin
-                    vp = VerificationProblem(IntervalMDP.system(prob), specification(prob), strategy(sol))
+                    vp = VerificationProblem(
+                        IntervalMDP.system(prob),
+                        specification(prob),
+                        strategy(sol),
+                    )
                     host_vec(be, value_function(solve(vp, mc)))
                 end
             end
@@ -108,7 +139,11 @@ end
 function guarded_first_call(f, e, ctx)
     e.name in ("workspace", "bellman") && return f()
     sp = ctx.problems[e.name]
-    guard = (args...) -> (last(args) > ITERATION_GUARD && error("more than $ITERATION_GUARD iterations; aborted"))
+    guard =
+        (args...) -> (
+            last(args) > ITERATION_GUARD &&
+            error("more than $ITERATION_GUARD iterations; aborted")
+        )
     sol = solve(sp.problem, sp.alg; callback = guard)
     return sol
 end
@@ -143,7 +178,8 @@ function measure_entry(c, e, ctx, T, be, opts)
         t_sample = t_est * evals
         samples = clamp(round(Int, budget / t_sample), e.min_samples, MAX_SAMPLES)
         if samples * t_sample > opts["max-entry-seconds"]
-            samples = max(MIN_SAMPLES_FLOOR, floor(Int, opts["max-entry-seconds"] / t_sample))
+            samples =
+                max(MIN_SAMPLES_FLOOR, floor(Int, opts["max-entry-seconds"] / t_sample))
         end
         seconds = samples * t_sample * 3 + 5   # never the binding limit
 
@@ -156,7 +192,14 @@ function measure_entry(c, e, ctx, T, be, opts)
         for attempt in 0:CLOCK_RETRIES[]
             attempts += 1
             p0 = clock_probe()
-            tr = run(b; samples = samples, evals = evals, seconds = seconds, gctrial = true, gcsample = false)
+            tr = run(
+                b;
+                samples = samples,
+                evals = evals,
+                seconds = seconds,
+                gctrial = true,
+                gcsample = false,
+            )
             p1 = clock_probe()
             # Only the probe *before* the trial decides: it measures the ambient clock
             # state. The probe right after a long memory-heavy trial is often ≈28%
@@ -166,7 +209,11 @@ function measure_entry(c, e, ctx, T, be, opts)
             if isnothing(best) || dev < best.dev
                 best = (; trial = tr, p0, p1, dev)
             end
-            (dev <= CLOCK_TOL || samples * t_sample > CLOCK_RETRY_MAX_S || attempt == CLOCK_RETRIES[]) && break
+            (
+                dev <= CLOCK_TOL ||
+                samples * t_sample > CLOCK_RETRY_MAX_S ||
+                attempt == CLOCK_RETRIES[]
+            ) && break
             @warn "clock deviates by $(round(100dev; digits = 1))% from the run reference; re-measuring $(c.name)/$(e.name) in $(CLOCK_PAUSE_S) s"
             sleep(CLOCK_PAUSE_S)
         end

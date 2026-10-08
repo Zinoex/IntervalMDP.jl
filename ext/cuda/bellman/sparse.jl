@@ -547,6 +547,7 @@ function try_large_sparse_bellman!(
         Vres,
         V,
         marginal,
+        states,
         value_lt,
         action_reduce,
     )
@@ -560,6 +561,7 @@ function _large_sparse_bellman_helper!(
     Vres::AbstractVector{Tv},
     V::AbstractVector{Tv},
     marginal,
+    states::IntervalMDP.AbstractUpdateSequence,
     value_lt::VF,
     action_reduce::AR,
 ) where {Tv, T1, T2, VF, AR}

@@ -53,8 +53,7 @@ Base.firstindex(::FullUpdateSequence) = 1
 Base.lastindex(s::FullUpdateSequence) = length(s)
 Base.IndexStyle(::Type{<:FullUpdateSequence}) = IndexLinear()
 Base.eltype(::Type{<:FullUpdateSequence{N}}) where {N} = CartesianIndex{N}
-Base.@propagate_inbounds Base.getindex(s::FullUpdateSequence, i::Integer) =
-    s.indices[i]
+Base.@propagate_inbounds Base.getindex(s::FullUpdateSequence, i::Integer) = s.indices[i]
 Base.@propagate_inbounds function Base.iterate(s::FullUpdateSequence, state::Int = 1)
     state > length(s) && return nothing
     return (@inbounds s[state], state + 1)

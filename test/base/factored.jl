@@ -212,8 +212,7 @@ end
         "SingletonAmbiguitySets with Storage type: Matrix{$(eltype(p.transition_matrix))}, Number of target states: $(size(p.transition_matrix, 1)), Number of ambiguity sets: $(size(p.transition_matrix, 2))",
     )
 
-    marginal =
-        Marginal(SingletonAmbiguitySets(N[0.2 0.8; 0.5 0.5]), (1,), (1,), (2,), (1,))
+    marginal = Marginal(SingletonAmbiguitySets(N[0.2 0.8; 0.5 0.5]), (1,), (1,), (2,), (1,))
 
     mc = FactoredRobustMarkovDecisionProcess((2,), (1,), (marginal,))
 
@@ -1954,13 +1953,21 @@ end
                 prob_upper = [(rand(rng, N, 3, 81) .+ N(1)) ./ N(3) for _ in 1:4]
 
                 ambiguity_sets = ntuple(
-                    i -> IntervalAmbiguitySets(; lower = prob_lower[i], upper = prob_upper[i]),
+                    i -> IntervalAmbiguitySets(;
+                        lower = prob_lower[i],
+                        upper = prob_upper[i],
+                    ),
                     4,
                 )
 
                 marginals = ntuple(
-                    i ->
-                        Marginal(ambiguity_sets[i], (1, 2, 3, 4), (1,), (3, 3, 3, 3), (1,)),
+                    i -> Marginal(
+                        ambiguity_sets[i],
+                        (1, 2, 3, 4),
+                        (1,),
+                        (3, 3, 3, 3),
+                        (1,),
+                    ),
                     4,
                 )
 
@@ -2027,8 +2034,7 @@ end
                 action_vars = (num_actions,)
 
                 prob_lower = [
-                    rand(rng, N, num_states_per_axis, num_choices) ./ num_states_per_axis
-                    for _ in 1:num_axis
+                    rand(rng, N, num_states_per_axis, num_choices) ./ num_states_per_axis for _ in 1:num_axis
                 ]
                 prob_upper = [
                     (rand(rng, N, num_states_per_axis, num_choices) .+ N(1)) ./
@@ -2036,7 +2042,10 @@ end
                 ]
 
                 ambiguity_sets = ntuple(
-                    i -> IntervalAmbiguitySets(; lower = prob_lower[i], upper = prob_upper[i]),
+                    i -> IntervalAmbiguitySets(;
+                        lower = prob_lower[i],
+                        upper = prob_upper[i],
+                    ),
                     num_axis,
                 )
 
@@ -2051,7 +2060,8 @@ end
                     num_axis,
                 )
 
-                mdp = FactoredRobustMarkovDecisionProcess(state_vars, action_vars, marginals)
+                mdp =
+                    FactoredRobustMarkovDecisionProcess(state_vars, action_vars, marginals)
 
                 prop = FiniteTimeReachability(
                     [(num_states_per_axis, num_states_per_axis, num_states_per_axis)],

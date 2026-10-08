@@ -204,8 +204,12 @@ end
     prop = FiniteTimeReachAvoid([3], [2], 10)
 
     IntervalMDP.Data.write_prism_labels_file(new_path, mdp, prop)
-    prop, istates =
-        IntervalMDP.Data.read_prism_labels_file(new_path, FiniteTimeReachAvoid, (10,), nothing)
+    prop, istates = IntervalMDP.Data.read_prism_labels_file(
+        new_path,
+        FiniteTimeReachAvoid,
+        (10,),
+        nothing,
+    )
 
     @test prop isa FiniteTimeReachAvoid
     @test reach(prop) == [CartesianIndex(3)]
