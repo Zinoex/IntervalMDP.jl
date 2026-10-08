@@ -236,3 +236,23 @@ Each entry should be dated and attributed to the stage that learned it:
 - **Problem:** The 0g § 6.3 cannot-run table (4 sparse-marginal fIMDP, 7 McCormick/vertex + 6 product/DFA, 28 solve_ivi) is partly derived from registry exclusions and from a hard-coded skip (`run.jl:177` for solve_ivi, B-2). Whether the C-1 cases throw or silently fall back to the CPU was not measured.
 - **Root cause:** The benchmark harness never tries to run the excluded entries, so the table records what the harness skips, not what the package does.
 - **Fix / guardrail:** Label such rows as asserted (from exclusions or skips), not measured. Before turning them into Findings, run each case once on CUDA and record whether it throws, falls back to the CPU, or runs. Noted for 0h.
+
+### 2026-10-08 — Orchestrator — Resolve a mistyped spec path by unique match and record it
+- **Problem:** The 0h command gave the spec path `harness/specs/0h-hypothesis-close.md`, which does not exist.
+- **Root cause:** The path left out the `perf-vi-bellman/` subdirectory and used "hypothesis" instead of "hypotheses".
+- **Fix / guardrail:** Resolve a missing spec path only if exactly one file matches (here `harness/specs/perf-vi-bellman/0h-hypotheses-close.md`), and record the resolution in telemetry and in the hand-offs. If there are zero or several matches, stop and ask.
+
+### 2026-10-08 — QE/Dev — Recompute a stated range over the full case set the claim covers
+- **Problem:** In 0h, QE failed cycle 1 because the H1 range endpoint was taken from a subset of cases (the a=4 minimum), not from all the cases the claim covers. Cycle 2 then failed because one of four occurrences of an idle-share figure was not updated.
+- **Root cause:** Range endpoints (min–max over cases) were computed over whichever cases were at hand, not over the full set that the sentence claims to describe.
+- **Fix / guardrail:** In a consistency pass, recompute every stated range or endpoint over the full case set that the claim covers, and state that set next to the range. QE checks the endpoints against the files over that same set.
+
+### 2026-10-08 — Dev — When fixing a number, fix every occurrence in the same edit
+- **Problem:** A corrected figure (the idle `wait()` share) was updated in some places in REPORT.md but not all, which cost a QE cycle.
+- **Root cause:** The same claim is repeated across sections (§ 5, § 7, § 9, summaries), and the fix was made only where the defect was reported.
+- **Fix / guardrail:** Before changing a number, grep the whole report (and the PR body) for every occurrence of the claim, including paraphrases and rounded forms, and fix them all in the same edit. List the occurrences in the hand-off.
+
+### 2026-10-08 — Orchestrator — Wording-level number fixes can use up the cycle budget
+- **Problem:** 0h used up its 2-cycle budget on number/wording fixes in REPORT.md, and the operator had to authorise a third cycle.
+- **Root cause:** Each cycle fixed only the reported instance of a number defect (see the two lessons above), so related defects surfaced one cycle at a time.
+- **Fix / guardrail:** For documentation-heavy sub-phases, Dev runs a self-check (recompute ranges over full case sets, grep all occurrences) before hand-off, and QE reports all number defects of the same kind in one pass. If the budget is still exhausted, escalate to the operator rather than starting another cycle silently.
