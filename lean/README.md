@@ -5,10 +5,14 @@ machine-checked proofs about them. It is developed in phases (see
 `harness/specs/lean-proofs/`, shared rules in `common.md`, one spec per sub-phase); the status of every row is tracked in
 `harness/specs/inventory-intervalmdp.md`.
 
-**Current phase: 1a** — Phase 0 (models with their well-formedness theorems, and the generic
-approximation-soundness lift A1) plus the index foundations of Phase 1a (1-based conversion,
-column-major linear index, sparse support pairing, O-max sort permutation). No algorithm (O-max,
-Bellman, VI, IVI) is proved yet.
+**Current phase: 1 (complete, sub-phases 1a–1d)** — Phase 0 (models with their well-formedness
+theorems, and the generic approximation-soundness lift A1) plus all of Phase 1: index foundations
+(1a: 1-based conversion, column-major linear index, sparse support pairing, O-max sort
+permutation), marginal indexing (1b: `sub2ind` of `Marginal` and `IntervalAmbiguitySets`), dense
+O-maximization (1c: exact `sSup` / `sInf`, tie invariance) and sparse O-maximization (1d: equal to
+dense O-max for every sort of the support pairs). Both `upper_bound` values, hence all four
+satisfaction × strategy modes, are covered. Bellman operators, VI and IVI (Phase 2 onwards) are
+not proved yet.
 
 **Proof scope: abstract.** Values are real numbers and the semantics is the dynamic-programming
 recursion. The proofs do not cover floating-point rounding, overflow, CUDA kernels or threaded
@@ -66,6 +70,8 @@ StationaryStrategy S A, TimeVaryingStrategy S A (+ Valid w.r.t. available)
 Property S Q, SatisfactionMode, StrategyMode, Specification S Q
 Approx.Sound m W V, Approx.StepSound m T' T, Approx.iter_sound (A1)
 OMax.omax A s                  dense O-max on IntervalAmbiguity (Fin n) × SortedPerm n (exact: sSup / sInf)
+OMax.omaxSparse A σ            sparse O-max on SparseIntervalAmbiguity n (= IntervalAmbiguity + SparseCol gap)
+                               × SortedValuesGaps s A.gapCol (= omax: omaxSparse_eq_omax)
 ```
 
 ## Julia ↔ Lean glossary
@@ -114,6 +120,9 @@ OMax.omax A s                  dense O-max on IntervalAmbiguity (Fin n) × Sorte
 | `sub2ind(p::Marginal, action, source)` loop (`src/probabilities/Marginal.jl`); fields `source_dims`, `action_vars` | `IntervalMDP.Index.marginalSub2ind` (literal transcription), `marginalSub2indInt` (`N`-bit value), `marginalSourceDims`, `marginalActionVars`, `marginalDims` (= `(action_vars…, source_dims…)`), `marginalCartesian` (= `(action[action_indices]…, source[state_indices]…)`), `juliaTuple` (= `Tuple(I)`), `hornerLoop` (= one `for i in StepRange(d, -1, 1)` loop of `sub2ind`), `marginalColumn` (= `N`-bit `sub2ind(p, a, s)` of a pair `(a, s)`) (`Index/Marginal.lean`); `foldl_horner`, `linear_eq_foldl`, `marginalSub2ind_eq_linear`, `marginalSub2ind_bijective`, `marginalSub2ind_depends_only` |
 | `state_action_bellman(::DenseIntervalOMaxWorkspace, V, ambiguity_set, budget, upper_bound)` = `dot(V, lower) + gap_value(V, gap, budget, perm)` (`src/bellman.jl`) | `IntervalMDP.OMax.stateActionBellman` (transcription), `omax` (with the stable `sortperm!` of `bellman_precomputation!`), `dot` (= `LinearAlgebra.dot`), `greedy` (greedy distribution `lower + allocation`), `valueSet` (= `{⟨p, V⟩ : p ∈ P(l, u)}`), `IsThreshold` (proof device) (`OMax.lean`); `omax_mem`, `omax_eq_sSup` (`upper_bound = true`), `omax_eq_sInf` (`upper_bound = false`), `omax_tie_invariant`, `stateActionBellman_eq_dot`, `stateActionBellman_isGreatest`, `stateActionBellman_isLeast` |
 | `permutation(workspace)` of `DenseIntervalOMaxWorkspace` (`src/workspace.jl`), any valid `sortperm!` output | `IntervalMDP.OMax.Permutation` (`perm`, invariants `perm_perm`, `sorted`), `stablePermutation` (= the stable `SortedPerm.perm`) (`OMax.lean`) |
+| `IntervalAmbiguitySet` with a sparse column view (`SparseColumnView`, `src/probabilities/IntervalAmbiguitySets.jl`): `gap(ambiguity_set)` stored in CSC form, `support = rowvals(gap)` | `IntervalMDP.OMax.SparseIntervalAmbiguity` (extends `IntervalAmbiguity (Fin n)`; `gapCol : SparseCol n`, invariant `gap_eq : gap = gapCol.getindex`) (`OMax.lean`) |
+| `Vp_workspace` = `workspace.values_gaps[1:supportsize]` after `sort!(Vp_workspace; rev = upper_bound, by = first)` (`src/bellman.jl`), any valid sort output | `IntervalMDP.OMax.SortedValuesGaps` (`Vp`, invariants `perm`, `sorted`), `stableValuesGaps` (= stable `mergeSort` with `pairLe`), `pairLe` (= `rev = upper_bound, by = first`) (`OMax.lean`) |
+| `state_action_bellman(::SparseIntervalOMaxWorkspace, …)` = `dot(V, lower) + gap_value(Vp, budget)`; loop of `gap_value(Vp, budget)` (`src/bellman.jl`) | `IntervalMDP.OMax.omaxSparse` (transcription), `gapValueSparse` (literal transcription of `gap_value(Vp, budget)`) (`OMax.lean`); `omaxSparse_eq_omax`, `omaxSparse_exact`, `gapValueSparse_map`, `gapValue_sublist`, `exists_permutation_sublist` |
 | `sub2ind(::IntervalAmbiguitySets, jₐ, jₛ) = jₛ[1]` (`src/probabilities/IntervalAmbiguitySets.jl`) | `IntervalMDP.Index.intervalSub2ind`; `intervalSub2ind_correct` (single-action layout), `intervalSub2ind_wrong_multiAction` (Observation O8) |
 
 Indices: Julia is 1-based, Lean's `Fin n` is 0-based. The conversion is defined once, as
@@ -143,7 +152,7 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
 | `IntervalMDPProofs/Index/Sparse.lean` | `Index.SparseCol`, `getindex`, `supportRows`, `valuesGaps`; `sparse_zip_correct` |
 | `IntervalMDPProofs/Index/Perm.lean` | `Index.SortedPerm`, `perm`, `gapValue`, `visited`, `allocation`; `sortedPerm_bijective`, `sortedPerm_fits_int32`, `greedy_visits_once`, `gapValue_eq_sum_allocation` |
 | `IntervalMDPProofs/Index/Marginal.lean` | `Index.marginalSub2ind` (transcription of `sub2ind(::Marginal, …)`), `marginalSub2indInt`, `marginalDims`, `marginalCartesian`, `juliaTuple`, `hornerLoop`, `marginalColumn`, `intervalSub2ind`; `foldl_horner`, `linear_eq_foldl`, `marginalSub2ind_eq_linear`, `marginalCartesian_surjective`, `marginalSub2ind_bijective`, `marginalSub2ind_depends_only`, `intervalSub2ind_correct`, `intervalSub2ind_wrong_multiAction` |
-| `IntervalMDPProofs/OMax.lean` | `OMax.dot`, `valueSet`, `Permutation`, `stablePermutation`, `stateActionBellman` (transcription of dense `state_action_bellman`), `omax`, `IsThreshold`, `greedy`; `allocation_nonneg`, `allocation_le_gap`, `allocation_cons_of_ne`, `sum_allocation`, `exists_threshold`, `sum_perm_eq`, `Permutation.nodup`, `Permutation.mem`, `sum_allocation_eq_budget`, `greedy_apply`, `greedy_mem`, `stateActionBellman_eq_dot`, `juliaGet_neg`, `dot_neg`, `dot_le_greedy`, `stateActionBellman_isGreatest`, `stateActionBellman_isLeast`, `omax_mem`, `omax_eq_sSup`, `omax_eq_sInf`, `omax_tie_invariant` |
+| `IntervalMDPProofs/OMax.lean` | `OMax.dot`, `valueSet`, `Permutation`, `stablePermutation`, `stateActionBellman` (transcription of dense `state_action_bellman`), `omax`, `IsThreshold`, `greedy`; `allocation_nonneg`, `allocation_le_gap`, `allocation_cons_of_ne`, `sum_allocation`, `exists_threshold`, `sum_perm_eq`, `Permutation.nodup`, `Permutation.mem`, `sum_allocation_eq_budget`, `greedy_apply`, `greedy_mem`, `stateActionBellman_eq_dot`, `juliaGet_neg`, `dot_neg`, `dot_le_greedy`, `stateActionBellman_isGreatest`, `stateActionBellman_isLeast`, `omax_mem`, `omax_eq_sSup`, `omax_eq_sInf`, `omax_tie_invariant`; sparse part: `SparseIntervalAmbiguity`, `SortedValuesGaps`, `pairLe`, `stableValuesGaps`, `gapValueSparse` (transcription of `gap_value(Vp, budget)`), `omaxSparse` (transcription of sparse `state_action_bellman`); `exists_perm_map_eq`, `gapValueSparse_map`, `gapValue_zero_budget`, `gapValue_sublist`, `sortedLe_trans`, `sortedLe_total`, `exists_permutation_sublist`, `omaxSparse_eq_omax`, `omaxSparse_exact` |
 | `AxiomCheck.lean` | `#print axioms` for every mapped theorem |
 | `DocLint.lean` | `#lint only docBlame docBlameThm` |
 

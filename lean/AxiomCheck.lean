@@ -57,3 +57,9 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.OMax.stateActionBellman_isGreatest
 #print axioms IntervalMDP.OMax.stateActionBellman_isLeast
 #print axioms IntervalMDP.OMax.stateActionBellman_eq_dot
+-- Phase 1d: sparse O-maximization
+#print axioms IntervalMDP.OMax.omaxSparse_eq_omax
+-- Phase 1d: supporting results referenced by the inventory
+#print axioms IntervalMDP.OMax.omaxSparse_exact
+#print axioms IntervalMDP.OMax.gapValue_sublist
+#print axioms IntervalMDP.OMax.exists_permutation_sublist

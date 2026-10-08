@@ -1,7 +1,10 @@
 import IntervalMDPProofs.Index.Perm
+import IntervalMDPProofs.Index.Sparse
 
 /-!
-# Dense O-maximization
+# Dense and sparse O-maximization
+
+## Dense path
 
 The dense interval Bellman update (`src/bellman.jl`) evaluates one ambiguity set as
 
@@ -39,6 +42,24 @@ Proof idea: the greedy allocation has a threshold `c` (`IsThreshold`): along a d
 it fills `gap_i` for `V_i > c` and allocates `0` for `V_i < c`. Then for every feasible `q`,
 `(q_i - l_i) (V_i - c) ≤ a_i (V_i - c)` termwise, and summing (both allocations total `budget`)
 gives `⟨q, V⟩ ≤ ⟨l + a, V⟩`. The ascending case applies this to `-V`.
+
+## Sparse path
+
+For a sparse gap column, `state_action_bellman(::SparseIntervalOMaxWorkspace, V, ambiguity_set,
+budget, upper_bound)` (`src/bellman.jl`, lines 536–553) does not sort `V`. It writes the pairs
+`zip(V[support], nonzeros(gap))` into `workspace.values_gaps`, sorts them with
+`sort!(Vp_workspace; rev = upper_bound, by = first)` and returns
+`dot(V, lower(ambiguity_set)) + gap_value(Vp_workspace, budget)` (`gap_value(Vp, budget)`, lines
+555–571). `omaxSparse` transcribes this for a `SparseIntervalAmbiguity` (an `IntervalAmbiguity`
+whose gap is a CSC column) and any sort result `SortedValuesGaps`. `omaxSparse_eq_omax` proves that
+it equals the dense `omax`, for both `upper_bound` values (all four modes), and for every sort of
+the pairs by their first component (stable or not, ties ordered arbitrarily).
+
+Proof idea: by `sparse_zip_correct` the sorted pairs are `(V[i], gap[i])` for the support rows `i`
+in some order `L` sorted by `V`. `L` is a sublist of a full sorted permutation vector of `1:n`
+(`exists_permutation_sublist`, via the stability of `mergeSort`), the rows it skips have `gap = 0`
+and allocate nothing (`gapValue_sublist`), so the sparse loop equals the dense loop along a valid
+dense permutation; `omax_tie_invariant` then gives `omax`.
 -/
 
 namespace IntervalMDP.OMax
@@ -425,5 +446,278 @@ theorem omax_tie_invariant (A : IntervalAmbiguity (Fin n)) {s : SortedPerm n}
   cases h : s.upperBound
   · exact (stateActionBellman_isLeast A σ h).unique (stateActionBellman_isLeast A τ h)
   · exact (stateActionBellman_isGreatest A σ h).unique (stateActionBellman_isGreatest A τ h)
+
+/-! ### Sparse O-maximization -/
+
+/-- An interval ambiguity set `P(l, u)` whose gap `u - l` is stored as one column of a sparse
+(CSC) matrix: the dense mathematical object `IntervalAmbiguity` together with its stored gap column
+`gapCol` and the invariant that `gap[i]` is the stored value of row `i` (`0` off the support).
+`lower` is kept as a function: `dot(V, lower)` of a sparse `lower` is the same sum.
+
+Julia counterpart: `IntervalAmbiguitySet{R, <:SparseColumnView{R}}`, the column
+`marginal[jₐ, jₛ]` of a sparse `IntervalAmbiguitySets`
+(`src/probabilities/IntervalAmbiguitySets.jl`), with `support(ambiguity_set) = rowvals(gap)`. -/
+structure SparseIntervalAmbiguity (n : ℕ) extends IntervalAmbiguity (Fin n) where
+  /-- The stored gap column (Julia `gap(ambiguity_set)`, a `SparseColumnView`; its `rowvals` are
+  `support(ambiguity_set)` and its `nonzeros` the stored gaps). -/
+  gapCol : SparseCol n
+  /-- The stored column is the gap `u - l`: `gap[i] = getindex(gap(ambiguity_set), i)`. -/
+  gap_eq : toIntervalAmbiguity.gap = gapCol.getindex
+
+/-- A result `Vp` that `sort!(Vp_workspace; rev = upper_bound, by = first)` may produce from the
+pairs `zip(V[support], nonzeros(gap))` (`valuesGaps`) with any sorting algorithm: `Vp` is a
+permutation of these pairs and their first components `V[i]` are descending (`upper_bound = true`)
+or ascending (`upper_bound = false`). Pairs with tied `V[i]` may be in any order. Julia's default
+`sort!` is stable (since Julia 1.9); its result is the instance `stableValuesGaps`.
+
+Julia counterpart: `workspace.values_gaps[1:supportsize(ambiguity_set)]` after the `zip` loop and
+`sort!` in `state_action_bellman(::SparseIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+structure SortedValuesGaps (s : SortedPerm n) (c : SparseCol n) where
+  /-- The sorted pairs `(V[i], gap[i])` (Julia `Vp_workspace` after `sort!`). -/
+  Vp : List (ℝ × ℝ)
+  /-- `Vp` is a permutation of `zip(V[support], nonzeros(gap))`. -/
+  perm : Vp.Perm (valuesGaps s.V c)
+  /-- `first.(Vp)` is sorted in direction `rev = upper_bound`. -/
+  sorted : (Vp.map Prod.fst).Pairwise (SortedPerm.ordered s.upperBound)
+
+/-- The Boolean comparison of two pairs `(v, p)` by their first component in direction `rev`:
+`a` may precede `b` iff `b.1 ≤ a.1` (`rev = true`) or `a.1 ≤ b.1` (`rev = false`).
+
+Julia counterpart: the order `rev = upper_bound, by = first` of `sort!(Vp_workspace; …)` in
+`state_action_bellman(::SparseIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+noncomputable def pairLe (rev : Bool) (a b : ℝ × ℝ) : Bool :=
+  if rev then decide (b.1 ≤ a.1) else decide (a.1 ≤ b.1)
+
+/-- The stable sort of `zip(V[support], nonzeros(gap))` by first component (`mergeSort` with
+`pairLe`), as a `SortedValuesGaps`; this shows the structure is inhabited for every input.
+
+Julia counterpart: `sort!(Vp_workspace; rev = upper_bound, by = first, scratch = …)` (stable
+default algorithm) in `state_action_bellman(::SparseIntervalOMaxWorkspace, …)`
+(`src/bellman.jl`). -/
+noncomputable def stableValuesGaps (s : SortedPerm n) (c : SparseCol n) :
+    SortedValuesGaps s c where
+  Vp := (valuesGaps s.V c).mergeSort (pairLe s.upperBound)
+  perm := List.mergeSort_perm _ _
+  sorted := by
+    rw [List.pairwise_map]
+    have hsort := List.pairwise_mergeSort (le := pairLe s.upperBound) ?trans ?total
+      (valuesGaps s.V c)
+    · refine hsort.imp (fun {a b} hab => ?_)
+      unfold pairLe at hab
+      unfold SortedPerm.ordered
+      split_ifs at hab ⊢ <;> simpa using hab
+    case trans =>
+      intro a b c hab hbc
+      unfold pairLe at *
+      split_ifs at * <;> simp only [decide_eq_true_eq] at * <;> linarith
+    case total =>
+      intro a b
+      unfold pairLe
+      split_ifs <;> simp only [Bool.or_eq_true, decide_eq_true_eq] <;> exact le_total _ _
+
+/-- Literal transcription of the loop of `gap_value(Vp, budget)`: for each pair `(V, p)` of `Vp`
+(in order), `p = min(budget, p)`, `res += p * V`, `budget -= p`, and `break` once `budget <= 0`;
+the result is `res`. Julia starts with `res = zero(T)`, i.e. `gapValueSparse Vp budget 0`.
+
+Julia counterpart: `gap_value(Vp::VP, budget)` (`src/bellman.jl`, lines 555–571). -/
+noncomputable def gapValueSparse : List (ℝ × ℝ) → ℝ → ℝ → ℝ
+  | [], _, res => res
+  | (V, p) :: Vp, budget, res =>
+    let p := min budget p
+    let res := res + p * V
+    let budget := budget - p
+    if budget ≤ 0 then res else gapValueSparse Vp budget res
+
+/-- Transcription of `state_action_bellman(::SparseIntervalOMaxWorkspace, V, ambiguity_set, budget,
+upper_bound)`: `dot(V, lower(ambiguity_set)) + gap_value(Vp_workspace, budget)`, where
+`Vp_workspace = σ.Vp` is `zip(V[support], nonzeros(gap))` after `sort!(…; rev = upper_bound,
+by = first)` and `budget = 1 - ∑ lower` (precomputed in the workspace).
+
+Julia counterpart: `state_action_bellman(::SparseIntervalOMaxWorkspace, …)` and
+`gap_value(Vp, budget)` (`src/bellman.jl`, lines 536–571). -/
+noncomputable def omaxSparse (A : SparseIntervalAmbiguity n) {s : SortedPerm n}
+    (σ : SortedValuesGaps s A.gapCol) : ℝ :=
+  dot s.V A.lower + gapValueSparse σ.Vp A.budget 0
+
+/-- A list that is a permutation of `l.map f` is the image under `f` of a permutation of `l`.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem exists_perm_map_eq {α β : Type*} [DecidableEq α] (f : α → β) :
+    ∀ (l₁ : List β) (l : List α), l₁.Perm (l.map f) → ∃ l' : List α, l'.Perm l ∧ l'.map f = l₁
+  | [], l, h => ⟨[], by simpa using h.symm, rfl⟩
+  | b :: t, l, h => by
+    have hb : b ∈ l.map f := h.subset List.mem_cons_self
+    obtain ⟨x, hx, rfl⟩ := List.mem_map.1 hb
+    have hl : l.Perm (x :: l.erase x) := List.perm_cons_erase hx
+    have h' : (f x :: t).Perm (f x :: (l.erase x).map f) := h.trans (by simpa using hl.map f)
+    obtain ⟨t', ht', rfl⟩ := exists_perm_map_eq f t (l.erase x) (List.Perm.cons_inv h')
+    exact ⟨x :: t', (ht'.cons x).trans hl.symm, rfl⟩
+
+/-- The sparse loop over the pairs `(V[i], gap[i])` of rows `L` is the dense loop `gap_value(V, gap,
+budget, perm)` along the Julia indices of `L`, with the column's `getindex` as gap.
+
+Julia counterpart: `gap_value(Vp, budget)` vs `gap_value(V, gap, budget, perm)`
+(`src/bellman.jl`). -/
+theorem gapValueSparse_map (V : Fin n → ℝ) (c : SparseCol n) :
+    ∀ (L : List (Fin n)) (b res : ℝ),
+      gapValueSparse (L.map (c.valueGap V)) b res = gapValue V c.getindex (L.map toJulia) b res
+  | [], _, _ => rfl
+  | i :: L, b, res => by
+    simp only [List.map_cons, gapValueSparse, gapValue, SparseCol.valueGap, juliaGet_toJulia]
+    split_ifs
+    · rfl
+    · exact gapValueSparse_map V c L _ _
+
+/-- With budget `0` and nonnegative gaps, the dense loop returns `res` unchanged.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem gapValue_zero_budget (V : Fin n → ℝ) {gap : Fin n → ℝ} (h : ∀ i, 0 ≤ gap i) :
+    ∀ (l : List ℕ) (res : ℝ), gapValue V gap l 0 res = res
+  | [], _ => rfl
+  | i :: _, res => by
+    simp [gapValue, min_eq_left (juliaGet_nonneg h i)]
+
+/-- Inserting zero-gap indices into the loop order does not change `gap_value`: if `L` is a
+sublist of the duplicate-free `M` and every index of `M` outside `L` has gap `0`, the loops along
+`M` and `L` agree for every nonnegative budget.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem gapValue_sublist (V : Fin n → ℝ) {gap : Fin n → ℝ} (h : ∀ i, 0 ≤ gap i) {L M : List ℕ}
+    (hLM : L.Sublist M) (hnd : M.Nodup) (hz : ∀ k ∈ M, k ∉ L → juliaGet gap k = 0) :
+    ∀ b res, 0 ≤ b → gapValue V gap M b res = gapValue V gap L b res := by
+  induction hLM with
+  | slnil => intro b res _; rfl
+  | @cons L' M' a hsub ih =>
+    intro b res hb
+    rw [List.nodup_cons] at hnd
+    have ha : juliaGet gap a = 0 :=
+      hz a List.mem_cons_self (fun haL => hnd.1 (hsub.subset haL))
+    have hz' : ∀ k ∈ M', k ∉ L' → juliaGet gap k = 0 :=
+      fun k hk hkL => hz k (List.mem_cons_of_mem a hk) hkL
+    simp only [gapValue, ha, min_eq_right hb, zero_mul, add_zero, sub_zero]
+    split_ifs with hb0
+    · rw [le_antisymm hb0 hb, gapValue_zero_budget V h]
+    · exact ih hnd.2 hz' b res hb
+  | @cons_cons L' M' a hsub ih =>
+    intro b res hb
+    rw [List.nodup_cons] at hnd
+    have hz' : ∀ k ∈ M', k ∉ L' → juliaGet gap k = 0 :=
+      fun k hk hkL => hz k (List.mem_cons_of_mem a hk) (fun h' => hkL ?_)
+    · simp only [gapValue]
+      split_ifs
+      · rfl
+      · exact ih hnd.2 hz' _ _ (budget_sub_min_nonneg _ _)
+    · rcases List.mem_cons.1 h' with rfl | h'
+      · exact absurd hk hnd.1
+      · exact h'
+
+/-- The comparison `SortedPerm.le` of `sortperm!` is transitive.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem sortedLe_trans (s : SortedPerm n) (a b c : Fin n) :
+    s.le a b → s.le b c → s.le a c := by
+  intro hab hbc
+  unfold SortedPerm.le at *
+  split_ifs at * <;> simp only [decide_eq_true_eq] at * <;> linarith
+
+/-- The comparison `SortedPerm.le` of `sortperm!` is total.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem sortedLe_total (s : SortedPerm n) (a b : Fin n) : s.le a b || s.le b a := by
+  unfold SortedPerm.le
+  split_ifs <;> simp only [Bool.or_eq_true, decide_eq_true_eq] <;> exact le_total _ _
+
+/-- A duplicate-free list of rows `L` sorted by `V` in direction `upper_bound` is a sublist of the
+Julia indices of some full sorted permutation vector of `1:n` (stable `mergeSort` of `L` followed
+by the remaining rows).
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem exists_permutation_sublist (s : SortedPerm n) {L : List (Fin n)} (hnd : L.Nodup)
+    (hsort : (L.map s.V).Pairwise (SortedPerm.ordered s.upperBound)) :
+    ∃ σ : Permutation s, (L.map toJulia).Sublist σ.perm := by
+  set base := L ++ (List.finRange n).filter (fun i => i ∉ L) with hbase
+  have hperm : base.Perm (List.finRange n) := by
+    rw [List.perm_ext_iff_of_nodup]
+    · intro i
+      simp only [hbase, List.mem_append, List.mem_filter, List.mem_finRange, true_and,
+        decide_eq_true_eq]
+      exact ⟨fun _ => trivial, fun _ => by tauto⟩
+    · refine List.Nodup.append hnd ((List.nodup_finRange n).filter _) ?_
+      intro a ha hb
+      simp only [List.mem_filter, decide_eq_true_eq] at hb
+      exact hb.2 ha
+    · exact List.nodup_finRange n
+  set M := base.mergeSort s.le with hM
+  have hLle : L.Pairwise (fun a b => s.le a b = true) := by
+    rw [List.pairwise_map] at hsort
+    refine hsort.imp (fun {a b} hab => ?_)
+    unfold SortedPerm.ordered at hab
+    unfold SortedPerm.le
+    split_ifs at hab ⊢ <;> simpa using hab
+  have hsub : L.Sublist M :=
+    List.sublist_mergeSort (sortedLe_trans s) (sortedLe_total s) hLle
+      (List.sublist_append_left _ _)
+  have hMsort := List.pairwise_mergeSort (le := s.le) (sortedLe_trans s) (sortedLe_total s) base
+  refine ⟨⟨M.map toJulia, ?_, ?_⟩, hsub.map toJulia⟩
+  · rw [← map_toJulia_finRange]
+    exact ((List.mergeSort_perm _ _).trans hperm).map toJulia
+  · have hcomp : juliaGet s.V ∘ toJulia = s.V := funext (juliaGet_toJulia s.V)
+    rw [List.map_map, hcomp, List.pairwise_map]
+    refine hMsort.imp (fun {a b} hab => ?_)
+    unfold SortedPerm.le at hab
+    unfold SortedPerm.ordered
+    split_ifs at hab ⊢ <;> simpa using hab
+
+/-- Sparse O-maximization equals dense O-maximization: for a sparse interval ambiguity set (CSC
+gap column; rows outside the support have gap `0`) and any result of `sort!(…; rev = upper_bound,
+by = first)` (stable or not), `omaxSparse = omax`. Holds for both `upper_bound = isoptimistic(spec)`
+values, so all four satisfaction × strategy modes; with `omax_eq_sSup` / `omax_eq_sInf` it is the
+exact maximum / minimum of `⟨p, V⟩` over `P(l, u)`.
+
+Julia counterpart: `state_action_bellman(::SparseIntervalOMaxWorkspace, …)` and
+`gap_value(Vp, budget)` vs `state_action_bellman(::DenseIntervalOMaxWorkspace, …)`
+(`src/bellman.jl`). -/
+theorem omaxSparse_eq_omax (A : SparseIntervalAmbiguity n) (s : SortedPerm n)
+    (σ : SortedValuesGaps s A.gapCol) :
+    omaxSparse A σ = omax A.toIntervalAmbiguity s := by
+  obtain ⟨hzip, hzero⟩ := sparse_zip_correct A.gapCol s.V
+  have hp := σ.perm
+  rw [hzip] at hp
+  obtain ⟨L, hL, hLVp⟩ := exists_perm_map_eq (A.gapCol.valueGap s.V) σ.Vp _ hp
+  have hsupp_nd : A.gapCol.supportRows.Nodup := (List.nodup_finRange n).filter _
+  have hLnd : L.Nodup := hL.nodup_iff.2 hsupp_nd
+  have hLsort : (L.map s.V).Pairwise (SortedPerm.ordered s.upperBound) := by
+    have h := σ.sorted
+    rw [← hLVp, List.map_map] at h
+    exact h
+  obtain ⟨τ, hτ⟩ := exists_permutation_sublist s hLnd hLsort
+  have hz : ∀ k ∈ τ.perm, k ∉ L.map toJulia → juliaGet A.gap k = 0 := by
+    intro k hk hkL
+    have hkr : k ∈ List.range' 1 n := τ.perm_perm.subset hk
+    rw [← map_toJulia_finRange] at hkr
+    obtain ⟨i, -, rfl⟩ := List.mem_map.1 hkr
+    rw [juliaGet_toJulia, A.gap_eq]
+    apply hzero
+    intro hi
+    apply hkL
+    have : i ∈ A.gapCol.supportRows := by
+      simp only [SparseCol.supportRows, List.mem_filter, List.mem_finRange, true_and,
+        decide_eq_true_eq]
+      exact hi
+    exact List.mem_map_of_mem (hL.symm.subset this)
+  rw [omaxSparse, ← hLVp, gapValueSparse_map, ← A.gap_eq,
+    ← gapValue_sublist s.V A.gap_nonneg hτ τ.nodup hz _ _ A.budget_eq.2]
+  exact omax_tie_invariant A.toIntervalAmbiguity τ (stablePermutation s)
+
+/-- Sparse O-maximization is exact: for `upper_bound = true` it is `sup {⟨p, V⟩ : p ∈ P(l, u)}`
+and for `upper_bound = false` it is `inf {⟨p, V⟩ : p ∈ P(l, u)}` (all four modes).
+
+Julia counterpart: `state_action_bellman(::SparseIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+theorem omaxSparse_exact (A : SparseIntervalAmbiguity n) (s : SortedPerm n)
+    (σ : SortedValuesGaps s A.gapCol) :
+    (s.upperBound = true → omaxSparse A σ = sSup (valueSet A.toIntervalAmbiguity s.V)) ∧
+      (s.upperBound = false → omaxSparse A σ = sInf (valueSet A.toIntervalAmbiguity s.V)) := by
+  rw [omaxSparse_eq_omax]
+  exact ⟨omax_eq_sSup _ s, omax_eq_sInf _ s⟩
 
 end IntervalMDP.OMax
