@@ -20,7 +20,8 @@ include(joinpath(@__DIR__, "lib", "clock.jl"))
 pin_compact!()
 
 out = let i = findfirst(==("--out"), ARGS)
-    isnothing(i) ? joinpath(@__DIR__, "results", "stream-t$(Threads.nthreads()).json") : ARGS[i + 1]
+    isnothing(i) ? joinpath(@__DIR__, "results", "stream-t$(Threads.nthreads()).json") :
+    ARGS[i + 1]
 end
 
 const NT = Threads.nthreads()
@@ -113,33 +114,56 @@ end
 end
 
 N = 2^25  # 256 MiB per Float64 array
-a = Vector{Float64}(undef, N); b = Vector{Float64}(undef, N); c = Vector{Float64}(undef, N)
+a = Vector{Float64}(undef, N);
+b = Vector{Float64}(undef, N);
+c = Vector{Float64}(undef, N)
 cs = chunks(N)
-par_init!(a, 1.0, cs); par_init!(b, 2.0, cs); par_init!(c, 0.5, cs)
+par_init!(a, 1.0, cs);
+par_init!(b, 2.0, cs);
+par_init!(c, 0.5, cs)
 M = 2^17 * NT  # 1 MiB per thread → L2-resident (P-core L2 3 MiB, E-core cluster L2 4 MiB / 4 cores)
-x = Vector{Float64}(undef, M); csx = chunks(M); par_init!(x, 1.0, csx)
+x = Vector{Float64}(undef, M);
+csx = chunks(M);
+par_init!(x, 1.0, csx)
 L = 3 * 2^19  # 12 MiB in total (half of the 24 MiB L3), split over the threads → L3-resident
-y = Vector{Float64}(undef, L); csy = chunks(L); par_init!(y, 1.0, csy)
+y = Vector{Float64}(undef, L);
+csy = chunks(L);
+par_init!(y, 1.0, csy)
 const FMA_REPS = 200_000
 
 # One round of all roofs, each the best of 10 (FMA: 5) repetitions.
 function measure_round()
     r = Dict{String, Float64}()
     r["clock_probe_ns"] = clock_probe()   # ≈197 µs at 5.1 GHz, ≈436 µs at the 2.3 GHz cap (lib/clock.jl)
-    t = best(() -> par_read(b, cs));              r["dram_read_GBs"] = 8N / t / 1e9
-    t = best(() -> par_copy!(a, b, cs));          r["dram_copy_GBs"] = 16N / t / 1e9
-    t = best(() -> par_triad!(a, b, c, 3.0, cs)); r["dram_triad_GBs"] = 24N / t / 1e9
-    t = best(() -> par_read_rep(x, csx, 200));    r["l2_read_GBs"] = 200 * 8M / t / 1e9
-    t = best(() -> par_read_rep(y, csy, 50));     r["llc_read_GBs"] = 50 * 8L / t / 1e9
-    t = best(() -> l1_fma(FMA_REPS); reps = 5);   r["l1_fma_GFLOPs"] = NT * FMA_REPS * 2 * 128 / t / 1e9
+    t = best(() -> par_read(b, cs));
+    r["dram_read_GBs"] = 8N / t / 1e9
+    t = best(() -> par_copy!(a, b, cs));
+    r["dram_copy_GBs"] = 16N / t / 1e9
+    t = best(() -> par_triad!(a, b, c, 3.0, cs));
+    r["dram_triad_GBs"] = 24N / t / 1e9
+    t = best(() -> par_read_rep(x, csx, 200));
+    r["l2_read_GBs"] = 200 * 8M / t / 1e9
+    t = best(() -> par_read_rep(y, csy, 50));
+    r["llc_read_GBs"] = 50 * 8L / t / 1e9
+    t = best(() -> l1_fma(FMA_REPS); reps = 5);
+    r["l1_fma_GFLOPs"] = NT * FMA_REPS * 2 * 128 / t / 1e9
     return r
 end
 
 # Roof = maximum over ROUNDS rounds (temporal noise, clock switches); every round is stored.
 const ROUNDS = 3
-rounds = [(i > 1 && sleep(2); measure_round()) for i in 1:ROUNDS]
+rounds = [
+    (i > 1 && sleep(2); measure_round()) for i in 1:ROUNDS
+]
 res = Dict{String, Any}()
-for k in ("dram_read_GBs", "dram_copy_GBs", "dram_triad_GBs", "l2_read_GBs", "llc_read_GBs", "l1_fma_GFLOPs")
+for k in (
+    "dram_read_GBs",
+    "dram_copy_GBs",
+    "dram_triad_GBs",
+    "l2_read_GBs",
+    "llc_read_GBs",
+    "l1_fma_GFLOPs",
+)
     res[k] = maximum(r[k] for r in rounds)
 end
 res["clock_probe_ns_at_start"] = rounds[1]["clock_probe_ns"]
@@ -155,7 +179,14 @@ res["theoretical"] = Dict(
 env = environment_block(; pinning = "compact (pin_compact!)", gpu = gpu_info_unqueried())
 mkpath(dirname(abspath(out)))
 open(out, "w") do io
-    JSON.json(io, Dict("environment" => env, "nthreads" => NT, "results" => res); pretty = 1)
+    JSON.json(
+        io,
+        Dict("environment" => env, "nthreads" => NT, "results" => res);
+        pretty = 1,
+    )
 end
-for k in sort([k for (k, v) in res if v isa Number]); println(rpad(k, 18), @sprintf("%10.2f", res[k])); end
+for k in sort([k for (k, v) in res if v isa Number])
+    ;
+    println(rpad(k, 18), @sprintf("%10.2f", res[k]));
+end
 println("wrote $out")

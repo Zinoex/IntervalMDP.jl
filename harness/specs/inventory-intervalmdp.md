@@ -160,8 +160,8 @@ recursion). Not covered:
   Reachability (call-site inspection at `origin/main`): every `sub2ind` / two-argument lookup goes
   through `Marginal` — `src/bellman.jl:471–472, 499–500, 830–831, 858–859` (`marginals(model)[…]`),
   `src/Data/bmdp-tool.jl:213`, `src/Data/prism.jl:105` (`marginal[jₐ, jₛ]`),
-  `ext/cuda/bellman/dense.jl:260, 294`, `ext/cuda/bellman/sparse.jl:339, 380, 762, 800`,
-  `ext/cuda/bellman/factored.jl:451–848` (`model[k][jₐ, jₛ]` with `getindex(::FactoredRMDP, r) =
+  `ext/cuda/bellman/dense.jl:260, 294`, `ext/cuda/bellman/sparse.jl:339, 380, 764, 802`,
+  `ext/cuda/bellman/factored.jl:449–846` (`model[k][jₐ, jₛ]` with `getindex(::FactoredRMDP, r) =
   transition[r]`, a `Marginal`); `FactoredRobustMarkovDecisionProcess.transition` is typed
   `NTuple{N, Marginal}`, and `IntervalMarkovDecisionProcess`/`IntervalMarkovChain` wrap their sets
   in `Marginal(sets, source_dims, action_vars)`. `Marginal.getindex` calls the one-argument

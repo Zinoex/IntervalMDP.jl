@@ -2,7 +2,7 @@
     IntervalAmbiguitySets{R, MR <: AbstractMatrix{R}}
 
 A matrix pair to represent the lower and upper bound of `num_sets(ambiguity_sets)` interval ambiguity sets (on the columns)
-to `num_target(ambiguity_sets)` destinations (on the rows). [Marginal](@ref) adds interpretation to the column indices.
+to `num_target(ambiguity_sets)` destinations (on the rows). [`Marginal`](@ref) adds interpretation to the column indices.
 The matrices can be `Matrix{R}` or `SparseMatrixCSC{R}`, or their CUDA equivalents. 
 Due to the space complexity, if modelling [IntervalMarkovChains](@ref IntervalMarkovChain) or [IntervalMarkovDecisionProcesses](@ref IntervalMarkovDecisionProcess),
 it is recommended to use sparse matrices.

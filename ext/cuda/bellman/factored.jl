@@ -268,9 +268,7 @@ end
 
 Base.@propagate_inbounds function initialize_prealloc_workspace(
     marginal_size,
-    marginal::Marginal{
-        <:IntervalAmbiguitySets{Tv, <:GPUSparseDeviceMatrixCSC},
-    },
+    marginal::Marginal{<:IntervalAmbiguitySets{Tv, <:GPUSparseDeviceMatrixCSC}},
     offset,
 ) where {Tv}
     assume(warpsize() == 32)

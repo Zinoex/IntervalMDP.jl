@@ -37,16 +37,13 @@
             ),
             (Int32(2),),
         )
-        weighting_probs = IntervalProbabilities(;
-            lower = N[
-                0.3 0.5
-                0.4 0.3
-            ],
-            upper = N[
-                0.8 0.7
-                0.7 0.5
-            ],
-        )
+        weighting_probs = IntervalProbabilities(; lower = N[
+            0.3 0.5
+            0.4 0.3
+        ], upper = N[
+            0.8 0.7
+            0.7 0.5
+        ])
         mixture_prob = MixtureIntervalProbabilities((prob1, prob2), weighting_probs)
 
         V = N[1.0, 2.0, 3.0]
@@ -194,16 +191,13 @@ end
         # Weighting probabilities are treated the same way for sparse and dense matrices.
         # This choice is made to simplify the implementation and since the number of
         # mixtures is typically small, with few non-zero entries.
-        weighting_probs = IntervalProbabilities(;
-            lower = N[
-                0.3 0.5
-                0.4 0.3
-            ],
-            upper = N[
-                0.8 0.7
-                0.7 0.5
-            ],
-        )
+        weighting_probs = IntervalProbabilities(; lower = N[
+            0.3 0.5
+            0.4 0.3
+        ], upper = N[
+            0.8 0.7
+            0.7 0.5
+        ])
         mixture_prob = MixtureIntervalProbabilities((prob1, prob2), weighting_probs)
 
         V = N[1.0, 2.0, 3.0]

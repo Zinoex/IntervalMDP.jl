@@ -80,7 +80,8 @@ end
             strategy_cache,
             Vres,
             V,
-            prob;
+            prob,
+            FullUpdateSequence(prob);
             upper_bound = true,
         )
         Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
@@ -106,7 +107,8 @@ end
             strategy_cache,
             Vres,
             V,
-            prob;
+            prob,
+            FullUpdateSequence(prob);
             upper_bound = false,
         )
         Vres = IntervalMDP.cpu(Vres)  # Convert to CPU for testing
@@ -128,7 +130,12 @@ end
     m = 5000000  # It has to be greater than 32 * 2^16 = 2^21 to exceed maximum grid size
     nnz_per_column = 10
     prob, V, cuda_prob, cuda_V =
-        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(
+            rng,
+            n,
+            m,
+            nnz_per_column,
+        )
 
     ws = IntervalMDP.construct_workspace(prob)
     strategy_cache = IntervalMDP.construct_strategy_cache(prob)
@@ -138,7 +145,8 @@ end
         strategy_cache,
         V_cpu,
         V,
-        prob;
+        prob,
+        FullUpdateSequence(prob);
         upper_bound = false,
     )
 
@@ -150,7 +158,8 @@ end
         strategy_cache,
         V_gpu,
         cuda_V,
-        cuda_prob;
+        cuda_prob,
+        FullUpdateSequence(cuda_prob);
         upper_bound = false,
     )
     V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
@@ -171,7 +180,12 @@ end
     m = 10
     nnz_per_column = 800   # It has to be greater than 767 to fill shared memory, with 4 warps per block.
     prob, V, cuda_prob, cuda_V =
-        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(
+            rng,
+            n,
+            m,
+            nnz_per_column,
+        )
 
     ws = IntervalMDP.construct_workspace(prob)
     strategy_cache = IntervalMDP.construct_strategy_cache(prob)
@@ -181,7 +195,8 @@ end
         strategy_cache,
         V_cpu,
         V,
-        prob;
+        prob,
+        FullUpdateSequence(prob);
         upper_bound = false,
     )
 
@@ -193,7 +208,8 @@ end
         strategy_cache,
         V_gpu,
         cuda_V,
-        cuda_prob;
+        cuda_prob,
+        FullUpdateSequence(cuda_prob);
         upper_bound = false,
     )
     V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
@@ -214,7 +230,12 @@ end
     m = 10
     nnz_per_column = 4000   # It has to be greater than 3100 to exceed shared memory for ff implementation
     prob, V, cuda_prob, cuda_V =
-        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(
+            rng,
+            n,
+            m,
+            nnz_per_column,
+        )
 
     ws = IntervalMDP.construct_workspace(prob)
     strategy_cache = IntervalMDP.construct_strategy_cache(prob)
@@ -224,7 +245,8 @@ end
         strategy_cache,
         V_cpu,
         V,
-        prob;
+        prob,
+        FullUpdateSequence(prob);
         upper_bound = false,
     )
 
@@ -236,7 +258,8 @@ end
         strategy_cache,
         V_gpu,
         cuda_V,
-        cuda_prob;
+        cuda_prob,
+        FullUpdateSequence(cuda_prob);
         upper_bound = false,
     )
     V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
@@ -257,7 +280,12 @@ end
     m = 10
     nnz_per_column = 6000   # It has to be greater than 4100 to exceed shared memory for fi implementation
     prob, V, cuda_prob, cuda_V =
-        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(
+            rng,
+            n,
+            m,
+            nnz_per_column,
+        )
 
     ws = IntervalMDP.construct_workspace(prob)
     strategy_cache = IntervalMDP.construct_strategy_cache(prob)
@@ -267,7 +295,8 @@ end
         strategy_cache,
         V_cpu,
         V,
-        prob;
+        prob,
+        FullUpdateSequence(prob);
         upper_bound = false,
     )
 
@@ -279,7 +308,8 @@ end
         strategy_cache,
         V_gpu,
         cuda_V,
-        cuda_prob;
+        cuda_prob,
+        FullUpdateSequence(cuda_prob);
         upper_bound = false,
     )
     V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
@@ -300,7 +330,12 @@ end
     m = 10
     nnz_per_column = 8000   # It has to be greater than 6144 to exceed shared memory for ii implementation
     prob, V, cuda_prob, cuda_V =
-        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(
+            rng,
+            n,
+            m,
+            nnz_per_column,
+        )
 
     ws = IntervalMDP.construct_workspace(prob)
     strategy_cache = IntervalMDP.construct_strategy_cache(prob)
@@ -310,7 +345,8 @@ end
         strategy_cache,
         V_cpu,
         V,
-        prob;
+        prob,
+        FullUpdateSequence(prob);
         upper_bound = false,
     )
 
@@ -322,7 +358,8 @@ end
         strategy_cache,
         V_gpu,
         cuda_V,
-        cuda_prob;
+        cuda_prob,
+        FullUpdateSequence(cuda_prob);
         upper_bound = false,
     )
     V_gpu = IntervalMDP.cpu(V_gpu)  # Convert to CPU for testing
@@ -343,7 +380,12 @@ end
     m = 10
     nnz_per_column = 16000   # It has to be greater than 12300 to exceed shared memory for i implementation
     prob, V, cuda_prob, cuda_V =
-        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(rng, n, m, nnz_per_column)
+        CudaSparseBellmanModels.sample_sparse_interval_ambiguity_sets(
+            rng,
+            n,
+            m,
+            nnz_per_column,
+        )
 
     ws = IntervalMDP.construct_workspace(cuda_prob)
     strategy_cache = IntervalMDP.construct_strategy_cache(cuda_prob)
@@ -353,7 +395,8 @@ end
         strategy_cache,
         V_gpu,
         cuda_V,
-        cuda_prob;
+        cuda_prob,
+        FullUpdateSequence(cuda_prob);
         upper_bound = false,
     )
 end

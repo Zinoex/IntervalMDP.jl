@@ -28,14 +28,34 @@ function product_case(; storage, n, a, nnz = 0, suites)
         mdp = random_imdp(rng; n, actions = a, storage, nnz, T)
         prod, accept = random_dfa_product(rng, be.to_dev(mdp))
         V = input_values(rng, prod, T)
-        spec = Specification(InfiniteTimeDFAReachability([accept], T(CONV_EPS)), Pessimistic, Maximize)
+        spec = Specification(
+            InfiniteTimeDFAReachability([accept], T(CONV_EPS)),
+            Pessimistic,
+            Maximize,
+        )
         problems = Dict(
-            "solve_dfa" => SolveSpec(VerificationProblem(prod, spec), RobustValueIteration(OMaximization()), :converged, CONV_EPS),
+            "solve_dfa" => SolveSpec(
+                VerificationProblem(prod, spec),
+                RobustValueIteration(OMaximization()),
+                :converged,
+                CONV_EPS,
+            ),
         )
         return Ctx(prod, OMaximization(), be.to_dev(V), problems)
     end
     entries = [E_ws(), E_bellman(), E_solve("solve_dfa")]
-    return register!(Case(name, "Product IMDP x DFA", suites, meta, build, entries, [Float64], DataType[]))
+    return register!(
+        Case(
+            name,
+            "Product IMDP x DFA",
+            suites,
+            meta,
+            build,
+            entries,
+            [Float64],
+            DataType[],
+        ),
+    )
 end
 
 for a in (1, 4)

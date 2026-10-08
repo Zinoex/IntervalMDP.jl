@@ -136,7 +136,8 @@ end
     end
 end
 
-@testitem "sparse/imdp: explicit sink — infinite time reachability" setup = [SparseImdpModels] begin
+@testitem "sparse/imdp: explicit sink — infinite time reachability" setup =
+    [SparseImdpModels] begin
     using SparseArrays
 
     @testset for N in [Float32, Float64, Rational{BigInt}]
@@ -244,7 +245,8 @@ end
     end
 end
 
-@testitem "sparse/imdp: explicit sink — infinite time reach/avoid" setup = [SparseImdpModels] begin
+@testitem "sparse/imdp: explicit sink — infinite time reach/avoid" setup =
+    [SparseImdpModels] begin
     using SparseArrays
 
     @testset for N in [Float32, Float64, Rational{BigInt}]
@@ -454,7 +456,8 @@ end
     end
 end
 
-@testitem "sparse/imdp: implicit sink — infinite time reachability" setup = [SparseImdpModels] begin
+@testitem "sparse/imdp: implicit sink — infinite time reachability" setup =
+    [SparseImdpModels] begin
     using SparseArrays
 
     @testset for N in [Float32, Float64, Rational{BigInt}]
@@ -583,7 +586,8 @@ end
     end
 end
 
-@testitem "sparse/imdp: implicit sink — infinite time reach/avoid" setup = [SparseImdpModels] begin
+@testitem "sparse/imdp: implicit sink — infinite time reach/avoid" setup =
+    [SparseImdpModels] begin
     using SparseArrays
 
     @testset for N in [Float32, Float64, Rational{BigInt}]

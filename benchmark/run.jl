@@ -114,7 +114,8 @@ end
 function case_eltypes(c::Case, opts)
     avail = BACKEND_NAME === :cuda ? c.eltypes_cuda : c.eltypes_cpu
     e = opts["eltype"]
-    (isnothing(e) || e == "all") && return BACKEND_NAME === :cuda || e == "all" ? avail : intersect(avail, [Float64])
+    (isnothing(e) || e == "all") &&
+        return BACKEND_NAME === :cuda || e == "all" ? avail : intersect(avail, [Float64])
     T = e == "Float32" ? Float32 : e == "Float64" ? Float64 : error("unknown eltype $e")
     return intersect(avail, [T])
 end
@@ -124,7 +125,11 @@ function main()
     cases = select_cases(opts)
     if opts["list"]
         for c in cases
-            println(rpad(c.name, 48), rpad(c.row, 28), join([e.name for e in c.entries], ","))
+            println(
+                rpad(c.name, 48),
+                rpad(c.row, 28),
+                join([e.name for e in c.entries], ","),
+            )
         end
         return
     end
@@ -137,13 +142,19 @@ function main()
         # --reference-only runs need no timing file; keep their record in the (gitignored) logs dir.
         opts["reference-only"] || (println(stderr, USAGE); exit(2))
         sha = _cmd(`git -C $REPO_ROOT rev-parse --short HEAD`; default = "nogit")
-        opts["out"] = joinpath(@__DIR__, "results", "logs",
-            "$(opts["write-reference"] ? "reference-write" : "reference-check")-$(sha)-$(BACKEND_NAME).json")
+        opts["out"] = joinpath(
+            @__DIR__,
+            "results",
+            "logs",
+            "$(opts["write-reference"] ? "reference-write" : "reference-check")-$(sha)-$(BACKEND_NAME).json",
+        )
     end
     entry_filter = isnothing(opts["entries"]) ? nothing : split(opts["entries"], ',')
 
     env = environment_block(;
-        pinning = opts["pin"] == "compact" ? "compact: default-pool thread i -> CPU i-1, interactive/main thread -> CPU 0 (ThreadPinning.jl)" : "none (OS scheduler)",
+        pinning = opts["pin"] == "compact" ?
+                  "compact: default-pool thread i -> CPU i-1, interactive/main thread -> CPU 0 (ThreadPinning.jl)" :
+                  "none (OS scheduler)",
         gpu = BACKEND_NAME === :cuda ? gpu_info_cuda(CUDA) : gpu_info_unqueried(),
     )
 
@@ -169,7 +180,17 @@ function main()
             c.build(T, BACKEND)
         catch e
             @error "build failed for $(c.name)" exception = (e, catch_backtrace())
-            push!(out["results"], Dict("case" => c.name, "row" => c.row, "entry" => "build", "eltype" => string(T), "valid" => false, "error" => sprint(showerror, e)))
+            push!(
+                out["results"],
+                Dict(
+                    "case" => c.name,
+                    "row" => c.row,
+                    "entry" => "build",
+                    "eltype" => string(T),
+                    "valid" => false,
+                    "error" => sprint(showerror, e),
+                ),
+            )
             continue
         end
         for e in c.entries
@@ -177,8 +198,18 @@ function main()
             if BACKEND_NAME === :cuda && e.name == "solve_ivi"
                 # Finding B-2 (REPORT.md): IVI throws on CUDA models (scalar indexing in
                 # max_initial_gap, src/interval_value_iteration.jl). Not timed.
-                push!(out["results"], Dict("case" => c.name, "row" => c.row, "entry" => e.name, "eltype" => string(T), "backend" => "cuda",
-                    "unsupported" => "IntervalValueIteration throws on CUDA (scalar indexing in max_initial_gap); Finding B-2", "valid" => true))
+                push!(
+                    out["results"],
+                    Dict(
+                        "case" => c.name,
+                        "row" => c.row,
+                        "entry" => e.name,
+                        "eltype" => string(T),
+                        "backend" => "cuda",
+                        "unsupported" => "IntervalValueIteration throws on CUDA (scalar indexing in max_initial_gap); Finding B-2",
+                        "valid" => true,
+                    ),
+                )
                 println("  solve_ivi              UNSUPPORTED on CUDA (Finding B-2)")
                 continue
             end
@@ -190,13 +221,17 @@ function main()
                 res["valid"] = false
             elseif opts["write-reference"]
                 write_reference!(index, dir, key, outcome, T)
-                res["correctness"] = Dict("status" => outcome.kind === :none ? "not-applicable" : "reference-written")
+                res["correctness"] = Dict(
+                    "status" =>
+                        outcome.kind === :none ? "not-applicable" : "reference-written",
+                )
                 res["valid"] = true
             else
                 chk = check_reference(index, dir, key, outcome, T; policy_eval)
                 res["correctness"] = chk
                 res["valid"] = chk["status"] in ("pass", "not-applicable")
-                chk["status"] == "fail" && @warn "correctness check FAILED for $key: $(get(chk, "reason", ""))"
+                chk["status"] == "fail" &&
+                    @warn "correctness check FAILED for $key: $(get(chk, "reason", ""))"
                 chk["status"] == "no-reference" && @warn "no reference for $key"
             end
             res["case"] = c.name
@@ -205,7 +240,24 @@ function main()
             res["eltype"] = string(T)
             res["backend"] = string(BACKEND_NAME)
             push!(out["results"], res)
-            println(@sprintf("  %-22s median %12.3f µs  min %12.3f µs  samples %5d  allocs %d  %s", e.name, get(res, "median_ns", NaN) / 1e3, get(res, "min_ns", NaN) / 1e3, get(res, "samples", 0), get(res, "allocs", -1), get(get(res, "correctness", Dict()), "status", get(res, "error", ""))) * (haskey(res, "clock_probe_ratio") ? @sprintf("  clock %.3f%s", res["clock_probe_ratio"], res["clock_state"] == "nominal" ? "" : " DEVIATING") : ""))
+            println(
+                @sprintf(
+                    "  %-22s median %12.3f µs  min %12.3f µs  samples %5d  allocs %d  %s",
+                    e.name,
+                    get(res, "median_ns", NaN) / 1e3,
+                    get(res, "min_ns", NaN) / 1e3,
+                    get(res, "samples", 0),
+                    get(res, "allocs", -1),
+                    get(get(res, "correctness", Dict()), "status", get(res, "error", ""))
+                ) * (
+                    haskey(res, "clock_probe_ratio") ?
+                    @sprintf(
+                        "  clock %.3f%s",
+                        res["clock_probe_ratio"],
+                        res["clock_state"] == "nominal" ? "" : " DEVIATING"
+                    ) : ""
+                ),
+            )
             flush(stdout)
             write_json(opts["out"], out)
         end
@@ -220,9 +272,13 @@ function main()
         "entries" => nres,
         "invalid" => ninvalid,
         "unsupported" => count(r -> haskey(r, "unsupported"), out["results"]),
-        "clock_deviating" => count(r -> get(r, "clock_state", "") == "deviating", out["results"]),
+        "clock_deviating" =>
+            count(r -> get(r, "clock_state", "") == "deviating", out["results"]),
         "clock_retried" => count(r -> get(r, "clock_attempts", 1) > 1, out["results"]),
-        "no_reference" => count(r -> get(get(r, "correctness", Dict()), "status", "") == "no-reference", out["results"]),
+        "no_reference" => count(
+            r -> get(get(r, "correctness", Dict()), "status", "") == "no-reference",
+            out["results"],
+        ),
         "wall_time_s" => time() - t_start,
         "finished_utc" => string(Dates.now(Dates.UTC)),
     )

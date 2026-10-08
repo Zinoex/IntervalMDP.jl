@@ -26,7 +26,7 @@
     @test occursin("Initial states: CartesianIndex{1}[$(CartesianIndex(2))]", str)
     @test occursin("Marginal 1:", str)
     @test occursin(
-        "Ambiguity set type: Interval (dense, CuArray{Float64, 2, CUDA.DeviceMemory})",
+        "Ambiguity set type: Interval (dense, $(CuArray{Float64, 2, CUDA.DeviceMemory}))",
         str,
     )
     @test !occursin("Marginal 2:", str)
@@ -122,7 +122,7 @@ end
     @test occursin("Initial states: All states", str)
     @test occursin("Marginal 1:", str)
     @test occursin(
-        "Ambiguity set type: Interval (dense, CuArray{Float64, 2, CUDA.DeviceMemory})",
+        "Ambiguity set type: Interval (dense, $(CuArray{Float64, 2, CUDA.DeviceMemory}))",
         str,
     )
     @test occursin("Marginal 2:", str)

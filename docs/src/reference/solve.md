@@ -2,6 +2,8 @@
 
 ```@docs
 solve
+IntervalMDP.VerificationSolution
+IntervalMDP.ControlSynthesisSolution
 residual
 num_iterations
 value_function
@@ -14,4 +16,13 @@ TimeVaryingStrategy
 
 ```@docs
 RobustValueIteration
+IntervalValueIteration
+```
+
+### Update sequences
+
+```@docs
+AbstractUpdateSequence
+FullUpdateSequence
+ProductUpdateSequence
 ```
