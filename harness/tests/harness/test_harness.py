@@ -41,6 +41,7 @@ sys.path.insert(0, TOOLS)
 import discover  # noqa: E402
 import gate_sim  # noqa: E402
 import gpu_check  # noqa: E402
+import julia_format  # noqa: E402
 import proof_hygiene  # noqa: E402
 import record_event  # noqa: E402
 import timing_lint  # noqa: E402
@@ -177,6 +178,64 @@ class StaticInstructionTests(unittest.TestCase):
                        "dev_started", "dev_finished", "test_run", "lake build", "record_event.py"):
             self.assertIn(phrase, d, phrase)
         self.assertNotIn("npm", d)
+
+    def test_static_dev_formatting_and_api_docs(self):
+        d = read(".claude/agents/dev.md")
+        for phrase in ("julia_format.py fix", "julia_format.py check", "RESULT: PASS",
+                       "Do **not** run `format(\".\")`", "never a pass",
+                       "API documentation — MANDATORY", "checkdocs = :exports", "docs/src/reference",
+                       "no new** errors", "no public API change"):
+            self.assertIn(phrase, d, phrase)
+
+    def test_static_qe_formatting_and_api_docs(self):
+        q = read(".claude/agents/qe.md")
+        for phrase in ("julia_format.py check", "Never run the formatter in fix mode yourself",
+                       "**never a pass**", "Do not rely on Dev's \"no API change\" claim",
+                       "@docs", "git worktree", "no new `Error`/`Warning` lines",
+                       "`formatting`", "`api_documentation`"):
+            self.assertIn(phrase, q, phrase)
+
+    def test_static_orchestrator_formatting_and_api_docs(self):
+        h = read(".claude/commands/harness.md")
+        for phrase in ("**Base ref**", "julia_format.py fix", "julia_format.py check",
+                       "never `fix`", "`formatting`, `api_documentation`",
+                       "always-on `formatting` and `api_documentation` criteria",
+                       "no public API change", "loop back to Dev"):
+            self.assertIn(phrase, h, phrase)
+
+    def test_julia_format_touched_files_and_version(self):
+        tmp = tempfile.mkdtemp()
+        try:
+            git = lambda *a: subprocess.run(["git", "-C", tmp, *a], check=True, capture_output=True)
+            git("init", "-q")
+            git("config", "user.email", "t@example.com")
+            git("config", "user.name", "t")
+            os.makedirs(os.path.join(tmp, "src"))
+            os.makedirs(os.path.join(tmp, "harness"))
+            for f in ("src/a.jl", "src/b.jl", "README.md"):
+                with open(os.path.join(tmp, f), "w") as fh:
+                    fh.write("x = 1\n")
+            git("add", ".")
+            git("commit", "-qm", "base")
+            with open(os.path.join(tmp, "src/a.jl"), "a") as fh:
+                fh.write("y = 2\n")
+            for f in ("src/new.jl", "harness/fixture.jl", "notes.md"):
+                with open(os.path.join(tmp, f), "w") as fh:
+                    fh.write("z=3\n")
+            os.remove(os.path.join(tmp, "src/b.jl"))
+            # modified + untracked .jl only; deleted, non-Julia and harness/ files excluded
+            self.assertEqual(julia_format.touched_files(tmp, "HEAD"), ["src/a.jl", "src/new.jl"])
+            self.assertEqual(julia_format.formatter_version(tmp), julia_format.DEFAULT_VERSION)
+            os.makedirs(os.path.join(tmp, ".github", "workflows"))
+            with open(os.path.join(tmp, ".github", "workflows", "FormatCheck.yml"), "w") as fh:
+                fh.write('julia -e \'using Pkg; Pkg.add(PackageSpec(name="JuliaFormatter", version="9.9.9"))\'\n')
+            self.assertEqual(julia_format.formatter_version(tmp), "9.9.9")
+            # no touched files: nothing to run, pass without invoking julia
+            self.assertEqual(julia_format.run("check", tmp, [], "9.9.9"), (0, []))
+            # bad base ref is an error, never a pass
+            self.assertEqual(julia_format.main(["check", tmp, "--base", "nosuchref"]), 2)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_static_planner_onboarding_and_extensibility(self):
         p = read(".claude/agents/planner.md")
@@ -649,28 +708,28 @@ class Case6Performance(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Case 7: loop-back, two-cycle maximum, terminal telemetry, Ops-only-after-all-gates
+# Case 7: loop-back, three-cycle maximum, terminal telemetry, Ops-only-after-all-gates
 # ---------------------------------------------------------------------------
 class Case7GateStateMachine(unittest.TestCase):
     def test_case7_max_cycles_matches_docs(self):
-        self.assertEqual(gate_sim.MAX_CYCLES, 2)
-        self.assertIn("At most **2** Dev→gate cycles in total", read(".claude/commands/harness.md"))
-        self.assertIn("Maximum **2** Dev → gate cycles", read("README.md"))
+        self.assertEqual(gate_sim.MAX_CYCLES, 3)
+        self.assertIn("At most **3** Dev→gate cycles in total", read(".claude/commands/harness.md"))
+        self.assertIn("Maximum **3** Dev → gate cycles", read("README.md"))
 
     def test_case7_loopback_then_success(self):
         r = gate_sim.simulate(True, [{"dev": "pass", "verify": "pass", "qe": "fail"},
                                      {"dev": "pass", "verify": "pass", "qe": "pass"}])
         lb = [e for e in r["events"] if e[0] == "loopback"]
         self.assertEqual(len(lb), 1)
-        self.assertEqual(lb[0][1], {"cycle": 2, "from_gate": "qe"})
+        self.assertEqual(lb[0][1], {"cycle": 3, "from_gate": "qe"})
         self.assertIn("↻ [1/4] Dev", r["status"])
         self.assertEqual(r["terminal"], "harness_completed")
 
-    def test_case7_two_cycle_maximum(self):
+    def test_case7_three_cycle_maximum(self):
         always_fail = [{"dev": "pass", "verify": "pass", "qe": "fail"}] * 5
         r = gate_sim.simulate(True, always_fail)
-        self.assertEqual(names(r["events"]).count("dev_started"), 2)
-        self.assertEqual(r["cycles"], 2)
+        self.assertEqual(names(r["events"]).count("dev_started"), 3)
+        self.assertEqual(r["cycles"], 3)
         self.assertEqual(r["terminal"], "harness_failed")
         self.assertIn("exhausted", r["events"][-1][1]["reason"])
 
@@ -685,7 +744,7 @@ class Case7GateStateMachine(unittest.TestCase):
                 terminals = [x for x in n if x in ("harness_completed", "harness_failed")]
                 self.assertEqual(len(terminals), 1, sc)
                 self.assertEqual(n[-1], terminals[0], sc)
-                self.assertLessEqual(n.count("dev_started"), 2)
+                self.assertLessEqual(n.count("dev_started"), 3)
                 if r["ops_ran"]:
                     last = r["cycles"]
                     self.assertTrue(gate_sim.ops_allowed(r["events"], last), sc)
@@ -697,7 +756,7 @@ class Case7GateStateMachine(unittest.TestCase):
                 else:
                     self.assertNotIn("ops_started", n)
                 # QE never starts in a cycle whose verify gate did not pass/skip
-                for cyc in (1, 2):
+                for cyc in (1, 2, 3):
                     v = [e[1]["result"] for e in r["events"] if e[0] == "gate_decision"
                          and e[1]["gate"] == "verify" and e[1]["cycle"] == cyc]
                     qe = [e for e in r["events"] if e[0] == "qe_started" and e[1]["cycle"] == cyc]

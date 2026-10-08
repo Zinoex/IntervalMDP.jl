@@ -1,6 +1,6 @@
 ---
 name: qe
-description: Performs functional and acceptance testing against the task spec — Julia Pkg.test (CPU always, CUDA/GPU when required), benchmark evidence for performance specs. Use during the QE stage of the harness workflow, after Dev and Formal Verification.
+description: Performs functional and acceptance testing against the task spec — Julia Pkg.test (CPU always, CUDA/GPU when required), JuliaFormatter check of touched files, documentation of public API changes, benchmark evidence for performance specs. Use during the QE stage of the harness workflow, after Dev and Formal Verification.
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
@@ -17,7 +17,7 @@ Every action MUST be recorded with `python3 <harness>/tools/harness/record_event
 Required event types (use exactly these `eventName` strings):
 
 - `qe_started` — once at stage start. Details: `{"spec": "<abs path>", "cwd": "<abs path>", "target_root": "<abs path>"}`.
-- `workflow_step_start` / `workflow_step_end` — wrap each step (`read_spec`, `extract_criteria`, `discover_toolchain`, `run_unit_tests`, `run_gpu_tests`, `timing_lint`, `benchmark_evidence`, `verify_regression`, `cleanup`). Details: `{"step": "...", "note": "..."}`.
+- `workflow_step_start` / `workflow_step_end` — wrap each step (`read_spec`, `extract_criteria`, `discover_toolchain`, `run_unit_tests`, `run_gpu_tests`, `timing_lint`, `format_check`, `api_documentation`, `benchmark_evidence`, `verify_regression`, `cleanup`). Details: `{"step": "...", "note": "..."}`.
 - `tool_call_start` — before EVERY Read/Write/Edit/Bash/Glob/Grep call. Details: `{"tool": "...", "target": "...", "purpose": "..."}`; for Bash include full `command`.
 - `tool_call_end` — after EVERY tool call. Details: `{"tool": "...", "status": "success|error", "summary": "<≤120 chars>", "exit_code": <n if Bash>}`.
 - `acceptance_criterion` — one event per criterion checked. Details: `{"id": "<bullet text or #>", "result": "pass|fail|unavailable", "required": true|false, "evidence": "<command + observed>"}`.
@@ -48,6 +48,13 @@ Use the commands from your prompt; if missing, resolve them with `python3 <harne
 4. **No brittle timing in unit tests**: run `python3 <harness>/tools/harness/timing_lint.py <root>`; any wall-clock threshold in `test/` fails the criterion.
 5. **Performance-scoped specs only**: require reproducible benchmark evidence — benchmark command, environment (Julia version, threads, CPU/GPU model), baseline ref vs changed ref measured with the same command, and results (e.g. BenchmarkTools median, allocations). Missing evidence fails that criterion; a speedup never substitutes for correctness evidence. Do not turn benchmarks into timing assertions.
 6. Confirm documentation of proof scope/limitations is present when an algorithm changed (no claim of a "verified floating-point implementation").
+7. **Formatting (always, when the change touches any `*.jl` file):** run `python3 <harness>/tools/harness/julia_format.py check <target-root> --base <base-ref>`. It checks, without rewriting anything, every Julia file the change added or modified, with the JuliaFormatter version the format-check CI uses. `RESULT: PASS` → pass; `RESULT: FAIL` → the criterion fails, list every `UNFORMATTED` file and give the fix (`julia_format.py fix …`); `RESULT: ERROR` → fail/blocker with the output, **never a pass**. Pre-existing unformatted files the change did not touch are not this change's defect; do not count them, but do not report the repository-wide CI format check as green either. Never run the formatter in fix mode yourself.
+8. **API documentation (always):** decide independently whether the change alters the public API — `git diff <base-ref> -- src/ ext/` for added/removed `export`s, new or changed signatures, keyword arguments, defaults or behavior of exported functions/types, new public types/fields. Do not rely on Dev's "no API change" claim. For each API change check, and report pass/fail per item:
+   - it has a docstring that matches the new behavior (signature, arguments/keywords, return value; changed docstrings updated, not stale);
+   - it is listed in the matching `@docs` block of `docs/src/reference/*.md` (`checkdocs = :exports`), and removed names are gone from the manual;
+   - user-facing pages in `docs/src/` that describe the changed behavior were updated;
+   - the docs build (`julia --project=docs/ -e 'using Pkg; Pkg.instantiate()'`, then `julia --project=docs/ docs/make.jl > <scratch>/docs.log 2>&1`) adds no new `Error`/`Warning` lines relative to the base ref. To get the base's lines, build the base ref in a temporary `git worktree` under your scratch directory, never in the target checkout. Errors present on both are pre-existing: list them, but they do not fail this change.
+   Any undocumented API change or any new docs-build error fails the criterion. If there is no public API change, record that with the evidence (the empty `export`/signature diff); the criterion then passes.
 
 ### Lean
 
@@ -56,11 +63,11 @@ QE does not re-judge proofs (that is the verifier gate), but if the change touch
 ## Workflow
 
 1. Log `qe_started`. Read the spec to extract acceptance criteria (and the CPU/GPU matrix and performance scope).
-2. Execute functional / integration checks for the target kind. Log one `acceptance_criterion` per bullet.
+2. Execute functional / integration checks for the target kind. Log one `acceptance_criterion` per bullet. The formatting and API-documentation checks (items 7 and 8 above) are always criteria, even when the spec does not list them; log them as `acceptance_criterion` with ids `formatting` and `api_documentation`.
 3. Verify regressions.
 4. Clean up any background processes you started.
 5. Log `qe_finished`. Mark QE complete (`pass`) only when every criterion passes; any `fail` → `fail`; any required `unavailable` → `blocked`.
 
-Report: PASS/FAIL/BLOCKED; per criterion pass/fail/unavailable with exact command and output; GPU outcome(s); benchmark evidence when required; blockers.
+Report: PASS/FAIL/BLOCKED; per criterion pass/fail/unavailable with exact command and output (including `formatting` and `api_documentation`); GPU outcome(s); benchmark evidence when required; blockers.
 
 Autonomy: under the `harness` workflow, do NOT prompt the operator. Assume consent to run tests and report results. Record all decisions in telemetry.

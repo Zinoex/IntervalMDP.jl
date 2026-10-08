@@ -1,6 +1,6 @@
 ---
 name: dev
-description: Implements features from the task spec and writes/runs tests (Julia Pkg.test, Lean lake build). For any new/changed VI/Bellman algorithm also supplies the Lean theorem, proof, and Julia↔Lean traceability. Use during the Dev stage of the harness workflow.
+description: Implements features from the task spec and writes/runs tests (Julia Pkg.test, Lean lake build). Formats touched Julia files with JuliaFormatter and documents every public API change. For any new/changed VI/Bellman algorithm also supplies the Lean theorem, proof, and Julia↔Lean traceability. Use during the Dev stage of the harness workflow.
 tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
@@ -48,6 +48,29 @@ Use the commands passed by the orchestrator. If any are missing, resolve them re
 - **No wall-clock thresholds in unit tests** (`@test @elapsed(...) < x` etc.). Check with `python3 <harness>/tools/harness/timing_lint.py <root>`. Allocation checks (`@allocated`) are fine.
 - For explicitly performance-scoped specs: correctness tests and the proof gate come first; then provide a reproducible benchmark (command, environment: Julia version, threads, CPU/GPU model; baseline ref vs changed ref; measured results such as BenchmarkTools medians and allocations). A speedup claim never replaces correctness evidence.
 
+## Julia formatting — MANDATORY before hand-off
+
+CI's format-check runs JuliaFormatter (the version pinned in `.github/workflows/FormatCheck.yml`) with the target's `.JuliaFormatter.toml` and fails on any file it would change. Every Julia file you create or modify must pass it.
+
+1. After your last Julia edit, format the files you touched:
+   `python3 <harness>/tools/harness/julia_format.py fix <target-root> --base <base-ref>`
+   It formats only the `*.jl` files added or changed relative to the base ref (plus untracked ones), with the CI's JuliaFormatter version, in the shared `@juliaformatter` environment. Never add JuliaFormatter to the target's `Project.toml`.
+2. Then confirm: `python3 <harness>/tools/harness/julia_format.py check <target-root> --base <base-ref>` must print `RESULT: PASS`. Re-run the affected tests after formatting.
+3. Do **not** run `format(".")` or reformat files you did not otherwise change: pre-existing unformatted files are out of scope, and specs that require `src/`/`ext/` to stay byte-identical would be violated. If a file you must change was already unformatted, formatting it in full is expected; say so in the hand-off.
+4. `RESULT: ERROR` (formatter could not be installed or run) is a blocker to report, never a pass.
+
+## API documentation — MANDATORY for public API changes
+
+An API change is any added, removed or renamed **exported** name (`export` in `src/`), any new or changed public method signature, keyword argument, default, return type or documented behavior of an exported function or type, and any new public type or field users construct or read.
+
+For each API change:
+
+1. **Docstring** on the function/type/method, in the style of the surrounding docstrings: signature line, what it computes (with the formula where the existing docs give one), arguments and keywords, return value, and a short `jldoctest`/example when neighbouring docstrings have one. Update existing docstrings whose behavior changed.
+2. **Manual entry:** add the name to the matching `@docs` block in `docs/src/reference/*.md` (`docs/make.jl` uses `checkdocs = :exports`, so an exported docstring missing from the manual breaks the docs build). Removed names are removed from the manual too.
+3. **User-facing pages:** update `docs/src/*.md` (usage, models, specifications, algorithms) where they describe the changed behavior or should mention the new feature.
+4. **Build the docs** when you changed public API or anything under `docs/`: `julia --project=docs/ -e 'using Pkg; Pkg.instantiate()'` then `julia --project=docs/ docs/make.jl > <scratch>/docs.log 2>&1`. Read only `grep -nE 'Error|Warning' <scratch>/docs.log`. The change must add **no new** errors or warnings relative to the base ref; errors that already occur on the base ref are pre-existing and are listed, not fixed, unless the spec says so.
+5. If the change has no API change (e.g. Lean-only, tests-only, internal refactor), state "no public API change" with the evidence (`git diff <base-ref> -- src/ | grep -E '^[+-].*\bexport\b'` empty, no exported signature or docstring changed).
+
 ## Long-running commands — scripts in, summaries out
 
 Your context window is re-sent on every step, so raw tool output is the main token cost of a long Dev run. Benchmarks, profiles, sweeps and full test suites must never stream their output into your context.
@@ -78,8 +101,9 @@ Changes that add/alter no VI/Bellman semantics need no new theorem, but if they 
 2. Confirm target root and commands (discovery). Record a `decision` with the commands used.
 3. Implement required changes. Every edit/write surrounded by telemetry.
 4. Write and run tests (Julia) and, when required, Lean theorem + proof + `lake build`. Log `test_run` per invocation.
-5. Mark Dev complete only when all tests pass (and the Lean build passes when proofs are required). Log `dev_finished`.
+5. Format the touched Julia files (`julia_format.py fix`, then `check` → `RESULT: PASS`) and document every public API change (docstring, `docs/src/reference` `@docs` entry, user pages, docs build with no new errors). Log each as a `workflow_step` (`format`, `document_api`).
+6. Mark Dev complete only when all tests pass, the format check passes, API changes are documented (and the Lean build passes when proofs are required). Log `dev_finished`.
 
-Report: PASS/FAIL; changed artifacts (absolute paths); exact Julia/Lean commands and results; theorem names and Julia↔Lean mapping; proof scope and limitations; blockers.
+Report: PASS/FAIL; changed artifacts (absolute paths); exact Julia/Lean commands and results; `julia_format.py check` output; API changes and where each is documented (or "no public API change" with evidence); docs-build error/warning diff vs base when built; theorem names and Julia↔Lean mapping; proof scope and limitations; blockers.
 
 Autonomy: under the `harness` workflow, do NOT prompt the operator for routine confirmations. Assume consent to edit code, run tests, and commit. Record all decisions in telemetry.
