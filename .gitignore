@@ -3,17 +3,14 @@
 *.jl.mem
 /Manifest.toml
 /test/Manifest.toml
-/benchmark/Manifest.toml
-/benchmark/imdp/data/
 /docs/Manifest.toml
 /docs/build/
 
 .vscode/
 
-# Agent harness (harness/, .claude/, .mcp.json)
-harness/tools/telemetry-mcp/node_modules/
-harness/tools/telemetry-mcp/telemetry.db
-harness/tools/telemetry-mcp/telemetry.db-journal
+# Agent harness (harness/, .claude/)
+harness/tools/telemetry/telemetry.db
+harness/tools/telemetry/telemetry.db-journal
 harness/tests/harness/fixtures/**/Manifest.toml
 __pycache__/
 *.pyc
@@ -22,3 +19,10 @@ __pycache__/
 
 # Lean proofs (lean/)
 lean/.lake/
+
+# Benchmark outputs (benchmark/): raw data stays local, Markdown summaries are committed
+# (REPORT.md, profiles/*.md, results/*.md). Reference values are regenerated with
+# `run.jl --write-reference --reference-only` from the base ref.
+/benchmark/results/**/*.json
+/benchmark/results/logs/
+/benchmark/reference/

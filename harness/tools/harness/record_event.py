@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
-"""Fallback telemetry recorder (no Node required).
+"""Harness telemetry recorder.
 
-Writes to the SAME SQLite store and schema as tools/telemetry-mcp/telemetry.js:
+Appends one event to the harness SQLite store (created on first use):
     events(id INTEGER PK AUTOINCREMENT, ts TEXT DEFAULT datetime('now'),
            event_name TEXT NOT NULL, details TEXT)
 
-Use only when the `mcp__telemetry__recordTelemetry` MCP tool is unavailable
-(e.g. `node` is not installed). Every row written by this script carries
-`"_recorder": "record_event.py"` in its details so the audit trail shows which
-path produced it.
+Every row carries `"_recorder": "record_event.py"` in its details.
 
 Usage:
     record_event.py <eventName> '<json details>'
 Env:
-    HARNESS_TELEMETRY_DB  override DB path (default: tools/telemetry-mcp/telemetry.db)
+    HARNESS_TELEMETRY_DB  override DB path (default: harness/tools/telemetry/telemetry.db)
 """
 import json
 import os
@@ -21,7 +18,7 @@ import sqlite3
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_DB = os.path.join(HERE, "..", "telemetry-mcp", "telemetry.db")
+DEFAULT_DB = os.path.join(HERE, "..", "telemetry", "telemetry.db")
 
 
 def record(event_name, details, db_path=None):
@@ -33,6 +30,7 @@ def record(event_name, details, db_path=None):
             details = {"raw": details}
     if isinstance(details, dict):
         details.setdefault("_recorder", "record_event.py")
+    os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
     con = sqlite3.connect(db_path)
     try:
         con.execute(

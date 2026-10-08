@@ -3,7 +3,7 @@
 Test names are prefixed with the Test Specification case they cover
 (case1 .. case8, see specs/intervalmdp-harness-update.md) or `static_` /
 `tool_` for cross-cutting checks. Tests that need a tool that is not installed
-(pinned Lean toolchain, node/npm, a functional CUDA GPU) are skipped with a
+(pinned Lean toolchain, a functional CUDA GPU) are skipped with a
 reason starting with "UNAVAILABLE:" -- the runner reports those separately,
 never as PASS.
 
@@ -32,7 +32,7 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))  # the harness/ directory
-# The harness is vendored into a host repo: .claude/ and .mcp.json live one level above harness/.
+# The harness is vendored into a host repo: .claude/ lives one level above harness/.
 PROJECT = os.path.abspath(os.path.join(REPO, ".."))
 FIX = os.path.join(HERE, "fixtures")
 TOOLS = os.path.join(REPO, "tools", "harness")
@@ -49,7 +49,7 @@ THM = "Fixture.bellman_monotone"
 
 
 def read(rel):
-    base = PROJECT if rel.startswith((".claude/", ".mcp.json")) else REPO
+    base = PROJECT if rel.startswith(".claude/") else REPO
     with open(os.path.join(base, rel), encoding="utf-8") as fh:
         return fh.read()
 
@@ -153,14 +153,14 @@ class StaticInstructionTests(unittest.TestCase):
         self.assertIn("tools/harness/discover.py", h)
         self.assertIn("Pkg.test()", h)
         self.assertIn("lake build", h)
-        self.assertIn("No npm, Jest, HTTP server or `curl` for Julia targets", h)
+        self.assertNotIn("npm", h)
         self.assertIn("Precedence", h)
 
     def test_static_verifier_least_privilege(self):
         v = read(".claude/agents/verifier.md")
         tools = re.search(r"^tools:\s*(.+)$", v, re.M).group(1)
         toolset = {t.strip() for t in tools.split(",")}
-        self.assertEqual(toolset, {"Read", "Glob", "Grep", "Bash", "mcp__telemetry__recordTelemetry"})
+        self.assertEqual(toolset, {"Read", "Glob", "Grep", "Bash"})
         for phrase in ("lean-toolchain", "lake build", "#print axioms", "sorry", "admit", "axiom",
                        "Never download, install, update, or switch toolchains",
                        "blocker / fail — never a pass", "never edit", "verify_started", "verify_finished",
@@ -170,12 +170,13 @@ class StaticInstructionTests(unittest.TestCase):
 
     def test_static_dev_rules(self):
         d = read(".claude/agents/dev.md")
-        for phrase in ("Pkg.test()", "Never run npm, Jest, an HTTP server or `curl` for a Julia target",
+        for phrase in ("Pkg.test()",
                        "Lean theorem statement and a complete proof", "Julia↔Lean traceability",
                        "No wall-clock thresholds in unit tests", "verified floating-point implementation",
                        "legacy algorithm without a proof", "MDP, interval MDP, L1-MDP, mixtures, factored",
-                       "npm test", "dev_started", "dev_finished", "test_run", "lake build"):
+                       "dev_started", "dev_finished", "test_run", "lake build", "record_event.py"):
             self.assertIn(phrase, d, phrase)
+        self.assertNotIn("npm", d)
 
     def test_static_planner_onboarding_and_extensibility(self):
         p = read(".claude/agents/planner.md")
@@ -189,7 +190,8 @@ class StaticInstructionTests(unittest.TestCase):
         for phrase in ("Dev → Formal Verification → QE → Ops", "verifier.md", "harness.config.toml",
                        "CPU / GPU matrix", "TEMPLATE-julia-lean.md", "Precedence".lower()):
             self.assertIn(phrase.lower(), r.lower(), phrase)
-        self.assertIn("`specs/goodbye-endpoint.md` is not present", r)
+        for gone in ("Node.js", "npm", "telemetry-mcp", "mcp__telemetry", ".mcp.json"):
+            self.assertNotIn(gone, r, gone)
         t = read("specs/TEMPLATE-julia-lean.md")
         for sec in ("## Objective", "## Commands / Toolchain", "## Julia Behavior & Tests",
                     "## Algorithm ↔ Theorem Mapping", "## Proof Obligations & Limitations", "## Proof Policy",
@@ -201,6 +203,19 @@ class StaticInstructionTests(unittest.TestCase):
         for f in ("harness.config.example.toml",):
             discover.load_toml(os.path.join(REPO, f))  # parses
 
+
+    def test_static_no_node_tooling(self):
+        # The harness is Julia/Lean only: no Node.js MCP server, no Node fixtures, no npm in the agents.
+        self.assertFalse(os.path.exists(os.path.join(PROJECT, ".mcp.json")))
+        self.assertFalse(os.path.exists(os.path.join(REPO, "tools", "telemetry-mcp")))
+        for dirpath, dirnames, filenames in os.walk(REPO):
+            dirnames[:] = [d for d in dirnames if d not in (".lake", "__pycache__")]
+            self.assertNotIn("package.json", filenames, dirpath)
+        for agent in ("dev", "qe", "ops", "verifier", "planner"):
+            a = read(".claude/agents/%s.md" % agent)
+            self.assertNotIn("mcp__telemetry", a, agent)
+            self.assertNotIn("npm", a, agent)
+        self.assertTrue(record_event.DEFAULT_DB.endswith(os.path.join("telemetry", "telemetry.db")))
 
 # ---------------------------------------------------------------------------
 # Case 1: Julia-only non-algorithm change -> Julia command, no npm, no Lean proof
@@ -634,74 +649,15 @@ class Case6Performance(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Case 7: Node sample workflow + telemetry lifecycle intact
+# Case 7: loop-back, two-cycle maximum, terminal telemetry, Ops-only-after-all-gates
 # ---------------------------------------------------------------------------
-class Case7NodeAndTelemetry(unittest.TestCase):
-    def test_case7_node_discovery(self):
-        d = disc(os.path.join(FIX, "node-sample"))
-        self.assertEqual(d.values["kinds"], "node")
-        self.assertEqual(d.values["node.test"], "npm test")
-        self.assertEqual(d.values["node.install"], "npm install")
-        self.assertFalse([k for k in d.values if k.startswith(("julia.", "lean."))])
-
-    def test_case7_node_workflow_retained_in_instructions(self):
-        q = read(".claude/agents/qe.md")
-        for p in ("npm install", "npm test", "npm start", "curl", "server_started", "server_stopped",
-                  "unknown routes still 404"):
-            self.assertIn(p, q, p)
-        self.assertIn("npm test", read(".claude/agents/dev.md"))
-        self.assertIn("Node target", self.h())
-        self.assertTrue(os.path.isfile(os.path.join(REPO, "specs", "hello-world-api.md")))
-
-    def h(self):
-        return read(".claude/commands/harness.md")
-
-    def test_case7_lifecycle_events_retained(self):
-        h = self.h()
-        for ev in ("harness_started", "tool_call_start", "tool_call_end", "delegation_start", "delegation_end",
-                   "dev_started", "dev_finished", "qe_started", "qe_finished", "ops_started", "ops_finished",
-                   "gate_decision", "loopback", "learning_consulted", "harness_completed", "harness_failed"):
-            self.assertIn("`%s`" % ev, h, ev)
-        o = read(".claude/agents/ops.md")
-        for ev in ("git_op", "gh_op", "learning_updated", "LEARNING.md", "gh pr create"):
-            self.assertIn(ev, o)
-
-    def test_case7_telemetry_store_unchanged_and_compatible(self):
-        js = read("tools/telemetry-mcp/telemetry.js")
-        self.assertIn("CREATE TABLE IF NOT EXISTS events", js)
-        self.assertIn("event_name TEXT NOT NULL", js)
-        self.assertIn("name: 'recordTelemetry'", read("tools/telemetry-mcp/index.js"))
-        self.assertEqual(json.loads(read(".mcp.json"))["mcpServers"]["telemetry"]["args"], ["./harness/tools/telemetry-mcp/index.js"])
-        with tempfile.TemporaryDirectory() as tmp:
-            db = os.path.join(tmp, "t.db")
-            record_event.record("verify_started", {"spec": "x"}, db)
-            row = sqlite3.connect(db).execute("select event_name, details, ts from events").fetchone()
-            self.assertEqual(row[0], "verify_started")
-            self.assertEqual(json.loads(row[1])["spec"], "x")
-            self.assertTrue(row[2])
-
-    def test_case7_node_sample_tests(self):
-        """When node/npm exist this is a SMOKE check only: it loads the unchanged
-        telemetry-mcp store module (`require('./tools/telemetry-mcp/telemetry.js')`) to show
-        the Node side still parses/loads. It does NOT run the hello-world sample's
-        `npm install` / `npm test` / server+curl workflow -- that remains QE's job per
-        `.claude/agents/qe.md` (Node targets). Without node/npm it is UNAVAILABLE."""
-        if not (shutil.which("node") and shutil.which("npm")):
-            self.skipTest(unavailable("node/npm") + " -- telemetry-mcp Node load smoke check NOT executed")
-        p = subprocess.run(["node", "-e", "require('./tools/telemetry-mcp/telemetry.js')"], cwd=REPO, capture_output=True, text=True)
-        self.assertEqual(p.returncode, 0, p.stderr)
-
-
-# ---------------------------------------------------------------------------
-# Case 8: loop-back, two-cycle maximum, terminal telemetry, Ops-only-after-all-gates
-# ---------------------------------------------------------------------------
-class Case8GateStateMachine(unittest.TestCase):
-    def test_case8_max_cycles_matches_docs(self):
+class Case7GateStateMachine(unittest.TestCase):
+    def test_case7_max_cycles_matches_docs(self):
         self.assertEqual(gate_sim.MAX_CYCLES, 2)
         self.assertIn("At most **2** Dev→gate cycles in total", read(".claude/commands/harness.md"))
         self.assertIn("Maximum **2** Dev → gate cycles", read("README.md"))
 
-    def test_case8_loopback_then_success(self):
+    def test_case7_loopback_then_success(self):
         r = gate_sim.simulate(True, [{"dev": "pass", "verify": "pass", "qe": "fail"},
                                      {"dev": "pass", "verify": "pass", "qe": "pass"}])
         lb = [e for e in r["events"] if e[0] == "loopback"]
@@ -710,7 +666,7 @@ class Case8GateStateMachine(unittest.TestCase):
         self.assertIn("↻ [1/4] Dev", r["status"])
         self.assertEqual(r["terminal"], "harness_completed")
 
-    def test_case8_two_cycle_maximum(self):
+    def test_case7_two_cycle_maximum(self):
         always_fail = [{"dev": "pass", "verify": "pass", "qe": "fail"}] * 5
         r = gate_sim.simulate(True, always_fail)
         self.assertEqual(names(r["events"]).count("dev_started"), 2)
@@ -718,7 +674,7 @@ class Case8GateStateMachine(unittest.TestCase):
         self.assertEqual(r["terminal"], "harness_failed")
         self.assertIn("exhausted", r["events"][-1][1]["reason"])
 
-    def test_case8_exhaustive_invariants(self):
+    def test_case7_exhaustive_invariants(self):
         outcomes = ["pass", "fail", "blocked"]
         combos = [{"dev": d, "verify": v, "qe": q} for d in outcomes for v in outcomes for q in outcomes]
         scenarios = [[c] for c in combos] + [[a, b] for a in combos for b in combos]
@@ -748,7 +704,7 @@ class Case8GateStateMachine(unittest.TestCase):
                     if qe:
                         self.assertIn(v[0], ("pass", "skip"), sc)
 
-    def test_case8_events_written_to_telemetry_schema(self):
+    def test_case7_events_written_to_telemetry_schema(self):
         with tempfile.TemporaryDirectory() as tmp:
             sc = os.path.join(tmp, "s.json")
             db = os.path.join(tmp, "t.db")
@@ -764,7 +720,7 @@ class Case8GateStateMachine(unittest.TestCase):
             self.assertIn("loopback", rows)
             self.assertNotIn("ops_started", rows)
 
-    def test_case8_ops_failure_is_harness_failed(self):
+    def test_case7_ops_failure_is_harness_failed(self):
         for ops in ("fail", "blocked"):
             r = gate_sim.simulate(True, [{"dev": "pass", "verify": "pass", "qe": "pass"}], ops=ops)
             n = names(r["events"])
@@ -775,7 +731,7 @@ class Case8GateStateMachine(unittest.TestCase):
         self.assertIn("record `ops_finished` with `status: \"fail\"` or `status: \"blocked\"`", h)
         self.assertIn("**never** `harness_completed`", h)
 
-    def test_case8_ops_refuses_and_detects_env(self):
+    def test_case7_ops_refuses_and_detects_env(self):
         o = read(".claude/agents/ops.md")
         self.assertIn("refuse unless every required gate passed", o)
         self.assertIn("not a git repository", o)
@@ -801,7 +757,7 @@ class ToolTests(unittest.TestCase):
         p = subprocess.run([sys.executable, os.path.join(TOOLS, "discover.py"), os.path.join(FIX, "empty")],
                            capture_output=True, text=True)
         self.assertEqual(p.returncode, 2)
-        self.assertIn("blocker=no Julia/Lean/Node project detected", p.stdout)
+        self.assertIn("blocker=no Julia/Lean project detected", p.stdout)
         p = subprocess.run([sys.executable, os.path.join(TOOLS, "discover.py"), "/nonexistent/target"],
                            capture_output=True, text=True)
         self.assertEqual(p.returncode, 2)
