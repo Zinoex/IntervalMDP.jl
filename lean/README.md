@@ -5,8 +5,10 @@ machine-checked proofs about them. It is developed in phases (see
 `harness/specs/lean-proofs/`, shared rules in `common.md`, one spec per sub-phase); the status of every row is tracked in
 `harness/specs/inventory-intervalmdp.md`.
 
-**Current phase: 0** — models with their well-formedness theorems, and the generic
-approximation-soundness lift (A1). No algorithm (O-max, Bellman, VI, IVI) is proved yet.
+**Current phase: 1a** — Phase 0 (models with their well-formedness theorems, and the generic
+approximation-soundness lift A1) plus the index foundations of Phase 1a (1-based conversion,
+column-major linear index, sparse support pairing, O-max sort permutation). No algorithm (O-max,
+Bellman, VI, IVI) is proved yet.
 
 **Proof scope: abstract.** Values are real numbers and the semantics is the dynamic-programming
 recursion. The proofs do not cover floating-point rounding, overflow, CUDA kernels or threaded
@@ -100,10 +102,18 @@ Approx.Sound m W V, Approx.StepSound m T' T, Approx.iter_sound (A1)
 | `Specification` (`prop`, `satisfaction`, `strategy`) | `IntervalMDP.Specification` |
 | conservative approximation | `IntervalMDP.Approx.Sound` (`Approx/Sound.lean`) |
 | repeated `bellman!` in `_value_iteration!` | `IntervalMDP.Approx.iter_sound`, `fixedPoint_sound` (`Approx/Lift.lean`) |
+| 1-based index `i` of a Julia array | `IntervalMDP.Index.toJulia : Fin n → ℕ := (· + 1)`, inverse `ofJulia` on `juliaRange n = 1..n`, `juliaGet V k` = `V[k]` (`Index/Julia.lean`) |
+| `Int32` / `Int` (`Int64`) index arithmetic (wrap-around) | `IntervalMDP.Index.machineInt N x` (= `Int.bmod x (2^N)`), `machineInt_eq_self` under `x < 2^(N-1)` |
+| `CartesianIndex` in `CartesianIndices(dims)` | `IntervalMDP.Index.CartesianIndex dims` (`Index/Linear.lean`) |
+| `LinearIndices(dims)[I]` (column-major) | `IntervalMDP.Index.linear`, `stride`, `linearInt`; `linear_bijective`, `linear_succ_first` |
+| sparse column `gap(ambiguity_set)` (`SparseMatrixCSC` column: `rowvals` = `support`, `nonzeros`) | `IntervalMDP.Index.SparseCol` (`rowval`, `nzval`, CSC invariant as fields), `SparseCol.getindex`, `supportRows` (`Index/Sparse.lean`) |
+| `zip(V[support(ambiguity_set)], nonzeros(gap(ambiguity_set)))` (`state_action_bellman(::SparseIntervalOMaxWorkspace, …)`) | `IntervalMDP.Index.valuesGaps`; `sparse_zip_correct` |
+| `sortperm!(perm, V; rev = upper_bound)` (`bellman_precomputation!`) | `IntervalMDP.Index.SortedPerm` (`V`, `upperBound`), `.perm`, `.order` (`Index/Perm.lean`); `sortedPerm_bijective`, `sortedPerm_fits_int32` |
+| loop of `gap_value(V, gap, budget, perm)` (`src/bellman.jl`) | `IntervalMDP.Index.gapValue` (literal transcription), `visited`, `allocation`; `greedy_visits_once`, `gapValue_eq_sum_allocation` |
 
-Indices: Julia is 1-based, Lean's `Fin n` is 0-based. Concrete examples and factored variable
-values use `Fin` with Julia index `k` ↦ Lean `k - 1`; the formal conversion and the index
-theorems come in Phase 1 (`Index/Julia.lean`).
+Indices: Julia is 1-based, Lean's `Fin n` is 0-based. The conversion is defined once, as
+`Index.toJulia` (`Index/Julia.lean`), and every index theorem is stated through it. Concrete
+examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k - 1`.
 
 ## File map
 
@@ -123,6 +133,10 @@ theorems come in Phase 1 (`Index/Julia.lean`).
 | `IntervalMDPProofs/Models/Examples.lean` | `docIMDP`, `docFIMDP`; `binaryFIMDP` and `FactoredIMDP.productSet_not_convex` |
 | `IntervalMDPProofs/Approx/Sound.lean` | `Approx.Sound`, `Approx.StepSound` |
 | `IntervalMDPProofs/Approx/Lift.lean` | `Approx.iter_sound` (A1), `Approx.fixedPoint_sound` |
+| `IntervalMDPProofs/Index/Julia.lean` | `Index.toJulia`, `juliaRange`, `ofJulia`, `juliaGet`, `machineInt`; round trips, `toJulia_bijOn`, `machineInt_eq_self` |
+| `IntervalMDPProofs/Index/Linear.lean` | `Index.CartesianIndex`, `stride`, `linear`, `linearInt`, `incFirst`; `linear_bijective`, `linear_succ_first` |
+| `IntervalMDPProofs/Index/Sparse.lean` | `Index.SparseCol`, `getindex`, `supportRows`, `valuesGaps`; `sparse_zip_correct` |
+| `IntervalMDPProofs/Index/Perm.lean` | `Index.SortedPerm`, `perm`, `gapValue`, `visited`, `allocation`; `sortedPerm_bijective`, `sortedPerm_fits_int32`, `greedy_visits_once`, `gapValue_eq_sum_allocation` |
 | `AxiomCheck.lean` | `#print axioms` for every mapped theorem |
 | `DocLint.lean` | `#lint only docBlame docBlameThm` |
 

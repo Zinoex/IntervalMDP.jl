@@ -11,6 +11,10 @@ import IntervalMDPProofs.Models.Specification
 import IntervalMDPProofs.Models.Examples
 import IntervalMDPProofs.Approx.Sound
 import IntervalMDPProofs.Approx.Lift
+import IntervalMDPProofs.Index.Julia
+import IntervalMDPProofs.Index.Linear
+import IntervalMDPProofs.Index.Sparse
+import IntervalMDPProofs.Index.Perm
 
 /-!
 # IntervalMDPProofs

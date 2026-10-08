@@ -8,7 +8,7 @@
 - Target root: `/home/fresen/.julia/dev/IntervalMDP`
 - Julia compat: `julia = "1.11"`; Lean root / pinned toolchain: `/home/fresen/.julia/dev/IntervalMDP/lean` / `leanprover/lean4:v4.33.0-rc2` (Mathlib tag `v4.33.0-rc2`)
 - Inventory date: `2026-10-05`
-- Phase completed: **0** (models, well-formedness, A1). Phases 1–6: not started.
+- Phase completed: **0** (models, well-formedness, A1); Phase **1a** (index foundations: linear index, sparse support pairing, sort permutation). Phases 1b–6: not started.
 
 ## Standard limitations (apply to every row)
 
@@ -50,11 +50,11 @@ recursion). Not covered:
 
 | Ph | Index computation | Julia (function — file) | Lean theorem(s) | Status | Scope | Limitations |
 |---|---|---|---|---|---|---|
-| 1 | Column-major linear index | `LinearIndices`, `CartesianIndices` (Base) | `IntervalMDP.Index.linear_bijective`, `IntervalMDP.Index.linear_succ_first` | `none` | — | L2–L4 |
+| 1 | Column-major linear index | `LinearIndices`, `CartesianIndices` (Base), as used for `V[I]` and `FullUpdateSequence` (`src/bellman.jl`, `src/update_sequence.jl`) | `IntervalMDP.Index.linear_bijective` (bijection onto `1..∏ dims`, and the `N`-bit value is exact), `IntervalMDP.Index.linear_succ_first` (first dimension fastest) — `lean/IntervalMDPProofs/Index/Linear.lean` (definition `IntervalMDP.Index.linear`; 1-based conversion `toJulia`, overflow model `machineInt` in `Index/Julia.lean`) | `proved` (Phase 1a) | `abstract` | L1–L6; index bound `∏ dims < 2^(N-1)` is a hypothesis of both theorems (`N = 64` for `Int`, `N = 32` for `Int32` paths) |
 | 1 | Marginal → ambiguity-set column | `sub2ind(::Marginal, …)` — `src/probabilities/Marginal.jl` | `IntervalMDP.Index.marginalSub2ind_eq_linear`, `_bijective`, `_depends_only` | `none` | — | L2–L4 |
 | 1 | Non-factored set lookup | `sub2ind(::IntervalAmbiguitySets, jₐ, jₛ) = jₛ[1]` — `src/probabilities/IntervalAmbiguitySets.jl` | `IntervalMDP.Index.intervalSub2ind_correct` | `none` | — | L2–L4 |
-| 1 | Sparse support pairing | `state_action_bellman(::SparseIntervalOMaxWorkspace, …)` — `src/bellman.jl` | `IntervalMDP.Index.sparse_zip_correct` | `none` | — | L2–L4 |
-| 1 | Sort permutation | `sortperm!(perm, V; rev = upper_bound)` — `src/bellman.jl` | `IntervalMDP.Index.sortedPerm_bijective`, `IntervalMDP.Index.greedy_visits_once` | `none` | — | L1–L4 |
+| 1 | Sparse support pairing | `state_action_bellman(::SparseIntervalOMaxWorkspace, …)` — `src/bellman.jl` | `IntervalMDP.Index.sparse_zip_correct` — `lean/IntervalMDPProofs/Index/Sparse.lean` (structure `IntervalMDP.Index.SparseCol` = CSC column invariant) | `proved` (Phase 1a) | `abstract` | L1–L6; the CSC invariant (strictly increasing, in-range `rowval`, `nzval` aligned) is assumed as structure fields — Julia's `checkprobabilities` does not re-check it (Observation O6); no integer products, so no index bound |
+| 1 | Sort permutation | `sortperm!(perm, V; rev = upper_bound)`, loop of `gap_value(V, gap, budget, perm)` — `src/bellman.jl` | `IntervalMDP.Index.sortedPerm_bijective` (both `rev = true/false`), `IntervalMDP.Index.greedy_visits_once` — `lean/IntervalMDPProofs/Index/Perm.lean` (structure `IntervalMDP.Index.SortedPerm`, loop transcription `gapValue`); supporting `IntervalMDP.Index.sortedPerm_fits_int32` (`n < 2^31`), `IntervalMDP.Index.gapValue_eq_sum_allocation` (early exit does not change the result) | `proved` (Phase 1a) | `abstract` | L1–L6; in particular L1: the early exit `budget <= 0` is exact in `ℝ` (the loop breaks only at budget `0`); in floating point `budget -= p` can leave a residual, so the loop may continue; `perm` is modeled by a stable merge sort (Julia documents `sortperm` as stable; equality with Julia's order on ties is argued, L4) |
 | 2 | Strategy lookup | `CartesianIndex(strategy_cache[jₛ])` — `src/bellman.jl`, `src/strategy_cache.jl` | `IntervalMDP.Index.strategyAction_available` | `none` | — | L2–L4; see Observation O2 |
 | 5 | Factored successor index | `CartesianIndices(num_target.(ambiguity_sets))` — `src/bellman.jl` | `IntervalMDP.Index.factored_successor_eq` | `none` | — | L2–L4 |
 | 6 | Product state | `V[idx, dfa[state, lf[idx]]]`, `selectdim(Vres, ndims(Vres), state)` — `src/bellman.jl` | `IntervalMDP.Index.productIndex_bijective`, `IntervalMDP.Index.product_read_successor` | `none` | — | L2–L4 |
@@ -80,6 +80,8 @@ recursion). Not covered:
 
 ## Findings
 
+- **Phase 1a: no findings.** All five index theorems hold as stated for the Julia behaviour (see
+  Observations O6, O7 for assumptions recorded alongside).
 - **F1 (Phase 0, models — design finding, no Julia defect) — RESOLVED by spec amendment.** The
   ambiguity set of a factored IMDP, `Γ_{s,a} = ⨂ᵢ Γⁱ` (products of marginal distributions;
   `FactoredRobustMarkovDecisionProcess` docstring), is **not convex** in general. The first Phase 0
@@ -120,15 +122,23 @@ recursion). Not covered:
 - **O5.** The Lean factored model assumes `source_dims = state_vars`; Julia's terminal slices
   (`source_dims < state_vars`) are not modeled yet.
 
+- **O6 (Phase 1a).** `sparse_zip_correct` assumes the `SparseMatrixCSC` column invariant (row
+  indices strictly increasing and in range, `nzval` aligned to `rowval`). SparseArrays maintains it
+  for matrices built through its constructors; `checkprobabilities` checks only that `lower` and
+  `gap` have the same `rowvals`, not the invariant itself.
+- **O7 (Phase 1a).** The O-max permutation is a `Vector{Int32}` (`src/workspace.jl`). For
+  `n ≥ 2^31` targets `sortperm!` cannot store the indices (Julia raises `InexactError`, no silent
+  wrap); `sortedPerm_fits_int32` proves the entries fit for `n < 2^31`.
+
 ## Legacy verification gaps
 
-Every algorithm row (1–14), every index row and A2–A8 are `none`: no Lean theorem yet. A task
+Every algorithm row (1–14), A2–A8 and every index row except the three Phase 1a rows (linear index, sparse support pairing, sort permutation; `proved`) are `none`: no Lean theorem yet. A task
 touching one of these must supply its theorem and proof before it can pass the Formal Verification
 gate.
 
 ## Summary
 
 - Algorithms: 14; proved: 0; partial: 0; none: 14.
-- Models: 5 mapped rows proved (M1–M5), including `toSet_convex` and `productSet_not_convex`; approximation: A1 proved, A2–A8 none; indexing: 0 of 8 rows.
+- Models: 5 mapped rows proved (M1–M5), including `toSet_convex` and `productSet_not_convex`; approximation: A1 proved, A2–A8 none; indexing: 3 of 8 rows proved (Phase 1a: linear index, sparse support pairing, sort permutation).
 - Statement: the package is **not** verified. Phase 0 proves only model well-formedness and the
   generic soundness lift, at abstract scope.

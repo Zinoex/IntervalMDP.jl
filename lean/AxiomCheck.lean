@@ -29,3 +29,14 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.ProductProcess.lift_deterministic
 #print axioms IntervalMDP.Examples.pi_not_convex_of_dirac_mem
 #print axioms IntervalMDP.Examples.binaryFIMDP_productSet_not_convex
+-- Phase 1a: index foundations
+#print axioms IntervalMDP.Index.linear_bijective
+#print axioms IntervalMDP.Index.linear_succ_first
+#print axioms IntervalMDP.Index.sparse_zip_correct
+#print axioms IntervalMDP.Index.sortedPerm_bijective
+#print axioms IntervalMDP.Index.greedy_visits_once
+-- Phase 1a: supporting results referenced by the inventory
+#print axioms IntervalMDP.Index.machineInt_eq_self
+#print axioms IntervalMDP.Index.toJulia_bijOn
+#print axioms IntervalMDP.Index.sortedPerm_fits_int32
+#print axioms IntervalMDP.Index.gapValue_eq_sum_allocation
