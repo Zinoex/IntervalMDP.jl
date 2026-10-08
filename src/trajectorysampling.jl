@@ -1213,6 +1213,657 @@ _state_scores(score::LogStateScore, probs, supp, vf, s, a, model, spec, transiti
     _safe_log.(_state_scores(score.inner, probs, supp, vf, s, a, model, spec, transition))
 
 ###################################
+# 4c. Mixed scores g               #
+###################################
+#
+# Every successor score above folds the realized probability into the score,
+# f_S = p·g. The log-score samplers of §4d need `p` and `g` separately, since
+# they weight them differently. `MixedScore` makes `g` explicit and adds the two
+# alternative ways of combining f_greedy and f_explore.
+
+"""
+    MixedScore(beta; greedy = :upper, explore = GapExplore(), mix = :additive, eps = 1e-6)
+
+`f_S(s') = p(s'|s,a)·g(s')`, with the successor weight `g` built from
+
+    f_greedy(s') = U(s'), L(s') or U(s') − L(s')    (`greedy` = :upper | :lower | :gap)
+    f_explore(s') = an [`ExplorationTerm`](@ref)
+
+combined per `mix`:
+
+  * `:additive`   — `g = f_greedy + β·f_explore`. With `greedy = :upper` this is
+    exactly [`ExplorationScore`](@ref).
+  * `:normalized` — `g = f_greedy + β·f_explore / max_{supp(s,a)} f_explore`, so `β`
+    is on the scale of `f_greedy` however small the gaps have become.
+  * `:geometric`  — `log g = (1−β)·log(f_greedy + ε) + β·log(f_explore + ε)`, with
+    `β ∈ [0, 1]`. Both terms are clamped at 0 first.
+
+Under [`Boltzmann`](@ref) it is scored as `p·g`, like the other scores. The
+log-score samplers ([`LogSampler`](@ref)) read `p` and `g` apart.
+"""
+struct MixedScore{E <: ExplorationTerm} <: StateScore
+    greedy::Symbol
+    beta::Float64
+    explore::E
+    mix::Symbol
+    eps::Float64
+
+    function MixedScore(
+        beta::Real;
+        greedy::Symbol = :upper,
+        explore::E = GapExplore(),
+        mix::Symbol = :additive,
+        eps::Real = 1e-6,
+    ) where {E <: ExplorationTerm}
+        greedy in (:upper, :lower, :gap) ||
+            throw(ArgumentError("greedy must be :upper, :lower or :gap, got :$greedy"))
+        mix in (:additive, :normalized, :geometric) || throw(
+            ArgumentError("mix must be :additive, :normalized or :geometric, got :$mix"),
+        )
+        beta >= 0 || throw(ArgumentError("beta must be non-negative, got $beta"))
+        mix == :geometric &&
+            beta > 1 &&
+            throw(ArgumentError("beta must be in [0, 1] for mix = :geometric, got $beta"))
+        eps > 0 || throw(ArgumentError("eps must be positive, got $eps"))
+        return new{E}(greedy, Float64(beta), explore, mix, Float64(eps))
+    end
+end
+
+function _greedy_bound(score::MixedScore)
+    score.greedy == :upper && return Upper
+    score.greedy == :lower && return Lower
+    throw(ArgumentError("MixedScore(greedy = :gap) has no single greedy bound"))
+end
+
+_before_sample!(score::MixedScore, vf) = _before_sample!(score.explore, vf)
+_after_sample!(score::MixedScore, batch, vf) = _after_sample!(score.explore, batch, vf)
+_reset_score!(score::MixedScore) = _reset_score!(score.explore)
+
+function _greedy_values(score::MixedScore, supp, vf)
+    U, L = vec(vf.upper.current), vec(vf.lower.current)
+    score.greedy == :upper && return [Float64(U[i]) for i in supp]
+    score.greedy == :lower && return [Float64(L[i]) for i in supp]
+    return [Float64(U[i]) - Float64(L[i]) for i in supp]
+end
+
+"""
+    _g_values(score, probs, supp, vf, s, a, model, spec, transition) -> Vector{Float64}
+
+The successor weight `g(s')` for every `s'` in `supp`, i.e. `f_S` with the
+realized probability factored out. Explicit for the scores that are built as
+`p·g`. Anything else falls back to `f_S / p`.
+"""
+function _g_values(score::MixedScore, probs, supp, vf, s, a, model, spec, transition)
+    fg = _greedy_values(score, supp, vf)
+    fe = _explore_values(score.explore, supp, vf, model, spec)
+    β = score.beta
+    if score.mix == :additive
+        return fg .+ β .* fe
+    elseif score.mix == :normalized
+        m = isempty(fe) ? 0.0 : maximum(fe)
+        return m > 0 ? fg .+ β .* (fe ./ m) : fg
+    else
+        ε = score.eps
+        return [
+            exp((1 - β) * log(max(x, 0.0) + ε) + β * log(max(y, 0.0) + ε)) for
+            (x, y) in zip(fg, fe)
+        ]
+    end
+end
+
+_g_values(score::GreedyScore, probs, supp, vf, s, a, model, spec, transition) =
+    (Vg = vec(_bound_values(score.bound, vf)); [Float64(Vg[i]) for i in supp])
+
+function _g_values(score::ExplorationScore, probs, supp, vf, s, a, model, spec, transition)
+    Vg = vec(_bound_values(score.bound, vf))
+    x = _explore_values(score.explore, supp, vf, model, spec)
+    return [Float64(Vg[i]) + score.beta * x[n] for (n, i) in enumerate(supp)]
+end
+
+_g_values(score::LogStateScore, probs, supp, vf, s, a, model, spec, transition) = throw(
+    ArgumentError(
+        "a log-score sampler already takes logs; give it the inner score, not a LogStateScore",
+    ),
+)
+
+function _g_values(score::StateScore, probs, supp, vf, s, a, model, spec, transition)
+    f = _state_scores(score, probs, supp, vf, s, a, model, spec, transition)
+    return [f[n] / Float64(probs[i]) for (n, i) in enumerate(supp)]
+end
+
+_state_scores(score::MixedScore, probs, supp, vf) =
+    _state_scores(score, probs, supp, vf, nothing, nothing, nothing, nothing, nothing)
+
+function _state_scores(score::MixedScore, probs, supp, vf, s, a, model, spec, transition)
+    g = _g_values(score, probs, supp, vf, s, a, model, spec, transition)
+    return [Float64(probs[i]) * g[n] for (n, i) in enumerate(supp)]
+end
+
+###################################
+# 4d. Log-score samplers           #
+###################################
+#
+# The Boltzmann draw ∝ exp(p·g / T) is nearly uniform whenever p·g is small
+# compared with T, which on dense abstraction supports is always. The samplers
+# here work on log-scores instead, so the draw is scale-free:
+#
+#   power:   q_T(s') ∝ (p(s')·g(s'))^(1/T)
+#   kl:      q_T(s') ∝  p(s')·g(s')^(1/T)
+#   hybrid:  q_T(s') ∝  p(s')^max(1, 1/T)·g(s')^(1/T)
+#
+# over supp+ = {s' : p(s')·g(s') > 0}. All three are one exponential family,
+# q_λ(i) ∝ exp(b_i + λ·c_i) with λ = 1/T:
+#
+#   power:          b = 0,      c = log p + log g
+#   kl, hybrid T≥1: b = log p,  c = log g
+#   hybrid T<1:     b = 0,      c = log p + log g
+#
+# At T = 1 all three are ∝ p·g. With g = U − L that is BRTDP's draw.
+#
+# In target mode the schedule gives a level ρ ∈ [0, 1] instead of T, and λ is
+# solved per (s, a) so that the draw has a set spread:
+#
+#   power:  H(q_λ)      = ρ·log|supp+|          (ρ = 1 uniform, ρ = 0 argmax)
+#   kl:     KL(q_λ ‖ p̃) = ρ·(−log p̃(s*))       (ρ = 0 is p̃, ρ = 1 is s* = argmax g)
+#
+# with p̃ the realized distribution renormalized onto supp+. Both are monotone in
+# λ (dH/dλ = −λ·Var_q(c), dKL/dλ = λ·Var_q(c)), so the root is unique.
+
+"""
+    LevelSchedule
+
+The number a [`LogSampler`](@ref) draws at, per rollout or per step: a
+temperature `T`, or in target mode the level `ρ ∈ [0, 1]`. Unlike a
+[`TemperatureSchedule`](@ref) it may reach 0, which is argmax in either reading
+(`T = 0`, or `ρ = 0` for a power sampler).
+
+  * [`FixedLevel`](@ref): `x`
+  * [`GapDecayLevel`](@ref): `x_min + (x_max − x_min)·Diff(s₀)^τ`
+  * [`UpdateDecayLevel`](@ref): `max(x_min, x_max·τⁿ)`
+  * [`StateLocalLevel`](@ref): `x_min + (x_max − x_min)·min(1, Diff(s)/Diff(s₀))^τ`,
+    evaluated at every step's current state `s`
+
+A [`TemperatureSchedule`](@ref) is also accepted where a temperature is meant.
+"""
+abstract type LevelSchedule end
+
+"`x` at every draw."
+struct FixedLevel <: LevelSchedule
+    x::Float64
+
+    function FixedLevel(x::Real)
+        x >= 0 || throw(ArgumentError("level must be non-negative, got $x"))
+        return new(Float64(x))
+    end
+end
+
+function _check_band(lo, hi)
+    lo >= 0 || throw(ArgumentError("min must be non-negative, got $lo"))
+    hi >= lo || throw(ArgumentError("max must be at least min = $lo, got $hi"))
+    return nothing
+end
+
+"`x_min + (x_max − x_min)·Diff(s₀)^τ`, resolved once per rollout."
+struct GapDecayLevel <: LevelSchedule
+    lo::Float64
+    hi::Float64
+    tau::Float64
+
+    function GapDecayLevel(lo::Real, hi::Real, tau::Real)
+        _check_band(lo, hi)
+        tau > 0 || throw(ArgumentError("tau must be positive, got $tau"))
+        return new(Float64(lo), Float64(hi), Float64(tau))
+    end
+end
+
+"`max(x_min, x_max·τⁿ)` over the Bellman updates `n` issued so far, resolved once per rollout."
+struct UpdateDecayLevel <: LevelSchedule
+    lo::Float64
+    hi::Float64
+    tau::Float64
+
+    function UpdateDecayLevel(lo::Real, hi::Real, tau::Real)
+        _check_band(lo, hi)
+        0 < tau <= 1 || throw(ArgumentError("tau must be in (0, 1], got $tau"))
+        return new(Float64(lo), Float64(hi), Float64(tau))
+    end
+end
+
+"""
+    StateLocalLevel(x_min, x_max, tau)
+
+`x_min + (x_max − x_min)·min(1, Diff(s)/Diff(s₀))^τ`, evaluated at every step:
+`s` is the rollout's current state and `s₀` the state it started from. A state
+whose gap is as wide as the start's gets `x_max`; one already closed gets
+`x_min`. With `Diff(s₀) = 0` the ratio is 1 for an open `s` and 0 otherwise.
+"""
+struct StateLocalLevel <: LevelSchedule
+    lo::Float64
+    hi::Float64
+    tau::Float64
+
+    function StateLocalLevel(lo::Real, hi::Real, tau::Real)
+        _check_band(lo, hi)
+        tau > 0 || throw(ArgumentError("tau must be positive, got $tau"))
+        return new(Float64(lo), Float64(hi), Float64(tau))
+    end
+end
+
+"""
+    _level(schedule, ctx, diff_s) -> Float64
+
+The level `schedule` gives a draw at a state with gap `diff_s` (clamped to
+`[0, 1]`) in a rollout started in context `ctx`.
+"""
+_level(s::TemperatureSchedule, ctx::TemperatureContext, diff_s) = _temperature(s, ctx)
+_level(s::FixedLevel, ::TemperatureContext, diff_s) = s.x
+_level(s::GapDecayLevel, ctx::TemperatureContext, diff_s) =
+    s.lo + (s.hi - s.lo) * ctx.diff^s.tau
+_level(s::UpdateDecayLevel, ctx::TemperatureContext, diff_s) =
+    max(s.lo, s.hi * s.tau^ctx.n)
+
+function _level(s::StateLocalLevel, ctx::TemperatureContext, diff_s)
+    d = clamp(Float64(diff_s), 0.0, 1.0)
+    r = ctx.diff > 0 ? min(1.0, d / ctx.diff) : (d > 0 ? 1.0 : 0.0)
+    return s.lo + (s.hi - s.lo) * r^s.tau
+end
+
+"""
+    LogForm
+
+How a [`LogSampler`](@ref) combines the realized probability `p` and the
+successor weight `g`: [`PowerForm`](@ref), [`KLForm`](@ref) or
+[`HybridForm`](@ref).
+"""
+abstract type LogForm end
+
+"`q_T ∝ (p·g)^(1/T)`; in target mode `H(q) = ρ·log|supp+|`."
+struct PowerForm <: LogForm end
+
+"`q_T ∝ p·g^(1/T)`; in target mode `KL(q ‖ p̃) = ρ·(−log p̃(s*))`."
+struct KLForm <: LogForm end
+
+"`q_T ∝ p^max(1, 1/T)·g^(1/T)`: `KLForm` for `T ≥ 1`, `PowerForm` below. Temperature mode only."
+struct HybridForm <: LogForm end
+
+"""
+    LogSampler(form, schedule; target = false)
+    PowerSampler(schedule; target = false)
+    KLSampler(schedule; target = false)
+    HybridSampler(schedule)
+
+A successor policy that draws on log-scores (see the section comment above):
+`form` is a [`LogForm`](@ref), `schedule` a [`LevelSchedule`](@ref) (or a
+[`TemperatureSchedule`](@ref), or a number for [`FixedLevel`](@ref)).
+
+With `target = false` the schedule gives the temperature `T`. With
+`target = true` it gives `ρ ∈ [0, 1]` (clamped), and `T` is solved per `(s, a)`
+to hit the form's target spread. `HybridForm` has no target.
+
+Successors are scored by the strategy's `state_score`, through `_g_values`, and
+only the support `supp+ = {s' : g(s') > 0}` is drawn from. An empty `supp+` ends
+the rollout, like a draw with no positive weight does.
+
+`base` is the distribution that plays `p`: `:realized` (the default) is the one the
+rollout realized under the strategy's [`ConcreteTransition`](@ref);
+`:max_adversary` is `p̂ ∝ max(p_U, p_L)` over the union of both supports, with
+`p_U`, `p_L` the O-max distributions against the upper and lower bound in the
+specification's direction. Since `U(s,a) − L(s,a) ≤ Σ_t max(p_U, p_L)(t)·(U − L)(t)`,
+`p̂·(U − L)` covers every successor the gap at `(s, a)` can come from, including
+those only the lower bound's adversary loads. It costs one extra O-max per step.
+
+`PowerSampler` is also an action policy: actions are weighted by
+`f_A(s, a)^(1/T)` (no `p`), and in target mode `H(q) = ρ_a·log|A+(s)|`.
+"""
+struct LogSampler{F <: LogForm, S} <: SelectionPolicy
+    form::F
+    schedule::S
+    target::Bool
+    base::Symbol
+
+    function LogSampler(
+        form::F,
+        schedule::S;
+        target::Bool = false,
+        base::Symbol = :realized,
+    ) where {F <: LogForm, S}
+        base in (:realized, :max_adversary) ||
+            throw(ArgumentError("base must be :realized or :max_adversary, got :$base"))
+        S <: Union{LevelSchedule, TemperatureSchedule} || throw(
+            ArgumentError("schedule must be a LevelSchedule or TemperatureSchedule, got $S"),
+        )
+        target &&
+            form isa HybridForm &&
+            throw(ArgumentError("HybridForm has no target mode; use a temperature schedule"))
+        target &&
+            schedule isa TemperatureSchedule &&
+            throw(ArgumentError("target mode needs a LevelSchedule (ρ may reach 0)"))
+        return new{F, S}(form, schedule, target, base)
+    end
+end
+
+LogSampler(form::LogForm, x::Real; kwargs...) = LogSampler(form, FixedLevel(x); kwargs...)
+
+PowerSampler(schedule; kwargs...) = LogSampler(PowerForm(), schedule; kwargs...)
+KLSampler(schedule; kwargs...) = LogSampler(KLForm(), schedule; kwargs...)
+HybridSampler(schedule; base::Symbol = :realized) =
+    LogSampler(HybridForm(), schedule; base)
+
+"""
+    ResolvedLogSampler
+
+A [`LogSampler`](@ref) bound to the [`TemperatureContext`](@ref) of one rollout.
+The level itself is only read at the draw, since [`StateLocalLevel`](@ref)
+depends on the state the rollout is standing on.
+"""
+struct ResolvedLogSampler{F <: LogForm, S} <: SelectionPolicy
+    form::F
+    schedule::S
+    target::Bool
+    base::Symbol
+    ctx::TemperatureContext
+end
+
+_resolve_policy(p::LogSampler, ctx::TemperatureContext) =
+    ResolvedLogSampler(p.form, p.schedule, p.target, p.base, ctx)
+
+"""
+    _max_adversary_distribution(probs, s, a, vf, model, spec, transition) -> p̂
+
+`max(p_U, p_L)` elementwise (unnormalized; `_log_candidates` renormalizes), with
+`p_U`, `p_L` the O-max distributions of `(s, a)` against the upper and lower bound
+in the specification's adversary direction. `probs`, already realized under
+`transition`, is reused for whichever of the two it equals.
+"""
+function _max_adversary_distribution(probs, s, a, vf, model, spec, transition)
+    dir = _isoptimistic(spec)
+    as = _omax_marginal(model)[a, s]
+    same_dir = _adversary_direction(transition.adversary, spec) == dir
+    pU = same_dir && transition.bound == Upper ? probs :
+         _omax_distribution(as, vf.upper.current, dir)
+    pL = same_dir && transition.bound == Lower ? probs :
+         _omax_distribution(as, vf.lower.current, dir)
+    return max.(pU, pL)
+end
+
+_select(policy::LogSampler, candidates, scores) = throw(
+    ArgumentError(
+        "a LogSampler has no level until it is resolved against a rollout (`_resolve_policy`)",
+    ),
+)
+
+"""
+    _tilt!(q, b, c, λ) -> q
+
+`q_i ∝ exp(b_i + λ·c_i)`, normalized, for `λ ∈ [0, Inf]`. `λ = Inf` puts all
+mass on the maximizers of `c`, split in proportion to `exp(b)`.
+"""
+function _tilt!(q, b, c, λ)
+    if isinf(λ)
+        cmax = maximum(c)
+        bmax = maximum(b[i] for i in eachindex(c) if c[i] == cmax)
+        for i in eachindex(q)
+            q[i] = c[i] == cmax ? exp(b[i] - bmax) : 0.0
+        end
+    else
+        m = -Inf
+        for i in eachindex(q)
+            q[i] = b[i] + λ * c[i]
+            m = max(m, q[i])
+        end
+        for i in eachindex(q)
+            q[i] = exp(q[i] - m)
+        end
+    end
+    q ./= sum(q)
+    return q
+end
+
+_xlogx(x) = x > 0 ? x * log(x) : 0.0
+
+"`H(q)` and `Var_q(c)`."
+function _entropy_var(q, c)
+    H = 0.0
+    m1 = 0.0
+    for i in eachindex(q)
+        H -= _xlogx(q[i])
+        m1 += q[i] * c[i]
+    end
+    v = 0.0
+    for i in eachindex(q)
+        q[i] > 0 && (v += q[i] * (c[i] - m1)^2)
+    end
+    return H, v
+end
+
+"`KL(q ‖ exp(logp))` and `Var_q(c)`; `logp` normalized."
+function _kl_var(q, logp, c)
+    kl = 0.0
+    m1 = 0.0
+    for i in eachindex(q)
+        q[i] > 0 || continue
+        kl += q[i] * (log(q[i]) - logp[i])
+        m1 += q[i] * c[i]
+    end
+    v = 0.0
+    for i in eachindex(q)
+        q[i] > 0 && (v += q[i] * (c[i] - m1)^2)
+    end
+    return max(kl, 0.0), v
+end
+
+"""
+    _solve_lambda(f, target, lim, increasing; rtol = 1e-3) -> Float64
+
+The `λ ∈ [0, Inf]` at which the monotone `f(λ) -> (value, dvalue)` reaches
+`target`, by safeguarded Newton inside an expanding bracket. `f(0)` and the
+limit `lim = f(Inf)` decide the two ends: a target at or beyond either is met
+there. The tolerance is relative to `|lim − f(0)|`, i.e. to the range `ρ` spans.
+"""
+function _solve_lambda(f, target, lim, increasing::Bool; rtol = 1e-3, maxiter = 100)
+    v0, _ = f(0.0)
+    σ = increasing ? 1.0 : -1.0
+    # h(λ) = σ·(f(λ) − target) is increasing in λ.
+    σ * (v0 - target) >= 0 && return 0.0
+    σ * (lim - target) <= 0 && return Inf
+    tol = rtol * abs(lim - v0)
+
+    lo, hi = 0.0, 1.0
+    vhi, _ = f(hi)
+    while σ * (vhi - target) < 0
+        lo = hi
+        hi *= 4
+        hi > 1e12 && return Inf
+        vhi, _ = f(hi)
+    end
+
+    λ = (lo + hi) / 2
+    for _ in 1:maxiter
+        v, dv = f(λ)
+        h = σ * (v - target)
+        abs(h) <= tol && return λ
+        h < 0 ? (lo = λ) : (hi = λ)
+        dh = σ * dv
+        step = dh > 0 ? λ - h / dh : NaN
+        λ = (isfinite(step) && lo < step < hi) ? step : (lo + hi) / 2
+    end
+    return λ
+end
+
+"""
+    _log_distribution(form, level, target, logp, logg) -> (q, λ)
+
+The draw distribution over `supp+`, given the realized log-probabilities `logp`
+(normalized onto `supp+`) and log-weights `logg`, parallel. `level` is `T`, or
+`ρ` in target mode. Returns `q` and the `λ = 1/T` it was drawn at.
+"""
+function _log_distribution(form::LogForm, level, target::Bool, logp, logg)
+    n = length(logp)
+    q = similar(logp)
+    if n == 1
+        q[1] = 1.0
+        return q, 1.0
+    end
+
+    if !target
+        λ = level > 0 ? 1 / level : Inf
+        if form isa PowerForm || (form isa HybridForm && λ > 1)
+            b, c = zero(logp), logp .+ logg
+        else
+            b, c = logp, logg
+        end
+        return _tilt!(q, b, c, λ), λ
+    end
+
+    ρ = clamp(Float64(level), 0.0, 1.0)
+    if form isa PowerForm
+        b, c = zero(logp), logp .+ logg
+        cmax = maximum(c)
+        nties = count(==(cmax), c)
+        f = λ -> begin
+            _tilt!(q, b, c, λ)
+            H, v = _entropy_var(q, c)
+            (H, -λ * v)
+        end
+        λ = _solve_lambda(f, ρ * log(n), log(nties), false)
+    else   # KLForm
+        b, c = logp, logg
+        cmax = maximum(c)
+        star = argmax(c)
+        lim = -log(sum(exp(logp[i]) for i in eachindex(c) if c[i] == cmax))
+        f = λ -> begin
+            _tilt!(q, b, c, λ)
+            kl, v = _kl_var(q, logp, c)
+            (kl, λ * v)
+        end
+        λ = _solve_lambda(f, ρ * -logp[star], lim, true)
+    end
+    return _tilt!(q, b, c, λ), λ
+end
+
+"""
+    _log_candidates(probs, supp, g) -> (keep, logp, logg)
+
+`supp+`, as positions into `supp`, with the realized distribution renormalized
+onto it (`logp`) and the log-weights (`logg`). `probs === nothing` means a
+uniform base (the action draw).
+"""
+function _log_candidates(probs, supp, g)
+    keep = Int[]
+    for n in eachindex(g)
+        g[n] > 0 && (probs === nothing || probs[supp[n]] > 0) && push!(keep, n)
+    end
+    isempty(keep) && return keep, Float64[], Float64[]
+    logg = [log(Float64(g[n])) for n in keep]
+    logp = if probs === nothing
+        fill(-log(length(keep)), length(keep))
+    else
+        lp = [log(Float64(probs[supp[n]])) for n in keep]
+        lp .-= _logsumexp(lp)
+    end
+    return keep, logp, logg
+end
+
+function _logsumexp(x)
+    m = maximum(x)
+    return m + log(sum(exp(xi - m) for xi in x))
+end
+
+"""
+    _log_draw(policy, probs, supp, g, diff_s) -> Union{Int, Nothing}
+
+Draw a position into `supp` under the resolved log sampler `policy`, or
+`nothing` if no candidate carries positive weight. Records the draw if
+[`DrawStats`](@ref) collection is on.
+"""
+function _log_draw(policy::ResolvedLogSampler, probs, supp, g, diff_s)
+    keep, logp, logg = _log_candidates(probs, supp, g)
+    isempty(keep) && return nothing
+    level = _level(policy.schedule, policy.ctx, diff_s)
+    q, λ = _log_distribution(policy.form, level, policy.target, logp, logg)
+    i = _categorical_sample(q)
+    i === nothing && return nothing
+    _record_draw!(probs, supp, keep, q, g, λ)
+    return keep[i]
+end
+
+###################################
+# 4e. Draw diagnostics             #
+###################################
+
+"""
+    DrawStats()
+
+Running statistics of the successor draws, collected while
+`TrajectorySampling._DRAW_STATS[]` holds one (it is `nothing`, i.e. off, by
+default). Per draw, over the full support `supp` of the realized `p`:
+
+  * `hnorm` — `H(q)/log|supp|`, the normalized entropy of the draw (1 = uniform)
+  * `kl`    — `KL(q ‖ p)`
+  * `qstar` — `q(argmax g)`, the mass on the best-weighted successor
+  * `loglam` — `log10 λ`, for the log samplers (`λ = 1/T`); finite draws only
+
+Diagnostic only: computing `q` for a Boltzmann draw repeats its work.
+"""
+mutable struct DrawStats
+    n::Int
+    nsupp::Float64
+    hnorm::Float64
+    kl::Float64
+    qstar::Float64
+    nlam::Int
+    loglam::Float64
+end
+
+DrawStats() = DrawStats(0, 0.0, 0.0, 0.0, 0.0, 0, 0.0)
+
+const _DRAW_STATS = Ref{Union{Nothing, DrawStats}}(nothing)
+
+function _record!(st::DrawStats, p, q, g, λ)
+    n = length(p)
+    st.n += 1
+    st.nsupp += n
+    n > 1 && (st.hnorm += -sum(_xlogx, q) / log(n))
+    kl = 0.0
+    for i in eachindex(q)
+        q[i] > 0 && (kl += q[i] * (log(q[i]) - log(p[i])))
+    end
+    st.kl += kl
+    st.qstar += q[argmax(g)]
+    if λ !== nothing && isfinite(λ) && λ > 0
+        st.nlam += 1
+        st.loglam += log10(λ)
+    end
+    return nothing
+end
+
+# A log sampler's draw, spread back over the full support.
+function _record_draw!(probs, supp, keep, qkeep, g, λ)
+    st = _DRAW_STATS[]
+    (st === nothing || probs === nothing) && return nothing
+    p = [Float64(probs[i]) for i in supp]
+    p ./= sum(p)
+    q = zeros(length(supp))
+    q[keep] .= qkeep
+    _record!(st, p, q, g, λ)
+    return nothing
+end
+
+# A Boltzmann draw over scores `f`.
+function _record_boltzmann!(probs, supp, f, g, T)
+    st = _DRAW_STATS[]
+    st === nothing && return nothing
+    p = [Float64(probs[i]) for i in supp]
+    p ./= sum(p)
+    m = maximum(f)
+    isfinite(m) || return nothing
+    q = [exp((x - m) / T) for x in f]
+    q ./= sum(q)
+    _record!(st, p, q, g, 1 / T)
+    return nothing
+end
+
+###################################
 # 5. Termination rules             #
 ###################################
 
@@ -1480,6 +2131,12 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
         reverse::Bool = true,
     )
         rules = collect(TerminationRule, terminate)
+        action_policy isa LogSampler &&
+            !(action_policy.form isa PowerForm) &&
+            throw(ArgumentError("only the power form applies to actions (there is no p)"))
+        action_policy isa LogSampler &&
+            action_score isa LogScore &&
+            throw(ArgumentError("a LogSampler takes logs itself; pass the inner action score"))
         gauss_seidel &&
             k < 1 &&
             throw(ArgumentError("k must be positive when gauss_seidel = true, got $k"))
@@ -1575,6 +2232,12 @@ function _sample_action(
     scores = [
         _action_score(ss.action_score, marginal[a, s], U, L, dir; maximize) for a in actions
     ]
+    if policy isa ResolvedLogSampler
+        # Weights f_A^(1/T) over the actions with positive score; none positive
+        # leaves nothing to prefer, so fall back to uniform as `_select` does.
+        n = _log_draw(policy, nothing, eachindex(actions), scores, _state_diff(vf, s))
+        return n === nothing ? rand(actions) : actions[n]
+    end
     return _select(policy, actions, scores)
 end
 
@@ -1608,8 +2271,17 @@ function _sample_state(
     spec,
     policy::SelectionPolicy = ss.state_policy,
 )
+    if policy isa ResolvedLogSampler && policy.base == :max_adversary
+        probs = _max_adversary_distribution(probs, s, a, vf, model, spec, ss.transition)
+    end
     supp = [i for i in eachindex(probs) if probs[i] > zero(eltype(probs))]
     isempty(supp) && return nothing
+
+    if policy isa ResolvedLogSampler
+        g = _g_values(ss.state_score, probs, supp, vf, s, a, model, spec, ss.transition)
+        n = _log_draw(policy, probs, supp, g, _state_diff(vf, s))
+        return n === nothing ? nothing : _maybe_target_state(model, supp[n])
+    end
 
     if policy isa EpsilonGreedy
         Vg = vec(_bound_values(_greedy_bound(ss.state_score), vf))
@@ -1617,10 +2289,16 @@ function _sample_state(
     else
         scores =
             _state_scores(ss.state_score, probs, supp, vf, s, a, model, spec, ss.transition)
+        if _DRAW_STATS[] !== nothing && policy isa Boltzmann{FixedTemperature}
+            g = _g_values(ss.state_score, probs, supp, vf, s, a, model, spec, ss.transition)
+            _record_boltzmann!(probs, supp, scores, g, policy.T.t)
+        end
     end
 
     return _maybe_target_state(model, _select(policy, supp, scores))
 end
+
+_state_diff(vf, s) = Float64(vf.upper.current[s]) - Float64(vf.lower.current[s])
 
 """
     _sample_trajectory(ss, model, value_function, spec) -> Vector{<:CartesianIndex}

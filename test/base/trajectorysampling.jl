@@ -1442,3 +1442,172 @@ end
         @test IntervalMDP.checkstrategy(strategy(sol), implicit_mdp) === nothing
     end
 end
+
+@testitem "TrajectorySampling: log-score samplers and target levels" tags =
+    [:base, :trajectory_sampling, :trajectory_log_samplers] begin
+    using IntervalMDP
+    const TS = IntervalMDP.TrajectorySampling
+
+    p = [0.5, 0.2, 0.2, 0.1]
+    g = [0.1, 0.4, 0.05, 0.9]
+    logp, logg = log.(p), log.(g)
+    H(q) = -sum(x -> x > 0 ? x * log(x) : 0.0, q)
+    KL(q, lp) = sum(q[i] > 0 ? q[i] * (log(q[i]) - lp[i]) : 0.0 for i in eachindex(q))
+
+    @testset "constructor validation" begin
+        @test_throws ArgumentError TS.LogSampler(TS.HybridForm(), 1.0; target = true)
+        @test_throws ArgumentError TS.PowerSampler(TS.FixedTemperature(0.5); target = true)
+        @test_throws ArgumentError TS.FixedLevel(-0.1)
+        @test_throws ArgumentError TS.GapDecayLevel(0.5, 0.1, 1.0)
+        @test_throws ArgumentError TS.UpdateDecayLevel(0.0, 1.0, 1.5)
+        @test_throws ArgumentError TS.MixedScore(2.0; mix = :geometric)
+        @test_throws ArgumentError TS.MixedScore(1.0; greedy = :middle)
+        @test_throws ArgumentError TS.TrajectorySampling(; action_policy = TS.KLSampler(1.0))
+        @test_throws ArgumentError TS.PowerSampler(1.0; base = :lower)
+    end
+
+    @testset "T = 1: power, kl and hybrid all draw ∝ p·g" begin
+        w = p .* g ./ sum(p .* g)
+        for F in (TS.PowerForm(), TS.KLForm(), TS.HybridForm())
+            q, λ = TS._log_distribution(F, 1.0, false, logp, logg)
+            @test q ≈ w
+            @test λ == 1.0
+        end
+    end
+
+    @testset "fixed T: the three forms" begin
+        T = 0.5
+        pw = (p .* g) .^ (1 / T); pw ./= sum(pw)
+        kl = p .* g .^ (1 / T); kl ./= sum(kl)
+        @test TS._log_distribution(TS.PowerForm(), T, false, logp, logg)[1] ≈ pw
+        @test TS._log_distribution(TS.KLForm(), T, false, logp, logg)[1] ≈ kl
+        @test TS._log_distribution(TS.HybridForm(), T, false, logp, logg)[1] ≈ pw   # T < 1
+        T = 2.0
+        kl = p .* g .^ (1 / T); kl ./= sum(kl)
+        @test TS._log_distribution(TS.HybridForm(), T, false, logp, logg)[1] ≈ kl   # T ≥ 1
+        # T = 0 is argmax: of p·g = [.05, .08, .01, .09] for power, of g for kl.
+        @test TS._log_distribution(TS.PowerForm(), 0.0, false, logp, logg)[1] == [0, 0, 0, 1]
+        @test TS._log_distribution(TS.KLForm(), 0.0, false, logp, logg)[1] == [0, 0, 0, 1]
+        g2 = log.([0.1, 0.4, 0.05, 0.7])   # p·g = [.05, .08, .01, .07]: they now differ
+        @test TS._log_distribution(TS.PowerForm(), 0.0, false, logp, g2)[1] == [0, 1, 0, 0]
+        @test TS._log_distribution(TS.KLForm(), 0.0, false, logp, g2)[1] == [0, 0, 0, 1]
+    end
+
+    @testset "target entropy (power) and target KL (kl) hit ρ" begin
+        for ρ in (0.05, 0.3, 0.7, 0.95)
+            q, _ = TS._log_distribution(TS.PowerForm(), ρ, true, logp, logg)
+            @test H(q) / log(4) ≈ ρ atol = 2e-3
+            q, _ = TS._log_distribution(TS.KLForm(), ρ, true, logp, logg)
+            @test KL(q, logp) / -logp[4] ≈ ρ atol = 2e-3
+        end
+        # The ends: ρ = 1 is uniform / argmax g, ρ = 0 is argmax p·g / p itself.
+        @test TS._log_distribution(TS.PowerForm(), 1.0, true, logp, logg)[1] ≈ fill(0.25, 4)
+        @test TS._log_distribution(TS.PowerForm(), 0.0, true, logp, logg)[1] == [0, 0, 0, 1]
+        @test TS._log_distribution(TS.KLForm(), 0.0, true, logp, logg)[1] ≈ p
+        @test TS._log_distribution(TS.KLForm(), 1.0, true, logp, logg)[1] == [0, 0, 0, 1]
+        # Monotone: the solved λ grows as ρ falls (power) and as ρ rises (kl).
+        λp = [TS._log_distribution(TS.PowerForm(), ρ, true, logp, logg)[2] for ρ in 0.1:0.2:0.9]
+        λk = [TS._log_distribution(TS.KLForm(), ρ, true, logp, logg)[2] for ρ in 0.1:0.2:0.9]
+        @test issorted(λp; rev = true)
+        @test issorted(λk)
+        # Flat c: every λ gives the same q, so any target returns without error.
+        q, _ = TS._log_distribution(TS.PowerForm(), 0.5, true, fill(log(0.25), 4), zeros(4))
+        @test q ≈ fill(0.25, 4)
+    end
+
+    @testset "supp+: zero weights are never drawn; none positive ends the draw" begin
+        ctx = TS.TemperatureContext(0.5, 0)
+        pol = TS._resolve_policy(TS.PowerSampler(1.0), ctx)
+        probs = [0.0, 0.5, 0.3, 0.2]
+        supp = [2, 3, 4]
+        @test all(_ -> TS._log_draw(pol, probs, supp, [0.0, 1.0, 0.0], 0.5) == 2, 1:50)
+        @test TS._log_draw(pol, probs, supp, [0.0, 0.0, 0.0], 0.5) === nothing
+    end
+
+    @testset "level schedules" begin
+        ctx = TS.TemperatureContext(0.5, 10)
+        @test TS._level(TS.FixedLevel(0.3), ctx, 0.1) == 0.3
+        @test TS._level(TS.GapDecayLevel(0.1, 0.9, 1.0), ctx, 0.0) ≈ 0.5
+        @test TS._level(TS.UpdateDecayLevel(0.0, 1.0, 0.5), ctx, 0.0) ≈ 0.5^10
+        sl = TS.StateLocalLevel(0.1, 0.9, 1.0)
+        @test TS._level(sl, ctx, 0.25) ≈ 0.5      # Diff(s)/Diff(s0) = 0.5
+        @test TS._level(sl, ctx, 0.8) ≈ 0.9       # capped at 1
+        @test TS._level(sl, TS.TemperatureContext(0.0, 0), 0.2) ≈ 0.9
+        @test TS._level(sl, TS.TemperatureContext(0.0, 0), 0.0) ≈ 0.1
+        # A temperature schedule is a level too.
+        @test TS._level(TS.FixedTemperature(0.7), ctx, 0.0) == 0.7
+    end
+
+    @testset "MixedScore" begin
+        vf = (upper = (current = [0.8, 0.3, 1.0],), lower = (current = [0.2, 0.25, 1.0],))
+        probs = [0.3, 0.4, 0.3]
+        supp = [1, 2, 3]
+        args = (probs, supp, vf, nothing, nothing, nothing, nothing, nothing)
+        U, L = [0.8, 0.3, 1.0], [0.2, 0.25, 1.0]
+        gap = U .- L
+
+        # additive on U is ExplorationScore, bit for bit
+        @test TS._state_scores(TS.MixedScore(1.0), args...) ==
+              TS._state_scores(TS.ExplorationScore(1.0), args...)
+        @test TS._g_values(TS.MixedScore(0.0; greedy = :gap), args...) ≈ gap
+        @test TS._g_values(TS.MixedScore(1.0; mix = :normalized), args...) ≈
+              U .+ gap ./ maximum(gap)
+        ε = 1e-6
+        @test TS._g_values(TS.MixedScore(0.5; mix = :geometric, eps = ε), args...) ≈
+              sqrt.((U .+ ε) .* (gap .+ ε))
+        # The generic fallback recovers g from f_S = p·g.
+        @test TS._g_values(TS.ExplorationScore(1.0), args...) ≈ U .+ gap
+    end
+end
+
+@testitem "TrajectorySampling: log-score samplers solve to the RVI value" tags =
+    [:base, :trajectory_sampling, :trajectory_solve] begin
+    using IntervalMDP
+    const TS = IntervalMDP.TrajectorySampling
+
+    N = Float64
+    prob = IntervalAmbiguitySets(;
+        lower = N[0 1//2 0; 1//10 3//10 0; 1//5 1//10 1],
+        upper = N[1//2 7//10 0; 3//5 1//2 0; 7//10 3//10 1],
+    )
+    prob2 = IntervalAmbiguitySets(;
+        lower = N[1//10 1//5 0; 1//5 1//5 0; 3//10 2//5 1],
+        upper = N[1//2 1//2 0; 1//2 2//5 0; 2//5 2//5 1],
+    )
+    mdp = IntervalMarkovDecisionProcess([prob, prob2, prob2], [1])
+    eps = 1e-6
+    spec = Specification(InfiniteTimeReachability([3], eps), Pessimistic, Maximize)
+    problem = VerificationProblem(mdp, spec)
+    V_rvi, _, _ = solve(problem, RobustValueIteration(default_bellman_algorithm(mdp)))
+
+    gap_score = TS.MixedScore(0.0; greedy = :gap)
+    strategies = [
+        "power T=1 (BRTDP)" => TS.TrajectorySampling(;
+            state_policy = TS.PowerSampler(1.0), state_score = gap_score),
+        "kl T=0.5" => TS.TrajectorySampling(;
+            state_policy = TS.KLSampler(0.5), state_score = TS.ExplorationScore(1.0)),
+        "hybrid gap-decay" => TS.TrajectorySampling(;
+            state_policy = TS.HybridSampler(TS.GapDecayLevel(0.5, 2.0, 1.0)),
+            state_score = TS.MixedScore(1.0; mix = :normalized)),
+        "power target, state-local ρ" => TS.TrajectorySampling(;
+            state_policy = TS.PowerSampler(TS.StateLocalLevel(0.3, 0.9, 1.0); target = true),
+            state_score = TS.MixedScore(0.5; mix = :geometric), gauss_seidel = true, k = 1),
+        "kl target, gap-decay ρ" => TS.TrajectorySampling(;
+            state_policy = TS.KLSampler(TS.GapDecayLevel(0.1, 0.8, 1.0); target = true),
+            state_score = TS.ExplorationScore(1.0)),
+        "power T=1, max-adversary base" => TS.TrajectorySampling(;
+            state_policy = TS.PowerSampler(1.0; base = :max_adversary), state_score = gap_score),
+        "kl target, max-adversary base" => TS.TrajectorySampling(;
+            state_policy = TS.KLSampler(TS.FixedLevel(0.3); target = true, base = :max_adversary),
+            state_score = TS.MixedScore(0.5; mix = :geometric)),
+        "power target on actions" => TS.TrajectorySampling(;
+            action_policy = TS.PowerSampler(TS.UpdateDecayLevel(0.0, 1.0, 0.99); target = true),
+            state_policy = TS.PowerSampler(1.0), state_score = gap_score),
+    ]
+    @testset "$name" for (name, ss) in strategies
+        alg = GeneralizedSamplingbasedRobustDynamicProgramming(
+            default_bellman_algorithm(mdp); sampling_strategy = ss)
+        V, _, _ = solve(problem, alg)
+        @test V ≈ V_rvi atol = 10eps
+    end
+end
