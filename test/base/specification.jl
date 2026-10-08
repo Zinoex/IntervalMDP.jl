@@ -300,8 +300,7 @@ end
 end
 
 # Time horizon must be a positive integer
-@testitem "base/specification: errors — time horizon" setup =
-    [BaseSpecificationModels] begin
+@testitem "base/specification: errors — time horizon" setup = [BaseSpecificationModels] begin
     mc = BaseSpecificationModels.mc
     tv_strat = BaseSpecificationModels.tv_strat
     prod_proc = BaseSpecificationModels.prod_proc
@@ -797,8 +796,7 @@ end
     end
 end
 
-@testitem "base/specification: errors — reward discount" setup =
-    [BaseSpecificationModels] begin
+@testitem "base/specification: errors — reward discount" setup = [BaseSpecificationModels] begin
     mc = BaseSpecificationModels.mc
 
     # Reward discount factor must be in the range (0, ∞) for finite time properties
@@ -821,8 +819,7 @@ end
 end
 
 # Reward shape
-@testitem "base/specification: errors — reward shape" setup =
-    [BaseSpecificationModels] begin
+@testitem "base/specification: errors — reward shape" setup = [BaseSpecificationModels] begin
     mc = BaseSpecificationModels.mc
 
     prop = FiniteTimeReward([1.0, 2.0], 0.9, 10)

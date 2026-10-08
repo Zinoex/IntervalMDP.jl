@@ -21,9 +21,21 @@ const FACTORED_ALGS = Dict(
     "vertex" => VertexEnumeration(),
 )
 
-function fimdp_case(; nvars, nvals, a, support = nothing, alg = "omax", suites, solve = true, solve_budget = 4.0)
+function fimdp_case(;
+    nvars,
+    nvals,
+    a,
+    support = nothing,
+    alg = "omax",
+    suites,
+    solve = true,
+    solve_budget = 4.0,
+)
     storage = isnothing(support) ? "dense" : "sparse"
-    name = "fimdp-$(storage)-v$(nvars)-d$(nvals)" * (isnothing(support) ? "" : "-k$(support)") * "-a$(a)-$(alg)"
+    name =
+        "fimdp-$(storage)-v$(nvars)-d$(nvals)" *
+        (isnothing(support) ? "" : "-k$(support)") *
+        "-a$(a)-$(alg)"
     k = isnothing(support) ? nvals : support
     meta = Dict{String, Any}(
         "family" => "fimdp",
@@ -44,8 +56,17 @@ function fimdp_case(; nvars, nvals, a, support = nothing, alg = "omax", suites, 
         problems = Dict{String, SolveSpec}()
         if solve
             reach = random_states(rng, ntuple(_ -> nvals, nvars), 0.2)
-            spec = Specification(InfiniteTimeReachability(reach, T(CONV_EPS)), Pessimistic, Maximize)
-            problems["solve_rvi"] = SolveSpec(VerificationProblem(dm, spec), RobustValueIteration(balg), :converged, CONV_EPS)
+            spec = Specification(
+                InfiniteTimeReachability(reach, T(CONV_EPS)),
+                Pessimistic,
+                Maximize,
+            )
+            problems["solve_rvi"] = SolveSpec(
+                VerificationProblem(dm, spec),
+                RobustValueIteration(balg),
+                :converged,
+                CONV_EPS,
+            )
         end
         return Ctx(dm, balg, be.to_dev(V), problems)
     end
@@ -54,7 +75,9 @@ function fimdp_case(; nvars, nvals, a, support = nothing, alg = "omax", suites, 
     # CUDA: only O-max has a CUDA implementation; sparse marginals are excluded
     # because the CUDA kernel returns all-zero values for them (Finding B-3).
     cuda = (alg == "omax" && isnothing(support)) ? [Float64, Float32] : DataType[]
-    return register!(Case(name, "fIMDP " * alg, suites, meta, build, entries, [Float64], cuda))
+    return register!(
+        Case(name, "fIMDP " * alg, suites, meta, build, entries, [Float64], cuda),
+    )
 end
 
 for a in (1, 4)
@@ -66,9 +89,39 @@ for a in (1, 4)
     fimdp_case(; nvars = 2, nvals = 50, support = 10, a, suites = ["full"])
     fimdp_case(; nvars = 3, nvals = 20, support = 5, a, suites = ["full"])
     # McCormick / vertex enumeration on small supports
-    fimdp_case(; nvars = 2, nvals = 10, support = 4, a, alg = "mccormick", suites = ["full", "quick"])
-    fimdp_case(; nvars = 2, nvals = 10, support = 4, a, alg = "vertex", suites = ["full", "quick"])
+    fimdp_case(;
+        nvars = 2,
+        nvals = 10,
+        support = 4,
+        a,
+        alg = "mccormick",
+        suites = ["full", "quick"],
+    )
+    fimdp_case(;
+        nvars = 2,
+        nvals = 10,
+        support = 4,
+        a,
+        alg = "vertex",
+        suites = ["full", "quick"],
+    )
 end
 fimdp_case(; nvars = 2, nvals = 10, a = 1, alg = "mccormick", suites = ["full"])
-fimdp_case(; nvars = 3, nvals = 10, support = 3, a = 1, alg = "mccormick", suites = ["full"], solve = false)
-fimdp_case(; nvars = 3, nvals = 10, support = 3, a = 1, alg = "vertex", suites = ["full"], solve = false)
+fimdp_case(;
+    nvars = 3,
+    nvals = 10,
+    support = 3,
+    a = 1,
+    alg = "mccormick",
+    suites = ["full"],
+    solve = false,
+)
+fimdp_case(;
+    nvars = 3,
+    nvals = 10,
+    support = 3,
+    a = 1,
+    alg = "vertex",
+    suites = ["full"],
+    solve = false,
+)

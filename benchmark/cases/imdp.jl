@@ -27,12 +27,23 @@ function imdp_problems(rng, dm, n, T)
         ),
     )
     return Dict(
-        "solve_rvi" => SolveSpec(rvi, RobustValueIteration(OMaximization()), :converged, CONV_EPS),
-        "solve_ivi" => SolveSpec(ivi, IntervalValueIteration(OMaximization()), :converged, CONV_EPS),
+        "solve_rvi" =>
+            SolveSpec(rvi, RobustValueIteration(OMaximization()), :converged, CONV_EPS),
+        "solve_ivi" =>
+            SolveSpec(ivi, IntervalValueIteration(OMaximization()), :converged, CONV_EPS),
     )
 end
 
-function imdp_case(; storage, n, a, nnz = 0, suites, solve_budget = 4.0, bellman_budget = 2.0, solve_min = 5)
+function imdp_case(;
+    storage,
+    n,
+    a,
+    nnz = 0,
+    suites,
+    solve_budget = 4.0,
+    bellman_budget = 2.0,
+    solve_min = 5,
+)
     name = imdp_name(storage, n, a, nnz)
     k = storage === :dense ? n : nnz
     meta = Dict{String, Any}(
@@ -58,7 +69,16 @@ function imdp_case(; storage, n, a, nnz = 0, suites, solve_budget = 4.0, bellman
         E_solve("solve_ivi"; budget = solve_budget, min = solve_min),
     ]
     return register!(
-        Case(name, storage === :dense ? "IMDP dense" : "IMDP sparse", suites, meta, build, entries, [Float64], [Float64, Float32]),
+        Case(
+            name,
+            storage === :dense ? "IMDP dense" : "IMDP sparse",
+            suites,
+            meta,
+            build,
+            entries,
+            [Float64],
+            [Float64, Float32],
+        ),
     )
 end
 
@@ -96,7 +116,16 @@ function imdp_size_case(; storage, n, a = 1, nnz = 0)
         return Ctx(be.to_dev(mdp), OMaximization(), be.to_dev(V), Dict{String, SolveSpec}())
     end
     return register!(
-        Case(name, storage === :dense ? "IMDP dense (size scaling)" : "IMDP sparse (size scaling)", ["sizes"], meta, build, [E_bellman()], [Float64], DataType[]),
+        Case(
+            name,
+            storage === :dense ? "IMDP dense (size scaling)" : "IMDP sparse (size scaling)",
+            ["sizes"],
+            meta,
+            build,
+            [E_bellman()],
+            [Float64],
+            DataType[],
+        ),
     )
 end
 

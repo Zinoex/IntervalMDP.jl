@@ -31,20 +31,36 @@ Any git failure counts as "not equal" (the write is refused).
 function base_ref_guard(repo_root, base_ref)
     git(args...) = Cmd(`git -C $repo_root $args`; ignorestatus = true)
     committed = try
-        p = run(pipeline(git("diff", "--quiet", base_ref, "HEAD", "--", "src", "ext"); stdout = devnull, stderr = devnull))
+        p = run(
+            pipeline(
+                git("diff", "--quiet", base_ref, "HEAD", "--", "src", "ext");
+                stdout = devnull,
+                stderr = devnull,
+            ),
+        )
         p.exitcode
     catch
         -1
     end
-    committed == 0 || return (false, committed == 1 ? "src/ or ext/ at HEAD differ from $base_ref (committed diff)" :
-                                     "git diff against $base_ref failed (exit $committed)")
+    committed == 0 || return (
+        false,
+        committed == 1 ? "src/ or ext/ at HEAD differ from $base_ref (committed diff)" :
+        "git diff against $base_ref failed (exit $committed)",
+    )
     status = try
-        read(pipeline(git("status", "--porcelain", "--untracked-files=all", "--", "src", "ext"); stderr = devnull), String)
+        read(
+            pipeline(
+                git("status", "--porcelain", "--untracked-files=all", "--", "src", "ext");
+                stderr = devnull,
+            ),
+            String,
+        )
     catch
         nothing
     end
     isnothing(status) && return (false, "git status failed")
-    isempty(strip(status)) || return (false, "uncommitted changes under src/ or ext/:\n" * status)
+    isempty(strip(status)) ||
+        return (false, "uncommitted changes under src/ or ext/:\n" * status)
     return (true, "")
 end
 _fname(key) = replace(key, "/" => "__")
@@ -162,7 +178,9 @@ function check_reference(index, dir, key, o::Outcome, T; policy_eval = nothing)
     vals = o.values[1:stride:end]
     ref = read_values(dir, key, length(vals))
     err = isempty(ref) ? 0.0 : maximum(abs.(vals .- ref))
-    stride > 1 && (res["compared_entries"] = "every $(stride)th entry ($(length(vals)) of $(length(o.values)))")
+    stride > 1 && (
+        res["compared_entries"] = "every $(stride)th entry ($(length(vals)) of $(length(o.values)))"
+    )
     res["max_abs_diff"] = err
     ok = err <= tol
     reasons = String[]
@@ -182,14 +200,20 @@ function check_reference(index, dir, key, o::Outcome, T; policy_eval = nothing)
         if nm != 0
             if isnothing(policy_eval)
                 ok = false
-                push!(reasons, "strategy differs in $nm entries and no policy evaluation available")
+                push!(
+                    reasons,
+                    "strategy differs in $nm entries and no policy evaluation available",
+                )
             else
                 vpol = policy_eval()[1:stride:end]
                 perr = maximum(abs.(vpol .- ref))
                 res["policy_eval_max_abs_diff"] = perr
                 if perr > tol
                     ok = false
-                    push!(reasons, "strategy differs in $nm entries and its value deviates by $perr > $tol")
+                    push!(
+                        reasons,
+                        "strategy differs in $nm entries and its value deviates by $perr > $tol",
+                    )
                 end
             end
         end
