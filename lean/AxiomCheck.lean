@@ -29,3 +29,37 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.ProductProcess.lift_deterministic
 #print axioms IntervalMDP.Examples.pi_not_convex_of_dirac_mem
 #print axioms IntervalMDP.Examples.binaryFIMDP_productSet_not_convex
+-- Phase 1a: index foundations
+#print axioms IntervalMDP.Index.linear_bijective
+#print axioms IntervalMDP.Index.linear_succ_first
+#print axioms IntervalMDP.Index.sparse_zip_correct
+#print axioms IntervalMDP.Index.sortedPerm_bijective
+#print axioms IntervalMDP.Index.greedy_visits_once
+-- Phase 1a: supporting results referenced by the inventory
+#print axioms IntervalMDP.Index.machineInt_eq_self
+#print axioms IntervalMDP.Index.toJulia_bijOn
+#print axioms IntervalMDP.Index.sortedPerm_fits_int32
+#print axioms IntervalMDP.Index.gapValue_eq_sum_allocation
+-- Phase 1b: marginal indexing
+#print axioms IntervalMDP.Index.marginalSub2ind_eq_linear
+#print axioms IntervalMDP.Index.marginalSub2ind_bijective
+#print axioms IntervalMDP.Index.marginalSub2ind_depends_only
+#print axioms IntervalMDP.Index.intervalSub2ind_correct
+-- Phase 1b: supporting results referenced by the inventory
+#print axioms IntervalMDP.Index.intervalSub2ind_wrong_multiAction
+#print axioms IntervalMDP.Index.marginalCartesian_surjective
+-- Phase 1c: dense O-maximization
+#print axioms IntervalMDP.OMax.omax_mem
+#print axioms IntervalMDP.OMax.omax_eq_sSup
+#print axioms IntervalMDP.OMax.omax_eq_sInf
+#print axioms IntervalMDP.OMax.omax_tie_invariant
+-- Phase 1c: supporting results referenced by the inventory
+#print axioms IntervalMDP.OMax.stateActionBellman_isGreatest
+#print axioms IntervalMDP.OMax.stateActionBellman_isLeast
+#print axioms IntervalMDP.OMax.stateActionBellman_eq_dot
+-- Phase 1d: sparse O-maximization
+#print axioms IntervalMDP.OMax.omaxSparse_eq_omax
+-- Phase 1d: supporting results referenced by the inventory
+#print axioms IntervalMDP.OMax.omaxSparse_exact
+#print axioms IntervalMDP.OMax.gapValue_sublist
+#print axioms IntervalMDP.OMax.exists_permutation_sublist
