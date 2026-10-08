@@ -6,9 +6,11 @@
 #   * DRAM bandwidth with STREAM-like kernels on 256 MiB arrays (≫ 24 MiB L3):
 #     read (sum), copy (a = b), triad (a = b + s·c); bytes counted without
 #     write-allocate traffic (as in STREAM);
-#   * L2-resident read bandwidth (1 MiB per thread);
+#   * L2-resident read bandwidth (1 MiB per thread) and L3-resident read bandwidth
+#     (12 MiB in total), each pass repeated inside the threaded loop;
 #   * an in-L1 FMA throughput "practical compute roof" (dot of two 1 KiB vectors, @simd).
-# Best of 10 repetitions. Each thread works on its own contiguous chunk
+# Best of 10 repetitions per round; 3 rounds (each with a clock probe); roof =
+# maximum over the rounds, all rounds stored under "rounds". Each thread works on its own contiguous chunk
 # (Threads.@threads :static), so pages are first-touched by their thread.
 
 using ThreadPinning
@@ -34,6 +36,22 @@ function par_read(a, cs)
         acc = 0.0
         @inbounds @simd for i in cs[t]
             acc += a[i]
+        end
+        s[8t] = acc
+    end
+    return sum(s)
+end
+
+# Cache-resident read: the repetitions run inside the threaded loop, so one task
+# spawn is amortised over `reps` passes (a spawn per pass dominated the old L2 figure).
+function par_read_rep(a, cs, reps)
+    s = zeros(NT * 8)
+    Threads.@threads :static for t in 1:NT
+        acc = 0.0
+        for _ in 1:reps
+            @inbounds @simd for i in cs[t]
+                acc += a[i]
+            end
         end
         s[8t] = acc
     end
@@ -98,21 +116,35 @@ N = 2^25  # 256 MiB per Float64 array
 a = Vector{Float64}(undef, N); b = Vector{Float64}(undef, N); c = Vector{Float64}(undef, N)
 cs = chunks(N)
 par_init!(a, 1.0, cs); par_init!(b, 2.0, cs); par_init!(c, 0.5, cs)
-
-res = Dict{String, Any}()
-res["clock_probe_ns_at_start"] = clock_probe()   # ≈197 µs at 5.1 GHz, ≈436 µs at the 2.3 GHz cap (lib/clock.jl)
-t = best(() -> par_read(b, cs));         res["dram_read_GBs"] = 8N / t / 1e9
-t = best(() -> par_copy!(a, b, cs));     res["dram_copy_GBs"] = 16N / t / 1e9
-t = best(() -> par_triad!(a, b, c, 3.0, cs)); res["dram_triad_GBs"] = 24N / t / 1e9
-a = b = c = nothing; GC.gc()
-
-M = 2^17 * NT  # 1 MiB per thread → L2-resident
+M = 2^17 * NT  # 1 MiB per thread → L2-resident (P-core L2 3 MiB, E-core cluster L2 4 MiB / 4 cores)
 x = Vector{Float64}(undef, M); csx = chunks(M); par_init!(x, 1.0, csx)
-t = best(() -> (for _ in 1:20; par_read(x, csx); end)); res["l2_read_GBs"] = 20 * 8M / t / 1e9
+L = 3 * 2^19  # 12 MiB in total (half of the 24 MiB L3), split over the threads → L3-resident
+y = Vector{Float64}(undef, L); csy = chunks(L); par_init!(y, 1.0, csy)
+const FMA_REPS = 200_000
 
-reps = 200_000
-t = best(() -> l1_fma(reps); reps = 5)
-res["l1_fma_GFLOPs"] = NT * reps * 2 * 128 / t / 1e9
+# One round of all roofs, each the best of 10 (FMA: 5) repetitions.
+function measure_round()
+    r = Dict{String, Float64}()
+    r["clock_probe_ns"] = clock_probe()   # ≈197 µs at 5.1 GHz, ≈436 µs at the 2.3 GHz cap (lib/clock.jl)
+    t = best(() -> par_read(b, cs));              r["dram_read_GBs"] = 8N / t / 1e9
+    t = best(() -> par_copy!(a, b, cs));          r["dram_copy_GBs"] = 16N / t / 1e9
+    t = best(() -> par_triad!(a, b, c, 3.0, cs)); r["dram_triad_GBs"] = 24N / t / 1e9
+    t = best(() -> par_read_rep(x, csx, 200));    r["l2_read_GBs"] = 200 * 8M / t / 1e9
+    t = best(() -> par_read_rep(y, csy, 50));     r["llc_read_GBs"] = 50 * 8L / t / 1e9
+    t = best(() -> l1_fma(FMA_REPS); reps = 5);   r["l1_fma_GFLOPs"] = NT * FMA_REPS * 2 * 128 / t / 1e9
+    return r
+end
+
+# Roof = maximum over ROUNDS rounds (temporal noise, clock switches); every round is stored.
+const ROUNDS = 3
+rounds = [(i > 1 && sleep(2); measure_round()) for i in 1:ROUNDS]
+res = Dict{String, Any}()
+for k in ("dram_read_GBs", "dram_copy_GBs", "dram_triad_GBs", "l2_read_GBs", "llc_read_GBs", "l1_fma_GFLOPs")
+    res[k] = maximum(r[k] for r in rounds)
+end
+res["clock_probe_ns_at_start"] = rounds[1]["clock_probe_ns"]
+res["clock_probe_ns_at_end"] = clock_probe()   # same state as at start ⇒ roofs belong to one clock state
+res["rounds"] = rounds
 
 res["notes"] = "Bytes exclude write-allocate traffic. l1_fma is a practical in-cache compute roof (4 independent FMA chains, @simd-free unrolled), not the theoretical peak."
 res["theoretical"] = Dict(

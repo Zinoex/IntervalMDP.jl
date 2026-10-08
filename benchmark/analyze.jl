@@ -1,11 +1,14 @@
 # Scaling and roofline tables from result files (§ Phase 0 Deliverables, 4).
 #
-#   julia --project=benchmark benchmark/analyze.jl \
-#       --strong benchmark/results/scaling-20fc03b-cpu-t{1,2,4,...}.json \
-#       --sizes  benchmark/results/sizes-20fc03b-cpu-t1.json,benchmark/results/sizes-20fc03b-cpu-t16.json \
-#       --roofline benchmark/results/baseline-20fc03b-cpu-t1.json,benchmark/results/baseline-20fc03b-cpu-t16.json \
-#       --stream benchmark/results/stream-t1.json,benchmark/results/stream-t16.json \
-#       --out benchmark/results/scaling-roofline-20fc03b.md
+#   julia --project=benchmark benchmark/analyze.jl [--sha 20fc03b]
+#
+# With no file options it reads, from benchmark/results/,
+#   --strong   scaling-<sha>-cpu-t*.json   (suite `scaling`, threads 1→16)
+#   --sizes    sizes-<sha>-cpu-t*.json     (suite `sizes`, increasing n)
+#   --stream   stream-t*.json              (machine roofs, benchmark/stream.jl)
+# and writes benchmark/results/scaling-roofline-<sha>.md (`--out` overrides).
+# Optional: --roofline baseline-<sha>-cpu-t1.json,... (bellman entries of a baseline).
+# File options take comma- or space-separated lists.
 #
 # Traffic/work model for one O-maximization `bellman!` call (per nonzero of the
 # ambiguity sets, "nnz" = n·n·a dense, k·n·a sparse; product: ×DFA states):
@@ -13,23 +16,31 @@
 #           walk stops when the budget is used, roughly half the column here)
 #   sparse: bytes = 20·nnz (lower 8 + gap 8 + Int32 row index 4) + 4·columns
 #   flops = 4·nnz (dot: 2/entry, gap walk: ≤2/entry); sorting is not counted
-# Classification (per case, using the measured roofs at the same thread count):
-#   memory-bound   achieved bandwidth ≥ 50% of the DRAM read roof (data > L3) or
-#                  of the L2 read roof (data ≤ L3)
-#   overhead-bound median < 100 µs at 1 thread, or parallel efficiency < 25%
-#                  at 16 threads
-#   compute/latency-bound otherwise (sorting, branchy scalar loops, gathers)
+# Roof used for "% of roof" at thread count T (from stream-tT.json):
+#   model data > 24 MiB (L3) → DRAM read roof; otherwise → L3 (LLC) read roof.
+# Classification (per case and thread count):
+#   memory-bound   achieved model bandwidth ≥ 50% of that roof
+#   overhead-bound otherwise, if median < 100 µs, or T > 1 and parallel
+#                  efficiency (t=1 median / (T · median)) < 25%
+#   compute-bound  otherwise: in-core bound (sorting, branchy scalar loops,
+#                  gathers, latency) — never the FLOP peak (AI ≈ 0.2 flop/B)
+# Entries with valid ≠ true are listed as INVALID and not classified.
+# † = entry measured with a deviating clock (lib/clock.jl; systematic at t ≥ 8,
+#   where the reference probe is taken unloaded).
 
-using JSON, Statistics, Printf
+using JSON, Printf
+
+const RESULTS = joinpath(@__DIR__, "results")
 
 function cli()
     o = Dict{String, Vector{String}}()
     out = nothing
+    sha = "20fc03b"
     i = 1
     while i <= length(ARGS)
         k = ARGS[i][3:end]
-        if k == "out"
-            out = ARGS[i + 1]
+        if k in ("out", "sha")
+            k == "out" ? (out = ARGS[i + 1]) : (sha = ARGS[i + 1])
             i += 2
             continue
         end
@@ -41,10 +52,15 @@ function cli()
         end
         o[k] = filter(!isempty, vals)
     end
-    return o, out
+    pick(re) = sort([joinpath(RESULTS, f) for f in readdir(RESULTS) if occursin(re, f)])
+    haskey(o, "strong") || (o["strong"] = pick(Regex("^scaling-$(sha)-cpu-t\\d+\\.json\$")))
+    haskey(o, "sizes") || (o["sizes"] = pick(Regex("^sizes-$(sha)-cpu-t\\d+\\.json\$")))
+    haskey(o, "stream") || (o["stream"] = pick(r"^stream-t\d+\.json$"))
+    isnothing(out) && (out = joinpath(RESULTS, "scaling-roofline-$(sha).md"))
+    return o, out, sha
 end
 
-load(p) = JSON.parsefile(p; dicttype = Dict{String, Any})
+load(p) = (d = JSON.parsefile(p; dicttype = Dict{String, Any}); d["_file"] = basename(p); d)
 nthreads_of(d) = d["environment"]["threads"]["nthreads"]
 
 function traffic(meta)
@@ -57,105 +73,154 @@ function traffic(meta)
 end
 
 fmt_t(ns) = ns < 1e3 ? @sprintf("%.0f ns", ns) : ns < 1e6 ? @sprintf("%.1f µs", ns / 1e3) : ns < 1e9 ? @sprintf("%.2f ms", ns / 1e6) : @sprintf("%.2f s", ns / 1e9)
+okentry(r) = get(r, "valid", false) === true && haskey(r, "median_ns")
+clockmark(r) = get(r, "clock_state", "") == "deviating" ? "†" : ""
+
+# Roof, % of roof and class for one measured entry.
+function classify(r, T, roofs, t1med)
+    tr = traffic(r["meta"])
+    m = r["median_ns"]
+    mib = tr.bytes / 2^20
+    roof = get(roofs, T, nothing)
+    rname = mib > 24 ? "DRAM" : "L3"
+    ref = isnothing(roof) ? NaN : mib > 24 ? roof["dram_read_GBs"] : get(roof, "llc_read_GBs", NaN)
+    gbs = tr.bytes / m
+    frac = gbs / ref
+    eff = isnothing(t1med) ? NaN : t1med / m / T
+    cls = if frac >= 0.5
+        "memory-bound"
+    elseif m < 1e5 || (T > 1 && eff < 0.25)
+        "overhead-bound"
+    else
+        "compute-bound"
+    end
+    return (; tr, m, mib, rname, ref, gbs, frac, eff, cls, gflops = tr.flops / m)
+end
+
+pct(x) = isnan(x) ? "–" : @sprintf("%.0f%%", 100x)
 
 function main()
-    o, out = cli()
+    o, out, sha = cli()
     io = IOBuffer()
+    println(io, "# Scaling and roofline — base ref `$(sha)` (generated by `benchmark/analyze.jl`)\n")
+    println(io, "Model: dense 16 B/nnz, sparse 20 B/nnz + 4 B/column, 4 flop/nnz (see the header of `analyze.jl`). ",
+        "% of roof: model bandwidth / measured read roof at the same thread count (DRAM if model data > 24 MiB, else L3). ",
+        "Class: memory-bound ≥ 50% of roof; overhead-bound if median < 100 µs or parallel efficiency < 25%; compute-bound otherwise. ",
+        "† = deviating clock (systematic at t ≥ 8, see REPORT § 1.1). All numbers are from the file named in the row.\n")
+
     roofs = Dict{Int, Dict{String, Any}}()
-    for f in get(o, "stream", String[])
+    rooffile = Dict{Int, String}()
+    for f in o["stream"]
         d = load(f)
         roofs[d["nthreads"]] = d["results"]
+        rooffile[d["nthreads"]] = d["_file"]
     end
-    println(io, "## Machine roofs (measured, benchmark/stream.jl)\n")
-    println(io, "| threads | DRAM read GB/s | DRAM copy GB/s | DRAM triad GB/s | L2 read GB/s | in-L1 FMA GFLOP/s |")
-    println(io, "|---:|---:|---:|---:|---:|---:|")
+    println(io, "## Machine roofs (measured, `benchmark/stream.jl`)\n")
+    println(io, "| threads | file | clock probe µs | DRAM read GB/s | DRAM copy GB/s | DRAM triad GB/s | L2 read GB/s | L3 read GB/s | in-L1 FMA GFLOP/s |")
+    println(io, "|---:|---|---:|---:|---:|---:|---:|---:|---:|")
     for t in sort(collect(keys(roofs)))
         r = roofs[t]
-        println(io, @sprintf("| %d | %.1f | %.1f | %.1f | %.1f | %.1f |", t, r["dram_read_GBs"], r["dram_copy_GBs"], r["dram_triad_GBs"], r["l2_read_GBs"], r["l1_fma_GFLOPs"]))
+        println(io, @sprintf("| %d | %s | %.0f | %.1f | %.1f | %.1f | %.1f | %s | %.1f |", t, rooffile[t], r["clock_probe_ns_at_start"] / 1e3,
+            r["dram_read_GBs"], r["dram_copy_GBs"], r["dram_triad_GBs"], r["l2_read_GBs"],
+            haskey(r, "llc_read_GBs") ? @sprintf("%.1f", r["llc_read_GBs"]) : "–", r["l1_fma_GFLOPs"]))
     end
     println(io)
 
     # Strong scaling
-    strong = [load(f) for f in get(o, "strong", String[])]
-    t1med = Dict{Tuple{String, String}, Float64}()
+    strong = sort([load(f) for f in o["strong"]]; by = nthreads_of)
     if !isempty(strong)
-        sort!(strong; by = nthreads_of)
         println(io, "## Strong scaling (fixed size, `bellman!` steady state)\n")
-        cases = sort(unique([(r["case"], r["entry"]) for d in strong for r in d["results"] if haskey(r, "median_ns")]))
+        cases = sort(unique([(r["case"], r["entry"]) for d in strong for r in d["results"]]))
         ts = nthreads_of.(strong)
-        println(io, "| case | entry | ", join(["t=$t" for t in ts], " | "), " |")
-        println(io, "|---|---|", repeat("---:|", length(ts)))
+        println(io, "Speed-up vs t=1 (files: ", join(["`$(d["_file"])`" for d in strong], ", "), "):\n")
+        println(io, "| case | ", join(["t=$t" for t in ts], " | "), " |")
+        println(io, "|---|", repeat("---:|", length(ts)))
+        rows = Dict{Tuple{String, String}, Vector{Any}}()
         for (c, e) in cases
-            meds = [begin
-                k = findfirst(r -> r["case"] == c && r["entry"] == e && haskey(r, "median_ns"), d["results"])
-                isnothing(k) ? NaN : d["results"][k]["median_ns"]
+            rs = [begin
+                k = findfirst(r -> r["case"] == c && r["entry"] == e, d["results"])
+                isnothing(k) ? nothing : d["results"][k]
             end for d in strong]
-            base = meds[1]
-            t1med[(c, e)] = base
-            cells = [@sprintf("%s (×%.2f, eff %.0f%%)", fmt_t(m), base / m, 100 * base / m / t) for (m, t) in zip(meds, ts)]
-            println(io, "| $c | $e | ", join(cells, " | "), " |")
+            rows[(c, e)] = rs
+            r1 = rs[1]
+            t1 = (!isnothing(r1) && okentry(r1)) ? r1["median_ns"] : nothing
+            cells = [isnothing(r) ? "–" : !okentry(r) ? "INVALID" : isnothing(t1) ? fmt_t(r["median_ns"]) :
+                     T == 1 ? fmt_t(r["median_ns"]) * clockmark(r) : @sprintf("×%.2f%s", t1 / r["median_ns"], clockmark(r)) for (r, T) in zip(rs, ts)]
+            println(io, "| $c | ", join(cells, " | "), " |")
         end
-        println(io, "\nCell = median (speed-up vs 1 thread, parallel efficiency = speed-up / threads). Threads are pinned compactly: t ≤ 6 P-cores only; t = 8 adds 2 E-cores; t = 14 all P+E; t = 16 adds the 2 LP-E cores.\n")
+        println(io, "\nThreads are pinned compactly: t ≤ 6 P-cores only; t = 8 adds 2 E-cores; t = 14 all P+E; t = 16 adds the 2 LP-E cores.\n")
+        for (c, e) in cases
+            rs = rows[(c, e)]
+            r1 = rs[1]
+            t1 = (!isnothing(r1) && okentry(r1)) ? r1["median_ns"] : nothing
+            println(io, "### $c (`$e`)\n")
+            println(io, "| threads | file | median | speed-up | efficiency | model GB/s | roof GB/s | % of roof | GFLOP/s | % of FMA roof | class |")
+            println(io, "|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|")
+            for (d, r, T) in zip(strong, rs, ts)
+                isnothing(r) && continue
+                if !okentry(r)
+                    println(io, "| $T | $(d["_file"]) | INVALID | | | | | | | | not classified |")
+                    continue
+                end
+                x = classify(r, T, roofs, t1)
+                fma = get(get(roofs, T, Dict()), "l1_fma_GFLOPs", NaN)
+                println(io, @sprintf("| %d | %s | %s%s | ×%.2f | %s | %.1f | %.1f (%s) | %s | %.2f | %s | %s |", T, d["_file"], fmt_t(x.m), clockmark(r),
+                    isnothing(t1) ? NaN : t1 / x.m, pct(x.eff), x.gbs, x.ref, x.rname, pct(x.frac), x.gflops, pct(x.gflops / fma), x.cls))
+            end
+            println(io)
+        end
     end
 
     # Size scaling
-    sizes = [load(f) for f in get(o, "sizes", String[])]
+    sizes = sort([load(f) for f in o["sizes"]]; by = nthreads_of)
     if !isempty(sizes)
         println(io, "## Size scaling (`bellman!`, 1 action)\n")
-        println(io, "| case | threads | n | nnz | median | ns per nnz | achieved GB/s (model) | GFLOP/s (model) |")
-        println(io, "|---|---:|---:|---:|---:|---:|---:|---:|")
-        for d in sizes, r in sort(d["results"]; by = r -> (r["meta"]["storage"], get(r["meta"], "nnz_per_column", 0), r["meta"]["states"]))
-            haskey(r, "median_ns") || continue
+        t1 = Dict{String, Float64}()
+        for d in sizes, r in d["results"]
+            nthreads_of(d) == 1 && okentry(r) && (t1[r["case"]] = r["median_ns"])
+        end
+        println(io, "| case | threads | file | n | nnz | data MiB | median | ns per nnz | model GB/s | % of roof | efficiency | class |")
+        println(io, "|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|")
+        key(r) = (r["meta"]["storage"], get(r["meta"], "nnz_per_column", 0), r["meta"]["states"])
+        for d in sizes, r in sort(d["results"]; by = key)
+            T = nthreads_of(d)
             tr = traffic(r["meta"])
             isnothing(tr) && continue
-            m = r["median_ns"]
-            println(io, @sprintf("| %s | %d | %d | %d | %s | %.2f | %.1f | %.2f |", r["case"], nthreads_of(d), r["meta"]["states"], tr.nnz, fmt_t(m), m / tr.nnz, tr.bytes / m, tr.flops / m))
+            if !okentry(r)
+                println(io, "| $(r["case"]) | $T | $(d["_file"]) | $(r["meta"]["states"]) | | | INVALID | | | | | not classified |")
+                continue
+            end
+            x = classify(r, T, roofs, get(t1, r["case"], nothing))
+            println(io, @sprintf("| %s | %d | %s | %d | %d | %.1f | %s%s | %.2f | %.2f | %s (%s) | %s | %s |", r["case"], T, d["_file"], r["meta"]["states"],
+                tr.nnz, x.mib, fmt_t(x.m), clockmark(r), x.m / tr.nnz, x.gbs, pct(x.frac), x.rname, pct(x.eff), x.cls))
         end
         println(io)
     end
 
-    # Roofline on baseline files
+    # Optional: roofline on baseline files
     rl = [load(f) for f in get(o, "roofline", String[])]
     if !isempty(rl)
         println(io, "## Roofline estimate (`bellman!` entries of the baseline)\n")
-        println(io, "| case | threads | median | data MiB | GB/s (model) | % of roof | GFLOP/s (model) | AI flop/B | allocs/call | class |")
-        println(io, "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|")
+        println(io, "| case | threads | file | median | data MiB | model GB/s | % of roof | GFLOP/s | allocs/call | class |")
+        println(io, "|---|---:|---|---:|---:|---:|---:|---:|---:|---|")
         base1 = Dict{String, Float64}()
-        for d in rl
-            nthreads_of(d) == 1 || continue
-            for r in d["results"]
-                r["entry"] == "bellman" && haskey(r, "median_ns") && (base1[r["case"]] = r["median_ns"])
-            end
+        for d in rl, r in d["results"]
+            nthreads_of(d) == 1 && r["entry"] == "bellman" && okentry(r) && (base1[r["case"]] = r["median_ns"])
         end
-        for d in rl
+        for d in rl, r in d["results"]
+            (r["entry"] == "bellman" && okentry(r)) || continue
+            traffic(r["meta"]) === nothing && continue
             T = nthreads_of(d)
-            roof = get(roofs, T, nothing)
-            for r in d["results"]
-                (r["entry"] == "bellman" && haskey(r, "median_ns")) || continue
-                tr = traffic(r["meta"])
-                isnothing(tr) && continue
-                m = r["median_ns"]
-                gbs = tr.bytes / m
-                mib = tr.bytes / 2^20
-                ref = isnothing(roof) ? NaN : (mib > 24 ? roof["dram_read_GBs"] : roof["l2_read_GBs"])
-                frac = gbs / ref
-                eff = haskey(base1, r["case"]) ? base1[r["case"]] / m / T : NaN
-                cls = if frac >= 0.5
-                    "memory-bound"
-                elseif (T == 1 && m < 1e5) || (T >= 16 && eff < 0.25)
-                    "overhead-bound"
-                else
-                    "compute/latency-bound"
-                end
-                println(io, @sprintf("| %s | %d | %s | %.1f | %.1f | %.0f%% (%s) | %.2f | %.2f | %d | %s |", r["case"], T, fmt_t(m), mib, gbs, 100frac,
-                    mib > 24 ? "DRAM" : "L2", tr.flops / m, tr.flops / tr.bytes, r["allocs"], cls))
-            end
+            x = classify(r, T, roofs, get(base1, r["case"], nothing))
+            println(io, @sprintf("| %s | %d | %s | %s%s | %.1f | %.1f | %s (%s) | %.2f | %d | %s |", r["case"], T, d["_file"], fmt_t(x.m), clockmark(r),
+                x.mib, x.gbs, pct(x.frac), x.rname, x.gflops, r["allocs"], x.cls))
         end
-        println(io, "\nAI = arithmetic intensity of the model (4 flop per 16–20 bytes ≈ 0.2–0.25 flop/B): far below the ridge point of this machine (in-L1 FMA roof / DRAM roof ≈ tens of flop/B), so the O-max kernel can only be memory-, latency- or overhead-bound, never FLOP-bound.\n")
+        println(io)
     end
+    println(io, "AI = arithmetic intensity of the model (4 flop per 16–20 bytes ≈ 0.2–0.25 flop/B), far below the ridge point (in-L1 FMA roof / DRAM roof): the O-max kernel cannot be FLOP-bound; \"compute-bound\" means bound by in-core work other than FMA throughput.")
     s = String(take!(io))
-    print(s)
-    isnothing(out) || write(out, s)
+    write(out, s)
+    println("wrote $out ($(count(==('\n'), s)) lines)")
 end
 
 main()
