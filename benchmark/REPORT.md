@@ -173,8 +173,13 @@ and `-cpu-t16.json`):
 | cs-imdp-sparse-n10000-nnz100-a4 | solve_cs_stationary | 396.80 ms† (393.64 ms) [400.86 ms / 400.55 ms] | — | 21077 | 10.38 s / 1.16 s |
 
 Read with § 6.3: the ≈ 6 ms medians (dense n = 1000 a = 1 Float64, sparse n = 10⁴, fIMDP d = 50) are the host
-synchronisation floor, not kernel time (minimum 0.29–3.3 ms). Dense n = 1000 a = 1 Float32 runs at kernel speed in all three
-runs (60 µs), Float64 at the floor in all three, so the floor is reproducible per entry, not random. With the floor, CUDA
+synchronisation floor, not kernel time (minimum 0.29–3.3 ms). In the three stored runs dense n = 1000 a = 1 Float32 runs at
+kernel speed (60 µs) and Float64 at the floor (5.94 / 6.02 / 6.02 ms, single samples down to 0.195 ms), but this is not a
+property of the entry: whether an entry runs at kernel speed or at the floor is **bimodal across processes**. In the stored
+files `fimdp-dense-v2-d10-a4-omax` Float32 `bellman` gives 0.112 / 0.112 / 5.934 ms and the `workspace` entries of
+`imdp-sparse-n100000-nnz{10,100}-a4` Float64 flip between ≈ 0.09 ms and ≈ 6 ms (baseline / rerun1 / rerun2), and a 0g QE
+spot-check process (scratch run, not stored) ran dense n = 1000 a = 1 Float64 `bellman` at 0.193 ms against 6.05 ms in the
+next process. A single CUDA run is therefore not evidence (§ 9). With the floor, CUDA
 `solve_rvi` on dense n = 1000 a = 1 Float64 (470 ms) is slower than 1 CPU thread (284 ms). Steady-state `bellman!` on CUDA
 allocates on the host in every case (24–182 allocations per call; kernel launch configuration and argument conversion).
 
@@ -341,29 +346,31 @@ cases at t=1 and t=16 (48 entries each: 35 pass, 13 not-applicable `workspace`, 
 
 Shares are self-time samples / all samples of the main thread and the default-pool threads. At t=16 the sampler counts
 idle threads, so `wait()` is mostly idle time (main thread blocked on `@threads`, workers waiting for the slowest
-chunk); the remaining frames show the per-thread kernel mix.
+chunk); the remaining frames show the per-thread kernel mix. `wait` percentages count the `wait()` frame only. Every
+`sort!` percentage is the self time of all `Base/sort.jl` frames in the profile's self-time table (`sort!`, `_sort!`,
+`partition!`, …), not of the `sort!` frame alone.
 
 | Row | Profile (threads) | Where the time goes (self time) | Steady-state `bellman!` allocation |
 |---|---|---|---|
 | IMDP dense | `imdp-dense-n1000-a4`, `imdp-dense-n4000-a4` (t=1) | gap walk `gap_value` 79–81% (`min(budget, gap[i])` 42%, float add/mul 37%), `dot(V, lower)` (BLAS) 17–19% | 0 B ✓ |
 | IMDP dense | `imdp-dense-n4000-a4` (t=16) | idle/wait 59%, gap walk 31% | 7.2 KB, 82 allocs (task spawn of `@threadstid`) |
-| IMDP dense | `imdp-dense-n100-a4` (t=16) | idle/wait 87%, `threading_run` scheduling | 7.5 KB, 82 allocs |
+| IMDP dense | `imdp-dense-n100-a4` (t=16) | idle `wait()` 83% (87% with `enq_work`), `threading_run` scheduling | 7.5 KB, 82 allocs |
 | IMDP sparse | `imdp-sparse-n10000-nnz100-a4`, `imdp-sparse-n100000-nnz100-a1` (t=1) | building the (V, gap) tuples (`setindex!`, gather of `V[support]`) 25%, `sort!` 10–12%, dynamic `_by` ordering 8% | 64 B per column (`SubArray` 48 B + kw `NamedTuple` 16 B): 2.56 MB / 6.4 MB per call |
-| IMDP sparse | `imdp-sparse-n100000-nnz100-a1` (t=16) | wait 78%; `_setindex!` 5%, `getindex` 3%, `sort!` 2%, `_by` 2% | 6.41 MB (64 B/column + task spawn) |
-| fIMDP O-max | `fimdp-dense-v2-d50-a1-omax`, `fimdp-sparse-v3-d20-k5-a1-omax` (t=1) | `_by` 21% / 58%, `sort!` 11–13%, tuple building 7–13% | 8.2 MB / 15.9 MB per call (32 B/alloc) |
-| fIMDP O-max | `fimdp-dense-v2-d50-a1-omax` (t=16) | wait 77%; `sort!` 5%, `_by` 4%, `_setindex!` 3% | 8.17 MB |
+| IMDP sparse | `imdp-sparse-n100000-nnz100-a1` (t=16) | wait 78%; `_setindex!` 5%, `getindex` 3%, `sort!` 3%, `_by` 2% | 6.41 MB (64 B/column + task spawn) |
+| fIMDP O-max | `fimdp-dense-v2-d50-a1-omax`, `fimdp-sparse-v3-d20-k5-a1-omax` (t=1) | `_by` 21% / 58%, `sort!` 11% / 13% (self time of all `Base/sort.jl` frames: 1163 / 10559 and 1410 / 10542 samples; 14–15% for v3-d20-k5 if `isless` and `searchsortedfirst` are counted too), tuple building 7–13% | 8.2 MB / 15.9 MB per call (32 B/alloc) |
+| fIMDP O-max | `fimdp-dense-v2-d50-a1-omax` (t=16) | wait 77%; `sort!` 6.5%, `_by` 4%, `_setindex!` 3% | 8.17 MB |
 | fIMDP McCormick | `fimdp-sparse-v2-d10-k4-a1-mccormick` (t=1) | HiGHS 80% (`Highs_run`, `Highs_create`/`destroy`, `addRow`): one JuMP model rebuilt per state–action | 21.6 MB, 411 000 allocs |
 | fIMDP McCormick | same (t=16) | wait 73%; `Highs_run` 11.5%, `GenericMemory` 3.6%, `Highs_create` 2% | 21.6 MB |
 | fIMDP vertex | `fimdp-sparse-v2-d10-k4-a1-vertex`, `fimdp-sparse-v3-d10-k3-a1-vertex` (t=1) | products in the vertex sum (`promotion.jl`) 36–38%, vertex iterator | 1.1 MB / 7.7 MB per call |
 | fIMDP vertex | `fimdp-sparse-v2-d10-k4-a1-vertex` (t=16) | wait 74%; vertex iterator `iterate` 6.6%, `+`/`==`/`*` 6% | 1.13 MB |
 | Product IMDP × DFA | `product-imdp-dense-n1000-a4-dfa4` (t=1) | dense gap walk: `min` 38%, `dot` 19%, `*`/`+`/`-` 38% | 0 B ✓ |
 | Product IMDP × DFA | same (t=16) | wait 68–72%; `min` 6–8%, `+` 6–7%, `dot` 3–4% | 30.6 KB (task spawn) |
-| Product IMDP × DFA | `product-imdp-sparse-n10000-nnz10-a4-dfa4` (t=1) | **dynamic `Base.Order._by(by::Function, …)` 50%**, `_setindex!` 11%, `sort!` 10% (small supports, nnz 10) | 10.2 MB (64 B per column) |
+| Product IMDP × DFA | `product-imdp-sparse-n10000-nnz10-a4-dfa4` (t=1) | **dynamic `Base.Order._by(by::Function, …)` 50%**, `_setindex!` 11%, `sort!` 13% (small supports, nnz 10) | 10.2 MB (64 B per column) |
 | Product IMDP × DFA | same (t=16) | wait 73%; `sort!` 11–13%, `_by` 7.5% | 10.3 MB |
-| Real model | `real-multiObj_robotIMDP` (t=1) | **dynamic `_by` 67%**, `sort!` 13% (small supports) | 53 KB (64 B per column) |
+| Real model | `real-multiObj_robotIMDP` (t=1) | **dynamic `_by` 67%**, `sort!` 15% (small supports) | 53 KB (64 B per column) |
 | Real model | same (t=16) | wait 77%; `sort!` 4–5%, `enq_work` 4% (task scheduling; 0.1 ms calls), `_by` 2–3% | 61 KB |
 | Control synthesis | `cs-imdp-dense-n1000-a4`, `cs-imdp-sparse-n10000-nnz100-a4` (t=1) | same as the IMDP kernels; strategy extraction not visible (< 3%) | `bellman_cs`: 0 B ✓ (dense) / 2.56 MB (sparse), both caches |
-| Control synthesis | same (t=16) | wait 71–80%; dense: `min`/`+`/`dot` 3–6% each; sparse: `_setindex!` 4–5%, `_by` 2%, `sort!` 2% | `bellman_cs`: 7.4 KB (dense) / 2.57 MB (sparse) |
+| Control synthesis | same (t=16) | wait 71–80%; dense: `min`/`+`/`dot` 3–6% each; sparse: `_setindex!` 4–5%, `_by` 2%, `sort!` 3% | `bellman_cs`: 7.4 KB (dense) / 2.57 MB (sparse) |
 | CUDA | `cuda-*.md` | `CUDA.@profile` traces, see § 6.3 | n/a |
 
 JET (`@report_opt`, `target_modules = (IntervalMDP,)`) reports **0** problems for every hot function at both thread
@@ -428,7 +435,8 @@ No strong-scaling case is overhead-bound (every median ≥ 3.6 ms, efficiency �
 ×4.51, sparse k = 10 ×5.43 → ×4.94, k = 100 ×5.70 → ×5.20); **t = 16 is slower than t = 14 for 3 of 4 cases** (the 2 LP-E
 cores get an equal chunk and finish last). *Superlinear t = 12/14 for sparse k = 10 (×15.05/×17.57, efficiency 125%,
 `scaling-20fc03b-cpu-t12.json`/`-t14.json`) is not plausible for a compute-bound kernel and is not used as evidence; it
-coincides with the 557 µs probe state and needs a re-measurement in 0h.
+coincides with the 557 µs probe state and needs a re-measurement in one clock state (open; Phase 2, `2a-prepare` noise
+check — § 9).
 
 ### 6.2 Size scaling and roofline (fixed threads, increasing `n`, 1 action)
 
@@ -456,14 +464,14 @@ Cell = ns per nnz (t = 1 only), % of roof, parallel efficiency vs t = 1. Column 
   DRAM), i.e. 3.3–4.8 GB/s = 26–28% of the 1-thread DRAM roof and 9–10% of the L3 roof (`sizes-20fc03b-cpu-t1.json`,
   `stream-t1.json`): latency-/compute-bound, not bandwidth-bound. Only with many threads and large n does it reach the
   memory roof (46–71% at t ≥ 10, § 6.1; 50% for n = 4000 at t = 16).
-* Sparse O-max costs 40–65 ns/nnz independent of n (k = 10: 54–65, k = 100: 41–47 ns, `sizes-20fc03b-cpu-t1.json`), ≤ 8% of any
-  roof at any thread count: compute-bound by per-column work (sorting, 2 allocations per column, gathers), not by memory.
+* Sparse O-max costs 40–65 ns/nnz independent of n (k = 10: 54–65, k = 100: 41–47 ns, `sizes-20fc03b-cpu-t1.json`), ≤ 9% of any
+  roof at any thread count (max 9%: k = 100 at t = 10 and 14, `results/scaling-roofline-20fc03b.md`): compute-bound by per-column work (sorting, 2 allocations per column, gathers), not by memory.
 * Overhead-bound: the smallest cases at t ≥ 6/16 (< 100 µs per call) and sparse n = 10⁶ at t = 16 (efficiency 21%).
 
 ### 6.3 CUDA
 
 `results/baseline-20fc03b-cuda.json` (Float64 and Float32; dense/sparse IMDP, dense-marginal fIMDP O-max, control synthesis,
-real model; IVI and sparse-marginal fIMDP excluded, Findings B-2/B-3; product processes and McCormick/vertex enumeration
+real model; IVI and sparse-marginal fIMDP excluded, Findings B-2/B-3; product processes and McCormick/vertex enumeration (Finding B-4)
 have no CUDA implementation).
 
 * Large cases gain a lot: `imdp-sparse-n100000-nnz100-a4` `bellman!` 27.3 ms (F64) / 16.3 ms (F32) vs 1.74 s at 1 CPU thread
@@ -495,13 +503,19 @@ one-call wall time ÷ number of Bellman kernel launches in the trace.
 Takeaways:
 
 1. **Host synchronisation, not the kernels, sets the time of mid-size and large CUDA calls.** For every case whose Bellman
-   kernel takes 2.3–3.2 ms, a call or VI iteration takes 5.9–6.1 ms. The extra ≈ 3 ms is not in any CUDA API call
-   (`cuStreamSynchronize` averages 0.15–0.30 ms per iteration, all host API calls 3–6% of the solve traces) and not in other
-   kernels (residual reduction, copies, `scal_kernel`, broadcasts < 1% of GPU time). It is host time between kernel end and
+   kernel takes 2.3–3.2 ms, a call or VI iteration takes 5.9–6.1 ms. The extra ≈ 3 ms is not in any CUDA API call that the
+   traces list: in the solve traces the listed calls add up to the header's host-API total (e.g. 16.6 of 16.8 ms for dense
+   n = 4000), `cuStreamSynchronize` averages 0.15–0.30 ms per iteration and all host API calls are 3–6% of the trace. The
+   single-call `bellman` traces are different: their headers report 4.27–7.66 ms "calling CUDA APIs" (29–37% of a
+   15–21 ms trace) while the listed calls add up to only 0.06–0.17 ms (`cuLaunchKernelEx`, `cuStreamSynchronize` 5–10 µs).
+   The unlisted ≈ 4 ms appears equally in the real-model trace, which has no floor (4.39 ms of 0.06 ms listed), so it is
+   attributed by the profiler summary to no call and does not explain the floor; resolving it needs a timeline
+   (Nsight Systems, § 9). Neither is the floor in other kernels (residual reduction, copies, `scal_kernel`, broadcasts
+   < 1% of GPU time). It is host time between kernel end and
    the return of the CUDA.jl synchronisation (the timed call synchronises, and every VI iteration copies the residual to the
    host). The real model (kernel ≈ 25 µs) shows no floor (89 µs per iteration), and the baseline shows the floor for kernels
    of ≥ 0.29 ms (dense n = 1000 a = 1 Float64, minimum 0.29 ms, median 5.94 ms) but not for dense n = 1000 Float32 (60 µs) —
-   hypothesis H5 (§ 7): the CUDA.jl wait mode after a short busy-wait. Removing it would roughly halve these solves
+   hypothesis H5 (§ 7): the CUDA.jl wait mode after a short busy-wait (conditional on the timing-method check, § 9 [19]). Removing it would roughly halve these solves
    (kernel share 36–51%).
 2. **Kernel cost**: dense n = 4000 a = 1 2.55 ms (16 M probability entries), sparse n = 10⁵
    k = 10 2.96 ms, fIMDP v2 d = 50 3.15 ms (Float64; Float32 medians in § 3).
@@ -516,66 +530,108 @@ vs `results/baseline-20fc03b-cuda.json`):
 |---|---|---|---|
 | all 14 IMDP cases (dense and sparse), Float64 and Float32 | `solve_ivi` (28 entries, recorded `unsupported`) | `IntervalValueIteration` throws on CuArrays (scalar indexing in `max_initial_gap`) | B-2 |
 | `fimdp-sparse-v2-d50-k10-a{1,4}-omax`, `fimdp-sparse-v3-d20-k5-a{1,4}-omax` | all | CUDA factored O-max returns zeros for sparse marginals; one solve hung 3 287 s | B-3 |
-| `fimdp-dense-v2-d10-a1-mccormick`, `fimdp-sparse-v2-d10-k4-a{1,4}-{mccormick,vertex}`, `fimdp-sparse-v3-d10-k3-a1-{mccormick,vertex}` | all | no CUDA workspace for `LPMcCormickRelaxation` / `VertexEnumeration` (`ext/cuda/workspace.jl` defines `OMaximization` only) | C-1 (draft) |
-| `product-imdp-{dense-n1000,sparse-n1000-nnz10,sparse-n10000-nnz10}-a{1,4}-dfa4` | all | no CUDA path for product processes / DFA specifications in `ext/` | C-1 (draft) |
+| `fimdp-dense-v2-d10-a1-mccormick`, `fimdp-sparse-v2-d10-k4-a{1,4}-{mccormick,vertex}`, `fimdp-sparse-v3-d10-k3-a1-{mccormick,vertex}` | all | no CUDA workspace for `LPMcCormickRelaxation` / `VertexEnumeration` (`ext/cuda/workspace.jl` defines `OMaximization` only) | B-4 "CUDA coverage gaps" (formerly C-1) |
+| `product-imdp-{dense-n1000,sparse-n1000-nnz10,sparse-n10000-nnz10}-a{1,4}-dfa4` | all | no CUDA path for product processes / DFA specifications in `ext/` | B-4 "CUDA coverage gaps" (formerly C-1) |
 
 Float32 is measured for the IMDP and fIMDP O-max cases only (as § Benchmark Suite requires); control synthesis and the real
 model are Float64 only.
 
 ## 7. Ranked hypotheses (by expected gain)
 
-Each entry: target cases — measurement — proposed change — predicted effect — phase. None of these is implemented; each
-must be accepted or rejected by the evidence protocol.
+Each entry: target cases — measurement (with its file under `benchmark/results/` or `benchmark/profiles/`) — proposed
+change — predicted effect — phase (and the spec file that tests it). None of these is implemented; each must be accepted
+or rejected by the evidence protocol (≥ 3 interleaved A/B rounds, `benchmark/ab.jl`).
+
+**Prerequisites that apply to several entries** (details in § 9):
+
+* **Re-baseline (all CPU entries H1–H4, H6–H9).** The stored CPU baselines, noisefix, scaling/sizes and CUDA files were
+  recorded at `91bc0c8` with an uncommitted harness, and the 0d spot-check against the CPU baseline failed
+  systematically (§ 9, carry-over item 8). The A side of every Phase 1–4 comparison must therefore be measured with the
+  committed harness on the merge base (`ab.jl` measures both refs in the same harness); the predicted factors below are
+  relative to the stored files and are to be restated against the re-measured base in the `Na-prepare` phase plan.
+  The first is `1a-prepare` (before any Phase 1 A/B work).
+* **Scaling evidence (H2, H8)** rests on single-round thread sweeps in a switching clock state; the sparse k = 10
+  t = 12/14 values are not used (item 9), roofs are an upper bound (item 10), and t = 16 profiles are mostly idle time
+  (item 18). `2a-prepare` re-measures these entries (step 2, noise check at 4/8/16 threads) before `2b.1`/`2b.2`.
+* **CUDA timing method (H5)** — H5's prediction depends on carry-over item 19: the ≈ 6 ms floor was measured only with
+  the host wall clock around a call ending in `CUDA.synchronize()`, and the entries are bimodal across processes
+  (item 11). `3a-prepare` steps 7–9 validate the timing method and restate or drop H5 before `3b.1` runs.
 
 1. **Type-stable ordering in the sparse and factored O-max sort (H1).** *Cases:* all sparse IMDP, product (sparse), real
-   model, all fIMDP O-max. *Measurement:* dynamic `Base.Order._by(by::Function, …)` is 67% of samples for the real model,
-   50% for `product-…-n10000-nnz10-a4`, 58% for `fimdp-sparse-v3-d20-k5`, 8% at k = 100; every column allocates exactly
-   2 objects / 64 B (6.4 MB per call at 10⁵ columns; 0.2–3.7 GB per solve). *Change:* build the ordering once per call with a
-   concrete type (dispatch on `upper_bound` via `Val`/two methods, `Base.Order.By(first)` / `ReverseOrdering`), call the
-   positional `sort!(v, alg, order)` form with the preallocated scratch, no keyword `NamedTuple`, no per-column `SubArray`
-   allocation. Same stable ordering → identical results. *Prediction:* 2–3× on k ≤ 10 cases and the real model, 1.1–1.3× at
-   k = 100, zero steady-state allocations. *Phase 1* (IMDP/product), shared with *Phase 4* (factored `orthogonal_inner_bellman!`).
-2. **Use the LP-E/E-cores proportionally (H2).** *Cases:* every threaded case at t ≥ 8. *Measurement:* t = 16 slower than
-   t = 14 for 3 of 4 strong-scaling cases (dense n4000 a1 9.75 vs 7.75 ms; sparse k10 9.78 vs 3.60 ms); efficiency 47–58%
-   at t = 16 vs 76–96% at t ≤ 6; 59–78% idle samples in the t = 16 profiles. *Change:* replace the static equal chunking of
-   `@threadstid` by dynamic chunked scheduling (e.g. `:greedy` or an atomic chunk counter, chunk ≈ 64–256 states) as a new
-   threaded workspace/`_bellman_helper!` method. *Prediction:* t = 16 ≥ t = 14 throughput, 1.2–2.5× at t = 16, no change at
-   t ≤ 6. *Phase 2.*
-3. **Rebuild-free McCormick LP (H3).** *Case:* `fimdp-*-mccormick`. *Measurement:* HiGHS 80% of samples incl.
-   `Highs_create`/`destroy`/`addRow`; 411 000 allocations and 21.6 MB per `bellman!`. *Change:* build the JuMP/HiGHS model
-   once per support pattern and only update bounds/objective coefficients (`set_normalized_coefficient`, `set_lower_bound`)
-   between state–action pairs. Same LP → same values. *Prediction:* 3–5×. *Phase 4.*
+   model, all fIMDP O-max. *Measurement:* dynamic `Base.Order._by(by::Function, …)` self time is 67% of samples for the
+   real model (`profiles/real-multiObj_robotIMDP.md`, 7043 / 10460), 50% for `product-imdp-sparse-n10000-nnz10-a4-dfa4`
+   (`profiles/product-imdp-sparse-n10000-nnz10-a4-dfa4.md`), 58% for `fimdp-sparse-v3-d20-k5-a1-omax`
+   (`profiles/fimdp-sparse-v3-d20-k5-a1-omax.md`) and 8% at k = 100 (`profiles/imdp-sparse-n100000-nnz100-a1.md`);
+   every sparse column allocates 64 B (`SubArray` + keyword `NamedTuple`, 6.4 MB per call at 10⁵ columns, § 5) and a
+   sparse IMDP solve allocates 0.05–3.72 GB (`results/baseline-20fc03b-cpu-t1.json`, 16 Float64 `solve_rvi`/`solve_ivi` entries). *Change:* build the ordering once per
+   call with a concrete type (dispatch on `upper_bound` via `Val`/two methods, `Base.Order.By(first)` / `ReverseOrdering`),
+   call the positional `sort!(v, alg, order)` form with the preallocated scratch, no keyword `NamedTuple`, no per-column
+   `SubArray` allocation. Same stable ordering → identical results. *Prediction:* 2–3× on k ≤ 10 cases and the real model,
+   1.1–1.3× at k = 100, zero steady-state allocations. *Phase 1* (IMDP/product, `1b.1-h1-sort-ordering.md`) and *Phase 4*
+   (factored `orthogonal_inner_bellman!`, `4b.3-h1-factored-ordering.md`). Depends on the re-baseline (item 8).
+2. **Use the E/LP-E cores proportionally (H2).** *Cases:* every threaded case at t ≥ 8. *Measurement:* t = 16 slower than
+   t = 14 for 3 of 4 strong-scaling cases (dense n = 4000 a = 1: 9.75 vs 7.75 ms; a = 4: 41.95 vs 40.96 ms;
+   `results/scaling-20fc03b-cpu-t16.json` vs `-t14.json`); efficiency 40–58% at t = 16 vs 76–98% at t ≤ 6
+   (`results/scaling-roofline-20fc03b.md`); 59–83% idle `wait()` samples in the t = 16 profiles (§ 5, e.g.
+   `profiles/imdp-dense-n4000-a4.md`). *Change:* replace the static equal chunking of `@threadstid` by dynamic chunked
+   scheduling (e.g. `:greedy` or an atomic chunk counter, chunk ≈ 64–256 states) as a new threaded workspace/
+   `_bellman_helper!` method. *Prediction:* t = 16 ≥ t = 14 throughput, 1.2–2.5× at t = 16, no change at t ≤ 6.
+   *Phase 2* (`2b.1-h2-dynamic-scheduling.md`). Depends on items 8, 9, 10 and 18 (re-measurement in one clock state).
+3. **Rebuild-free McCormick LP (H3).** *Cases:* `fimdp-*-mccormick`. *Measurement:* HiGHS 80% of samples incl.
+   `Highs_create`/`destroy`/`addRow`; 411 000 allocations and 21.6 MB per `bellman!`
+   (`profiles/fimdp-sparse-v2-d10-k4-a1-mccormick.md`). *Change:* build the JuMP/HiGHS model once per support pattern and
+   only update bounds/objective coefficients (`set_normalized_coefficient`, `set_lower_bound`) between state–action
+   pairs. Same LP → same values. *Prediction:* 3–5×. *Phase 4* (`4b.2-h3-mccormick-lp-reuse.md`). Depends on item 8.
 4. **Vertex enumeration over the support only (H4).** *Cases:* `fimdp-*-vertex`. *Measurement:* 36–38% of samples in the
-   products of the vertex sum; the sum runs over the full dense target product (`CartesianIndices(num_target.(…))`) although
-   only the support carries mass — 1000 target tuples vs 27 support tuples for v3-d10-k3. *Change:* iterate the support
-   product. Zero terms are dropped, so only the summation order changes (within tolerance). *Prediction:* 5–30× on sparse
-   marginals, unchanged on dense ones. *Phase 4.*
-5. **CUDA host synchronisation (H5).** *Cases:* all CUDA solves and `bellman!`. *Measurement:* ≈ 6 ms floor per
-   synchronised call independent of size (median ≈ 6 ms, min 0.3–1 ms); solves ≈ 6 ms × iterations. *Change:* avoid a blocking
-   host round-trip per VI iteration (compute the termination check on the device and transfer every k iterations, or
-   use a spin-wait/stream-ordered check); investigate the CUDA.jl synchronisation mode. *Prediction:* 5–20× for solves of
-   models whose kernel takes < 1 ms. *Phase 3.*
+   products of the vertex sum (`profiles/fimdp-sparse-v2-d10-k4-a1-vertex.md`, `profiles/fimdp-sparse-v3-d10-k3-a1-vertex.md`);
+   the sum runs over the full dense target product (`CartesianIndices(num_target.(…))`) although only the support
+   carries mass — 10³ = 1000 target tuples vs 3³ = 27 support tuples for v3-d10-k3 (case parameters, `cases/fimdp.jl`).
+   *Change:* iterate the support product. Zero terms are dropped, so only the summation order changes (within
+   tolerance). *Prediction:* 5–30× on sparse marginals, unchanged on dense ones. *Phase 4* (`4b.1-h4-vertex-support.md`).
+   Depends on item 8.
+5. **CUDA host synchronisation (H5).** *Cases:* all CUDA solves and `bellman!` whose kernel takes ≥ 0.29 ms.
+   *Measurement:* ≈ 6 ms floor per synchronised call independent of size (dense n = 1000 a = 1 Float64 `bellman`: median
+   5.94 ms, minimum 0.29 ms, `results/baseline-20fc03b-cuda.json`; minima 0.29–3.3 ms, § 3); solves ≈ 6 ms × iterations
+   (dense n = 1000 a = 1: 470 ms / 81 iterations); in the traces a 2.55 ms kernel takes 5.92 ms per call
+   (`profiles/cuda-imdp-dense-n4000-a1.md`), kernel share 36–51% of the solve traces (§ 6.3). *Change:* avoid a blocking
+   host round-trip per VI iteration (compute the termination check on the device and transfer every k iterations, or use a
+   spin-wait/stream-ordered check); investigate the CUDA.jl synchronisation mode. *Prediction:* ≈ 2× for solves whose
+   kernel takes 2–3 ms, 5–20× for models whose kernel takes < 1 ms. **The prediction depends on carry-over item 19** (the
+   floor may be (partly) an artefact of CUDA.jl's non-blocking, yielding synchronisation and of host wall-clock timing
+   rather than of the package) and on item 11 (bimodal entries); `3a-prepare` steps 7 and 9 restate it in event time and
+   host time, or revise/drop it. *Phase 3* (`3b.1-h5-host-sync.md`). Also depends on item 8 (CUDA baselines from `91bc0c8`).
 6. **Dense gap walk (H6).** *Cases:* dense IMDP, product (dense), control synthesis (dense). *Measurement:* 79–81% of
-   samples in `gap_value` (42% at `min(budget, gap[i])`), 3.3–4.9 ns/nnz, only 26–37% of the 1-thread DRAM roof.
-   *Change:* make the gather cheaper: e.g. walk the shared permutation on a gap column that was just streamed into cache by the
-   `dot` pass (fuse `dot` and a prefetching pass), `Int32` permutation already used — try SIMD-friendly blocking of the budget
-   accumulation (prefix sums per block, then a scalar finish in the block where the budget runs out). *Prediction:*
-   1.3–2× at 1 thread for n ≥ 1000; smaller at t = 16 where it is memory-bound. *Phase 1.*
-7. **Sparse gather/tuple construction (H7).** *Cases:* sparse k = 100. *Measurement:* 25% of samples in `setindex!` building
-   `(V[j], gap)` tuples. *Change:* sort indices by a precomputed global rank of `V` (one `sortperm` per call, as the dense
-   path does) instead of copying values into tuples; partial selection up to the budget. *Prediction:* 1.2–1.5× for k = 100.
-   *Phase 1.*
+   samples in `gap_value` (42% at `min(budget, gap[i])`, `profiles/imdp-dense-n1000-a4.md`,
+   `profiles/imdp-dense-n4000-a4.md`); 3.30–4.89 ns/nnz, only 26–28% of the 1-thread DRAM roof
+   (`results/sizes-20fc03b-cpu-t1.json`, `results/stream-t1.json`, § 6.2). *Change:* make the gather cheaper: e.g. walk the
+   shared permutation on a gap column that was just streamed into cache by the `dot` pass (fuse `dot` and a prefetching
+   pass), and try SIMD-friendly blocking of the budget accumulation (prefix sums per block, then a scalar finish in the
+   block where the budget runs out). *Prediction:* 1.3–2× at 1 thread for n ≥ 1000; smaller at t = 16 where it is
+   memory-bound. *Phase 1* (`1b.3-h6-dense-gap-walk.md`). Depends on item 8; the control-synthesis `bellman_cs` check has no
+   stored reference until `4a-prepare` step 6 (item 13).
+7. **Sparse gather/tuple construction (H7).** *Cases:* sparse k = 100. *Measurement:* 25% of samples in `setindex!`
+   building `(V[j], gap)` tuples (`profiles/imdp-sparse-n10000-nnz100-a4.md`, `profiles/imdp-sparse-n100000-nnz100-a1.md`).
+   *Change:* sort indices by a precomputed global rank of `V` (one `sortperm` per call, as the dense path does) instead of
+   copying values into tuples; partial selection up to the budget. *Prediction:* 1.2–1.5× for k = 100. *Phase 1*
+   (`1b.2-h7-sparse-gather.md`). Depends on item 8.
 8. **Threaded-workspace threshold (H8).** *Cases:* small models (n = 100, real model). *Measurement:* `imdp-dense-n100-a4`
-   87% idle samples at t = 16 and 36 µs vs 19 µs at t = 8; the threaded path allocates 82 objects/7 KB per call.
-   *Change:* select the threaded workspace by work (columns × support) instead of `num_sets > 10`, with the constant set from
-   a measured sweep. *Prediction:* removes the 1.5–2× slowdown of small models at high thread counts. *Phase 2.*
-9. **fIMDP O-max tuple/expectation overhead (H9).** *Cases:* `fimdp-*-omax`. *Measurement:* 255 000 allocations (8.2 MB)
-   per call for v2-d50, `setindex!` 7–13%. *Change:* after H1, remove the remaining per-state temporaries (`ssize[2:end]`,
-   `support.(…)` tuples). *Prediction:* 1.2–1.5× on top of H1. *Phase 4.*
-10. **VI loop (H10, low).** *Measurement:* loop overhead ≤ 3% (§ 3). No action unless a later phase makes `bellman!` ≥ 10×
-    faster.
+   83% idle `wait()` samples (87% with `enq_work`) at t = 16 (`profiles/imdp-dense-n100-a4.md`) and 36.2 µs vs 19.4 µs at t = 8; the threaded path
+   allocates 82 objects / 7.1 KB per call (`results/baseline-20fc03b-cpu-t16.json` vs `-t8.json`). *Change:* select the
+   threaded workspace by work (columns × support) instead of `num_sets > 10`, with the constant set from a measured sweep.
+   *Prediction:* removes the 1.5–2× slowdown of small models at high thread counts. *Phase 2*
+   (`2b.2-h8-threaded-threshold.md`). Depends on items 8 and 17 (CLOCK flags at t ≥ 8).
+9. **fIMDP O-max tuple/expectation overhead (H9).** *Cases:* `fimdp-*-omax`. *Measurement:* 255 000 allocations
+   (8.2 MB) per call for v2-d50 (`profiles/fimdp-dense-v2-d50-a1-omax.md`), `setindex!` 7–13%
+   (`profiles/fimdp-sparse-v3-d20-k5-a1-omax.md` / `fimdp-dense-v2-d50-a1-omax.md`). *Change:* after H1, remove the
+   remaining per-state temporaries (`ssize[2:end]`, `support.(…)` tuples). *Prediction:* 1.2–1.5× on top of H1.
+   *Phase 4* (`4b.4-h9-fimdp-omax-temporaries.md`). Depends on item 8.
+10. **VI loop (H10, low).** *Measurement:* loop overhead ≤ 3% of a solve at t = 1 (§ 3, `results/baseline-20fc03b-cpu-t1.json`).
+    No action and no spec unless a later phase makes `bellman!` ≥ 10× faster.
 
 ## 8. Findings
+
+Numbered per the Findings policy (`B-` correctness bug, `I-` interface change, `S-` semantic change, `T-` trade-off).
+Each names the sub-phase that handles it.
 
 * **B-1 — stationary strategy cache keeps the previous action only for states whose index ≤ number of actions.**
   `extract_strategy!(::StationaryStrategyCache, …)` (`src/strategy_cache.jl`) tests `jₛ ∉ available_actions`, i.e. the
@@ -585,31 +641,92 @@ must be accepted or rejected by the evidence protocol.
   Pessimistic/Maximize): synthesised strategy `[(1,), (1,), (2,), (1,), (1,), (1,)]` — state 3 keeps the goal action, state 6
   switches to a self-loop. Policy evaluation of the synthesised strategy gives value 0 for state 6 although the reported
   value is 1 (the returned stationary strategy is not optimal). Not fixed (Phase 0 may not touch `src/`); needs its own commit
-  with a regression test.
+  with a regression test → `4f.1-b1-strategy-cache.md`.
 * **B-2 — `IntervalValueIteration` fails on CUDA models.** `max_initial_gap(V_lower, V_upper, ::AllStates)`
   (`src/interval_value_iteration.jl`) indexes the CuArrays element by element → "Scalar indexing is disallowed". The CUDA
-  suite records `solve_ivi` as `unsupported`.
+  suite records `solve_ivi` as `unsupported` (28 entries) through a hard-coded skip in `benchmark/run.jl`, so the failure
+  was observed once and not re-measured per entry (item 12) → `3f.1-b2-ivi-cuda.md`.
 * **B-3 — CUDA factored O-max returns zeros for sparse marginals.** For a 2-variable fIMDP with 3 non-zeros per marginal
   column, `bellman` on CUDA returns all zeros (max |CPU − CUDA| = 0.68; dense marginals agree to 2e-16), so RVI stops after
   1 iteration (CPU: 667). In the first CUDA run one `solve` sample of `fimdp-sparse-v3-d20-k5-a4-omax` (Float64) also took
-  3 287 s. Sparse-marginal fIMDP cases are excluded from the CUDA suite.
-* **C-1 — CUDA coverage gaps (draft from 0g, for 0h to classify and finalise; not a correctness bug).** The CUDA extension
-  implements only O-max Bellman workspaces (`ext/cuda/workspace.jl`: dense and sparse IMDP, factored O-max). McCormick
-  relaxation and vertex enumeration (7 fIMDP cases) and product processes with DFA specifications (6 cases) have no CUDA
-  path, so these 13 case-matrix rows have no CUDA baseline (§ 6.3 table). Together with B-2 (IVI) and B-3 (sparse-marginal
-  fIMDP) this is the complete list of CUDA rows that cannot run. Not measured whether these cases throw or silently fall
-  back to the CPU on CUDA inputs.
-* **Environment (not a code bug):** the clock cap of § 1.1; NVML/`nvidia-smi` unusable (driver/library version mismatch,
-  kernel module 610.57.04 vs NVML 615.71), so no GPU clock or power data in the CUDA files; JET's `target_modules` filter hides the dynamic dispatch inside
-  `Base.sort!` (§ 5).
-* No `I-`, `S-` or `T-` findings in Phase 0.
+  3 287 s. Sparse-marginal fIMDP cases are excluded from the CUDA suite → `3f.2-b3-cuda-fimdp-sparse.md`.
+* **B-4 — CUDA coverage gaps (formerly C-1).** Classified `B` (suspected defect, unverified): the CUDA extension implements
+  only O-max Bellman workspaces (`ext/cuda/workspace.jl`: dense and sparse IMDP, factored O-max). McCormick relaxation and
+  vertex enumeration (7 fIMDP cases) and product processes with DFA specifications (6 cases) have no CUDA path, so these
+  13 case-matrix rows have no CUDA baseline (§ 6.3 table). Together with B-2 (IVI) and B-3 (sparse-marginal fIMDP) this is
+  the complete list of CUDA rows that cannot run. The gap is asserted from registry exclusions (`eltypes_cuda = DataType[]`),
+  not measured: whether these calls throw a clear error, throw an unclear one, silently fall back to the CPU, hang or return
+  wrong values on CUDA inputs is unknown; the last two would be correctness bugs (item 12) →
+  `3f.3-c1-cuda-coverage.md` (measures first, then makes the behaviour explicit).
+* No `I-`, `S-` or `T-` findings in Phase 0 (no optimisation was made).
 
 ## 9. Limitations
+
+Numbers in brackets are the carry-over items of `0h-hypotheses-close.md`; → names the sub-phase that handles the item.
+
+**Scope of the results**
 
 * Optimised code may differ from the baseline in the last floating-point bits (different summation/reduction order, e.g.
   SIMD blocking or dropped zero terms); the correctness check allows the spec's tolerances for this. The Lean proofs are at
   abstract scope (exact arithmetic) and are not affected; they say nothing about Julia floating point or GPU execution.
 * Absolute times are for a power-capped laptop (§ 1.1); thread placement is fixed by compact pinning, so t = 8/16 always
   include E/LP-E cores.
-* Roofline traffic is a model (upper bound for the dense gap walk), not a hardware-counter measurement (no `perf` access).
-* CUDA: no Nsight; `CUDA.@profile` traces only; NVML unavailable, so GPU clocks/power were not recorded.
+* Numbers without a stored result file (stated here so that they are not mistaken for traceable measurements): the
+  discarded first CPU pass of § 1.1 (summary only), the 0g QE spot-check of § 3 (0.193 ms vs 6.05 ms, scratch run), the
+  0f QE observation of item [9] (×1.6 at t = 8) and the reproductions of Findings B-1–B-3 (§ 8, interactive sessions).
+  Every other number cites a file under `benchmark/results/` or `benchmark/profiles/`.
+* JET's `target_modules = (IntervalMDP,)` filter hides the dynamic dispatch inside `Base.sort!` (§ 5); "0 JET reports" does
+  not mean type-stable hot loops. `Profile.Allocs` and the self-time profiles are the evidence for H1.
+
+**Measurement validity (group B)**
+
+* [8] **Stored baselines are from an uncommitted harness.** The CPU baselines (§ 3), noisefix files (§ 4), scaling/sizes
+  files (§ 6) and CUDA baselines (§ 3, § 4, § 6.3) were recorded at `91bc0c8` with an uncommitted benchmark harness
+  (src/ext equal to `20fc03b`). The 0d spot-check against the CPU baseline failed systematically (robot `bellman` ×1.186,
+  product `bellman` ×1.152) with sample counts very different from the committed harness. Every Phase 1–4 A/B measures both
+  sides with the committed harness; re-baseline before Phase 1 A/B work → `1a-prepare` (first prepare sub-phase; no step
+  names it yet, so its Dev adds it to the phase plan / step 2 noise run). Recorded in § 7 for H1–H9.
+* [9] **Sparse k = 10 superlinear strong scaling** at t = 12/14 (×15.05/×17.57, efficiency 125%,
+  `results/scaling-20fc03b-cpu-t12.json` / `-t14.json`) coincides with the 557 µs clock state; 0f QE saw sparse k = 10
+  ×1.6 faster in that state at t = 8. Not evidence; re-measure in one clock state → Phase 2 (`2a-prepare` step 2 noise
+  check), before H2/H8 use it. Open until then.
+* [10] **Roofs are a maximum over clock states.** The § 6 roofs (`results/stream-t*.json`) take the max over 3 rounds in
+  different clock states; single-round in-cache roofs vary ≈ ×2.2 between states, so every "% of roof" (e.g. 26–28% of
+  the 1-thread DRAM roof for the dense gap walk) is a lower bound. Per-clock-state roofs would be better; open, to be
+  revisited in Phase 2 (`2a-prepare`) where the memory-bound classification matters for H2.
+* [11] **CUDA noise is not fixed.** 47 / 128 CUDA entries spread > 5% over baseline / rerun1 / rerun2 (§ 4), some flipping
+  between kernel speed and the ≈ 6 ms floor (bimodal across processes, § 3); the floor process got only 10–12 samples vs
+  311. → noise check in `3a-prepare` step 2; the floor itself is H5 (`3b.1-h5-host-sync.md`).
+* [12] **CUDA "cannot run" cases are asserted, not measured** (B-4: 7 McCormick/vertex and 6 product/DFA cases from registry
+  exclusions; B-2: 28 `solve_ivi` entries from a hard-coded skip in `benchmark/run.jl`). Whether they throw or fall back to
+  the CPU is unknown. → `3f.3-c1-cuda-coverage.md` (B-4, formerly C-1); B-2 → `3f.1-b2-ivi-cuda.md`.
+* [13] **`bellman_cs` has no stored reference.** The control-synthesis profile pseudo-entry is checked against the same
+  kernel with the default cache; the older t = 1 profile sections (from `91bc0c8`) have no inline correctness line. A
+  registry `bellman` entry for `cs-*` cases is needed → `4a-prepare` step 6.
+* [14] **72 CPU entries are too noisy for single-pair evidence** (§ 4), and a single a/b pair spread is a lower bound on
+  process-to-process noise. → noise check (≥ 3 separate processes) in step 2 of every `Na-prepare`.
+* [19] **CUDA timing method.** CUDA times are host wall-clock times around a call that ends in `CUDA.synchronize()`; no CUDA
+  event timing and no comparison with blocking synchronisation was made. The size-independent ≈ 6 ms floor, the bimodal
+  entries and minima of 0.29–3.3 ms suggest the floor may come (partly) from CUDA.jl's non-blocking, yielding
+  synchronisation rather than from the package. H5's prediction depends on this (§ 7). → `3a-prepare` steps 7 and 9.
+
+**Benchmark tooling (group C)**
+
+* [15] `compare.jl` gives speedup/regression verdicts from a single A/B round without warning; the Evidence Protocol needs
+  ≥ 3 interleaved rounds. → `benchmark/ab.jl` (step 4 of the first prepare sub-phase) and a round-count warning in
+  `3a-prepare` step 6.
+* [16] `compare.jl`'s CLOCK verdict uses only the host CPU probe: a ×30 GPU floor flip was labelled CLOCK. CUDA comparisons
+  need a GPU-aware check. → `3a-prepare` step 6.
+* [17] `lib/clock.jl` takes the run-start reference unloaded (so nearly every t = 8/16 entry is flagged CLOCK) and, at t = 1,
+  while the core still boosts (≈ 197 µs vs 436 µs; false CLOCK flag on `scaling-20fc03b-cpu-t1.json`, § 6). → step 5 of
+  every `Na-prepare` (whichever runs first fixes it).
+* [18] **t = 16 CPU profiles are dominated by idle `wait()`** (59–80% `wait()` self-time samples, 83% for `imdp-dense-n100-a4` or 87% with `enq_work`, § 5); a
+  busy-only or per-thread view is needed. Open; no spec names it — to be added by `2a-prepare` when it profiles the
+  threaded cases for H2/H8.
+* [20] **No kernel-level CUDA analysis.** CUDA profiles are `CUDA.@profile` trace summaries only (no Nsight Systems timeline,
+  no NVTX ranges, no Nsight Compute occupancy / achieved bandwidth / registers / limiter), so there is no kernel-level CUDA
+  counterpart of the § 6 roofline, and the ≈ 4 ms of host-API time that the single-call traces do not attribute to any
+  call (§ 6.3) is unexplained. `nsys` and `ncu` are installed. → `3a-prepare` step 8.
+* **NVML unavailable** (moved here from § 8 "Environment"): `nvidia-smi` fails with a driver/library version mismatch
+  (kernel module 610.57.04 vs NVML 615.71) while CUDA.jl works, so no GPU clock or power data are recorded in the CUDA
+  files and the CLOCK flag of CUDA entries refers to the host CPU only (see [16]).
