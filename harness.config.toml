@@ -1,0 +1,7 @@
+# Harness target configuration for IntervalMDP.jl (see harness/harness.config.example.toml).
+# Precedence: spec "Commands / Toolchain" > this file > discovery > blocker.
+
+[gpu]
+# Runs the `:cuda`-tagged test items in addition to the default suite (test/runtests.jl).
+# Classify outcomes with: python3 harness/tools/harness/gpu_check.py run . --cmd "<this command>"
+test = "env INTERVALMDP_TEST_CUDA=1 julia --project=. -e 'using Pkg; Pkg.test()'"

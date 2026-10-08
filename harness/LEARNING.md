@@ -291,3 +291,23 @@ Each entry should be dated and attributed to the stage that learned it:
 - **Problem:** None. Lean 1d closed Phase 1 on PR #114 cleanly (`1abf9a4`). Recorded as the reference procedure.
 - **Root cause:** n/a. The draft PR's Summary paragraph was written at 1a ("starts with 1a") and goes stale by the last sub-phase.
 - **Fix / guardrail:** Follow "Sub-phase on an already-pushed branch", plus: check `gh pr view N --json mergeable` before pushing; rewrite the Summary paragraph to cover the whole phase; build the new body with an exact-match script that asserts each anchor (summary sentence, `### Checklist`, unticked item, trailing attribution line) occurs once; then `gh pr ready N` and confirm `isDraft: false`.
+
+### 2026-10-09 — Planner/QE — Record the base-ref state of tests a spec newly makes a gate
+- **Problem:** The fix-format-docs spec made the `:cuda` test items a required gate. Those items are not run in CI and had rotted. Cycles 1–2 ended on GPU failures, and the operator had to widen scope twice (CUDA test repair, then fix E1) and accept a known issue (K1).
+- **Root cause:** The rot had layers. The outdated test API (`_bellman_helper!` without an update sequence) hid an ext bug (`try_large_sparse_bellman!` did not pass `states`, so the code threw `UndefVarError`). That bug in turn hid a disabled kernel (`ext/cuda/bellman/sparse.jl:84`) that the "most non-zeros" item needs, which led to `OutOfSharedMemory`.
+- **Fix / guardrail:** Before a spec makes previously-unrun tests a gate, the Planner runs them on the base ref and writes the pass/fail/error counts into the spec (here the base was 1095 / 3 / 13). Treat every pre-existing failure as possibly hiding more, and decide up front, with the operator, whether repairing it is in scope or becomes a known issue. Budget cycles for this.
+
+### 2026-10-09 — Orchestrator — Configure the GPU test command (`INTERVALMDP_TEST_CUDA`)
+- **Problem:** `discover.py` never infers `gpu.test`, and the repo has no switch for running only the `:cuda` test items. Each GPU run in this spec needed hand-made scratch scripts (a modified `runtests.jl` copy).
+- **Root cause:** `test/runtests.jl` always excludes `:cuda` (`const EXCLUDED_TAGS = (:cuda, :mixture)`), and only `harness/harness.config.example.toml` exists, with its `[gpu]` runner commented out.
+- **Fix / guardrail:** Resolved on branch `test/cuda-env-switch`: `test/runtests.jl` keeps the `:cuda` items when `INTERVALMDP_TEST_CUDA=1` is set (default unchanged, so CI is unaffected), and `harness.config.toml` at the repo root sets `[gpu] test = "env INTERVALMDP_TEST_CUDA=1 julia --project=. -e 'using Pkg; Pkg.test()'"`. `discover.py` now resolves `gpu.test` from the config (`source.gpu.test=config`), so specs need no GPU test line and nobody edits `runtests.jl` by hand. Classify with `gpu_check.py run . --cmd "<gpu.test>"`. A spec may still override the command, and QE must still state the exact command behind any GPU verdict.
+
+### 2026-10-09 — Dev/QE — `Base.remove_linenums!` misses LineNumberNodes in `:toplevel` and macrocall args
+- **Problem:** AST-equivalence checks for the formatting-only change reported false differences.
+- **Root cause:** `Base.remove_linenums!` does not strip `LineNumberNodes` that are arguments of `:toplevel` expressions or macrocalls (e.g. `@testitem`). Parsing a whole file also gives nested `:toplevel` blocks.
+- **Fix / guardrail:** Use a custom walker that removes every `LineNumberNode` (macrocall argument 2 included) and flattens nested `:toplevel` blocks before comparing.
+
+### 2026-10-09 — Ops — Split a mixed working tree into logical commits without partial staging
+- **Problem:** None. 36 paths with four concerns (format, docs, CUDA tests, E1 fix) plus the spec were committed as 5 commits on `fix/format-docs` (PR #115, ready for review).
+- **Root cause:** n/a. Recorded as the reference procedure.
+- **Fix / guardrail:** Put each file that belongs to two concerns into the later commit (here the formatted-and-repaired `test/cuda/*/bellman.jl` went into the CUDA test commit). Use a small script that runs `git add -- <paths>`, asserts that the sorted `git diff --cached --name-only` equals the expected list, and only then commits, logging telemetry for each step. In zsh, quote `"[...]"` in `echo` (`LS=[$(...)]` fails with "no matches found").
