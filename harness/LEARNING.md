@@ -240,7 +240,7 @@ Each entry should be dated and attributed to the stage that learned it:
 ### 2026-10-08 — Orchestrator — Resolve a mistyped spec path by unique match and record it
 - **Problem:** The 0h command gave the spec path `harness/specs/0h-hypothesis-close.md`, which does not exist.
 - **Root cause:** The path left out the `perf-vi-bellman/` subdirectory and used "hypothesis" instead of "hypotheses".
-- **Fix / guardrail:** Resolve a missing spec path only if exactly one file matches (here `harness/specs/perf-vi-bellman/0h-hypotheses-close.md`), and record the resolution in telemetry and in the hand-offs. If there are zero or several matches, stop and ask.
+- **Fix / guardrail:** Resolve a missing spec path only if exactly one file matches (here `harness/specs/perf-vi-bellman/0h-hypotheses-close.md`), and record the resolution in telemetry and in the hand-offs. If there are zero or several matches, stop and ask. Operators also swap word order (Lean 1c: `1c-dense-omax.md` for `lean-proofs/1c-omax-dense.md`); match on the sub-phase prefix plus the subdirectory, and the same unique-match rule applies.
 
 ### 2026-10-08 — QE/Dev — Recompute a stated range over the full case set the claim covers
 - **Problem:** In 0h, QE failed cycle 1 because the H1 range endpoint was taken from a subset of cases (the a=4 minimum), not from all the cases the claim covers. Cycle 2 then failed because one of four occurrences of an idle-share figure was not updated.
@@ -256,3 +256,38 @@ Each entry should be dated and attributed to the stage that learned it:
 - **Problem:** 0h used up its 2-cycle budget on number/wording fixes in REPORT.md, and the operator had to authorise a third cycle.
 - **Root cause:** Each cycle fixed only the reported instance of a number defect (see the two lessons above), so related defects surfaced one cycle at a time.
 - **Fix / guardrail:** For documentation-heavy sub-phases, Dev runs a self-check (recompute ranges over full case sets, grep all occurrences) before hand-off, and QE reports all number defects of the same kind in one pass. If the budget is still exhausted, escalate to the operator rather than starting another cycle silently.
+
+### 2026-10-08 — QE/All — Call `record_event.py` by absolute path
+- **Problem:** In Lean sub-phase 1a, a QE `tool_call_end` event was lost because the recorder was called by a relative path after a `cd` (e.g. into `lean/`).
+- **Root cause:** Shell state carries over within one Bash call, so a relative `harness/tools/harness/record_event.py` no longer resolves after a `cd`.
+- **Fix / guardrail:** Always define the wrapper with an absolute path, `R(){ python3 /home/fresen/.julia/dev/IntervalMDP/harness/tools/harness/record_event.py "$@"; }`, and run commands in subdirectories via `cd <abs> && ...` or `git -C`/`lake --dir`-style flags. A failed telemetry call is a lost audit record. Check for `recorded:` in the output.
+
+### 2026-10-08 — Ops — First sub-phase of a new phase: fresh branch from `origin/main`
+- **Problem:** None. Lean 1a was the first single-cycle Lean sub-phase to reach Ops, and it went through cleanly. Recorded as the reference procedure.
+- **Root cause:** n/a.
+- **Fix / guardrail:** Run `git fetch origin`, check that both `origin/main..main` and `origin/main..HEAD` are 0, and check that `git ls-remote --heads origin <branch>` and `gh pr list --head <branch> --state all` are empty. Then run `git switch -c <branch> --no-track origin/main`; uncommitted changes carry over. Stage explicit paths, diff `--cached --name-status` against the list, push with `-u`, and open a `--draft` PR whose body has a `### 1x` section per sub-phase and a `### Checklist` listing all sub-phase specs in `harness/specs/lean-proofs/1*.md`, so later sub-phases can follow the "update the existing PR" lesson. Result: `e3301b5`, draft PR #114.
+
+### 2026-10-08 — Orchestrator/Dev — A latent defect the theorem does not contradict is an Observation, not an open Finding
+- **Problem:** In Lean 1b, the inventory listed F2 (`sub2ind(::IntervalAmbiguitySets)` ignores the action) as an OPEN Finding while its row was `proved`. QE failed cycle 1 because this contradicts the Findings policy.
+- **Root cause:** The defect is real but unreachable from package call sites (all go through `Marginal`), and the proved theorem is scoped to the single-action layout, so nothing in the proof contradicts the code.
+- **Fix / guardrail:** Record such defects as an Observation (here O8), with the reachability argument and a follow-up-spec note. Reserve open Findings for cases where the code contradicts a stated property or the literature.
+
+### 2026-10-08 — Dev — "Named definitions over inline lambdas" applies to helper lemmas too
+- **Problem:** Lean 1b cycle 1 failed QE on inline `fun` lambdas in theorem statements, including supporting lemmas.
+- **Root cause:** Dev applied the style rule only to the main theorems.
+- **Fix / guardrail:** Before hand-off, grep every theorem/lemma statement (not proof bodies) in the new modules for `fun ` and lift each one to a named `def` (as with `hornerLoop`, `marginalColumn`).
+
+### 2026-10-08 — Verifier/Dev — `proof_hygiene.py` takes one `--theorem` flag per name
+- **Problem:** In Lean 1c, listing several theorem names after one `--theorem` flag failed with a usage error. Re-checked in 1d: `proof_hygiene.py lean --theorem A B` prints the usage text and `proof_hygiene.py: error: unrecognized arguments: B`, exit 2 (nothing is checked).
+- **Root cause:** The tool expects a separate `--theorem <name>` for each theorem.
+- **Fix / guardrail:** Pass `--theorem` once per required theorem (e.g. `--theorem omax_mem --theorem omax_eq_sSup ...`). Check that the output lists every theorem before reporting a PASS.
+
+### 2026-10-08 — Planner/QE — Phrase cross-check cases in terms of valid inputs
+- **Problem:** The Lean 1d spec asked for a cross-check case "sparse column with an empty gap". A column with no stored entries cannot be built: `checkprobabilities` rejects it.
+- **Root cause:** The case was described by its mathematical shape, not by an input the package accepts.
+- **Fix / guardrail:** Dev/QE realise such a case with the nearest valid input (here: stored-zero gaps) and record the reason as an Observation (O10). Planners should state cross-check cases as valid package inputs and check them against the constructors' validation before writing the spec.
+
+### 2026-10-08 — Ops — Last sub-phase of a phase: update the PR summary and mark it ready
+- **Problem:** None. Lean 1d closed Phase 1 on PR #114 cleanly (`1abf9a4`). Recorded as the reference procedure.
+- **Root cause:** n/a. The draft PR's Summary paragraph was written at 1a ("starts with 1a") and goes stale by the last sub-phase.
+- **Fix / guardrail:** Follow "Sub-phase on an already-pushed branch", plus: check `gh pr view N --json mergeable` before pushing; rewrite the Summary paragraph to cover the whole phase; build the new body with an exact-match script that asserts each anchor (summary sentence, `### Checklist`, unticked item, trailing attribution line) occurs once; then `gh pr ready N` and confirm `isDraft: false`.
