@@ -63,7 +63,7 @@ recursion). Not covered:
 
 | # | Algorithm | Model family | Julia entry point (function — file) | CPU / GPU paths | Lean theorem(s) (name — file) | Proof status | Proof scope | Limitations |
 |---|---|---|---|---|---|---|---|---|
-| 1 | O-maximization, dense | interval | `state_action_bellman(::DenseIntervalOMaxWorkspace, …)`, `gap_value`, `bellman_precomputation!` — `src/bellman.jl` | dense CPU, CUDA (`ext/`) | `IntervalMDP.OMax.omax_mem`, `omax_eq_sSup`, `omax_eq_sInf`, `omax_tie_invariant` — `lean/IntervalMDPProofs/OMax.lean` | `none` | — | L1–L4 |
+| 1 | O-maximization, dense | interval | `state_action_bellman(::DenseIntervalOMaxWorkspace, …)`, `gap_value`, `bellman_precomputation!` — `src/bellman.jl` | dense CPU, CUDA (`ext/`) | `IntervalMDP.OMax.omax_mem` (the greedy distribution `p = lower + allocation` is in `P(l, u)` and `omax = ⟨p, V⟩`), `IntervalMDP.OMax.omax_eq_sSup` (`upper_bound = true`, descending `perm`: `omax = sSup {⟨p, V⟩ : p ∈ P(l, u)}`), `IntervalMDP.OMax.omax_eq_sInf` (`upper_bound = false`, ascending: `sInf`), `IntervalMDP.OMax.omax_tie_invariant` (any two permutation vectors sorting `V` in the same direction, stable or not, give the same value) — `lean/IntervalMDPProofs/OMax.lean` (definitions `IntervalMDP.OMax.omax` = `stateActionBellman A s.V s.perm` = `dot(V, lower) + gapValue(V, gap, perm, budget)`, transcription reusing `Index.gapValue`; `greedy`; `Permutation`); supporting `stateActionBellman_isGreatest`, `stateActionBellman_isLeast`, `stateActionBellman_eq_dot` | `proved` (Phase 1c) | `abstract` | L1–L6. Hypotheses: structure invariants of `IntervalAmbiguity` only, plus `upper_bound = true/false` for `_eq_sSup`/`_eq_sInf`. Mode coverage: O-max is mode-agnostic; modes reach it only through `upper_bound = isoptimistic(spec)` (`src/robust_value_iteration.jl`), the strategy mode acts afterwards across actions. Both directions are proved, so all four satisfaction × strategy modes are covered. L1 in particular: the early exit `budget <= 0` and the accumulated error of `budget -= p` are exact only in `ℝ` (Lean replaces the early exit by `p_i = min(budget_i, gap_i) = 0` via `greedy_visits_once`/`gapValue_eq_sum_allocation`); tie invariance holds in `ℝ` only (different tie orders can round differently, O9). L2: overflow/underflow and `NaN` in `V` not modeled. L3: CUDA kernels and `@threadstid` not modeled. L4: Lean↔Julia by literal transcription (`gap_value` loop, `dot(V, lower)`). L5: DP value ↔ path measure not proved. L6: no LP solver involved (n/a) |
 | 2 | O-maximization, sparse | interval | `state_action_bellman(::SparseIntervalOMaxWorkspace, …)`, `gap_value(Vp, budget)` — `src/bellman.jl` | sparse CPU, CUDA | `IntervalMDP.OMax.omaxSparse_eq_omax` — `OMax.lean` | `none` | — | L1–L4 |
 | 3 | Robust Bellman operator | RMDP (general) | `bellman!` → `state_bellman!` (`OptimizingStrategyCache`) — `src/bellman.jl` | dense, sparse, CUDA | `IntervalMDP.Bellman.T_mono`, `T_add_const`, `T_nonexpansive`, `T_interval_eq_omax` — `Bellman.lean` | `none` | — | L1–L4 |
 | 4 | Strategy extraction and evaluation | RMDP | `extract_strategy!` — `src/strategy_cache.jl`; `NonOptimizingStrategyCache` path | CPU, CUDA | `IntervalMDP.Bellman.argopt_attains`, `IntervalMDP.Bellman.policy_eval_sound` — `Bellman.lean` | `none` | — | L1–L4 |
@@ -80,6 +80,8 @@ recursion). Not covered:
 
 ## Findings
 
+- **Phase 1c: no findings.** `omax_mem`, `omax_eq_sSup`, `omax_eq_sInf`, `omax_tie_invariant`
+  hold as stated for the transcribed `state_action_bellman`/`gap_value` (see Observation O9).
 - **Phase 1b: no findings.** `marginalSub2ind_eq_linear`, `_bijective`, `_depends_only` hold as
   stated for the Julia loop, and `intervalSub2ind_correct` holds for the single-action condition of
   § Indexing Correctness (see Observation O8 for the latent multi-action defect).
@@ -163,16 +165,21 @@ recursion). Not covered:
   code calling `sets[jₐ, jₛ]` / `sub2ind(sets, …)` directly on an exported `IntervalAmbiguitySets`
   can. Fix (out of scope, no `src/` change): remove the method or make it error for more than one
   action.
+- **O9 (Phase 1c).** No defect found in dense O-maximization. Notes for later phases: (a)
+  `omax_tie_invariant` and exactness hold in exact arithmetic; in `Float64`/`Float32` two tie
+  orders (e.g. CPU `sortperm!` vs. a CUDA sort) can accumulate `res += p * V[i]` and
+  `budget -= p` in a different order and differ by rounding (L1, L3). (b) `sortperm!` orders `NaN`
+  entries of `V` by `isless` (largest); values in `ℝ` have no `NaN`, so this is not modeled (L2).
 
 ## Legacy verification gaps
 
-Every algorithm row (1–14), A2–A8 and every index row except the three Phase 1a rows (linear index, sparse support pairing, sort permutation) and the two Phase 1b rows (`Marginal` and `IntervalAmbiguitySets` `sub2ind`; `proved`; see Observation O8) are `none`: no Lean theorem yet. A task
+Every algorithm row (1–14) except row 1 (dense O-maximization, `proved` in Phase 1c), A2–A8 and every index row except the three Phase 1a rows (linear index, sparse support pairing, sort permutation) and the two Phase 1b rows (`Marginal` and `IntervalAmbiguitySets` `sub2ind`; `proved`; see Observation O8) are `none`: no Lean theorem yet. A task
 touching one of these must supply its theorem and proof before it can pass the Formal Verification
 gate.
 
 ## Summary
 
-- Algorithms: 14; proved: 0; partial: 0; none: 14.
+- Algorithms: 14; proved: 1 (dense O-maximization, Phase 1c); partial: 0; none: 13.
 - Models: 5 mapped rows proved (M1–M5), including `toSet_convex` and `productSet_not_convex`; approximation: A1 proved, A2–A8 none; indexing: 5 of 8 rows proved (Phase 1a: linear index, sparse support pairing, sort permutation; Phase 1b: `Marginal` and `IntervalAmbiguitySets` `sub2ind`, with Observation O8 recorded).
 - Statement: the package is **not** verified. Phase 0 proves only model well-formedness and the
-  generic soundness lift, at abstract scope.
+  generic soundness lift; Phase 1 adds index theorems and dense O-max exactness, all at abstract scope.

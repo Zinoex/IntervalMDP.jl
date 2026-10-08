@@ -48,3 +48,12 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 -- Phase 1b: supporting results referenced by the inventory
 #print axioms IntervalMDP.Index.intervalSub2ind_wrong_multiAction
 #print axioms IntervalMDP.Index.marginalCartesian_surjective
+-- Phase 1c: dense O-maximization
+#print axioms IntervalMDP.OMax.omax_mem
+#print axioms IntervalMDP.OMax.omax_eq_sSup
+#print axioms IntervalMDP.OMax.omax_eq_sInf
+#print axioms IntervalMDP.OMax.omax_tie_invariant
+-- Phase 1c: supporting results referenced by the inventory
+#print axioms IntervalMDP.OMax.stateActionBellman_isGreatest
+#print axioms IntervalMDP.OMax.stateActionBellman_isLeast
+#print axioms IntervalMDP.OMax.stateActionBellman_eq_dot

@@ -65,6 +65,7 @@ DFA Q Λ, Labelling S Λ, ProbLabelling S Λ, AbstractLabelling S Λ
 StationaryStrategy S A, TimeVaryingStrategy S A (+ Valid w.r.t. available)
 Property S Q, SatisfactionMode, StrategyMode, Specification S Q
 Approx.Sound m W V, Approx.StepSound m T' T, Approx.iter_sound (A1)
+OMax.omax A s                  dense O-max on IntervalAmbiguity (Fin n) × SortedPerm n (exact: sSup / sInf)
 ```
 
 ## Julia ↔ Lean glossary
@@ -111,6 +112,8 @@ Approx.Sound m W V, Approx.StepSound m T' T, Approx.iter_sound (A1)
 | `sortperm!(perm, V; rev = upper_bound)` (`bellman_precomputation!`) | `IntervalMDP.Index.SortedPerm` (`V`, `upperBound`), `.perm`, `.order` (`Index/Perm.lean`); `sortedPerm_bijective`, `sortedPerm_fits_int32` |
 | loop of `gap_value(V, gap, budget, perm)` (`src/bellman.jl`) | `IntervalMDP.Index.gapValue` (literal transcription), `visited`, `allocation`; `greedy_visits_once`, `gapValue_eq_sum_allocation` |
 | `sub2ind(p::Marginal, action, source)` loop (`src/probabilities/Marginal.jl`); fields `source_dims`, `action_vars` | `IntervalMDP.Index.marginalSub2ind` (literal transcription), `marginalSub2indInt` (`N`-bit value), `marginalSourceDims`, `marginalActionVars`, `marginalDims` (= `(action_vars…, source_dims…)`), `marginalCartesian` (= `(action[action_indices]…, source[state_indices]…)`), `juliaTuple` (= `Tuple(I)`), `hornerLoop` (= one `for i in StepRange(d, -1, 1)` loop of `sub2ind`), `marginalColumn` (= `N`-bit `sub2ind(p, a, s)` of a pair `(a, s)`) (`Index/Marginal.lean`); `foldl_horner`, `linear_eq_foldl`, `marginalSub2ind_eq_linear`, `marginalSub2ind_bijective`, `marginalSub2ind_depends_only` |
+| `state_action_bellman(::DenseIntervalOMaxWorkspace, V, ambiguity_set, budget, upper_bound)` = `dot(V, lower) + gap_value(V, gap, budget, perm)` (`src/bellman.jl`) | `IntervalMDP.OMax.stateActionBellman` (transcription), `omax` (with the stable `sortperm!` of `bellman_precomputation!`), `dot` (= `LinearAlgebra.dot`), `greedy` (greedy distribution `lower + allocation`), `valueSet` (= `{⟨p, V⟩ : p ∈ P(l, u)}`), `IsThreshold` (proof device) (`OMax.lean`); `omax_mem`, `omax_eq_sSup` (`upper_bound = true`), `omax_eq_sInf` (`upper_bound = false`), `omax_tie_invariant`, `stateActionBellman_eq_dot`, `stateActionBellman_isGreatest`, `stateActionBellman_isLeast` |
+| `permutation(workspace)` of `DenseIntervalOMaxWorkspace` (`src/workspace.jl`), any valid `sortperm!` output | `IntervalMDP.OMax.Permutation` (`perm`, invariants `perm_perm`, `sorted`), `stablePermutation` (= the stable `SortedPerm.perm`) (`OMax.lean`) |
 | `sub2ind(::IntervalAmbiguitySets, jₐ, jₛ) = jₛ[1]` (`src/probabilities/IntervalAmbiguitySets.jl`) | `IntervalMDP.Index.intervalSub2ind`; `intervalSub2ind_correct` (single-action layout), `intervalSub2ind_wrong_multiAction` (Observation O8) |
 
 Indices: Julia is 1-based, Lean's `Fin n` is 0-based. The conversion is defined once, as
@@ -140,6 +143,7 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
 | `IntervalMDPProofs/Index/Sparse.lean` | `Index.SparseCol`, `getindex`, `supportRows`, `valuesGaps`; `sparse_zip_correct` |
 | `IntervalMDPProofs/Index/Perm.lean` | `Index.SortedPerm`, `perm`, `gapValue`, `visited`, `allocation`; `sortedPerm_bijective`, `sortedPerm_fits_int32`, `greedy_visits_once`, `gapValue_eq_sum_allocation` |
 | `IntervalMDPProofs/Index/Marginal.lean` | `Index.marginalSub2ind` (transcription of `sub2ind(::Marginal, …)`), `marginalSub2indInt`, `marginalDims`, `marginalCartesian`, `juliaTuple`, `hornerLoop`, `marginalColumn`, `intervalSub2ind`; `foldl_horner`, `linear_eq_foldl`, `marginalSub2ind_eq_linear`, `marginalCartesian_surjective`, `marginalSub2ind_bijective`, `marginalSub2ind_depends_only`, `intervalSub2ind_correct`, `intervalSub2ind_wrong_multiAction` |
+| `IntervalMDPProofs/OMax.lean` | `OMax.dot`, `valueSet`, `Permutation`, `stablePermutation`, `stateActionBellman` (transcription of dense `state_action_bellman`), `omax`, `IsThreshold`, `greedy`; `allocation_nonneg`, `allocation_le_gap`, `allocation_cons_of_ne`, `sum_allocation`, `exists_threshold`, `sum_perm_eq`, `Permutation.nodup`, `Permutation.mem`, `sum_allocation_eq_budget`, `greedy_apply`, `greedy_mem`, `stateActionBellman_eq_dot`, `juliaGet_neg`, `dot_neg`, `dot_le_greedy`, `stateActionBellman_isGreatest`, `stateActionBellman_isLeast`, `omax_mem`, `omax_eq_sSup`, `omax_eq_sInf`, `omax_tie_invariant` |
 | `AxiomCheck.lean` | `#print axioms` for every mapped theorem |
 | `DocLint.lean` | `#lint only docBlame docBlameThm` |
 
