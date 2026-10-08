@@ -74,7 +74,8 @@ only the n = 10⁶ size case).
 | `benchmark/baseline.sh rounds` | the driver that produced the eight CPU files above (one Julia process per file, rounds interleaved over t = 1, 4, 8, 16) |
 | `results/noisefix/*.json` | re-measurement of the noisy entries with the raised budgets (two rounds `a`, `b`) |
 | `results/baseline-20fc03b-cuda.json`, `-cuda-rerun{1,2}.json` | CUDA, Float64 and Float32 |
-| `results/baseline-20fc03b-cuda-run0-unchecked.json` | first CUDA run, made before the CUDA reference existed (correctness "no-reference"; timing only; contains the B-3 hang) |
+| `results/baseline-20fc03b-cuda-run0-unchecked.json` | first CUDA run (2026-10-06 09:50–11:36 UTC), made before the CUDA reference existed: 180 entries of an older registry that still had the sparse-marginal fIMDP cases (B-3), 103 invalid ("no-reference"), contains the B-3 hang. **Excluded** from every number in this report |
+| `results/baseline-20fc03b-cuda-check-c0d6114.json` | 0g re-check of 6 CUDA `bellman` entries with the committed harness (see the CUDA paragraph below) |
 | `results/reference-run-20fc03b-{cpu-t1,cuda}.json` | the runs that wrote the reference values |
 | `results/scaling-20fc03b-cpu-t{1,2,4,6,8,10,12,14,16}.json` | strong scaling |
 | `results/sizes-20fc03b-cpu-t{1,6,16}.json` | size scaling |
@@ -131,6 +132,52 @@ product DFA reachability 0.73–0.77 [0.73–0.77] (the accepting DFA state is s
 [0.97] (stationary control synthesis). The VI loop itself (residual, copies, termination check, strategy cache) costs ≤ 3%
 at 1 thread.
 
+**CUDA baseline** (0g). `results/baseline-20fc03b-cuda.json` (baseline), `results/baseline-20fc03b-cuda-rerun1.json`,
+`results/baseline-20fc03b-cuda-rerun2.json` (separate-process re-runs) and `results/reference-run-20fc03b-cuda.json` (the
+run that wrote `reference/cuda-Float64/`, 53 files, and `reference/cuda-Float32/`, 41 files). Validation of all four files:
+`--suite full --backend cuda --eltype all`, no filter, budget scale 1.0, one host thread; 156 entries each — Float64 82
+(47 pass, 21 `workspace` not applicable, 14 `solve_ivi` unsupported), Float32 74 (40 pass, 20 not applicable, 14
+unsupported); Float32 covers the IMDP and fIMDP cases, control synthesis and the real model are Float64 only. **0 invalid,
+0 no-reference** in each file; every passing entry has its reference file, and all 87 pass records of each file have max |ΔV| = 0.
+Environment block: NVIDIA RTX PRO 500 Blackwell Generation Laptop GPU (compute capability 12.0, 5.58 GiB), CUDA driver
+13.4, runtime 13.4 (CUDA.jl artifact), `CUDA.versioninfo()` digest stored; NVML is unusable (`nvidia-smi`: "Driver/library
+version mismatch", kernel module 610.57.04 vs NVML 615.71, re-checked 2026-10-08), so GPU clocks and power are not recorded.
+The CLOCK flag of CUDA entries refers to the host CPU probe only. Checked-out commit `91bc0c8` (branch `lean/phase0-models`)
+with an **uncommitted** benchmark harness (29–30 dirty files, none under `src/`/`ext/`), `src_ext_equal_to_base_ref = true`
+(src tree `290f675`, ext tree `5a4cf21`). Started 2026-10-06 12:51 / 14:30 / 14:42 UTC (baseline / rerun1 / rerun2), wall
+time 725 / 701 / 743 s; clock-deviating 36 / 46 / 91 of 156. Because the files were recorded with an uncommitted harness,
+0g re-checked six entries with the committed harness (`c0d6114`, clean tree, 2026-10-08):
+`julia --project=benchmark benchmark/run.jl --suite full --backend cuda --eltype all --filter '^(imdp-dense-n4000-a1|imdp-sparse-n100000-nnz100-a4|fimdp-dense-v2-d50-a1-omax)$' --entries bellman`
+→ `results/baseline-20fc03b-cuda-check-c0d6114.json`, 0 invalid; `compare.jl` against `results/baseline-20fc03b-cuda.json`:
+5 no change (ratio 0.984–1.019), 1 CLOCK (sparse n = 10⁵ k = 100 a = 4 Float32, ×1.067). The other CUDA entries were not
+re-checked.
+
+Selected CUDA medians (`results/baseline-20fc03b-cuda.json`, minimum in parentheses, re-run medians in brackets from
+`-cuda-rerun1.json` / `-cuda-rerun2.json`; † = host clock deviating; CPU columns from `results/baseline-20fc03b-cpu-t1.json`
+and `-cpu-t16.json`):
+
+| case | entry | CUDA Float64 median (min) [rerun1 / rerun2] | CUDA Float32 median (min) [rerun1 / rerun2] | allocs/call F64 | CPU t=1 / t=16 (F64) |
+|---|---|---:|---:|---:|---:|
+| imdp-dense-n100-a4 | bellman | 46.8 µs† (43.1 µs) [48.1 µs / 47.9 µs] | 19.1 µs† (16.4 µs) [21.8 µs / 18.9 µs] | 24 | 138.1 µs / 36.2 µs |
+| imdp-dense-n1000-a1 | bellman | 5.94 ms† (290.8 µs) [6.02 ms / 6.02 ms] | 60.4 µs (57.5 µs) [59.9 µs / 57.2 µs] | 35 | 3.51 ms / 764.8 µs |
+| imdp-dense-n4000-a4 | bellman | 12.11 ms† (9.91 ms) [11.74 ms / 12.01 ms] | 7.70 ms† (4.86 ms) [7.70 ms / 7.70 ms] | 35 | 312.53 ms / 41.18 ms |
+| imdp-sparse-n10000-nnz10-a4 | bellman | 6.04 ms† (1.14 ms) [6.04 ms / 6.03 ms] | 6.02 ms (308.1 µs) [6.03 ms / 6.02 ms] | 143 | 25.22 ms / 3.16 ms |
+| imdp-sparse-n100000-nnz100-a1 | bellman | 9.36 ms (6.49 ms) [9.35 ms / 9.36 ms] | 6.15 ms (3.27 ms) [6.16 ms / 6.19 ms] | 182 | 432.05 ms / 49.57 ms |
+| imdp-sparse-n100000-nnz100-a4 | bellman | 27.29 ms (25.03 ms) [27.21 ms / 37.35 ms] | 16.27 ms (12.49 ms) [16.24 ms / 18.08 ms] | 182 | 1.74 s / 192.83 ms |
+| fimdp-dense-v2-d50-a1-omax | bellman | 6.13 ms (3.29 ms) [6.14 ms / 6.16 ms] | 6.03 ms (1.59 ms) [5.93 ms / 5.95 ms] | 153 | 151.41 ms / 19.64 ms |
+| real-multiObj_robotIMDP | bellman | 43.9 µs† (41.0 µs) [43.5 µs / 43.7 µs] | — | 129 | 304.9 µs / 61.4 µs |
+| imdp-dense-n1000-a1 | solve_rvi | 469.98 ms (18.56 ms) [466.72 ms / 469.14 ms] | 7.27 ms (7.21 ms) [7.14 ms / 6.64 ms] | 12537 | 284.40 ms / 69.79 ms |
+| imdp-sparse-n100000-nnz100-a4 | solve_rvi | 1.88 s (1.86 s) [1.89 s / 1.92 s] | 1.11 s (1.08 s) [1.18 s / 1.71 s] | 20993 | 109.09 s / 12.71 s |
+| fimdp-dense-v2-d50-a1-omax | solve_rvi | 534.84 ms (527.48 ms) [535.74 ms / 550.29 ms] | 521.81 ms (513.73 ms) [518.29 ms / 522.98 ms] | 25776 | 13.26 s / 1.70 s |
+| real-multiObj_robotIMDP | solve_rvi | 6.37 ms (4.93 ms) [5.69 ms / 6.27 ms] | — | 17603 | 24.74 ms / 9.26 ms |
+| cs-imdp-sparse-n10000-nnz100-a4 | solve_cs_stationary | 396.80 ms† (393.64 ms) [400.86 ms / 400.55 ms] | — | 21077 | 10.38 s / 1.16 s |
+
+Read with § 6.3: the ≈ 6 ms medians (dense n = 1000 a = 1 Float64, sparse n = 10⁴, fIMDP d = 50) are the host
+synchronisation floor, not kernel time (minimum 0.29–3.3 ms). Dense n = 1000 a = 1 Float32 runs at kernel speed in all three
+runs (60 µs), Float64 at the floor in all three, so the floor is reproducible per entry, not random. With the floor, CUDA
+`solve_rvi` on dense n = 1000 a = 1 Float64 (470 ms) is slower than 1 CPU thread (284 ms). Steady-state `bellman!` on CUDA
+allocates on the host in every case (24–182 allocations per call; kernel launch configuration and argument conversion).
+
 ## 4. Noise
 
 Spread = (max − min)/min of the per-run medians, separate processes, `compare.jl --spread`.
@@ -141,9 +188,18 @@ Spread = (max − min)/min of the per-run medians, separate processes, `compare.
 | 4 | 131 | 22 | 1.59% | 8.7% |
 | 8 | 131 | 36 | 1.48% | 65.0% |
 | 16 | 131 | 45 | 2.06% | 17.2% |
-| CUDA | 128 | 26 | 0.92% | 28.8% |
+| CUDA (3 runs) | 128 | 47 | 2.33% | 97.5% |
 
 (First pass without clock guard, for comparison: t=1 69/131 > 5%, median 7.5%.)
+
+CUDA row (0g): `julia --project=benchmark benchmark/compare.jl --spread results/baseline-20fc03b-cuda.json
+results/baseline-20fc03b-cuda-rerun1.json results/baseline-20fc03b-cuda-rerun2.json`, Float64 and Float32 together, 128
+entries = 156 − 28 unsupported; max spread 6880%. Pairwise (`--spread` with two files): baseline/rerun1 29 > 5%, median
+1.22%, 90th pct 35.6%; baseline/rerun2 39, 1.54%, 39.2%; rerun1/rerun2 37, 1.32%, 39.5%. The value previously in this row
+(26 > 5%, median 0.92%, 90th pct 28.8%) is not reproduced by the committed `compare.jl` with any pair of these files and is
+replaced. The 47 entries > 5% are `workspace` 26, `bellman` 8, `solve_rvi` 10, control synthesis 3; 5 of them have a
+median at the ≈ 6 ms floor in one or two runs and > 20% lower in another (e.g. `fimdp-dense-v2-d10-a4-omax/bellman` Float32 0.112 / 0.112 / 5.93 ms). CUDA was not part of the noise fix (no budget change, no
+re-measurement), so CUDA single-pair comparisons need ≥ 3 interleaved rounds as for the CPU.
 
 Causes of the remaining > 5% entries (every entry with its values, clock probes and cause code:
 `results/noise-before-fix.md`, section "Causes of the > 5% entries and re-measurement"). The cause is assigned from the
@@ -158,8 +214,10 @@ Causes of the remaining > 5% entries (every entry with its values, clock probes 
    at t = 8, `imdp-dense-n100-a1/bellman` 85% at t = 8): static equal chunking makes the slowest pinned core (E/LP-E, or a core
    shared with desktop work) determine the time, and that differs from process to process: t=4 11, t=8 8, t=16 31.
 4. **ST — single-threaded compute entry** with equal clocks: t=1 1 (`fimdp-sparse-v3-d10-k3-a1-vertex/bellman`, 8.1%).
-5. **CUDA**: `workspace` entries take 2–80 ns (timer resolution), and host-synchronisation quantisation (§ 6.3) makes
-   short solves bimodal.
+5. **CUDA**: `workspace` entries are at timer resolution for dense IMDP (2–26 ns) and 0.6–87 µs otherwise (26 of the 47
+   entries > 5%), and host-synchronisation quantisation (§ 6.3) makes entries bimodal: e.g.
+   `imdp-sparse-n100000-nnz100-a4/workspace` Float64 86.8 µs / 5.97 ms / 5.93 ms, `imdp-sparse-n100000-nnz100-a4/solve_rvi`
+   Float32 1.11 / 1.18 / 1.71 s (baseline / rerun1 / rerun2).
 
 Fix applied: budgets for `workspace` (1 s/≥10 → 3 s/≥50 samples) and `bellman` (2 s/≥20 → 4 s/≥40) were raised in
 `cases/registry.jl` (`E_ws`, `E_bellman`; committed with 0a, `333f674` — the baseline files of § 3 record the old budgets
@@ -416,7 +474,53 @@ have no CUDA implementation).
   7.3 ms for 82 iterations). The time is spent waiting in host synchronisation (`CUDA.synchronize` in the timed call, and the
   device→host transfer of the residual in every VI iteration), not in the kernels.
 
-<!--CUDAPROF-->
+**CUDA profiles** (`benchmark/profiles/cuda-*.md`; `julia --project=benchmark benchmark/profile.jl --case <case>
+--entries <e> --backend cuda --eltype Float64`, regenerated in 0g on 2026-10-08 with the committed harness `c0d6114`, src/ext
+clean; per entry a `CUDA.@profile` trace summary, `Profile.Allocs`, steady-state allocation and `JET.@report_opt`). The
+correctness check of every profiled call against `reference/cuda-Float64/` passes (max |ΔV| = 0). Per iteration =
+one-call wall time ÷ number of Bellman kernel launches in the trace.
+
+| profile | entry | wall per call / iteration | Bellman kernel per call | GPU busy (trace) | `cuStreamSynchronize` | takeaway |
+|---|---|---:|---:|---:|---:|---|
+| [`cuda-imdp-dense-n4000-a1.md`](profiles/cuda-imdp-dense-n4000-a1.md) | `bellman` | 5.92 ms | 2.55 ms | 17% | 5 µs | ≈ 3.4 ms of the call is neither kernel nor CUDA API |
+| same | `solve_rvi` (80 it.) | 5.88 ms | 2.54 ms | 41% | 12.3 ms total | residual reduction + copies < 0.2% of GPU time |
+| [`cuda-imdp-sparse-n100000-nnz10-a1.md`](profiles/cuda-imdp-sparse-n100000-nnz10-a1.md) | `bellman` | 6.07 ms | 2.96 ms | 19% | 5 µs | same pattern for the sparse kernel |
+| same | `solve_rvi` (94 it.) | 5.92 ms | 2.96 ms | 49% | 23.1 ms total | ≈ 3 ms host wait per iteration |
+| [`cuda-fimdp-dense-v2-d50-a1-omax.md`](profiles/cuda-fimdp-dense-v2-d50-a1-omax.md) | `bellman` | 6.35 ms | 3.15 ms | 15% | 10 µs | same pattern for the factored kernel |
+| same | `solve_rvi` (88 it.) | 6.08 ms | 3.15 ms | 51% | 26.1 ms total | JET: 2 runtime dispatches of `step!` (abstract `CuFactoredOMaxWorkspace`), once per iteration |
+| [`cuda-real-multiObj_robotIMDP.md`](profiles/cuda-real-multiObj_robotIMDP.md) | `bellman` | 62 µs | 27 µs | 0.2% | 5 µs | small kernel: no floor |
+| same | `solve_rvi` (83 it.) | 89 µs | 23 µs | 15% | — | per iteration ≈ 23 µs kernel + 11 µs D→H copy + host overhead; no floor |
+| [`cuda-cs-imdp-sparse-n10000-nnz100-a4.md`](profiles/cuda-cs-imdp-sparse-n10000-nnz100-a4.md) | `solve_cs_stationary` (67 it.) | 5.98 ms | 2.29 ms | 36% | 9.8 ms total | floor also with the strategy cache; `bellman_cs` one call 6.13 ms (stationary) / 5.96 ms (time-varying) |
+
+Takeaways:
+
+1. **Host synchronisation, not the kernels, sets the time of mid-size and large CUDA calls.** For every case whose Bellman
+   kernel takes 2.3–3.2 ms, a call or VI iteration takes 5.9–6.1 ms. The extra ≈ 3 ms is not in any CUDA API call
+   (`cuStreamSynchronize` averages 0.15–0.30 ms per iteration, all host API calls 3–6% of the solve traces) and not in other
+   kernels (residual reduction, copies, `scal_kernel`, broadcasts < 1% of GPU time). It is host time between kernel end and
+   the return of the CUDA.jl synchronisation (the timed call synchronises, and every VI iteration copies the residual to the
+   host). The real model (kernel ≈ 25 µs) shows no floor (89 µs per iteration), and the baseline shows the floor for kernels
+   of ≥ 0.29 ms (dense n = 1000 a = 1 Float64, minimum 0.29 ms, median 5.94 ms) but not for dense n = 1000 Float32 (60 µs) —
+   hypothesis H5 (§ 7): the CUDA.jl wait mode after a short busy-wait. Removing it would roughly halve these solves
+   (kernel share 36–51%).
+2. **Kernel cost**: dense n = 4000 a = 1 2.55 ms (16 M probability entries), sparse n = 10⁵
+   k = 10 2.96 ms, fIMDP v2 d = 50 3.15 ms (Float64; Float32 medians in § 3).
+3. **Allocations**: steady-state `bellman!` allocates 1.8–5.4 KB per call on the host (launch configuration, `adapt`); not
+   zero, but negligible against the floor.
+4. JET: 0 reports for all entries except fIMDP `solve_rvi` (above).
+
+**CUDA cases that cannot run** (registry rows of the CPU suite without a CUDA measurement, `results/baseline-20fc03b-cpu-t1.json`
+vs `results/baseline-20fc03b-cuda.json`):
+
+| cases | entries | reason | Finding |
+|---|---|---|---|
+| all 14 IMDP cases (dense and sparse), Float64 and Float32 | `solve_ivi` (28 entries, recorded `unsupported`) | `IntervalValueIteration` throws on CuArrays (scalar indexing in `max_initial_gap`) | B-2 |
+| `fimdp-sparse-v2-d50-k10-a{1,4}-omax`, `fimdp-sparse-v3-d20-k5-a{1,4}-omax` | all | CUDA factored O-max returns zeros for sparse marginals; one solve hung 3 287 s | B-3 |
+| `fimdp-dense-v2-d10-a1-mccormick`, `fimdp-sparse-v2-d10-k4-a{1,4}-{mccormick,vertex}`, `fimdp-sparse-v3-d10-k3-a1-{mccormick,vertex}` | all | no CUDA workspace for `LPMcCormickRelaxation` / `VertexEnumeration` (`ext/cuda/workspace.jl` defines `OMaximization` only) | C-1 (draft) |
+| `product-imdp-{dense-n1000,sparse-n1000-nnz10,sparse-n10000-nnz10}-a{1,4}-dfa4` | all | no CUDA path for product processes / DFA specifications in `ext/` | C-1 (draft) |
+
+Float32 is measured for the IMDP and fIMDP O-max cases only (as § Benchmark Suite requires); control synthesis and the real
+model are Float64 only.
 
 ## 7. Ranked hypotheses (by expected gain)
 
@@ -489,7 +593,14 @@ must be accepted or rejected by the evidence protocol.
   column, `bellman` on CUDA returns all zeros (max |CPU − CUDA| = 0.68; dense marginals agree to 2e-16), so RVI stops after
   1 iteration (CPU: 667). In the first CUDA run one `solve` sample of `fimdp-sparse-v3-d20-k5-a4-omax` (Float64) also took
   3 287 s. Sparse-marginal fIMDP cases are excluded from the CUDA suite.
-* **Environment (not a code bug):** the clock cap of § 1.1; JET's `target_modules` filter hides the dynamic dispatch inside
+* **C-1 — CUDA coverage gaps (draft from 0g, for 0h to classify and finalise; not a correctness bug).** The CUDA extension
+  implements only O-max Bellman workspaces (`ext/cuda/workspace.jl`: dense and sparse IMDP, factored O-max). McCormick
+  relaxation and vertex enumeration (7 fIMDP cases) and product processes with DFA specifications (6 cases) have no CUDA
+  path, so these 13 case-matrix rows have no CUDA baseline (§ 6.3 table). Together with B-2 (IVI) and B-3 (sparse-marginal
+  fIMDP) this is the complete list of CUDA rows that cannot run. Not measured whether these cases throw or silently fall
+  back to the CPU on CUDA inputs.
+* **Environment (not a code bug):** the clock cap of § 1.1; NVML/`nvidia-smi` unusable (driver/library version mismatch,
+  kernel module 610.57.04 vs NVML 615.71), so no GPU clock or power data in the CUDA files; JET's `target_modules` filter hides the dynamic dispatch inside
   `Base.sort!` (§ 5).
 * No `I-`, `S-` or `T-` findings in Phase 0.
 
