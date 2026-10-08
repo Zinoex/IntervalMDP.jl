@@ -76,6 +76,23 @@ function Base.show(io::IO, mime::MIME"text/plain", prob::VerificationProblem)
 end
 
 # Solution
+"""
+    VerificationSolution{R, MR <: AbstractArray{R}, D}
+
+The solution of a [`VerificationProblem`](@ref), as returned by [`solve`](@ref).
+
+### Fields
+- `value_function::MR`: the value function, one entry per state of the system (product states for a product process).
+- `residual::MR`: for [`RobustValueIteration`](@ref), the difference between the value functions of the last two
+  iterations; for [`IntervalValueIteration`](@ref), the gap `V_upper - V_lower` between the upper and lower bound.
+- `num_iterations::Int`: the number of value iteration steps performed.
+- `additional_data::D`: algorithm-specific data; `nothing` for [`RobustValueIteration`](@ref), and for
+  [`IntervalValueIteration`](@ref) the bound that is not stored in `value_function` (`V_upper` for `Pessimistic`,
+  `V_lower` for `Optimistic` satisfaction mode).
+
+Use the accessors [`value_function`](@ref), [`residual`](@ref) and [`num_iterations`](@ref) to read the solution.
+The solution can also be destructured as `V, k, res = solution` (value function, number of iterations, residual).
+"""
 struct VerificationSolution{R, MR <: AbstractArray{R}, D}
     value_function::MR
     residual::MR
@@ -151,6 +168,27 @@ Return the specification of a problem.
 specification(prob::ControlSynthesisProblem) = prob.spec
 
 # Solution
+"""
+    ControlSynthesisSolution{C <: AbstractStrategy, R, MR <: AbstractArray{R}, D}
+
+The solution of a [`ControlSynthesisProblem`](@ref), as returned by [`solve`](@ref).
+
+### Fields
+- `strategy::C`: the synthesized strategy, a [`StationaryStrategy`](@ref) for infinite-horizon properties and a
+  [`TimeVaryingStrategy`](@ref) for finite-horizon properties.
+- `value_function::MR`: the value function under the synthesized strategy, one entry per state of the system
+  (product states for a product process).
+- `residual::MR`: for [`RobustValueIteration`](@ref), the difference between the value functions of the last two
+  iterations; for [`IntervalValueIteration`](@ref), the gap `V_upper - V_lower` between the upper and lower bound.
+- `num_iterations::Int`: the number of value iteration steps performed.
+- `additional_data::D`: algorithm-specific data; `nothing` for [`RobustValueIteration`](@ref), and for
+  [`IntervalValueIteration`](@ref) the bound that is not stored in `value_function` (`V_upper` for `Pessimistic`,
+  `V_lower` for `Optimistic` satisfaction mode).
+
+Use the accessors [`strategy`](@ref strategy(::IntervalMDP.ControlSynthesisSolution)), [`value_function`](@ref),
+[`residual`](@ref) and [`num_iterations`](@ref) to read the solution. The solution can also be destructured as
+`σ, V, k, res = solution` (strategy, value function, number of iterations, residual).
+"""
 struct ControlSynthesisSolution{C <: AbstractStrategy, R, MR <: AbstractArray{R}, D}
     strategy::C
     value_function::MR
