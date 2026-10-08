@@ -18,11 +18,11 @@ Run order:
 | `0h-hypotheses-close.md` | Ranked hypotheses, Findings, Phase 0 close |
 | `1a-prepare.md` → `1b.1-h1-sort-ordering.md` → `1b.2-h7-sparse-gather.md` → `1b.3-h6-dense-gap-walk.md` → `1c-close.md` | Phase 1 — single-threaded CPU |
 | `2a-prepare.md` → `2b.1-h2-dynamic-scheduling.md` → `2b.2-h8-threaded-threshold.md` → `2c-close.md` | Phase 2 — multi-threaded CPU |
-| `3a-prepare.md` → `3f.1-b2-ivi-cuda.md` → `3f.2-b3-cuda-fimdp-sparse.md` → `3b.1-h5-host-sync.md` → `3c-close.md` | Phase 3 — CUDA (needs a passing GPU probe) |
+| `3a-prepare.md` → `3f.1-b2-ivi-cuda.md` → `3f.2-b3-cuda-fimdp-sparse.md` → `3f.3-c1-cuda-coverage.md` → `3b.1-h5-host-sync.md` → `3c-close.md` | Phase 3 — CUDA (needs a passing GPU probe) |
 | `4a-prepare.md` → `4f.1-b1-strategy-cache.md` → `4b.1-h4-vertex-support.md` → `4b.2-h3-mccormick-lp-reuse.md` → `4b.3-h1-factored-ordering.md` → `4b.4-h9-fimdp-omax-temporaries.md` → `4c-close.md` | Phase 4 — factored algorithms and VI loop |
 
 The experiments `Nb.k` implement the ranked hypotheses H1–H9 of `benchmark/REPORT.md` § 7 (H10 is not scheduled); the
-fixes `Nf.k` resolve the Findings B-1–B-3 of § 8. To add an experiment (e.g. a second variant of H6), copy the closest
+fixes `Nf.k` resolve the Findings B-1–B-3 and C-1 of § 8. To add an experiment (e.g. a second variant of H6), copy the closest
 `Nb.k` file to the next free number, change its hypothesis, measurement, change, prediction and target cases, and add
 the row to the phase plan in `REPORT.md`.
 

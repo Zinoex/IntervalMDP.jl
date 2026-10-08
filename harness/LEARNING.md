@@ -216,3 +216,23 @@ Each entry should be dated and attributed to the stage that learned it:
 - **Problem:** In the 0f QE spot-check, t=1 entries were flagged CLOCK with probe ratios around 2.2, even though the t1 scaling and sizes timings matched the stored files within noise (ratios 0.991–1.000).
 - **Root cause:** `benchmark/lib/clock.jl` takes the run-start reference probe while the core is still boosting. Later per-trial probes run at the sustained clock, so the ratio is large without any change in kernel speed. This is the t=1 counterpart of "The clock guard flags nearly every t=8/t=16 entry" and limits its advice to "still treat CLOCK at t=1/t=4 as real".
 - **Fix / guardrail:** Before treating a t=1 CLOCK flag as real, compare the per-trial probes with each other and with the stored file's probes, not only with the run-start reference. Noted for 0h: take the reference after a warm-up at sustained clock (or as the median of several probes during the run). Separately, a CLOCK-flagged spot-check result (0f: t8 sparse k10 ratio 0.611) is not evidence either way.
+
+### 2026-10-08 — QE — CUDA timings on this host are bimodal across processes
+- **Problem:** In the 0g QE spot-check, dense n1000 a1 F64 came out ×0.033 against the stored file. One process ran at about kernel speed (0.193 ms), while a second process was back at the ≈6 ms host-side floor (6.05 ms). REPORT.md § 3 had claimed "Float64 at the floor in all three, so the floor is reproducible per entry, not random", based on three stored runs. The floor process also got only 10–12 samples vs 311.
+- **Root cause:** Not established. Whether an entry sits at the ≈3 ms-per-call host floor or at kernel speed varies between processes (×30 difference), so three runs that agreed were not proof that the floor is fixed per entry.
+- **Fix / guardrail:** Treat a single-process CUDA result as one sample of a bimodal distribution. Before claiming that a CUDA entry is reproducible (or before any CUDA speedup claim), run it in at least 3 separate processes and report both modes if they show up. The § 3 sentence is listed for rewording in 0h.
+
+### 2026-10-08 — QE/Dev — `compare.jl`'s CLOCK verdict is not GPU-aware
+- **Problem:** `compare.jl` labelled the ×0.033 CUDA result above as CLOCK, although it was a GPU-side mode flip between processes.
+- **Root cause:** The CLOCK verdict only looks at the CPU clock probe. It has no view of GPU state, so any large CUDA difference that coincides with a CPU probe change gets the CPU explanation.
+- **Fix / guardrail:** Do not read a CLOCK verdict on a CUDA entry as an explanation. Check per-process sample counts and per-call times by hand. Noted for 0h: give CUDA comparisons a GPU-aware check (for example per-process mode detection, or GPU clock data once `nvidia-smi` works).
+
+### 2026-10-08 — Ops/Env — `nvidia-smi` fails with an NVML driver/library mismatch while CUDA.jl works
+- **Problem:** During 0g, `nvidia-smi` failed with an NVML driver/library version mismatch (userspace 615.71 vs kernel module 610.57.04), while CUDA.jl ran fine (CUDA driver/runtime 13.4, CC 12.0) and the `gpu_check.py` probe reported `GPU_PROBE=FUNCTIONAL`. No GPU clock or power data could be recorded.
+- **Root cause:** The userspace NVIDIA driver was updated while the older kernel module stayed loaded. Most likely a reboot (or a driver reload) is needed; this was not verified in this run.
+- **Fix / guardrail:** Use the `gpu_check.py` probe as the source of truth for whether CUDA is usable. Do not mark the GPU UNAVAILABLE just because `nvidia-smi` fails. Record the NVML failure in the environment notes, and do not rely on GPU clock/power data until the driver mismatch is fixed.
+
+### 2026-10-08 — Dev — "Cannot run on CUDA" claims from registry exclusions are assertions
+- **Problem:** The 0g § 6.3 cannot-run table (4 sparse-marginal fIMDP, 7 McCormick/vertex + 6 product/DFA, 28 solve_ivi) is partly derived from registry exclusions and from a hard-coded skip (`run.jl:177` for solve_ivi, B-2). Whether the C-1 cases throw or silently fall back to the CPU was not measured.
+- **Root cause:** The benchmark harness never tries to run the excluded entries, so the table records what the harness skips, not what the package does.
+- **Fix / guardrail:** Label such rows as asserted (from exclusions or skips), not measured. Before turning them into Findings, run each case once on CUDA and record whether it throws, falls back to the CPU, or runs. Noted for 0h.

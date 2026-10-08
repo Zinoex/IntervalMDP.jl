@@ -33,6 +33,16 @@ Prepare Phase 4 without changing `src/` or `ext/`.
 4. **If `benchmark/ab.jl` does not exist yet**, create the interleaved A/B runner: it takes two git refs, a thread count/
    backend and `run.jl` filter options, checks out each ref into a separate worktree, runs A B A B … (≥ 3 rounds, separate
    processes) and writes per-round JSON plus a summary that `compare.jl` reads.
+5. **If `benchmark/lib/clock.jl` has not been fixed yet** (carry-over item 17 of `0h-hypotheses-close.md`; whichever
+   prepare sub-phase runs first does it): take the clock-probe reference after warm-up, once the clock has settled, and
+   under the same thread load as the trials. Today it is taken unloaded and, at 1 thread, while the core still boosts
+   (≈ 197 µs vs ≈ 436 µs), so nearly every 8/16-thread entry and some 1-thread entries are flagged CLOCK for no reason.
+   Record the change and a before/after count of CLOCK flags in `benchmark/README.md`.
+6. Add a `bellman` entry for the control-synthesis cases (`cs-imdp-*`) to `benchmark/cases/registry.jl`, with stored
+   reference values from the merge base (Float64 CPU; CUDA where the case runs on CUDA), so that the strategy-cache
+   experiments (`4f.1`) are checked against a stored reference. Today `benchmark/profile.jl` uses a `bellman_cs`
+   pseudo-entry whose check compares the strategy-cache kernel with the same kernel using the default cache (carry-over
+   item 13 of `0h-hypotheses-close.md`); point `profile.jl` at the new entry and drop the pseudo-entry.
 
 
 Adds or semantically changes a VI/Bellman algorithm: **no**. Every change computes the same result as the merge base
@@ -85,13 +95,17 @@ Noise check only (`common.md` § Evidence Protocol → Noise bound). No speedup 
 - [ ] Noise check re-run on the merge base for the target cases; every target case is within the 5% spread bound (or is listed as unusable with the reason and removed from the target list).
 - [ ] `test/base/perf_equivalence.jl` and its `:cuda` counterpart cover this phase's code paths (factored O-max (dense and sparse marginals), McCormick and vertex enumeration, 2 and 3 state variables, stationary and time-varying strategy caches) with reference values from the merge base; `Pkg.test()` passes with 1 thread and with `--threads=auto`.
 - [ ] `benchmark/ab.jl` exists and runs an interleaved A/B of two refs (demonstrated on merge base vs merge base for one case: verdict "no change"), writing a summary `compare.jl` reads.
+- [ ] `benchmark/lib/clock.jl` takes its reference after warm-up and under the trial thread load (fixed here or by an earlier prepare sub-phase): one case run on the merge base at 1 and at 16 threads, in a steady clock state, has no CLOCK flags caused by the reference.
+- [ ] `registry.jl` has a `bellman` entry for every `cs-imdp-*` case with a stored reference from the merge base; `run.jl --filter '^cs-imdp' --entries bellman` passes its correctness check; `profile.jl` uses it and no longer has the `bellman_cs` pseudo-entry.
 
 ## File List
 
 - `benchmark/REPORT.md` (Phase plan section, noise results)
-- `benchmark/cases/registry.jl` (noise fixes only)
+- `benchmark/cases/registry.jl` (noise fixes; `bellman` entry for `cs-imdp-*`), `benchmark/profile.jl` (switch from `bellman_cs` to that entry)
+- `benchmark/reference/cpu-Float64/cs-imdp-*`, `benchmark/reference/cuda-*/cs-imdp-*` — local only, not committed
 - `test/base/perf_equivalence.jl`, `test/cuda/**` counterpart (and their `test/runtests.jl` registration if needed)
-- `benchmark/ab.jl`, `benchmark/README.md` (A/B paragraph)
+- `benchmark/ab.jl`, `benchmark/README.md` (A/B paragraph, clock-reference note)
+- `benchmark/lib/clock.jl` (clock reference fix only, if not done yet)
 - `benchmark/results/4a-noise-*.json` — local only, not committed
 - Raw `benchmark/results/**/*.json` and `benchmark/reference/**` are **local only** (gitignored; `common.md` § Committed vs local benchmark outputs): produce and use them, but do not stage them. Commit the Markdown summaries.
 
