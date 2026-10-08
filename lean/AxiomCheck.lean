@@ -40,3 +40,11 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Index.toJulia_bijOn
 #print axioms IntervalMDP.Index.sortedPerm_fits_int32
 #print axioms IntervalMDP.Index.gapValue_eq_sum_allocation
+-- Phase 1b: marginal indexing
+#print axioms IntervalMDP.Index.marginalSub2ind_eq_linear
+#print axioms IntervalMDP.Index.marginalSub2ind_bijective
+#print axioms IntervalMDP.Index.marginalSub2ind_depends_only
+#print axioms IntervalMDP.Index.intervalSub2ind_correct
+-- Phase 1b: supporting results referenced by the inventory
+#print axioms IntervalMDP.Index.intervalSub2ind_wrong_multiAction
+#print axioms IntervalMDP.Index.marginalCartesian_surjective

@@ -110,6 +110,8 @@ Approx.Sound m W V, Approx.StepSound m T' T, Approx.iter_sound (A1)
 | `zip(V[support(ambiguity_set)], nonzeros(gap(ambiguity_set)))` (`state_action_bellman(::SparseIntervalOMaxWorkspace, …)`) | `IntervalMDP.Index.valuesGaps`; `sparse_zip_correct` |
 | `sortperm!(perm, V; rev = upper_bound)` (`bellman_precomputation!`) | `IntervalMDP.Index.SortedPerm` (`V`, `upperBound`), `.perm`, `.order` (`Index/Perm.lean`); `sortedPerm_bijective`, `sortedPerm_fits_int32` |
 | loop of `gap_value(V, gap, budget, perm)` (`src/bellman.jl`) | `IntervalMDP.Index.gapValue` (literal transcription), `visited`, `allocation`; `greedy_visits_once`, `gapValue_eq_sum_allocation` |
+| `sub2ind(p::Marginal, action, source)` loop (`src/probabilities/Marginal.jl`); fields `source_dims`, `action_vars` | `IntervalMDP.Index.marginalSub2ind` (literal transcription), `marginalSub2indInt` (`N`-bit value), `marginalSourceDims`, `marginalActionVars`, `marginalDims` (= `(action_vars…, source_dims…)`), `marginalCartesian` (= `(action[action_indices]…, source[state_indices]…)`), `juliaTuple` (= `Tuple(I)`), `hornerLoop` (= one `for i in StepRange(d, -1, 1)` loop of `sub2ind`), `marginalColumn` (= `N`-bit `sub2ind(p, a, s)` of a pair `(a, s)`) (`Index/Marginal.lean`); `foldl_horner`, `linear_eq_foldl`, `marginalSub2ind_eq_linear`, `marginalSub2ind_bijective`, `marginalSub2ind_depends_only` |
+| `sub2ind(::IntervalAmbiguitySets, jₐ, jₛ) = jₛ[1]` (`src/probabilities/IntervalAmbiguitySets.jl`) | `IntervalMDP.Index.intervalSub2ind`; `intervalSub2ind_correct` (single-action layout), `intervalSub2ind_wrong_multiAction` (Observation O8) |
 
 Indices: Julia is 1-based, Lean's `Fin n` is 0-based. The conversion is defined once, as
 `Index.toJulia` (`Index/Julia.lean`), and every index theorem is stated through it. Concrete
@@ -137,6 +139,7 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
 | `IntervalMDPProofs/Index/Linear.lean` | `Index.CartesianIndex`, `stride`, `linear`, `linearInt`, `incFirst`; `linear_bijective`, `linear_succ_first` |
 | `IntervalMDPProofs/Index/Sparse.lean` | `Index.SparseCol`, `getindex`, `supportRows`, `valuesGaps`; `sparse_zip_correct` |
 | `IntervalMDPProofs/Index/Perm.lean` | `Index.SortedPerm`, `perm`, `gapValue`, `visited`, `allocation`; `sortedPerm_bijective`, `sortedPerm_fits_int32`, `greedy_visits_once`, `gapValue_eq_sum_allocation` |
+| `IntervalMDPProofs/Index/Marginal.lean` | `Index.marginalSub2ind` (transcription of `sub2ind(::Marginal, …)`), `marginalSub2indInt`, `marginalDims`, `marginalCartesian`, `juliaTuple`, `hornerLoop`, `marginalColumn`, `intervalSub2ind`; `foldl_horner`, `linear_eq_foldl`, `marginalSub2ind_eq_linear`, `marginalCartesian_surjective`, `marginalSub2ind_bijective`, `marginalSub2ind_depends_only`, `intervalSub2ind_correct`, `intervalSub2ind_wrong_multiAction` |
 | `AxiomCheck.lean` | `#print axioms` for every mapped theorem |
 | `DocLint.lean` | `#lint only docBlame docBlameThm` |
 

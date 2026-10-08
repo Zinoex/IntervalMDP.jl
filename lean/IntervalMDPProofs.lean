@@ -15,6 +15,7 @@ import IntervalMDPProofs.Index.Julia
 import IntervalMDPProofs.Index.Linear
 import IntervalMDPProofs.Index.Sparse
 import IntervalMDPProofs.Index.Perm
+import IntervalMDPProofs.Index.Marginal
 
 /-!
 # IntervalMDPProofs

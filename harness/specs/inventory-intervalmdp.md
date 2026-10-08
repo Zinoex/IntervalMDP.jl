@@ -8,7 +8,7 @@
 - Target root: `/home/fresen/.julia/dev/IntervalMDP`
 - Julia compat: `julia = "1.11"`; Lean root / pinned toolchain: `/home/fresen/.julia/dev/IntervalMDP/lean` / `leanprover/lean4:v4.33.0-rc2` (Mathlib tag `v4.33.0-rc2`)
 - Inventory date: `2026-10-05`
-- Phase completed: **0** (models, well-formedness, A1); Phase **1a** (index foundations: linear index, sparse support pairing, sort permutation). Phases 1b–6: not started.
+- Phase completed: **0** (models, well-formedness, A1); Phase **1a** (index foundations: linear index, sparse support pairing, sort permutation); Phase **1b** (marginal indexing: `Marginal` and `IntervalAmbiguitySets` `sub2ind`). Phases 1c–6: not started.
 
 ## Standard limitations (apply to every row)
 
@@ -51,8 +51,8 @@ recursion). Not covered:
 | Ph | Index computation | Julia (function — file) | Lean theorem(s) | Status | Scope | Limitations |
 |---|---|---|---|---|---|---|
 | 1 | Column-major linear index | `LinearIndices`, `CartesianIndices` (Base), as used for `V[I]` and `FullUpdateSequence` (`src/bellman.jl`, `src/update_sequence.jl`) | `IntervalMDP.Index.linear_bijective` (bijection onto `1..∏ dims`, and the `N`-bit value is exact), `IntervalMDP.Index.linear_succ_first` (first dimension fastest) — `lean/IntervalMDPProofs/Index/Linear.lean` (definition `IntervalMDP.Index.linear`; 1-based conversion `toJulia`, overflow model `machineInt` in `Index/Julia.lean`) | `proved` (Phase 1a) | `abstract` | L1–L6; index bound `∏ dims < 2^(N-1)` is a hypothesis of both theorems (`N = 64` for `Int`, `N = 32` for `Int32` paths) |
-| 1 | Marginal → ambiguity-set column | `sub2ind(::Marginal, …)` — `src/probabilities/Marginal.jl` | `IntervalMDP.Index.marginalSub2ind_eq_linear`, `_bijective`, `_depends_only` | `none` | — | L2–L4 |
-| 1 | Non-factored set lookup | `sub2ind(::IntervalAmbiguitySets, jₐ, jₛ) = jₛ[1]` — `src/probabilities/IntervalAmbiguitySets.jl` | `IntervalMDP.Index.intervalSub2ind_correct` | `none` | — | L2–L4 |
+| 1 | Marginal → ambiguity-set column | `sub2ind(::Marginal, action, source)` — `src/probabilities/Marginal.jl` | `IntervalMDP.Index.marginalSub2ind_eq_linear` (equals `linear` over `(action_vars…, source_dims…)` on `(action[action_indices]…, source[state_indices]…)`, actions first; the `N`-bit value is the same), `IntervalMDP.Index.marginalSub2ind_bijective` (values = `1..∏ action_vars · ∏ source_dims`, equal values ⇒ equal conditioning tuples), `IntervalMDP.Index.marginalSub2ind_depends_only` — `lean/IntervalMDPProofs/Index/Marginal.lean` (literal loop transcription `IntervalMDP.Index.marginalSub2ind`, `N`-bit value `marginalSub2indInt`; supporting `marginalCartesian_surjective`); cross-check `test/base/indexing_reference.jl` | `proved` (Phase 1b) | `abstract` | L1–L6; index bound `∏ dims < 2^(N-1)` is a hypothesis of `_eq_linear` and `_bijective` (`N = 64` for `Int` tuples on the CPU, `N = 32` for `Int32` on CUDA); `_depends_only` needs no bound. Mode-independent (pure index arithmetic: no satisfaction/strategy mode involved). Marginal indices strictly increasing (O4) and `source_dims = sv.dims ∘ state_indices` (`check_transition`) are structure invariants; for terminal slices (O5) instantiate `StateVars` with `source_dims` |
+| 1 | Non-factored set lookup | `sub2ind(::IntervalAmbiguitySets, jₐ, jₛ) = jₛ[1]` — `src/probabilities/IntervalAmbiguitySets.jl` | `IntervalMDP.Index.intervalSub2ind_correct` (equals `sub2ind(::Marginal, …)` when the marginal conditions on state variable 1 only and every conditioning action variable has one value, i.e. a single-action `IntervalMarkovDecisionProcess` layout), `IntervalMDP.Index.intervalSub2ind_wrong_multiAction` (with two actions differing on a conditioning variable it cannot match; Observation O8) — `lean/IntervalMDPProofs/Index/Marginal.lean` (model `IntervalMDP.Index.intervalSub2ind`); cross-check `test/base/indexing_reference.jl` | `proved` (Phase 1b; see O8) | `abstract` | L1–L6; mode-independent (pure index arithmetic). Reachability is argued by call-site inspection (L4), not proved: no call site in `src/` or `ext/` reaches it (see O8) |
 | 1 | Sparse support pairing | `state_action_bellman(::SparseIntervalOMaxWorkspace, …)` — `src/bellman.jl` | `IntervalMDP.Index.sparse_zip_correct` — `lean/IntervalMDPProofs/Index/Sparse.lean` (structure `IntervalMDP.Index.SparseCol` = CSC column invariant) | `proved` (Phase 1a) | `abstract` | L1–L6; the CSC invariant (strictly increasing, in-range `rowval`, `nzval` aligned) is assumed as structure fields — Julia's `checkprobabilities` does not re-check it (Observation O6); no integer products, so no index bound |
 | 1 | Sort permutation | `sortperm!(perm, V; rev = upper_bound)`, loop of `gap_value(V, gap, budget, perm)` — `src/bellman.jl` | `IntervalMDP.Index.sortedPerm_bijective` (both `rev = true/false`), `IntervalMDP.Index.greedy_visits_once` — `lean/IntervalMDPProofs/Index/Perm.lean` (structure `IntervalMDP.Index.SortedPerm`, loop transcription `gapValue`); supporting `IntervalMDP.Index.sortedPerm_fits_int32` (`n < 2^31`), `IntervalMDP.Index.gapValue_eq_sum_allocation` (early exit does not change the result) | `proved` (Phase 1a) | `abstract` | L1–L6; in particular L1: the early exit `budget <= 0` is exact in `ℝ` (the loop breaks only at budget `0`); in floating point `budget -= p` can leave a residual, so the loop may continue; `perm` is modeled by a stable merge sort (Julia documents `sortperm` as stable; equality with Julia's order on ties is argued, L4) |
 | 2 | Strategy lookup | `CartesianIndex(strategy_cache[jₛ])` — `src/bellman.jl`, `src/strategy_cache.jl` | `IntervalMDP.Index.strategyAction_available` | `none` | — | L2–L4; see Observation O2 |
@@ -80,6 +80,9 @@ recursion). Not covered:
 
 ## Findings
 
+- **Phase 1b: no findings.** `marginalSub2ind_eq_linear`, `_bijective`, `_depends_only` hold as
+  stated for the Julia loop, and `intervalSub2ind_correct` holds for the single-action condition of
+  § Indexing Correctness (see Observation O8 for the latent multi-action defect).
 - **Phase 1a: no findings.** All five index theorems hold as stated for the Julia behaviour (see
   Observations O6, O7 for assumptions recorded alongside).
 - **F1 (Phase 0, models — design finding, no Julia defect) — RESOLVED by spec amendment.** The
@@ -129,16 +132,47 @@ recursion). Not covered:
 - **O7 (Phase 1a).** The O-max permutation is a `Vector{Int32}` (`src/workspace.jl`). For
   `n ≥ 2^31` targets `sortperm!` cannot store the indices (Julia raises `InexactError`, no silent
   wrap); `sortedPerm_fits_int32` proves the entries fit for `n < 2^31`.
+- **O8 (Phase 1b).** Latent defect in the exported `IntervalAmbiguitySets` method, reachable only
+  by user code calling it directly (not a Finding: § Indexing Correctness counts it only if package
+  call sites reach it with more than one action, and none do).
+  `sub2ind(::IntervalAmbiguitySets, jₐ, jₛ) = jₛ[1]` and the public method
+  `getindex(p::IntervalAmbiguitySets, jₐ, jₛ) = p[sub2ind(p, jₐ, jₛ)]`
+  (`src/probabilities/IntervalAmbiguitySets.jl:284–295`) ignore the action (and every source
+  coordinate after the first). For a set of columns laid out as in `Marginal` /
+  `IntervalMarkovDecisionProcess` (column `(s - 1) * num_actions + a`) they return the wrong
+  column whenever there is more than one action. Lean: `intervalSub2ind_wrong_multiAction` (for any
+  two actions differing on a conditioning action variable, `intervalSub2ind` disagrees with
+  `marginalSub2ind` on one of them); `intervalSub2ind_correct` proves agreement on single-action
+  layouts. Julia (run on 1.13.1):
+
+      sets = IntervalAmbiguitySets(; lower = zeros(2, 4), upper = ones(2, 4))
+      marginal = Marginal(sets, (2,), (2,))
+      IntervalMDP.sub2ind(marginal, (2,), (1,))  # 2
+      IntervalMDP.sub2ind(sets, (2,), (1,))      # 1  (wrong column for action 2)
+      sets[(2,), (1,)] == sets[1]                # true; marginal[(2,), (1,)] == sets[2]
+
+  Reachability (call-site inspection at `origin/main`): every `sub2ind` / two-argument lookup goes
+  through `Marginal` — `src/bellman.jl:471–472, 499–500, 830–831, 858–859` (`marginals(model)[…]`),
+  `src/Data/bmdp-tool.jl:213`, `src/Data/prism.jl:105` (`marginal[jₐ, jₛ]`),
+  `ext/cuda/bellman/dense.jl:260, 294`, `ext/cuda/bellman/sparse.jl:339, 380, 762, 800`,
+  `ext/cuda/bellman/factored.jl:451–848` (`model[k][jₐ, jₛ]` with `getindex(::FactoredRMDP, r) =
+  transition[r]`, a `Marginal`); `FactoredRobustMarkovDecisionProcess.transition` is typed
+  `NTuple{N, Marginal}`, and `IntervalMarkovDecisionProcess`/`IntervalMarkovChain` wrap their sets
+  in `Marginal(sets, source_dims, action_vars)`. `Marginal.getindex` calls the one-argument
+  `ambiguity_sets[j]`. So the package's algorithms never reach the defective method; only user
+  code calling `sets[jₐ, jₛ]` / `sub2ind(sets, …)` directly on an exported `IntervalAmbiguitySets`
+  can. Fix (out of scope, no `src/` change): remove the method or make it error for more than one
+  action.
 
 ## Legacy verification gaps
 
-Every algorithm row (1–14), A2–A8 and every index row except the three Phase 1a rows (linear index, sparse support pairing, sort permutation; `proved`) are `none`: no Lean theorem yet. A task
+Every algorithm row (1–14), A2–A8 and every index row except the three Phase 1a rows (linear index, sparse support pairing, sort permutation) and the two Phase 1b rows (`Marginal` and `IntervalAmbiguitySets` `sub2ind`; `proved`; see Observation O8) are `none`: no Lean theorem yet. A task
 touching one of these must supply its theorem and proof before it can pass the Formal Verification
 gate.
 
 ## Summary
 
 - Algorithms: 14; proved: 0; partial: 0; none: 14.
-- Models: 5 mapped rows proved (M1–M5), including `toSet_convex` and `productSet_not_convex`; approximation: A1 proved, A2–A8 none; indexing: 3 of 8 rows proved (Phase 1a: linear index, sparse support pairing, sort permutation).
+- Models: 5 mapped rows proved (M1–M5), including `toSet_convex` and `productSet_not_convex`; approximation: A1 proved, A2–A8 none; indexing: 5 of 8 rows proved (Phase 1a: linear index, sparse support pairing, sort permutation; Phase 1b: `Marginal` and `IntervalAmbiguitySets` `sub2ind`, with Observation O8 recorded).
 - Statement: the package is **not** verified. Phase 0 proves only model well-formedness and the
   generic soundness lift, at abstract scope.
