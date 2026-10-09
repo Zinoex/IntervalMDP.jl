@@ -127,3 +127,17 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.VI.exitIter_sound
 #print axioms IntervalMDP.VI.exitIter_le_exitValue
 #print axioms IntervalMDP.VI.exitValue_le_of_step_le
+
+-- Phase 3c: value iteration for discounted reward (contraction, A5 error bound)
+#print axioms IntervalMDP.VI.rewardIter_succ
+#print axioms IntervalMDP.VI.reward_contracting
+#print axioms IntervalMDP.VI.reward_error_bound
+
+-- Phase 3c: supporting results referenced by the inventory
+#print axioms IntervalMDP.Property.toRewardProperty_discount_lt_one
+#print axioms IntervalMDP.VI.rewardIter_eq_iterate
+#print axioms IntervalMDP.VI.rewardStep_dist_le
+#print axioms IntervalMDP.VI.rewardValue_isFixedPt
+#print axioms IntervalMDP.VI.rewardIter_tendsto
+#print axioms IntervalMDP.VI.reward_stop_bound
+#print axioms IntervalMDP.VI.reward_error_interval

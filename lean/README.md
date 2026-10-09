@@ -5,7 +5,7 @@ machine-checked proofs about them. It is developed in phases (see
 `harness/specs/lean-proofs/`, shared rules in `common.md`, one spec per sub-phase); the status of every row is tracked in
 `harness/specs/inventory-intervalmdp.md`.
 
-**Current phase: 3, sub-phase 3b** (Phases 0–2 complete) — Phase 0 (models with their well-formedness
+**Current phase: 3, sub-phase 3c** (Phases 0–2 complete) — Phase 0 (models with their well-formedness
 theorems, and the generic approximation-soundness lift A1), all of Phase 1 (index foundations
 (1a: 1-based conversion, column-major linear index, sparse support pairing, O-max sort
 permutation), marginal indexing (1b: `sub2ind` of `Marginal` and `IntervalAmbiguitySets`), dense
@@ -35,8 +35,14 @@ expected exit time (`VI.exitIter`) satisfies the one-step recursion `V_{k+1} = T
 `avoid`, `0` on `avoid` (`exitIter_succ`), is monotone in `k` (`exitIter_mono`), and every iterate is
 below every nonnegative real super-solution and below the `ℝ≥0∞` limit `VI.exitValue` (A4,
 `exitIter_sound`, via `Approx.iter_sound`), all four modes; no convergence is claimed (values may
-diverge), and in optimistic mode the lower bound is not `Sound .optimistic`. The rest of
-Phase 3 (reward, strategies) and IVI (Phase 4) are not proved yet.
+diverge), and in optimistic mode the lower bound is not `Sound .optimistic`. Phase 3c: discounted
+reward (`VI.rewardIter`, Julia's `V₀ = r`, `V_{k+1} = ν · T V_k + r`) satisfies the one-step
+recursion (`rewardIter_succ`, any `ν > 0`); for `0 < ν < 1` the one-step map is a Mathlib
+`ContractingWith ν` (`reward_contracting`), the iterates converge to its unique fixed point
+`VI.rewardValue`, and the A5 error bound `‖V_{k+1} - V*‖∞ ≤ ν / (1 - ν) · ‖V_{k+1} - V_k‖∞` holds
+(`reward_error_bound`), so Julia's stop `‖V_k - V_{k-1}‖∞ < ε` gives `‖V_k - V*‖∞ < ν / (1 - ν) · ε`
+(`reward_stop_bound`), all four modes. The rest of Phase 3 (strategies) and IVI (Phase 4) are not
+proved yet.
 
 **Proof scope: abstract.** Values are real numbers and the semantics is the dynamic-programming
 recursion. The proofs do not cover floating-point rounding, overflow, CUDA kernels or threaded
@@ -168,6 +174,10 @@ OMax.omaxSparse A σ            sparse O-max on SparseIntervalAmbiguity n (= Int
 | `_value_iteration!` loop with an `ExpectedExitTime` specification (`src/robust_value_iteration.jl`, `src/specification.jl`) | `IntervalMDP.VI.exitIter M sat strat prop k`, `exitStep` (`VI/ExitTime.lean`); `exitIter_eq_iterate`, `exitStep_mono`, `exitIter_succ`, `exitIter_nonneg`, `exitIter_mono`, `exitIter_sound` (A4) |
 | `ExpectedExitTime(avoid_states, convergence_eps)`, `avoid(prop)`; `initialize!` (`current .= 1; current[avoid] .= 0`), `step_postprocess_value_function!` (`current .+= 1; current[avoid] .= 0`), `postprocess_value_function!(…, ::AbstractHittingTime)` (identity) (`src/specification.jl`) | `IntervalMDP.VI.ExpectedExitTime` (`avoidStates`), `Property.toExpectedExitTime`, `ExpectedExitTime.initializeValueFunction`, `.stepPostprocessValueFunction` (`VI/ExitTime.lean`); `initializeValueFunction_eq_exitStep_zero`, `ExpectedExitTime.initializeValueFunction_nonneg`, `ExpectedExitTime.stepPostprocessValueFunction_mono` |
 | exact robust expected exit time `𝔼^{π,η}_exit(O)` approximated by `_value_iteration!` (possibly `∞`) | `IntervalMDP.VI.exitValue` (`⨆ k`, in `ℝ≥0∞`) (`VI/ExitTime.lean`); `exitIter_le_exitValue`, `exitValue_le_of_step_le` |
+| `_value_iteration!` loop with an `AbstractReward` specification (`FiniteTimeReward`, `InfiniteTimeReward`; `src/robust_value_iteration.jl`, `src/specification.jl`) | `IntervalMDP.VI.rewardIter M sat strat prop k`, `rewardStep` (`VI/Reward.lean`); `rewardIter_eq_iterate`, `rewardIter_succ`, `rewardStep_dist_le`, `reward_contracting` (`0 < ν < 1`) |
+| `AbstractReward`, `reward(prop)`, `discount(prop)`; `checkreward` (`discount > 0`), `checkdiscountupperbound` (`discount < 1`, infinite time); `initialize!` (`current .= reward`), `step_postprocess_value_function!` (`rmul!(current, discount); current .+= reward`), `postprocess_value_function!` (identity) (`src/specification.jl`) | `IntervalMDP.VI.RewardProperty` (`reward`, `discount`, `discount_pos`), `Property.toRewardProperty`, `RewardProperty.discountNNReal`, `.initializeValueFunction`, `.stepPostprocessValueFunction`, `.postprocessValueFunction` (`VI/Reward.lean`); `Property.toRewardProperty_discount_lt_one` |
+| `CovergenceCriteria(convergence_eps)`: `maximum(abs, current - previous) < tol` (`src/robust_value_iteration.jl`) | `IntervalMDP.VI.convergenceCriteria ε V Vprev` (`dist V Vprev < ε`) (`VI/Reward.lean`) |
+| exact robust discounted reward (`0 < ν < 1`) approximated by `_value_iteration!` | `IntervalMDP.VI.rewardValue` (Mathlib `ContractingWith.fixedPoint`) (`VI/Reward.lean`); `rewardValue_isFixedPt`, `rewardIter_tendsto`, `reward_error_bound` (A5), `reward_stop_bound`, `reward_error_interval` |
 
 Indices: Julia is 1-based, Lean's `Fin n` is 0-based. The conversion is defined once, as
 `Index.toJulia` (`Index/Julia.lean`), and every index theorem is stated through it. Concrete
@@ -202,6 +212,7 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
 | `IntervalMDPProofs/VI/Reach.lean` | `VI.ReachProperty`, `reach`, `isExactTime`, `Property.toReachProperty`, `initializeValueFunction`, `stepPostprocessValueFunction`, `step`, `reachIter` (transcription of `_value_iteration!` for reachability / reach-avoid), `stepHom`, `reachLfp`; `reachIter_eq_iterate`, `T_zero`, `T_const`, `T_mem_unit`, `stepPostprocessValueFunction_mono`, `stepPostprocessValueFunction_mem_unit`, `continuous_stepPostprocessValueFunction`, `step_mono`, `step_mem_unit`, `continuous_step`, `initializeValueFunction_le_step`, `step_reachLfp`, `reachLfp_mem_unit`, `reachLfp_le_of_step_le`, `reachIter_mem_unit`, `reachIter_mono`, `reachIter_sound` (A4), `reachIter_tendsto_lfp`, `reachLfp_le_of_fixedPt` |
 | `IntervalMDPProofs/VI/Safety.lean` | `VI.SafetyProperty`, `Property.toSafetyProperty`, `SafetyProperty.initializeValueFunction`, `stepPostprocessValueFunction`, `postprocessValueFunction`, `toReachProperty`, `safetyStep`, `safetyIter` (transcription of `_value_iteration!` for safety, with the −1/+1 shift); `safety_shift_eq`, `safetyIter_eq_sub_one`, `safetyIter_postprocess_mem_unit` |
 | `IntervalMDPProofs/VI/ExitTime.lean` | `VI.ExpectedExitTime`, `Property.toExpectedExitTime`, `ExpectedExitTime.initializeValueFunction`, `stepPostprocessValueFunction`, `exitStep`, `exitIter` (transcription of `_value_iteration!` for expected exit time), `exitValue`; `exitIter_eq_iterate`, `initializeValueFunction_eq_exitStep_zero`, `ExpectedExitTime.stepPostprocessValueFunction_mono`, `exitStep_mono`, `exitIter_succ`, `ExpectedExitTime.initializeValueFunction_nonneg`, `exitIter_nonneg`, `exitIter_mono`, `exitIter_sound` (A4), `exitIter_le_exitValue`, `exitValue_le_of_step_le` |
+| `IntervalMDPProofs/VI/Reward.lean` | `VI.RewardProperty`, `Property.toRewardProperty`, `RewardProperty.discountNNReal`, `initializeValueFunction`, `stepPostprocessValueFunction`, `postprocessValueFunction`, `convergenceCriteria`, `rewardStep`, `rewardIter` (transcription of `_value_iteration!` for discounted reward), `rewardValue`; `Property.toRewardProperty_discount_lt_one`, `rewardIter_eq_iterate`, `rewardIter_succ`, `rewardStep_dist_le`, `reward_contracting`, `rewardValue_isFixedPt`, `rewardIter_tendsto`, `reward_error_bound` (A5), `reward_stop_bound`, `reward_error_interval` |
 | `AxiomCheck.lean` | `#print axioms` for every mapped theorem |
 | `DocLint.lean` | `#lint only docBlame docBlameThm` |
 

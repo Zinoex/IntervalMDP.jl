@@ -22,6 +22,7 @@ import IntervalMDPProofs.Bellman
 import IntervalMDPProofs.VI.Reach
 import IntervalMDPProofs.VI.Safety
 import IntervalMDPProofs.VI.ExitTime
+import IntervalMDPProofs.VI.Reward
 
 /-!
 # IntervalMDPProofs
