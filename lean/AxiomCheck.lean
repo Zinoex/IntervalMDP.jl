@@ -63,3 +63,30 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.OMax.omaxSparse_exact
 #print axioms IntervalMDP.OMax.gapValue_sublist
 #print axioms IntervalMDP.OMax.exists_permutation_sublist
+-- Phase 2a: robust Bellman operator on general RMDPs (all four modes, no convexity)
+#print axioms IntervalMDP.Bellman.T_mono
+#print axioms IntervalMDP.Bellman.T_add_const
+#print axioms IntervalMDP.Bellman.T_nonexpansive
+-- Phase 2a: supporting results referenced by the inventory
+#print axioms IntervalMDP.Bellman.T_le_add
+#print axioms IntervalMDP.Bellman.T_monotone
+#print axioms IntervalMDP.Bellman.T_lipschitz
+#print axioms IntervalMDP.Bellman.innerOpt_mem
+
+-- Phase 2b: interval specialisation, strategy extraction, policy evaluation (spec theorems)
+#print axioms IntervalMDP.Bellman.T_interval_eq_omax
+#print axioms IntervalMDP.Bellman.argopt_attains
+#print axioms IntervalMDP.Bellman.policy_eval_sound
+-- Phase 2b: `IntervalMDP.Index.strategyAction_available` is not proved: it is false for Julia's
+-- `checkstrategy` (Finding F2). The strongest proved statements and the Finding witness:
+#print axioms IntervalMDP.Index.strategyAction_available_of_all
+#print axioms IntervalMDP.Index.strategyAction_available_of_valid
+#print axioms IntervalMDP.Index.checkStrategy_admits_unavailable
+-- Phase 2b: supporting results referenced by the inventory
+#print axioms IntervalMDP.Bellman.stateActionBellman_interval_eq_omax
+#print axioms IntervalMDP.Bellman.IntervalMDPLayout.column_eq
+#print axioms IntervalMDP.Bellman.IntervalMDPLayout.columnInt_eq
+#print axioms IntervalMDP.Bellman.stationarySeed_available
+#print axioms IntervalMDP.Bellman.Tπ_eq_T_strategyAvailable
+#print axioms IntervalMDP.Bellman.Tπ_stepSound
+#print axioms IntervalMDP.Bellman.Tπ_interval_eq_omax
