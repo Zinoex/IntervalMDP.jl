@@ -366,3 +366,13 @@ Each entry should be dated and attributed to the stage that learned it:
 - **Problem:** The exact-match body builder asserted that every new anchor occurs once. The issue link `#119` occurs twice by design (Open Findings and the 3d gates line), so the build stopped.
 - **Root cause:** A single "occurs once" check was applied to both headings and cross-references.
 - **Fix / guardrail:** Assert `== 1` only for structural anchors (headings, checklist items, summary sentence, trailing attribution line). Assert the exact expected count for links that are repeated on purpose. The script failing before `gh pr edit` was the intended safety net; no wrong body was applied.
+
+### 2026-10-09 — Orchestrator — A spec whose phase prerequisites were never run: ask the operator, then run it standalone
+- **Problem:** Spec 4f.1 (B-1 stationary strategy cache fix) sits in perf Phase 4, but none of the earlier perf phases had been run, so there was no `perf/phase-4` branch or PR to attach it to.
+- **Root cause:** Findings fixes are filed under the phase that discovered them, not under a phase whose prerequisites are met.
+- **Fix / guardrail:** Before Dev starts, check that the spec's phase prerequisites (earlier sub-phases, branch, PR) exist. If they do not, ask the operator. Here the operator chose a standalone branch `fix/b1-strategy-cache` from `origin/main` with its own PR (#120, `Closes #119`). That worked cleanly. Say "standalone run, later Phase 4 runs treat 4f.1 as done" in the PR body so the phase plan stays consistent.
+
+### 2026-10-09 — Ops — When a record must cite the fix's sha, split into a fix commit and a records commit
+- **Problem:** `benchmark/REPORT.md` § 8 and the inventory had to say "fixed in commit X", but X is not known until the commit exists, and amending would change it.
+- **Root cause:** A commit cannot contain its own sha.
+- **Fix / guardrail:** Dev writes a literal `<commit>` placeholder. Ops commits the fix and its test first (explicit paths, `LC_ALL=C` set compare), takes `git rev-parse --short HEAD`, runs `grep -n '<commit>'` before and after `sed -i "s/<commit>/$SHA/g"` on the record files (none may remain), and then commits the records (plus doc-only changes) as a second commit. This also keeps the fix commit limited to "only the fix and its test", as the spec requires. Result in 4f.1: `1fc44d3` (fix) and `e8c0764` (records). `closingIssuesReferences` showed #119 straight after `gh pr create`, and `mergeable` was already `MERGEABLE`.
