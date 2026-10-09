@@ -111,3 +111,19 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.VI.reachLfp_mem_unit
 #print axioms IntervalMDP.VI.reachLfp_le_of_step_le
 #print axioms IntervalMDP.VI.reachLfp_le_of_fixedPt
+
+-- Phase 3b: value iteration for safety (−1/+1 shift) and expected exit time
+#print axioms IntervalMDP.VI.safety_shift_eq
+#print axioms IntervalMDP.VI.safetyIter_eq_sub_one
+#print axioms IntervalMDP.VI.safetyIter_postprocess_mem_unit
+#print axioms IntervalMDP.VI.exitIter_eq_iterate
+#print axioms IntervalMDP.VI.initializeValueFunction_eq_exitStep_zero
+#print axioms IntervalMDP.VI.ExpectedExitTime.stepPostprocessValueFunction_mono
+#print axioms IntervalMDP.VI.ExpectedExitTime.initializeValueFunction_nonneg
+#print axioms IntervalMDP.VI.exitStep_mono
+#print axioms IntervalMDP.VI.exitIter_succ
+#print axioms IntervalMDP.VI.exitIter_nonneg
+#print axioms IntervalMDP.VI.exitIter_mono
+#print axioms IntervalMDP.VI.exitIter_sound
+#print axioms IntervalMDP.VI.exitIter_le_exitValue
+#print axioms IntervalMDP.VI.exitValue_le_of_step_le

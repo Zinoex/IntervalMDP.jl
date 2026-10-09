@@ -20,6 +20,8 @@ import IntervalMDPProofs.Index.Strategy
 import IntervalMDPProofs.OMax
 import IntervalMDPProofs.Bellman
 import IntervalMDPProofs.VI.Reach
+import IntervalMDPProofs.VI.Safety
+import IntervalMDPProofs.VI.ExitTime
 
 /-!
 # IntervalMDPProofs
