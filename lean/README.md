@@ -5,16 +5,23 @@ machine-checked proofs about them. It is developed in phases (see
 `harness/specs/lean-proofs/`, shared rules in `common.md`, one spec per sub-phase); the status of every row is tracked in
 `harness/specs/inventory-intervalmdp.md`.
 
-**Current phase: 2 (sub-phase 2a)** — Phase 0 (models with their well-formedness
+**Current phase: 2 complete (sub-phases 2a, 2b)** — Phase 0 (models with their well-formedness
 theorems, and the generic approximation-soundness lift A1), all of Phase 1 (index foundations
 (1a: 1-based conversion, column-major linear index, sparse support pairing, O-max sort
 permutation), marginal indexing (1b: `sub2ind` of `Marginal` and `IntervalAmbiguitySets`), dense
 O-maximization (1c: exact `sSup` / `sInf`, tie invariance) and sparse O-maximization (1d: equal to
-dense O-max for every sort of the support pairs)), and sub-phase 2a: the robust Bellman operator
+dense O-max for every sort of the support pairs)), and all of Phase 2: the robust Bellman operator
 `Bellman.T`, defined once on `RMDP`, is monotone, translation equivariant and sup-norm
 non-expansive, for all four satisfaction × strategy modes and without any convexity assumption
-(so the results apply to the non-convex factored product sets). The interval specialisation (2b),
-strategies, VI and IVI (later sub-phases and phases) are not proved yet.
+(2a); for interval MDPs it is the optimum over the available actions of the dense O-max values of
+the columns `sub2ind(marginal, jₐ, jₛ)` (`T_interval_eq_omax`); the action selected by
+`extract_strategy!` is available and attains the optimum (`argopt_attains`); and policy evaluation
+for a given strategy is exact and sound for `T` in the strategy-mode direction through value
+iteration (`policy_eval_sound`, proved for valid strategies; A8 partial (F2)) (2b). The strategy-lookup row
+and A8 are `partial`: Julia's
+`checkstrategy` does not check availability, so "every strategy that passes validation looks up an
+available action" is false (Finding F2, `Index.checkStrategy_admits_unavailable`); it is proved for
+`AllAvailableActions` and for valid strategies. VI (Phase 3) and IVI (Phase 4) are not proved yet.
 
 **Proof scope: abstract.** Values are real numbers and the semantics is the dynamic-programming
 recursion. The proofs do not cover floating-point rounding, overflow, CUDA kernels or threaded
@@ -129,6 +136,13 @@ OMax.omaxSparse A σ            sparse O-max on SparseIntervalAmbiguity n (= Int
 | `bellman!(workspace, strategy_cache, Vres, V, model; upper_bound, maximize)` with an `OptimizingStrategyCache` → `state_bellman!` (`src/bellman.jl`) | `IntervalMDP.Bellman.T M sat strat V` (`Bellman.lean`); `T_mono`, `T_monotone`, `T_add_const`, `T_nonexpansive`, `T_lipschitz`, `T_le_add` (all four modes, general `RMDP`, no convexity) |
 | `state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)` (any workspace), `upper_bound = isoptimistic(spec)` | `IntervalMDP.Bellman.innerOpt sat Γ V` (`sSup` optimistic / `sInf` pessimistic of `expectations Γ V = {⟨p, V⟩ : p ∈ Γ}`), `stateActionBellman M sat V s a` (`Bellman.lean`); `innerOpt_mem` (attained), `innerOpt_le_add` |
 | `extract_strategy!(…, values, available_actions, jₛ, maximize)` value, `maximize = ismaximize(spec)` (`src/strategy_cache.jl`) | `IntervalMDP.Bellman.extractValue strat acts h values` (`Finset.sup'` / `Finset.inf'`) (`Bellman.lean`); `extractValue_le_add` |
+| `isoptimistic(spec)` passed as `upper_bound` (`src/specification.jl`, `src/robust_value_iteration.jl`) | `IntervalMDP.Bellman.isOptimistic` (`Bellman.lean`) |
+| `IntervalMarkovDecisionProcess(ambiguity_sets, num_actions)` storage: columns `ambiguity_sets[j]` of `Marginal(ambiguity_sets, (num_states,), (num_actions,))` (`src/models/IntervalMarkovDecisionProcess.jl`) | `IntervalMDP.Bellman.IntervalMDPLayout` (`ambiguitySets`, available actions), `.marginal`, `.column` (= `sub2ind(marginal, jₐ, jₛ)`), `.toIMDP` (`Bellman.lean`); `IntervalMDPLayout.column_eq` (`(jₛ - 1) * num_actions + jₐ`), `columnInt_eq` |
+| `state_action_bellman(::DenseIntervalOMaxWorkspace, V, marginal[jₐ, jₛ], budget[sub2ind(marginal, jₐ, jₛ)], upper_bound)` in `state_bellman!` | `IntervalMDP.Bellman.intervalStateActionBellman` (`Bellman.lean`); `innerOpt_interval_eq_omax`, `stateActionBellman_interval_eq_omax`, `T_interval_eq_omax` (all four modes), `expectations_toSet` |
+| loop of `_extract_strategy!` (`gt = maximize ? (>) : (<)`, strict, first optimum kept) and its `neutral` seed (`src/strategy_cache.jl`) | `IntervalMDP.Bellman.argoptStep` (loop body), `argoptAction` (the loop, a `foldl` over the available actions from the seed), `optLE`, `stationarySeed` (seed of a `StationaryStrategyCache` across calls) (`Bellman.lean`); `argoptStep_spec`, `argoptAction_spec`, `extractValue_eq_of_opt`, `argopt_attains` (all four modes), `stationarySeed_available` |
+| `state_bellman!` with a `NonOptimizingStrategyCache` (`GivenStrategyCache`, `ActiveGivenStrategyCache`): `Vres[jₛ] = state_action_bellman(…, marginal[jₐ, jₛ], …)` for `jₐ = CartesianIndex(strategy_cache[jₛ])` (`src/bellman.jl`) | `IntervalMDP.Bellman.Tπ M sat π V` (policy evaluation), `strategyAvailable π` (`available s = {π(s)}`), `policyEvalMode` (soundness direction: `maximize` ↦ `Tπ ≤ T`, `minimize` ↦ `Tπ ≥ T`) (`Bellman.lean`); `Tπ_eq_T_strategyAvailable`, `Tπ_stepSound`, `policy_eval_sound` (A8, via `Approx.iter_sound`), `Tπ_interval_eq_omax` |
+| strategy array `AbstractArray{NTuple{M, Int32}}` and lookup `CartesianIndex(strategy_cache[jₛ])` (`src/strategy.jl`, `src/strategy_cache.jl`, `src/bellman.jl`) | `IntervalMDP.Index.StrategyArray`, `strategyAction` (lookup at `linearInt N`), `actionTuple` (= `Tuple(jₐ)`), `juliaAvailable` (= `Tuple.(available(model, jₛ))`), `Stores` (`Index/Strategy.lean`); `strategyAction_eq_linear`, `strategyAction_available_of_all`, `strategyAction_available_of_valid`, `actionTuple_injective` |
+| `checkstrategy(strategy::AbstractArray, system::FactoredRMDP)` (`src/strategy.jl`): only `1 ≤ s[i] ≤ action_vars[i]` | `IntervalMDP.Index.checkStrategy` (`Index/Strategy.lean`); `checkStrategy_admits_unavailable` (Finding F2) |
 
 Indices: Julia is 1-based, Lean's `Fin n` is 0-based. The conversion is defined once, as
 `Index.toJulia` (`Index/Julia.lean`), and every index theorem is stated through it. Concrete
@@ -157,8 +171,9 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
 | `IntervalMDPProofs/Index/Sparse.lean` | `Index.SparseCol`, `getindex`, `supportRows`, `valuesGaps`; `sparse_zip_correct` |
 | `IntervalMDPProofs/Index/Perm.lean` | `Index.SortedPerm`, `perm`, `gapValue`, `visited`, `allocation`; `sortedPerm_bijective`, `sortedPerm_fits_int32`, `greedy_visits_once`, `gapValue_eq_sum_allocation` |
 | `IntervalMDPProofs/Index/Marginal.lean` | `Index.marginalSub2ind` (transcription of `sub2ind(::Marginal, …)`), `marginalSub2indInt`, `marginalDims`, `marginalCartesian`, `juliaTuple`, `hornerLoop`, `marginalColumn`, `intervalSub2ind`; `foldl_horner`, `linear_eq_foldl`, `marginalSub2ind_eq_linear`, `marginalCartesian_surjective`, `marginalSub2ind_bijective`, `marginalSub2ind_depends_only`, `intervalSub2ind_correct`, `intervalSub2ind_wrong_multiAction` |
+| `IntervalMDPProofs/Index/Strategy.lean` | `Index.StrategyArray`, `actionTuple`, `strategyAction` (strategy lookup), `juliaAvailable`, `checkStrategy` (Julia `checkstrategy`), `Stores`; `actionTuple_injective`, `strategyAction_eq_linear`, `strategyAction_available_of_all`, `strategyAction_available_of_valid`, `checkStrategy_admits_unavailable` (Finding F2) |
 | `IntervalMDPProofs/OMax.lean` | `OMax.dot`, `valueSet`, `Permutation`, `stablePermutation`, `stateActionBellman` (transcription of dense `state_action_bellman`), `omax`, `IsThreshold`, `greedy`; `allocation_nonneg`, `allocation_le_gap`, `allocation_cons_of_ne`, `sum_allocation`, `exists_threshold`, `sum_perm_eq`, `Permutation.nodup`, `Permutation.mem`, `sum_allocation_eq_budget`, `greedy_apply`, `greedy_mem`, `stateActionBellman_eq_dot`, `juliaGet_neg`, `dot_neg`, `dot_le_greedy`, `stateActionBellman_isGreatest`, `stateActionBellman_isLeast`, `omax_mem`, `omax_eq_sSup`, `omax_eq_sInf`, `omax_tie_invariant`; sparse part: `SparseIntervalAmbiguity`, `SortedValuesGaps`, `pairLe`, `stableValuesGaps`, `gapValueSparse` (transcription of `gap_value(Vp, budget)`), `omaxSparse` (transcription of sparse `state_action_bellman`); `exists_perm_map_eq`, `gapValueSparse_map`, `gapValue_zero_budget`, `gapValue_sublist`, `sortedLe_trans`, `sortedLe_total`, `exists_permutation_sublist`, `omaxSparse_eq_omax`, `omaxSparse_exact` |
-| `IntervalMDPProofs/Bellman.lean` | `Bellman.expectations`, `innerOpt`, `extractValue`, `stateActionBellman`, `T` (robust Bellman operator on `RMDP`); `continuous_dot`, `expectations_isCompact`, `expectations_nonempty`, `innerOpt_mem`, `dot_le_dot_add`, `innerOpt_le_add`, `extractValue_le_add`, `T_le_add`, `T_mono`, `T_monotone`, `T_add_const`, `T_nonexpansive`, `T_lipschitz` |
+| `IntervalMDPProofs/Bellman.lean` | `Bellman.expectations`, `innerOpt`, `extractValue`, `stateActionBellman`, `T` (robust Bellman operator on `RMDP`); `continuous_dot`, `expectations_isCompact`, `expectations_nonempty`, `innerOpt_mem`, `dot_le_dot_add`, `innerOpt_le_add`, `extractValue_le_add`, `T_le_add`, `T_mono`, `T_monotone`, `T_add_const`, `T_nonexpansive`, `T_lipschitz`; interval part (2b): `isOptimistic`, `IntervalMDPLayout` (`stateVars`, `actionVars`, `marginal`, `jointState`, `jointAction`, `column`, `toIMDP`), `intervalStateActionBellman`; `expectations_toSet`, `innerOpt_interval_eq_omax`, `IntervalMDPLayout.column_eq`, `IntervalMDPLayout.columnInt_eq`, `stateActionBellman_interval_eq_omax`, `T_interval_eq_omax`; strategy part (2b): `optLE`, `argoptStep`, `argoptAction`, `stationarySeed`, `strategyAvailable`, `Tπ`, `policyEvalMode`; `optLE_refl`, `optLE_trans`, `argoptStep_spec`, `argoptAction_spec`, `extractValue_eq_of_opt`, `argopt_attains`, `stationarySeed_available`, `Tπ_eq_T_strategyAvailable`, `Tπ_stepSound`, `policy_eval_sound`, `Tπ_interval_eq_omax` |
 | `AxiomCheck.lean` | `#print axioms` for every mapped theorem |
 | `DocLint.lean` | `#lint only docBlame docBlameThm` |
 
@@ -174,4 +189,12 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
   (the `ProductProcess` docstring writes the source label).
 * **Available actions** must be nonempty in Lean; Julia's `ListAvailableActions` does not check it.
 * **Strategy validity** in Lean requires availability; Julia's `checkstrategy` checks only the
-  action range.
+  action range. With `ListAvailableActions` a `VerificationProblem` therefore accepts strategies
+  with unavailable actions, and the verified value can exceed the optimum (Finding F2 in the
+  inventory; `Index.checkStrategy_admits_unavailable`). `policy_eval_sound` assumes a valid strategy.
+* **Strategy extraction seed.** `argoptAction` starts from an available seed. Julia's
+  `TimeVaryingStrategyCache` seeds with `first(available_actions)` (in `ℝ`, `typemin` loses the first
+  comparison); `StationaryStrategyCache` seeds with the previous action unless the cache entry is
+  zero or the guard `jₛ ∉ available_actions` (state index compared with the action list) holds
+  (Observation O11). On a model with fixed available actions the seed is always available
+  (`stationarySeed_available`); with `TimeVaryingAvailableActions` it need not be.
