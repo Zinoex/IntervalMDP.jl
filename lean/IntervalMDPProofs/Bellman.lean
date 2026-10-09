@@ -631,8 +631,8 @@ theorem argopt_attains [DecidableEq A] (M : RMDP S A) (sat : SatisfactionMode)
 value iteration (value functions `V 0, V 1, …`). Call `0` starts from the zero tuple, so from
 `first(available_actions)`; call `k + 1` starts from the action stored by call `k` when `keep k`
 holds, otherwise from `first(available_actions)`. `keep k` is the outcome of Julia's guard
-`!(all(iszero.(s)) || jₛ ∉ available_actions)`, left arbitrary here because the guard compares
-the state index `jₛ` with the action list (Observation O11).
+`!(all(iszero.(s)) || CartesianIndex(s) ∉ available_actions)`, left arbitrary here: before the
+B-1 fix the guard compared the state index `jₛ` with the action list (Observation O11).
 
 Julia counterpart: `neutral` in `extract_strategy!(::StationaryStrategyCache, …)`
 (`src/strategy_cache.jl`) across successive `bellman!` calls (`src/robust_value_iteration.jl`). -/

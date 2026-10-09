@@ -80,7 +80,7 @@ recursion). Not covered:
 
 ## Findings
 
-- **F3 (Phase 3d, synthesized stationary strategy; = benchmark Finding B-1) — OPEN.** Affected rows:
+- **F3 (Phase 3d, synthesized stationary strategy; = benchmark Finding B-1) — OPEN (Julia defect fixed, Lean re-check pending; see "Fix status" at the end of this entry).** Affected rows:
   algorithm row 9 "Synthesized strategy" and approximation row A7 (both `partial`). `stationary_sound`
   (A7) is proved for the **documented** `StationaryStrategyCache` (the previous action seeds every
   call, so ties keep it). Julia's `extract_strategy!(::StationaryStrategyCache, …)`
@@ -120,6 +120,21 @@ recursion). Not covered:
   four modes; `timeVarying_attains` (finite horizon) is unaffected. Fix (out of scope, no `src/`
   change; follow-up spec `4f.1-b1-strategy-cache.md` of the benchmark report): test
   `s ∉ available_actions` (the cached action) instead of `jₛ ∉ available_actions`.
+  **Fix status.** The underlying Julia defect (benchmark B-1, GitHub issue #119) is fixed by the
+  standalone fix change of `4f.1-b1-strategy-cache.md` (commit `1fc44d3`): `extract_strategy!(::StationaryStrategyCache, …)`
+  now tests `all(iszero.(s)) || CartesianIndex(s) ∉ available_actions` with
+  `s = strategy_cache.strategy[jₛ]`, so an available cached action seeds every call. The description
+  above is the pre-fix (merge base `7498d0f`) behaviour. Regression test items in
+  `test/base/synthesis.jl` ("base/synthesis: stationary strategy cache, …"): the 3-state, 2-action
+  case above (both satisfaction modes, now `V = Vσ = [1.0, 0.0, 1.0]`, strategy `(2,)` at state 3),
+  the 6-state, 4-action reproduction of benchmark B-1, and a Minimize case. Rows "Synthesized
+  strategy" (row 9) and A7 stay `partial` and F3 stays open until `stationary_sound` (and
+  `stationary_sound_exitTime`, `stationary_reward_error_bound`) has been re-checked against the
+  fixed code. The fix changed no row status and no Lean statement or proof; only the Lean docstrings
+  that described the pre-fix guard in the present tense (`VI/Strategy.lean` module docstring,
+  `Bellman.stationarySeed`, `VI.stationaryCacheSeed`, `VI.stationary_sound`, the `Examples` module
+  docstring, its "Finding F3" section docstring, `b1Strategy`, `Examples.b1_stationary_unsound`)
+  were reworded to the past tense.
 - **Phase 3d: other theorems.** `timeVarying_attains` (and its instances) holds for the Julia
   code as stated (time-varying caches seed with `first(available_actions)`, no guard involved).
 - **F2 (Phase 2b, strategy lookup and given-strategy verification) — OPEN.** Affected rows: index row "Strategy lookup" (`partial`) and approximation row A8 "Given-strategy verification" (`partial`). Operator decision: kept open; fixing `checkstrategy` is a follow-up spec, not part of sub-phase 2b. `checkstrategy(strategy::AbstractArray,

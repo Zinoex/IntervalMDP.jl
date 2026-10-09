@@ -21,8 +21,9 @@ convex in general (arXiv:2411.11803, arXiv:2508.00707).
 
 Finally, `selfLoopRMDP` (two states, a self-loop tied with a goal action) is the witness
 `b1_stationary_unsound` of inventory Finding F3: with Julia's guard in
-`extract_strategy!(::StationaryStrategyCache, …)` (`src/strategy_cache.jl`, benchmark B-1) the
-returned stationary strategy is not sound, while the documented cache is (`VI.stationary_sound`).
+`extract_strategy!(::StationaryStrategyCache, …)` before the B-1 fix (`src/strategy_cache.jl`,
+benchmark B-1, issue #119) the returned stationary strategy is not sound, while the documented
+cache is (`VI.stationary_sound`).
 -/
 
 noncomputable section
@@ -372,15 +373,15 @@ theorem productSet_not_convex :
 end IntervalMDP.FactoredIMDP
 
 
-/-! ### Finding F3: the stationary cache with Julia's guard (benchmark B-1)
+/-! ### Finding F3: the stationary cache with Julia's pre-fix guard (benchmark B-1)
 
 Two states (`0` = goal, `1` = `s`), two actions, point-mass transitions: in `s`, action `0` is a
 self-loop and action `1` goes to the goal; the goal is absorbing. Specification
 `InfiniteTimeReachability([goal])`, `Maximize`, either satisfaction mode. Value iteration gives
 `V₁ = V₂ = (1, 1)`. At call `1` both actions of `s` have value `1`. The documented stationary cache
-keeps the goal action chosen at call `0` (`stationary_sound` holds); Julia's guard
-`jₛ ∉ available_actions` resets the seed to `first(available_actions)` for every state whose index
-exceeds the number of actions (benchmark B-1), so the tie goes to the self-loop, whose value is `0`.
+keeps the goal action chosen at call `0` (`stationary_sound` holds); Julia's guard before the B-1
+fix, `jₛ ∉ available_actions`, reset the seed to `first(available_actions)` for every state whose
+index exceeds the number of actions (benchmark B-1), so the tie went to the self-loop, of value `0`.
 Julia reproduction (3 states, `s` at index 3): reported `V = [1, 0, 1]`, policy evaluation of the
 returned strategy `[0, 0, 0]` at `s` (inventory F3). -/
 
@@ -424,11 +425,11 @@ Julia counterpart: `InfiniteTimeReachability` (`src/specification.jl`). -/
 def selfLoopProp : ReachProperty (Fin 2) :=
   .reachability {0}
 
-/-- The stationary strategy Julia returns after the calls `0, 1` when the guard
-`jₛ ∉ available_actions` resets the seed at every call (`keep = false` in `stationarySeed`).
+/-- The stationary strategy Julia returned (before the B-1 fix) after the calls `0, 1` when the
+guard `jₛ ∉ available_actions` reset the seed at every call (`keep = false` in `stationarySeed`).
 
 Julia counterpart: `cachetostrategy(::StationaryStrategyCache)` (`src/strategy_cache.jl`) with the
-guard of `extract_strategy!` failing (benchmark B-1). -/
+guard of `extract_strategy!` failing before the B-1 fix (benchmark B-1). -/
 def b1Strategy (sat : SatisfactionMode) : StationaryStrategy (Fin 2) (Fin 2) :=
   synthesizedStrategy selfLoopRMDP sat .maximize selfLoopOrder
     (reachIter selfLoopRMDP sat .maximize selfLoopProp)
@@ -446,12 +447,14 @@ theorem selfLoop_stateActionBellman (sat : SatisfactionMode) (V : Fin 2 → ℝ)
       ProbVec.dirac]
   cases sat <;> simp [stateActionBellman, innerOpt, hexp]
 
-/-- **Witness for Finding F3.** With Julia's guard resetting the seed (benchmark B-1), the
-returned stationary strategy is not sound: `V₂(s) = 1` but the strategy's value at `s` is `0`,
-in both satisfaction modes. (`stationary_sound` proves soundness for the documented cache.)
+/-- **Witness for Finding F3.** With Julia's pre-fix guard resetting the seed (benchmark B-1,
+fixed in issue #119), the returned stationary strategy is not sound: `V₂(s) = 1` but the
+strategy's value at `s` is `0`, in both satisfaction modes. (`stationary_sound` proves soundness
+for the documented cache.)
 
 Julia counterpart: `extract_strategy!(::StationaryStrategyCache, …)` (`src/strategy_cache.jl`)
-and `solve` (`src/robust_value_iteration.jl`); reproduction in inventory Finding F3. -/
+before the B-1 fix and `solve` (`src/robust_value_iteration.jl`); reproduction in inventory
+Finding F3. -/
 theorem b1_stationary_unsound (sat : SatisfactionMode) :
     ¬ Sound .pessimistic (reachIter selfLoopRMDP sat .maximize selfLoopProp 2)
       (strategyReachLfp selfLoopRMDP sat .maximize selfLoopProp (b1Strategy sat)) := by
