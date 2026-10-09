@@ -5,7 +5,7 @@ machine-checked proofs about them. It is developed in phases (see
 `harness/specs/lean-proofs/`, shared rules in `common.md`, one spec per sub-phase); the status of every row is tracked in
 `harness/specs/inventory-intervalmdp.md`.
 
-**Current phase: 3, sub-phase 3c** (Phases 0–2 complete) — Phase 0 (models with their well-formedness
+**Phase 3 complete (sub-phase 3d)** (Phases 0–3 complete) — Phase 0 (models with their well-formedness
 theorems, and the generic approximation-soundness lift A1), all of Phase 1 (index foundations
 (1a: 1-based conversion, column-major linear index, sparse support pairing, O-max sort
 permutation), marginal indexing (1b: `sub2ind` of `Marginal` and `IntervalAmbiguitySets`), dense
@@ -41,8 +41,17 @@ recursion (`rewardIter_succ`, any `ν > 0`); for `0 < ν < 1` the one-step map i
 `ContractingWith ν` (`reward_contracting`), the iterates converge to its unique fixed point
 `VI.rewardValue`, and the A5 error bound `‖V_{k+1} - V*‖∞ ≤ ν / (1 - ν) · ‖V_{k+1} - V_k‖∞` holds
 (`reward_error_bound`), so Julia's stop `‖V_k - V_{k-1}‖∞ < ε` gives `‖V_k - V*‖∞ < ν / (1 - ν) · ε`
-(`reward_stop_bound`), all four modes. The rest of Phase 3 (strategies) and IVI (Phase 4) are not
-proved yet.
+(`reward_stop_bound`), all four modes. Phase 3d: synthesized strategies (A7, `VI/Strategy.lean`).
+`timeVarying_attains`: evaluating the returned time-varying strategy (Julia's
+`strategy[time_length - k]` at call `k`) gives exactly the computed `V_K`, every property type, all
+four modes. `stationary_sound`: for infinite-time reachability / reach-avoid the returned stationary
+strategy achieves at least the returned value, `V_{K+1} ≤ V^σ` (`Sound .pessimistic`), all four
+modes; it relies on the documented cache keeping its action on ties (a state switches only on a
+strict value increase). Exit time (`stationary_sound_exitTime`) and discounted reward
+(`stationary_reward_error_bound`, the A5 interval contains `V^σ`) are covered too. Julia's guard
+`jₛ ∉ available_actions` breaks this for states whose index exceeds the number of actions
+(inventory Finding F3, benchmark B-1; witness `Examples.b1_stationary_unsound`). IVI (Phase 4) and
+the factored algorithms (Phase 5) are not proved yet.
 
 **Proof scope: abstract.** Values are real numbers and the semantics is the dynamic-programming
 recursion. The proofs do not cover floating-point rounding, overflow, CUDA kernels or threaded
@@ -178,6 +187,13 @@ OMax.omaxSparse A σ            sparse O-max on SparseIntervalAmbiguity n (= Int
 | `AbstractReward`, `reward(prop)`, `discount(prop)`; `checkreward` (`discount > 0`), `checkdiscountupperbound` (`discount < 1`, infinite time); `initialize!` (`current .= reward`), `step_postprocess_value_function!` (`rmul!(current, discount); current .+= reward`), `postprocess_value_function!` (identity) (`src/specification.jl`) | `IntervalMDP.VI.RewardProperty` (`reward`, `discount`, `discount_pos`), `Property.toRewardProperty`, `RewardProperty.discountNNReal`, `.initializeValueFunction`, `.stepPostprocessValueFunction`, `.postprocessValueFunction` (`VI/Reward.lean`); `Property.toRewardProperty_discount_lt_one` |
 | `CovergenceCriteria(convergence_eps)`: `maximum(abs, current - previous) < tol` (`src/robust_value_iteration.jl`) | `IntervalMDP.VI.convergenceCriteria ε V Vprev` (`dist V Vprev < ε`) (`VI/Reward.lean`) |
 | exact robust discounted reward (`0 < ν < 1`) approximated by `_value_iteration!` | `IntervalMDP.VI.rewardValue` (Mathlib `ContractingWith.fixedPoint`) (`VI/Reward.lean`); `rewardValue_isFixedPt`, `rewardIter_tendsto`, `reward_error_bound` (A5), `reward_stop_bound`, `reward_error_interval` |
+| `_value_iteration!` loop, any specification (`step!` = `bellman!` + `step_postprocess_value_function!`) | `IntervalMDP.VI.viIter M sat strat post V₀ k` (`VI/Strategy.lean`); `reachIter_eq_viIter`, `safetyIter_eq_viIter`, `exitIter_eq_viIter`, `rewardIter_eq_viIter` |
+| `for jₐ in available_actions`, `first(available_actions)` (`available(model, jₛ)`, `src/available_actions.jl`) | `IntervalMDP.VI.ActionOrder M` (`acts`, `toFinset_acts`), `ActionOrder.first` (`VI/Strategy.lean`) |
+| `extract_strategy!(::TimeVaryingStrategyCache \| ::StationaryStrategyCache, …)`: `cur_strategy[jₛ]` / `strategy[jₛ]` after call `k` (`src/strategy_cache.jl`) | `IntervalMDP.VI.synthesizedStrategy M sat strat o V seed k` with `timeVaryingSeed o` (neutral `first(available_actions)`) or `stationaryCacheSeed` (previous action, documented guard) (`VI/Strategy.lean`) |
+| `cachetostrategy(::TimeVaryingStrategyCache)` = `TimeVaryingStrategy(reverse(strategy))`; `cachetostrategy(::StationaryStrategyCache)` (`src/strategy_cache.jl`) | `IntervalMDP.VI.timeVaryingCacheStrategy M sat strat o V K` (index `j` = call `Fin.rev j`), `stationaryCacheStrategy M sat strat o V K` (cache after call `K`) (`VI/Strategy.lean`) |
+| `select_strategy_cache(cache, k) = cache[time_length(cache) - k]` (`src/robust_value_iteration.jl`); `_value_iteration!` of a `VerificationProblem` with a time-varying strategy | `IntervalMDP.VI.selectStrategy π k`, `policyEvalIter M sat post V₀ π k` (`VI/Strategy.lean`); `timeVarying_attains` (A7) |
+| value of a given stationary strategy (`solve(VerificationProblem(mdp, spec, π))`, infinite horizon) | `IntervalMDP.VI.strategyReachLfp`, `strategyRewardValue` (`VI/Strategy.lean`); `stationary_sound` (A7), `stationary_sound_exitTime`, `stationary_reward_error_bound` |
+| `step_postprocess_value_function!` of reset/shift shape (reachability types, `ExpectedExitTime`) | `IntervalMDP.VI.StepPostprocess` (`reset`, `resetValue`, `shift`, `apply`), `ReachProperty.stepPostprocess`, `ExpectedExitTime.stepPostprocess` (`VI/Strategy.lean`) |
 
 Indices: Julia is 1-based, Lean's `Fin n` is 0-based. The conversion is defined once, as
 `Index.toJulia` (`Index/Julia.lean`), and every index theorem is stated through it. Concrete
@@ -198,7 +214,7 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
 | `IntervalMDPProofs/Models/Product.lean` | `ProductProcess`, `toRMDP`; `ProductProcess.toRMDP_wellFormed`, `lift_deterministic` |
 | `IntervalMDPProofs/Models/Strategy.lean` | `StationaryStrategy`, `TimeVaryingStrategy`, validity |
 | `IntervalMDPProofs/Models/Specification.lean` | `Property`, `SatisfactionMode`, `StrategyMode`, `Specification` |
-| `IntervalMDPProofs/Models/Examples.lean` | `docIMDP`, `docFIMDP`; `binaryFIMDP` and `FactoredIMDP.productSet_not_convex` |
+| `IntervalMDPProofs/Models/Examples.lean` | `docIMDP`, `docFIMDP`; `binaryFIMDP` and `FactoredIMDP.productSet_not_convex`; `selfLoopTarget`, `selfLoopRMDP`, `selfLoopOrder`, `selfLoopProp`, `b1Strategy`, `selfLoop_stateActionBellman`, `b1_stationary_unsound` (witness of Finding F3) |
 | `IntervalMDPProofs/Approx/Sound.lean` | `Approx.Sound`, `Approx.StepSound` |
 | `IntervalMDPProofs/Approx/Lift.lean` | `Approx.iter_sound` (A1), `Approx.fixedPoint_sound` |
 | `IntervalMDPProofs/Index/Julia.lean` | `Index.toJulia`, `juliaRange`, `ofJulia`, `juliaGet`, `machineInt`; round trips, `toJulia_bijOn`, `machineInt_eq_self` |
@@ -213,6 +229,7 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
 | `IntervalMDPProofs/VI/Safety.lean` | `VI.SafetyProperty`, `Property.toSafetyProperty`, `SafetyProperty.initializeValueFunction`, `stepPostprocessValueFunction`, `postprocessValueFunction`, `toReachProperty`, `safetyStep`, `safetyIter` (transcription of `_value_iteration!` for safety, with the −1/+1 shift); `safety_shift_eq`, `safetyIter_eq_sub_one`, `safetyIter_postprocess_mem_unit` |
 | `IntervalMDPProofs/VI/ExitTime.lean` | `VI.ExpectedExitTime`, `Property.toExpectedExitTime`, `ExpectedExitTime.initializeValueFunction`, `stepPostprocessValueFunction`, `exitStep`, `exitIter` (transcription of `_value_iteration!` for expected exit time), `exitValue`; `exitIter_eq_iterate`, `initializeValueFunction_eq_exitStep_zero`, `ExpectedExitTime.stepPostprocessValueFunction_mono`, `exitStep_mono`, `exitIter_succ`, `ExpectedExitTime.initializeValueFunction_nonneg`, `exitIter_nonneg`, `exitIter_mono`, `exitIter_sound` (A4), `exitIter_le_exitValue`, `exitValue_le_of_step_le` |
 | `IntervalMDPProofs/VI/Reward.lean` | `VI.RewardProperty`, `Property.toRewardProperty`, `RewardProperty.discountNNReal`, `initializeValueFunction`, `stepPostprocessValueFunction`, `postprocessValueFunction`, `convergenceCriteria`, `rewardStep`, `rewardIter` (transcription of `_value_iteration!` for discounted reward), `rewardValue`; `Property.toRewardProperty_discount_lt_one`, `rewardIter_eq_iterate`, `rewardIter_succ`, `rewardStep_dist_le`, `reward_contracting`, `rewardValue_isFixedPt`, `rewardIter_tendsto`, `reward_error_bound` (A5), `reward_stop_bound`, `reward_error_interval` |
+| `IntervalMDPProofs/VI/Strategy.lean` | `VI.ActionOrder`, `ActionOrder.first`, `viIter`, `synthesizedStrategy`, `timeVaryingSeed`, `stationaryCacheSeed`, `timeVaryingCacheStrategy`, `stationaryCacheStrategy`, `selectStrategy`, `policyEvalIter`, `StepPostprocess`, `ReachProperty.stepPostprocess`, `ExpectedExitTime.stepPostprocess`, `strategyReachLfp`, `strategyRewardValue`; `timeVarying_attains`, `timeVarying_attains_reach`, `timeVarying_attains_safety`, `timeVarying_attains_reward`, `policyEvalIter_timeVaryingCacheStrategy`, `stationary_sound`, `stationary_sound_exitTime`, `stationary_reward_error_bound`, `stationary_le_superSolution`, `stationary_backward_step`, `viIter_le_superSolution_minimize`, `T_lt_of_switch`, `strategy_eq_of_T_eq`, `argoptAction_eq_or_lt`, `synthesizedStrategy_spec`, `stationaryCacheSeed_mem`, `stationaryCacheSeed_succ`, `timeVaryingCacheStrategy_valid`, `stationaryCacheStrategy_valid`, `selectStrategy_timeVaryingCacheStrategy`, `exists_dot_bracket`, `exists_eq_zero_of_dot_nonpos`, `stateActionBellman_mono`, `reachIter_eq_viIter`, `safetyIter_eq_viIter`, `exitIter_eq_viIter`, `rewardIter_eq_viIter`, `StepPostprocess.apply_mono`, `ReachProperty.stepPostprocess_apply`, `ExpectedExitTime.stepPostprocess_apply` |
 | `AxiomCheck.lean` | `#print axioms` for every mapped theorem |
 | `DocLint.lean` | `#lint only docBlame docBlameThm` |
 
@@ -236,4 +253,10 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
   comparison); `StationaryStrategyCache` seeds with the previous action unless the cache entry is
   zero or the guard `jₛ ∉ available_actions` (state index compared with the action list) holds
   (Observation O11). On a model with fixed available actions the seed is always available
-  (`stationarySeed_available`); with `TimeVaryingAvailableActions` it need not be.
+  (`stationarySeed_available`); with `TimeVaryingAvailableActions` it need not be. The strategy
+  theorems of 3d (`stationaryCacheSeed`) model the **documented** stationary cache (the previous
+  action is always the seed); `stationary_sound` depends on it. Julia's guard resets the seed for
+  every state whose index exceeds the number of actions, and then the returned stationary strategy
+  can be strictly worse than the reported value for `maximize` (Finding F3, benchmark B-1; witness
+  `Examples.b1_stationary_unsound`). For `minimize` every valid strategy is sound
+  (`viIter_le_superSolution_minimize`), so the guard cannot break it.

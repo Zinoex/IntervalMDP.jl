@@ -141,3 +141,23 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.VI.rewardIter_tendsto
 #print axioms IntervalMDP.VI.reward_stop_bound
 #print axioms IntervalMDP.VI.reward_error_interval
+
+-- Phase 3d: synthesized strategies (A7)
+#print axioms IntervalMDP.VI.timeVarying_attains
+#print axioms IntervalMDP.VI.stationary_sound
+#print axioms IntervalMDP.VI.timeVarying_attains_reach
+#print axioms IntervalMDP.VI.timeVarying_attains_safety
+#print axioms IntervalMDP.VI.timeVarying_attains_reward
+#print axioms IntervalMDP.VI.policyEvalIter_timeVaryingCacheStrategy
+#print axioms IntervalMDP.VI.synthesizedStrategy_spec
+#print axioms IntervalMDP.VI.timeVaryingCacheStrategy_valid
+#print axioms IntervalMDP.VI.stationaryCacheStrategy_valid
+#print axioms IntervalMDP.VI.T_lt_of_switch
+#print axioms IntervalMDP.VI.strategy_eq_of_T_eq
+#print axioms IntervalMDP.VI.viIter_le_superSolution_minimize
+#print axioms IntervalMDP.VI.stationary_backward_step
+#print axioms IntervalMDP.VI.stationary_le_superSolution
+#print axioms IntervalMDP.VI.stationary_sound_exitTime
+#print axioms IntervalMDP.VI.stationary_reward_error_bound
+-- Phase 3d: Finding F3 witness (benchmark B-1)
+#print axioms IntervalMDP.Examples.b1_stationary_unsound

@@ -1,6 +1,7 @@
 import IntervalMDPProofs.Models.Factored
 import IntervalMDPProofs.Models.Product
 import IntervalMDPProofs.Models.Strategy
+import IntervalMDPProofs.VI.Strategy
 
 /-!
 # Worked examples from the IntervalMDP.jl docstrings
@@ -17,6 +18,11 @@ Every structure invariant is discharged by `norm_num`. Julia's 1-based indices a
 The file also contains `binaryFIMDP`, the two-binary-variable fIMDP behind
 `IntervalMDP.FactoredIMDP.productSet_not_convex`: the ambiguity set of a factored IMDP is not
 convex in general (arXiv:2411.11803, arXiv:2508.00707).
+
+Finally, `selfLoopRMDP` (two states, a self-loop tied with a goal action) is the witness
+`b1_stationary_unsound` of inventory Finding F3: with Julia's guard in
+`extract_strategy!(::StationaryStrategyCache, …)` (`src/strategy_cache.jl`, benchmark B-1) the
+returned stationary strategy is not sound, while the documented cache is (`VI.stationary_sound`).
 -/
 
 noncomputable section
@@ -364,5 +370,150 @@ theorem productSet_not_convex :
     Examples.binaryFIMDP_productSet_not_convex _ _⟩
 
 end IntervalMDP.FactoredIMDP
+
+
+/-! ### Finding F3: the stationary cache with Julia's guard (benchmark B-1)
+
+Two states (`0` = goal, `1` = `s`), two actions, point-mass transitions: in `s`, action `0` is a
+self-loop and action `1` goes to the goal; the goal is absorbing. Specification
+`InfiniteTimeReachability([goal])`, `Maximize`, either satisfaction mode. Value iteration gives
+`V₁ = V₂ = (1, 1)`. At call `1` both actions of `s` have value `1`. The documented stationary cache
+keeps the goal action chosen at call `0` (`stationary_sound` holds); Julia's guard
+`jₛ ∉ available_actions` resets the seed to `first(available_actions)` for every state whose index
+exceeds the number of actions (benchmark B-1), so the tie goes to the self-loop, whose value is `0`.
+Julia reproduction (3 states, `s` at index 3): reported `V = [1, 0, 1]`, policy evaluation of the
+returned strategy `[0, 0, 0]` at `s` (inventory F3). -/
+
+namespace IntervalMDP.Examples
+
+open Bellman VI Approx
+
+/-- The successor of `(s, a)`: `s = 1` with action `0` loops, every other pair goes to the goal
+`0`.
+
+Julia counterpart: the point-mass columns of `IntervalAmbiguitySets(; lower, upper)`
+(`src/probabilities/IntervalAmbiguitySets.jl`) in the F3 reproduction. -/
+def selfLoopTarget (s a : Fin 2) : Fin 2 :=
+  if s = 1 ∧ a = 0 then 1 else 0
+
+/-- The two-state self-loop model of Finding F3, with point-mass ambiguity sets.
+
+Julia counterpart: `IntervalMarkovDecisionProcess`
+(`src/models/IntervalMarkovDecisionProcess.jl`) of the F3 reproduction. -/
+def selfLoopRMDP : RMDP (Fin 2) (Fin 2) where
+  toAvailableActions := AvailableActions.all
+  ambiguity s a := {ProbVec.dirac (selfLoopTarget s a)}
+  ambiguity_wellFormed s a :=
+    { nonempty := Set.singleton_nonempty _
+      closed := by
+        simp only [AmbiguitySet.vecs, Set.image_singleton]
+        exact isClosed_singleton }
+
+/-- Julia's action order `[1, 2]` (0-based `[0, 1]`) in every state.
+
+Julia counterpart: `AllAvailableActions` (`src/available_actions.jl`). -/
+def selfLoopOrder : ActionOrder selfLoopRMDP where
+  acts _ := [0, 1]
+  toFinset_acts _ := by
+    ext a
+    fin_cases a <;> simp [selfLoopRMDP, AvailableActions.all]
+
+/-- `InfiniteTimeReachability([goal])`.
+
+Julia counterpart: `InfiniteTimeReachability` (`src/specification.jl`). -/
+def selfLoopProp : ReachProperty (Fin 2) :=
+  .reachability {0}
+
+/-- The stationary strategy Julia returns after the calls `0, 1` when the guard
+`jₛ ∉ available_actions` resets the seed at every call (`keep = false` in `stationarySeed`).
+
+Julia counterpart: `cachetostrategy(::StationaryStrategyCache)` (`src/strategy_cache.jl`) with the
+guard of `extract_strategy!` failing (benchmark B-1). -/
+def b1Strategy (sat : SatisfactionMode) : StationaryStrategy (Fin 2) (Fin 2) :=
+  synthesizedStrategy selfLoopRMDP sat .maximize selfLoopOrder
+    (reachIter selfLoopRMDP sat .maximize selfLoopProp)
+    (fun k s => stationarySeed selfLoopRMDP sat .maximize
+      (reachIter selfLoopRMDP sat .maximize selfLoopProp) s (selfLoopOrder.acts s)
+      (selfLoopOrder.first s) (fun _ => false) k) 1
+
+/-- Action values in the self-loop model: `stateActionBellman V s a = V (selfLoopTarget s a)`.
+
+Julia counterpart: `state_action_bellman` (`src/bellman.jl`) on a point-mass column. -/
+theorem selfLoop_stateActionBellman (sat : SatisfactionMode) (V : Fin 2 → ℝ) (s a : Fin 2) :
+    stateActionBellman selfLoopRMDP sat V s a = V (selfLoopTarget s a) := by
+  have hexp : expectations (selfLoopRMDP.ambiguity s a) V = {V (selfLoopTarget s a)} := by
+    simp [expectations, selfLoopRMDP, AmbiguitySet.vecs, Set.image_singleton, OMax.dot,
+      ProbVec.dirac]
+  cases sat <;> simp [stateActionBellman, innerOpt, hexp]
+
+/-- **Witness for Finding F3.** With Julia's guard resetting the seed (benchmark B-1), the
+returned stationary strategy is not sound: `V₂(s) = 1` but the strategy's value at `s` is `0`,
+in both satisfaction modes. (`stationary_sound` proves soundness for the documented cache.)
+
+Julia counterpart: `extract_strategy!(::StationaryStrategyCache, …)` (`src/strategy_cache.jl`)
+and `solve` (`src/robust_value_iteration.jl`); reproduction in inventory Finding F3. -/
+theorem b1_stationary_unsound (sat : SatisfactionMode) :
+    ¬ Sound .pessimistic (reachIter selfLoopRMDP sat .maximize selfLoopProp 2)
+      (strategyReachLfp selfLoopRMDP sat .maximize selfLoopProp (b1Strategy sat)) := by
+  set V := reachIter selfLoopRMDP sat .maximize selfLoopProp
+  set W := initializeValueFunction selfLoopProp
+  have hQ := selfLoop_stateActionBellman sat
+  have hpost0 : ∀ X : Fin 2 → ℝ, stepPostprocessValueFunction selfLoopProp X 0 = 1 := fun X => by
+    simp [stepPostprocessValueFunction, selfLoopProp]
+  have hpost1 : ∀ X : Fin 2 → ℝ, stepPostprocessValueFunction selfLoopProp X 1 = X 1 := fun X => by
+    simp [stepPostprocessValueFunction, selfLoopProp]
+  have hW0 : W 0 = 1 := by simp [W, initializeValueFunction, selfLoopProp, ReachProperty.reach]
+  have hW1 : W 1 = 0 := by simp [W, initializeValueFunction, selfLoopProp, ReachProperty.reach]
+  have hgoal : ∀ k, V (k + 1) 0 = 1 := fun k => hpost0 (T selfLoopRMDP sat .maximize (V k))
+  have hge : ∀ k, V k 0 ≤ V (k + 1) 1 := fun k => by
+    show V k 0 ≤ stepPostprocessValueFunction selfLoopProp (T selfLoopRMDP sat .maximize (V k)) 1
+    rw [hpost1]
+    calc V k 0 = stateActionBellman selfLoopRMDP sat (V k) 1 1 := by
+          rw [hQ]; simp [selfLoopTarget]
+      _ ≤ T selfLoopRMDP sat .maximize (V k) 1 :=
+          Finset.le_sup' (stateActionBellman selfLoopRMDP sat (V k) 1) (Finset.mem_univ (1 : Fin 2))
+  have hV11 : V 1 1 = 1 := by
+    have h := hge 0
+    have h0 : V 0 0 = 1 := hW0
+    rw [h0] at h
+    exact le_antisymm (reachIter_mem_unit _ _ _ _ 1 1).2 h
+  have hV21 : V 2 1 = 1 := by
+    have h := hge 1
+    rw [hgoal 0] at h
+    exact le_antisymm (reachIter_mem_unit _ _ _ _ 2 1).2 h
+  -- the B-1 strategy plays the self-loop in `s`
+  have hσ : (b1Strategy sat).strategy 1 = 0 := by
+    show argoptAction .maximize (stateActionBellman selfLoopRMDP sat (V 1) 1)
+      (stationarySeed selfLoopRMDP sat .maximize V 1 [0, 1] (selfLoopOrder.first 1)
+        (fun _ => false) 1) [0, 1] = 0
+    have hseed : stationarySeed selfLoopRMDP sat .maximize V 1 [0, 1] (selfLoopOrder.first 1)
+        (fun _ => false) 1 = 0 := rfl
+    rw [hseed]
+    simp [argoptAction, argoptStep, hQ, selfLoopTarget, hV11, hgoal 0]
+  -- `W = 𝟙_{goal}` is a fixed point of the strategy's step, so its value at `s` is `0`
+  set M' := selfLoopRMDP.withAvailable (strategyAvailable (b1Strategy sat))
+  have hT : T M' sat .maximize = Tπ selfLoopRMDP sat (b1Strategy sat) :=
+    (Tπ_eq_T_strategyAvailable selfLoopRMDP sat .maximize _).symm
+  have hWunit : ∀ s, W s ∈ Set.Icc (0 : ℝ) 1 := by
+    refine Fin.forall_fin_two.mpr ⟨?_, ?_⟩
+    · rw [hW0]; exact ⟨zero_le_one, le_rfl⟩
+    · rw [hW1]; exact ⟨le_rfl, zero_le_one⟩
+  have hfix : step M' sat .maximize selfLoopProp W ≤ W := by
+    refine Fin.forall_fin_two.mpr ⟨?_, ?_⟩
+    · show stepPostprocessValueFunction selfLoopProp (T M' sat .maximize W) 0 ≤ W 0
+      rw [hpost0, hW0]
+    · show stepPostprocessValueFunction selfLoopProp (T M' sat .maximize W) 1 ≤ W 1
+      rw [hpost1, hT]
+      show stateActionBellman selfLoopRMDP sat W 1 ((b1Strategy sat).strategy 1) ≤ W 1
+      rw [hσ, hQ]
+      simp [selfLoopTarget]
+  have hval := reachLfp_le_of_step_le M' sat .maximize selfLoopProp hWunit hfix 1
+  intro hsound
+  have h : V 2 1 ≤ reachLfp M' sat .maximize selfLoopProp 1 := hsound 1
+  rw [hV21] at h
+  rw [hW1] at hval
+  linarith
+
+end IntervalMDP.Examples
 
 end
