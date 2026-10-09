@@ -124,10 +124,11 @@ function extract_strategy!(
     jₛ,
     maximize,
 ) where {R <: Real}
-    neutral = if all(iszero.(strategy_cache.strategy[jₛ])) || jₛ ∉ available_actions
+    # Seed with the cached action only if it is set and available in state jₛ (Finding B-1).
+    s = strategy_cache.strategy[jₛ]
+    neutral = if all(iszero.(s)) || CartesianIndex(s) ∉ available_actions
         maximize ? typemin(R) : typemax(R), Tuple(first(available_actions))
     else
-        s = strategy_cache.strategy[jₛ]
         values[CartesianIndex(s)], s
     end
 

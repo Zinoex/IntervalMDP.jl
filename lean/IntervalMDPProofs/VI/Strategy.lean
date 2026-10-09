@@ -23,10 +23,11 @@ For a `ControlSynthesisProblem`, `solve` (`src/robust_value_iteration.jl`) runs
 Both caches choose the action with `argoptAction` (`Bellman.lean`, the `_extract_strategy!` loop
 with strict `>`/`<`); they differ only in the seed (`synthesizedStrategy` with `timeVaryingSeed`
 or `stationaryCacheSeed`). The model follows the **documented** behaviour of the stationary cache
-(the previous action is always kept on ties). Julia's guard `jₛ ∉ available_actions`
-(`src/strategy_cache.jl:127`) compares the state index with the actions and resets the seed for
-every state whose index exceeds the number of actions (benchmark Finding B-1); this is
-inventory Finding F3, witnessed in `Models/Examples.lean` (`b1_stationary_unsound`).
+(the previous action is always kept on ties). Before the B-1 fix (issue #119), Julia's guard
+`jₛ ∉ available_actions` in `src/strategy_cache.jl` compared the state index with the actions and
+reset the seed for every state whose index exceeds the number of actions (benchmark Finding B-1);
+this is inventory Finding F3, witnessed in `Models/Examples.lean` (`b1_stationary_unsound`). The
+fixed guard tests the cached action (`CartesianIndex(s) ∉ available_actions`).
 
 The generic iteration `viIter` (`post ∘ T` from `V₀`) is the common shape of `reachIter`,
 `safetyIter`, `exitIter` and `rewardIter` (`reachIter_eq_viIter`, …).
@@ -149,7 +150,8 @@ def timeVaryingSeed {M : RMDP S A} (o : ActionOrder M) : ℕ → S → A :=
 
 /-- The seed of a `StationaryStrategyCache` at call `k`: `first(available_actions)` at call `0`
 (zero tuple), and the action stored by call `k - 1` afterwards (`stationarySeed` with the guard
-always passing — the documented behaviour; Julia's guard is Finding F3 / B-1).
+always passing — the documented behaviour, which the fixed Julia guard implements; before the B-1
+fix (issue #119) Julia's guard reset the seed, Finding F3 / B-1).
 
 Julia counterpart: `neutral` in `extract_strategy!(::StationaryStrategyCache, …)`
 (`src/strategy_cache.jl`). -/
@@ -765,7 +767,8 @@ noncomputable def strategyReachLfp (M : RMDP S A) (sat : SatisfactionMode) (stra
 `V_{K+1} ≤ strategyReachLfp σ`, for all four satisfaction × strategy modes and every `K`
 (in particular the `K` at which `CovergenceCriteria` stops). For `optimistic` this is a lower bound,
 not the conservative direction (as for A4). Models the documented cache (ties keep the previous
-action); Julia's guard differs (Finding F3, benchmark B-1).
+action), which the fixed Julia guard implements; before the B-1 fix (issue #119) Julia's guard
+differed (Finding F3, benchmark B-1; re-check pending).
 
 Julia counterpart: `cachetostrategy(::StationaryStrategyCache)` (`src/strategy_cache.jl`) returned
 by `solve(::ControlSynthesisProblem)` (`src/robust_value_iteration.jl`), evaluated by

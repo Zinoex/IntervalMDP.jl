@@ -640,8 +640,19 @@ Each names the sub-phase that handles it.
   4 actions; states 3 and 6 identical: action 2 goes to the goal, actions 1/3/4 self-loop; `InfiniteTimeReachability([1])`,
   Pessimistic/Maximize): synthesised strategy `[(1,), (1,), (2,), (1,), (1,), (1,)]` — state 3 keeps the goal action, state 6
   switches to a self-loop. Policy evaluation of the synthesised strategy gives value 0 for state 6 although the reported
-  value is 1 (the returned stationary strategy is not optimal). Not fixed (Phase 0 may not touch `src/`); needs its own commit
-  with a regression test → `4f.1-b1-strategy-cache.md`.
+  value is 1 (the returned stationary strategy is not optimal). Not fixed in Phase 0 (Phase 0 may not touch `src/`).
+  **Fixed** in commit `1fc44d3` (standalone fix of `4f.1-b1-strategy-cache.md`, GitHub issue #119, Lean Finding F3): the
+  guard now tests the cached action, `CartesianIndex(s) ∉ available_actions` with `s = strategy_cache.strategy[jₛ]`.
+  Regression test items: `test/base/synthesis.jl`, "base/synthesis: stationary strategy cache, …" (this reproduction,
+  the 3-state/2-action F3 case for both satisfaction modes, and a Minimize case); the first two fail on the merge base
+  and pass with the fix. *Regenerated references* (CPU, Float64; from the fixed code, reason: B-1 may change the
+  synthesised strategy of tied states): `reference/cpu-Float64/cs-imdp-dense-n1000-a4__solve_cs_stationary.*`,
+  `cs-imdp-sparse-n10000-nnz100-a4__solve_cs_stationary.*` and `real-multiObj_robotIMDP__solve_cs_stationary.*`
+  (`.values.f64`, `.strategy.i32`, `index.json` entries). Result: all six files are byte-identical to the previous
+  references (‖ΔV‖∞ = 0, 0 strategy mismatches, same iteration counts 78 / 67 / 83): these random models have no
+  ties, so no entry changed. The CUDA references were not regenerated: the CUDA kernels select actions in
+  `ext/cuda/strategy.jl` (`extract_strategy_warp!`), which has no such guard and is unchanged; the CUDA check of the
+  three entries (Float64) passes with ‖ΔV‖∞ = 0 and 0 mismatches.
 * **B-2 — `IntervalValueIteration` fails on CUDA models.** `max_initial_gap(V_lower, V_upper, ::AllStates)`
   (`src/interval_value_iteration.jl`) indexes the CuArrays element by element → "Scalar indexing is disallowed". The CUDA
   suite records `solve_ivi` as `unsupported` (28 entries) through a hard-coded skip in `benchmark/run.jl`, so the failure

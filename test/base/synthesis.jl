@@ -153,3 +153,90 @@ end
         @test policy[k] == [(1,), (2,)]
     end
 end
+
+# Regression tests for Finding B-1 (issue #119, Lean Finding F3): the stationary strategy
+# cache compared the state index instead of the cached action with the available actions,
+# so for states with index > number of actions the previous action was dropped on ties and
+# the returned stationary strategy could be suboptimal.
+@testmodule StationaryCacheModels begin
+    using IntervalMDP
+
+    # Deterministic IMDP: `targets[s][a]` is the successor of state `s` under action `a`.
+    function deterministic_mdp(targets)
+        ns = length(targets)
+        probs = map(targets) do tgts
+            P = zeros(ns, length(tgts))
+            for (a, t) in enumerate(tgts)
+                P[t, a] = 1.0
+            end
+            return IntervalAmbiguitySets(; lower = P, upper = P)
+        end
+        return IntervalMarkovDecisionProcess(probs)
+    end
+
+    # Synthesise a stationary strategy and evaluate it with a verification problem.
+    function synthesize_and_evaluate(mdp, goal, satisfaction, strategy_mode)
+        prop = InfiniteTimeReachability([goal], 1e-6)
+        spec = Specification(prop, satisfaction, strategy_mode)
+        policy, V, _, _ = solve(ControlSynthesisProblem(mdp, spec))
+        V_policy, _, _ = solve(VerificationProblem(mdp, spec, policy))
+        return policy, V, V_policy
+    end
+end
+
+@testitem "base/synthesis: stationary strategy cache, B-1 reproduction (6 states, 4 actions)" setup =
+    [StationaryCacheModels] begin
+    # State 1 is the goal; states 2, 4, 5 are absorbing; states 3 and 6 are identical:
+    # action 2 goes to the goal, actions 1, 3, 4 self-loop.
+    mdp = StationaryCacheModels.deterministic_mdp([
+        [1, 1, 1, 1],
+        [2, 2, 2, 2],
+        [3, 1, 3, 3],
+        [4, 4, 4, 4],
+        [5, 5, 5, 5],
+        [6, 1, 6, 6],
+    ])
+
+    for sat in (Pessimistic, Optimistic)
+        policy, V, V_policy =
+            StationaryCacheModels.synthesize_and_evaluate(mdp, 1, sat, Maximize)
+
+        @test policy isa StationaryStrategy
+        @test V ≈ [1.0, 0.0, 1.0, 0.0, 0.0, 1.0] atol = 1e-6
+        @test policy[1][3] == (Int32(2),)
+        @test policy[1][6] == (Int32(2),)
+        # The synthesised stationary strategy is optimal: its value equals the reported value.
+        @test V_policy ≈ V atol = 1e-6
+    end
+end
+
+@testitem "base/synthesis: stationary strategy cache, F3 minimal case (3 states, 2 actions)" setup =
+    [StationaryCacheModels] begin
+    # State 1 is the goal, state 2 is absorbing, state 3 (index > number of actions):
+    # action 1 self-loops, action 2 goes to the goal.
+    mdp = StationaryCacheModels.deterministic_mdp([[1, 1], [2, 2], [3, 1]])
+
+    for sat in (Pessimistic, Optimistic)
+        policy, V, V_policy =
+            StationaryCacheModels.synthesize_and_evaluate(mdp, 1, sat, Maximize)
+
+        @test V ≈ [1.0, 0.0, 1.0] atol = 1e-6
+        @test policy[1][3] == (Int32(2),)
+        @test V_policy ≈ V atol = 1e-6
+    end
+end
+
+@testitem "base/synthesis: stationary strategy cache, minimize sanity" setup =
+    [StationaryCacheModels] begin
+    # Mirrored model: in state 3, action 1 goes to the goal and action 2 self-loops.
+    mdp = StationaryCacheModels.deterministic_mdp([[1, 1], [2, 2], [1, 3]])
+
+    for sat in (Pessimistic, Optimistic)
+        policy, V, V_policy =
+            StationaryCacheModels.synthesize_and_evaluate(mdp, 1, sat, Minimize)
+
+        @test V ≈ [1.0, 0.0, 0.0] atol = 1e-6
+        @test policy[1][3] == (Int32(2),)
+        @test V_policy ≈ V atol = 1e-6
+    end
+end
