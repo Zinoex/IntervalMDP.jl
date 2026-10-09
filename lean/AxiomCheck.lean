@@ -63,3 +63,12 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.OMax.omaxSparse_exact
 #print axioms IntervalMDP.OMax.gapValue_sublist
 #print axioms IntervalMDP.OMax.exists_permutation_sublist
+-- Phase 2a: robust Bellman operator on general RMDPs (all four modes, no convexity)
+#print axioms IntervalMDP.Bellman.T_mono
+#print axioms IntervalMDP.Bellman.T_add_const
+#print axioms IntervalMDP.Bellman.T_nonexpansive
+-- Phase 2a: supporting results referenced by the inventory
+#print axioms IntervalMDP.Bellman.T_le_add
+#print axioms IntervalMDP.Bellman.T_monotone
+#print axioms IntervalMDP.Bellman.T_lipschitz
+#print axioms IntervalMDP.Bellman.innerOpt_mem

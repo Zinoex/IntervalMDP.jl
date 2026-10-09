@@ -5,14 +5,16 @@ machine-checked proofs about them. It is developed in phases (see
 `harness/specs/lean-proofs/`, shared rules in `common.md`, one spec per sub-phase); the status of every row is tracked in
 `harness/specs/inventory-intervalmdp.md`.
 
-**Current phase: 1 (complete, sub-phases 1a–1d)** — Phase 0 (models with their well-formedness
-theorems, and the generic approximation-soundness lift A1) plus all of Phase 1: index foundations
+**Current phase: 2 (sub-phase 2a)** — Phase 0 (models with their well-formedness
+theorems, and the generic approximation-soundness lift A1), all of Phase 1 (index foundations
 (1a: 1-based conversion, column-major linear index, sparse support pairing, O-max sort
 permutation), marginal indexing (1b: `sub2ind` of `Marginal` and `IntervalAmbiguitySets`), dense
 O-maximization (1c: exact `sSup` / `sInf`, tie invariance) and sparse O-maximization (1d: equal to
-dense O-max for every sort of the support pairs). Both `upper_bound` values, hence all four
-satisfaction × strategy modes, are covered. Bellman operators, VI and IVI (Phase 2 onwards) are
-not proved yet.
+dense O-max for every sort of the support pairs)), and sub-phase 2a: the robust Bellman operator
+`Bellman.T`, defined once on `RMDP`, is monotone, translation equivariant and sup-norm
+non-expansive, for all four satisfaction × strategy modes and without any convexity assumption
+(so the results apply to the non-convex factored product sets). The interval specialisation (2b),
+strategies, VI and IVI (later sub-phases and phases) are not proved yet.
 
 **Proof scope: abstract.** Values are real numbers and the semantics is the dynamic-programming
 recursion. The proofs do not cover floating-point rounding, overflow, CUDA kernels or threaded
@@ -124,6 +126,9 @@ OMax.omaxSparse A σ            sparse O-max on SparseIntervalAmbiguity n (= Int
 | `Vp_workspace` = `workspace.values_gaps[1:supportsize]` after `sort!(Vp_workspace; rev = upper_bound, by = first)` (`src/bellman.jl`), any valid sort output | `IntervalMDP.OMax.SortedValuesGaps` (`Vp`, invariants `perm`, `sorted`), `stableValuesGaps` (= stable `mergeSort` with `pairLe`), `pairLe` (= `rev = upper_bound, by = first`) (`OMax.lean`) |
 | `state_action_bellman(::SparseIntervalOMaxWorkspace, …)` = `dot(V, lower) + gap_value(Vp, budget)`; loop of `gap_value(Vp, budget)` (`src/bellman.jl`) | `IntervalMDP.OMax.omaxSparse` (transcription), `gapValueSparse` (literal transcription of `gap_value(Vp, budget)`) (`OMax.lean`); `omaxSparse_eq_omax`, `omaxSparse_exact`, `gapValueSparse_map`, `gapValue_sublist`, `exists_permutation_sublist` |
 | `sub2ind(::IntervalAmbiguitySets, jₐ, jₛ) = jₛ[1]` (`src/probabilities/IntervalAmbiguitySets.jl`) | `IntervalMDP.Index.intervalSub2ind`; `intervalSub2ind_correct` (single-action layout), `intervalSub2ind_wrong_multiAction` (Observation O8) |
+| `bellman!(workspace, strategy_cache, Vres, V, model; upper_bound, maximize)` with an `OptimizingStrategyCache` → `state_bellman!` (`src/bellman.jl`) | `IntervalMDP.Bellman.T M sat strat V` (`Bellman.lean`); `T_mono`, `T_monotone`, `T_add_const`, `T_nonexpansive`, `T_lipschitz`, `T_le_add` (all four modes, general `RMDP`, no convexity) |
+| `state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)` (any workspace), `upper_bound = isoptimistic(spec)` | `IntervalMDP.Bellman.innerOpt sat Γ V` (`sSup` optimistic / `sInf` pessimistic of `expectations Γ V = {⟨p, V⟩ : p ∈ Γ}`), `stateActionBellman M sat V s a` (`Bellman.lean`); `innerOpt_mem` (attained), `innerOpt_le_add` |
+| `extract_strategy!(…, values, available_actions, jₛ, maximize)` value, `maximize = ismaximize(spec)` (`src/strategy_cache.jl`) | `IntervalMDP.Bellman.extractValue strat acts h values` (`Finset.sup'` / `Finset.inf'`) (`Bellman.lean`); `extractValue_le_add` |
 
 Indices: Julia is 1-based, Lean's `Fin n` is 0-based. The conversion is defined once, as
 `Index.toJulia` (`Index/Julia.lean`), and every index theorem is stated through it. Concrete
@@ -153,6 +158,7 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
 | `IntervalMDPProofs/Index/Perm.lean` | `Index.SortedPerm`, `perm`, `gapValue`, `visited`, `allocation`; `sortedPerm_bijective`, `sortedPerm_fits_int32`, `greedy_visits_once`, `gapValue_eq_sum_allocation` |
 | `IntervalMDPProofs/Index/Marginal.lean` | `Index.marginalSub2ind` (transcription of `sub2ind(::Marginal, …)`), `marginalSub2indInt`, `marginalDims`, `marginalCartesian`, `juliaTuple`, `hornerLoop`, `marginalColumn`, `intervalSub2ind`; `foldl_horner`, `linear_eq_foldl`, `marginalSub2ind_eq_linear`, `marginalCartesian_surjective`, `marginalSub2ind_bijective`, `marginalSub2ind_depends_only`, `intervalSub2ind_correct`, `intervalSub2ind_wrong_multiAction` |
 | `IntervalMDPProofs/OMax.lean` | `OMax.dot`, `valueSet`, `Permutation`, `stablePermutation`, `stateActionBellman` (transcription of dense `state_action_bellman`), `omax`, `IsThreshold`, `greedy`; `allocation_nonneg`, `allocation_le_gap`, `allocation_cons_of_ne`, `sum_allocation`, `exists_threshold`, `sum_perm_eq`, `Permutation.nodup`, `Permutation.mem`, `sum_allocation_eq_budget`, `greedy_apply`, `greedy_mem`, `stateActionBellman_eq_dot`, `juliaGet_neg`, `dot_neg`, `dot_le_greedy`, `stateActionBellman_isGreatest`, `stateActionBellman_isLeast`, `omax_mem`, `omax_eq_sSup`, `omax_eq_sInf`, `omax_tie_invariant`; sparse part: `SparseIntervalAmbiguity`, `SortedValuesGaps`, `pairLe`, `stableValuesGaps`, `gapValueSparse` (transcription of `gap_value(Vp, budget)`), `omaxSparse` (transcription of sparse `state_action_bellman`); `exists_perm_map_eq`, `gapValueSparse_map`, `gapValue_zero_budget`, `gapValue_sublist`, `sortedLe_trans`, `sortedLe_total`, `exists_permutation_sublist`, `omaxSparse_eq_omax`, `omaxSparse_exact` |
+| `IntervalMDPProofs/Bellman.lean` | `Bellman.expectations`, `innerOpt`, `extractValue`, `stateActionBellman`, `T` (robust Bellman operator on `RMDP`); `continuous_dot`, `expectations_isCompact`, `expectations_nonempty`, `innerOpt_mem`, `dot_le_dot_add`, `innerOpt_le_add`, `extractValue_le_add`, `T_le_add`, `T_mono`, `T_monotone`, `T_add_const`, `T_nonexpansive`, `T_lipschitz` |
 | `AxiomCheck.lean` | `#print axioms` for every mapped theorem |
 | `DocLint.lean` | `#lint only docBlame docBlameThm` |
 
