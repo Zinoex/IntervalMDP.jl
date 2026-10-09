@@ -5,7 +5,7 @@ machine-checked proofs about them. It is developed in phases (see
 `harness/specs/lean-proofs/`, shared rules in `common.md`, one spec per sub-phase); the status of every row is tracked in
 `harness/specs/inventory-intervalmdp.md`.
 
-**Current phase: 2 complete (sub-phases 2a, 2b)** — Phase 0 (models with their well-formedness
+**Current phase: 3, sub-phase 3a** (Phases 0–2 complete) — Phase 0 (models with their well-formedness
 theorems, and the generic approximation-soundness lift A1), all of Phase 1 (index foundations
 (1a: 1-based conversion, column-major linear index, sparse support pairing, O-max sort
 permutation), marginal indexing (1b: `sub2ind` of `Marginal` and `IntervalAmbiguitySets`), dense
@@ -21,7 +21,14 @@ iteration (`policy_eval_sound`, proved for valid strategies; A8 partial (F2)) (2
 and A8 are `partial`: Julia's
 `checkstrategy` does not check availability, so "every strategy that passes validation looks up an
 available action" is false (Finding F2, `Index.checkStrategy_admits_unavailable`); it is proved for
-`AllAvailableActions` and for valid strategies. VI (Phase 3) and IVI (Phase 4) are not proved yet.
+`AllAvailableActions` and for valid strategies. Phase 3a: value iteration for reachability and
+reach-avoid (`VI.reachIter`, a transcription of `_value_iteration!` with the reachability
+`initialize!` / `step_postprocess_value_function!`) stays in `[0, 1]`, is monotone in `k`, converges
+to the least fixed point `VI.reachLfp` of the one-step map, and every iterate is below it (A4,
+`reachIter_sound`, via `Approx.iter_sound`), all four modes; monotonicity, convergence and A4 are
+stated for the non-exact-time properties. `V_k ≤ V*` is the conservative direction only in
+pessimistic mode; in optimistic mode it is a lower bound, not `Sound .optimistic`. The rest of
+Phase 3 (reward, exit time, strategies) and IVI (Phase 4) are not proved yet.
 
 **Proof scope: abstract.** Values are real numbers and the semantics is the dynamic-programming
 recursion. The proofs do not cover floating-point rounding, overflow, CUDA kernels or threaded
@@ -143,6 +150,11 @@ OMax.omaxSparse A σ            sparse O-max on SparseIntervalAmbiguity n (= Int
 | `state_bellman!` with a `NonOptimizingStrategyCache` (`GivenStrategyCache`, `ActiveGivenStrategyCache`): `Vres[jₛ] = state_action_bellman(…, marginal[jₐ, jₛ], …)` for `jₐ = CartesianIndex(strategy_cache[jₛ])` (`src/bellman.jl`) | `IntervalMDP.Bellman.Tπ M sat π V` (policy evaluation), `strategyAvailable π` (`available s = {π(s)}`), `policyEvalMode` (soundness direction: `maximize` ↦ `Tπ ≤ T`, `minimize` ↦ `Tπ ≥ T`) (`Bellman.lean`); `Tπ_eq_T_strategyAvailable`, `Tπ_stepSound`, `policy_eval_sound` (A8, via `Approx.iter_sound`), `Tπ_interval_eq_omax` |
 | strategy array `AbstractArray{NTuple{M, Int32}}` and lookup `CartesianIndex(strategy_cache[jₛ])` (`src/strategy.jl`, `src/strategy_cache.jl`, `src/bellman.jl`) | `IntervalMDP.Index.StrategyArray`, `strategyAction` (lookup at `linearInt N`), `actionTuple` (= `Tuple(jₐ)`), `juliaAvailable` (= `Tuple.(available(model, jₛ))`), `Stores` (`Index/Strategy.lean`); `strategyAction_eq_linear`, `strategyAction_available_of_all`, `strategyAction_available_of_valid`, `actionTuple_injective` |
 | `checkstrategy(strategy::AbstractArray, system::FactoredRMDP)` (`src/strategy.jl`): only `1 ≤ s[i] ≤ action_vars[i]` | `IntervalMDP.Index.checkStrategy` (`Index/Strategy.lean`); `checkStrategy_admits_unavailable` (Finding F2) |
+| `_value_iteration!` loop (`initialize!`, `nextiteration!`, `step!`, `k += 1`, `term_criteria`) with an `AbstractReachability` specification (`src/robust_value_iteration.jl`) | `IntervalMDP.VI.reachIter M sat strat prop k` (`VI/Reach.lean`); `reachIter_eq_iterate`, `reachIter_mem_unit`, `reachIter_mono`, `reachIter_tendsto_lfp`, `reachIter_sound` (A4) |
+| `step!(workspace, strategy_cache, value_function, k, mp, spec)` = `bellman!` + `step_postprocess_value_function!` (`src/robust_value_iteration.jl`) | `IntervalMDP.VI.step M sat strat prop V` (`VI/Reach.lean`); `step_mono`, `step_mem_unit`, `continuous_step` |
+| `FiniteTimeReachability`, `InfiniteTimeReachability`, `ExactTimeReachability`, `FiniteTimeReachAvoid`, `InfiniteTimeReachAvoid`, `ExactTimeReachAvoid` (`src/specification.jl`) | `IntervalMDP.VI.ReachProperty` (`.reachability`, `.reachAvoid`, `.exactTimeReachability`, `.exactTimeReachAvoid`), `ReachProperty.reach`, `isExactTime`, `Property.toReachProperty` (`VI/Reach.lean`) |
+| `initialize!(value_function, ::AbstractReachability)`, `step_postprocess_value_function!` for `AbstractReachability`, `AbstractReachAvoid`, `ExactTimeReachability`, `ExactTimeReachAvoid` (`src/specification.jl`) | `IntervalMDP.VI.initializeValueFunction`, `stepPostprocessValueFunction` (`VI/Reach.lean`) |
+| exact infinite-horizon reachability value approximated by `_value_iteration!` | `IntervalMDP.VI.reachLfp` (`OrderHom.lfp` of `stepHom` on `S → Set.Icc 0 1`) (`VI/Reach.lean`); `step_reachLfp`, `reachLfp_mem_unit`, `reachLfp_le_of_step_le`, `reachLfp_le_of_fixedPt` |
 
 Indices: Julia is 1-based, Lean's `Fin n` is 0-based. The conversion is defined once, as
 `Index.toJulia` (`Index/Julia.lean`), and every index theorem is stated through it. Concrete
@@ -174,6 +186,7 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
 | `IntervalMDPProofs/Index/Strategy.lean` | `Index.StrategyArray`, `actionTuple`, `strategyAction` (strategy lookup), `juliaAvailable`, `checkStrategy` (Julia `checkstrategy`), `Stores`; `actionTuple_injective`, `strategyAction_eq_linear`, `strategyAction_available_of_all`, `strategyAction_available_of_valid`, `checkStrategy_admits_unavailable` (Finding F2) |
 | `IntervalMDPProofs/OMax.lean` | `OMax.dot`, `valueSet`, `Permutation`, `stablePermutation`, `stateActionBellman` (transcription of dense `state_action_bellman`), `omax`, `IsThreshold`, `greedy`; `allocation_nonneg`, `allocation_le_gap`, `allocation_cons_of_ne`, `sum_allocation`, `exists_threshold`, `sum_perm_eq`, `Permutation.nodup`, `Permutation.mem`, `sum_allocation_eq_budget`, `greedy_apply`, `greedy_mem`, `stateActionBellman_eq_dot`, `juliaGet_neg`, `dot_neg`, `dot_le_greedy`, `stateActionBellman_isGreatest`, `stateActionBellman_isLeast`, `omax_mem`, `omax_eq_sSup`, `omax_eq_sInf`, `omax_tie_invariant`; sparse part: `SparseIntervalAmbiguity`, `SortedValuesGaps`, `pairLe`, `stableValuesGaps`, `gapValueSparse` (transcription of `gap_value(Vp, budget)`), `omaxSparse` (transcription of sparse `state_action_bellman`); `exists_perm_map_eq`, `gapValueSparse_map`, `gapValue_zero_budget`, `gapValue_sublist`, `sortedLe_trans`, `sortedLe_total`, `exists_permutation_sublist`, `omaxSparse_eq_omax`, `omaxSparse_exact` |
 | `IntervalMDPProofs/Bellman.lean` | `Bellman.expectations`, `innerOpt`, `extractValue`, `stateActionBellman`, `T` (robust Bellman operator on `RMDP`); `continuous_dot`, `expectations_isCompact`, `expectations_nonempty`, `innerOpt_mem`, `dot_le_dot_add`, `innerOpt_le_add`, `extractValue_le_add`, `T_le_add`, `T_mono`, `T_monotone`, `T_add_const`, `T_nonexpansive`, `T_lipschitz`; interval part (2b): `isOptimistic`, `IntervalMDPLayout` (`stateVars`, `actionVars`, `marginal`, `jointState`, `jointAction`, `column`, `toIMDP`), `intervalStateActionBellman`; `expectations_toSet`, `innerOpt_interval_eq_omax`, `IntervalMDPLayout.column_eq`, `IntervalMDPLayout.columnInt_eq`, `stateActionBellman_interval_eq_omax`, `T_interval_eq_omax`; strategy part (2b): `optLE`, `argoptStep`, `argoptAction`, `stationarySeed`, `strategyAvailable`, `Tπ`, `policyEvalMode`; `optLE_refl`, `optLE_trans`, `argoptStep_spec`, `argoptAction_spec`, `extractValue_eq_of_opt`, `argopt_attains`, `stationarySeed_available`, `Tπ_eq_T_strategyAvailable`, `Tπ_stepSound`, `policy_eval_sound`, `Tπ_interval_eq_omax` |
+| `IntervalMDPProofs/VI/Reach.lean` | `VI.ReachProperty`, `reach`, `isExactTime`, `Property.toReachProperty`, `initializeValueFunction`, `stepPostprocessValueFunction`, `step`, `reachIter` (transcription of `_value_iteration!` for reachability / reach-avoid), `stepHom`, `reachLfp`; `reachIter_eq_iterate`, `T_zero`, `T_const`, `T_mem_unit`, `stepPostprocessValueFunction_mono`, `stepPostprocessValueFunction_mem_unit`, `continuous_stepPostprocessValueFunction`, `step_mono`, `step_mem_unit`, `continuous_step`, `initializeValueFunction_le_step`, `step_reachLfp`, `reachLfp_mem_unit`, `reachLfp_le_of_step_le`, `reachIter_mem_unit`, `reachIter_mono`, `reachIter_sound` (A4), `reachIter_tendsto_lfp`, `reachLfp_le_of_fixedPt` |
 | `AxiomCheck.lean` | `#print axioms` for every mapped theorem |
 | `DocLint.lean` | `#lint only docBlame docBlameThm` |
 

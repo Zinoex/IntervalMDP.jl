@@ -90,3 +90,24 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Bellman.Tπ_eq_T_strategyAvailable
 #print axioms IntervalMDP.Bellman.Tπ_stepSound
 #print axioms IntervalMDP.Bellman.Tπ_interval_eq_omax
+-- Phase 3a: value iteration, reachability / reach-avoid
+#print axioms IntervalMDP.VI.reachIter_mem_unit
+#print axioms IntervalMDP.VI.reachIter_mono
+#print axioms IntervalMDP.VI.reachIter_tendsto_lfp
+#print axioms IntervalMDP.VI.reachIter_sound
+-- Phase 3a: supporting results referenced by the inventory
+#print axioms IntervalMDP.VI.reachIter_eq_iterate
+#print axioms IntervalMDP.VI.T_zero
+#print axioms IntervalMDP.VI.T_const
+#print axioms IntervalMDP.VI.T_mem_unit
+#print axioms IntervalMDP.VI.stepPostprocessValueFunction_mono
+#print axioms IntervalMDP.VI.stepPostprocessValueFunction_mem_unit
+#print axioms IntervalMDP.VI.continuous_stepPostprocessValueFunction
+#print axioms IntervalMDP.VI.step_mono
+#print axioms IntervalMDP.VI.step_mem_unit
+#print axioms IntervalMDP.VI.continuous_step
+#print axioms IntervalMDP.VI.initializeValueFunction_le_step
+#print axioms IntervalMDP.VI.step_reachLfp
+#print axioms IntervalMDP.VI.reachLfp_mem_unit
+#print axioms IntervalMDP.VI.reachLfp_le_of_step_le
+#print axioms IntervalMDP.VI.reachLfp_le_of_fixedPt
