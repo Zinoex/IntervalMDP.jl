@@ -90,3 +90,74 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Bellman.Tπ_eq_T_strategyAvailable
 #print axioms IntervalMDP.Bellman.Tπ_stepSound
 #print axioms IntervalMDP.Bellman.Tπ_interval_eq_omax
+-- Phase 3a: value iteration, reachability / reach-avoid
+#print axioms IntervalMDP.VI.reachIter_mem_unit
+#print axioms IntervalMDP.VI.reachIter_mono
+#print axioms IntervalMDP.VI.reachIter_tendsto_lfp
+#print axioms IntervalMDP.VI.reachIter_sound
+-- Phase 3a: supporting results referenced by the inventory
+#print axioms IntervalMDP.VI.reachIter_eq_iterate
+#print axioms IntervalMDP.VI.T_zero
+#print axioms IntervalMDP.VI.T_const
+#print axioms IntervalMDP.VI.T_mem_unit
+#print axioms IntervalMDP.VI.stepPostprocessValueFunction_mono
+#print axioms IntervalMDP.VI.stepPostprocessValueFunction_mem_unit
+#print axioms IntervalMDP.VI.continuous_stepPostprocessValueFunction
+#print axioms IntervalMDP.VI.step_mono
+#print axioms IntervalMDP.VI.step_mem_unit
+#print axioms IntervalMDP.VI.continuous_step
+#print axioms IntervalMDP.VI.initializeValueFunction_le_step
+#print axioms IntervalMDP.VI.step_reachLfp
+#print axioms IntervalMDP.VI.reachLfp_mem_unit
+#print axioms IntervalMDP.VI.reachLfp_le_of_step_le
+#print axioms IntervalMDP.VI.reachLfp_le_of_fixedPt
+
+-- Phase 3b: value iteration for safety (−1/+1 shift) and expected exit time
+#print axioms IntervalMDP.VI.safety_shift_eq
+#print axioms IntervalMDP.VI.safetyIter_eq_sub_one
+#print axioms IntervalMDP.VI.safetyIter_postprocess_mem_unit
+#print axioms IntervalMDP.VI.exitIter_eq_iterate
+#print axioms IntervalMDP.VI.initializeValueFunction_eq_exitStep_zero
+#print axioms IntervalMDP.VI.ExpectedExitTime.stepPostprocessValueFunction_mono
+#print axioms IntervalMDP.VI.ExpectedExitTime.initializeValueFunction_nonneg
+#print axioms IntervalMDP.VI.exitStep_mono
+#print axioms IntervalMDP.VI.exitIter_succ
+#print axioms IntervalMDP.VI.exitIter_nonneg
+#print axioms IntervalMDP.VI.exitIter_mono
+#print axioms IntervalMDP.VI.exitIter_sound
+#print axioms IntervalMDP.VI.exitIter_le_exitValue
+#print axioms IntervalMDP.VI.exitValue_le_of_step_le
+
+-- Phase 3c: value iteration for discounted reward (contraction, A5 error bound)
+#print axioms IntervalMDP.VI.rewardIter_succ
+#print axioms IntervalMDP.VI.reward_contracting
+#print axioms IntervalMDP.VI.reward_error_bound
+
+-- Phase 3c: supporting results referenced by the inventory
+#print axioms IntervalMDP.Property.toRewardProperty_discount_lt_one
+#print axioms IntervalMDP.VI.rewardIter_eq_iterate
+#print axioms IntervalMDP.VI.rewardStep_dist_le
+#print axioms IntervalMDP.VI.rewardValue_isFixedPt
+#print axioms IntervalMDP.VI.rewardIter_tendsto
+#print axioms IntervalMDP.VI.reward_stop_bound
+#print axioms IntervalMDP.VI.reward_error_interval
+
+-- Phase 3d: synthesized strategies (A7)
+#print axioms IntervalMDP.VI.timeVarying_attains
+#print axioms IntervalMDP.VI.stationary_sound
+#print axioms IntervalMDP.VI.timeVarying_attains_reach
+#print axioms IntervalMDP.VI.timeVarying_attains_safety
+#print axioms IntervalMDP.VI.timeVarying_attains_reward
+#print axioms IntervalMDP.VI.policyEvalIter_timeVaryingCacheStrategy
+#print axioms IntervalMDP.VI.synthesizedStrategy_spec
+#print axioms IntervalMDP.VI.timeVaryingCacheStrategy_valid
+#print axioms IntervalMDP.VI.stationaryCacheStrategy_valid
+#print axioms IntervalMDP.VI.T_lt_of_switch
+#print axioms IntervalMDP.VI.strategy_eq_of_T_eq
+#print axioms IntervalMDP.VI.viIter_le_superSolution_minimize
+#print axioms IntervalMDP.VI.stationary_backward_step
+#print axioms IntervalMDP.VI.stationary_le_superSolution
+#print axioms IntervalMDP.VI.stationary_sound_exitTime
+#print axioms IntervalMDP.VI.stationary_reward_error_bound
+-- Phase 3d: Finding F3 witness (benchmark B-1)
+#print axioms IntervalMDP.Examples.b1_stationary_unsound

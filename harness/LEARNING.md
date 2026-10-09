@@ -331,3 +331,38 @@ Each entry should be dated and attributed to the stage that learned it:
 - **Problem:** The 2b F2 counterexample (unavailable action accepted) was first given only for Pessimistic/Maximize (verified V = 1.0 > optimum 0.0). The orchestrator's brief assumed that the same model shows the minimize case. It does not: on that model the unavailable action is not better than the minimum.
 - **Root cause:** Soundness violations are directional. An unavailable action breaks maximize only if it beats the optimum, and breaks minimize only if it undercuts the minimum. That needs a different (mirrored) availability.
 - **Fix / guardrail:** For any claim covering both strategy modes, give and run one concrete counterexample per direction (here, minimize with mirrored availability: verified 0.0 < minimum 1.0). Check each one in Julia before it goes into a brief, spec or PR.
+
+### 2026-10-09 — Dev/QE — Missing L1–L6 limitations on touched inventory rows needs a machine check
+- **Problem:** Lean 3a cycle 1 failed QE only because inventory row 5 and A4 (status `proved` / `partial`) did not list limitations L1–L6. The same kind of inventory-cell gap had already cost a cycle in 2b.
+- **Root cause:** It is checked by eye. Dev updates the status cell and the theorem references but forgets the limitations column. QE catches it only after the full Dev → FV → QE round.
+- **Fix / guardrail:** Add a lint (e.g. `harness/tools/harness/inventory_lint.py`) that fails when any inventory row or assumption entry with status `proved` or `partial` does not reference each of L1–L6. Dev runs it before hand-off and QE runs it as a gate. Until the lint exists, every Dev brief must say "every row this sub-phase touches lists L1–L6", and Dev must grep the touched rows for `L1`…`L6` before hand-off.
+
+### 2026-10-09 — Ops — `mergeable` is `UNKNOWN` right after `gh pr create`
+- **Problem:** `gh pr view N --json mergeable` returned `UNKNOWN` immediately after draft PR #118 was created. A few seconds later it returned `MERGEABLE`.
+- **Root cause:** GitHub computes mergeability asynchronously after a PR is created or pushed.
+- **Fix / guardrail:** Treat `UNKNOWN` as "not computed yet", not as a failure. Re-query after the next steps (e.g. after the LEARNING.md update) and report the settled value. Lean 3a used the "First sub-phase of a new phase" procedure without problems: `640c50c`, draft PR #118.
+
+### 2026-10-09 — Orchestrator — Resume a rate-limited subagent with SendMessage; have it re-read its partial files first
+- **Problem:** In Lean 3b, the Dev subagent was stopped by an API rate limit partway through writing the Lean files.
+- **Root cause:** The limit ends the agent's turn. Its files on disk may be incomplete, and its memory of what it wrote may not match them.
+- **Fix / guardrail:** After the limit resets, resume the same agent with SendMessage to its agent id (do not start a fresh Dev). Tell it to re-read its partial files from disk and re-run the build before continuing, not to assume they are complete. In 3b this worked cleanly: Dev PASS, then FV 5/5 and QE 10/10 in one cycle (`d345e88`).
+
+### 2026-10-09 — Ops — Verify an edited PR body modulo the trailing newline
+- **Problem:** After `gh pr edit 118 --body-file`, the diff of `gh pr view 118 --json body -q .body` against the body file showed one difference: a trailing newline.
+- **Root cause:** `gh ... -q .body` prints a newline after the body, and GitHub may normalise trailing whitespace, so a byte-exact round-trip diff is not reliable.
+- **Fix / guardrail:** Compare after stripping trailing whitespace on both sides (e.g. Python `a.rstrip() == b.rstrip()`), and also assert the new section heading and the ticked checklist item each occur exactly once. The 3b update to draft PR #118 used this check.
+
+### 2026-10-09 — Dev/QE — A `|` inside a backtick code span still splits a markdown table cell
+- **Problem:** Lean 3c cycle 1 failed QE only because the A5 row of the inventory table was broken: a code span with an absolute value (`|x|`-style notation) added extra cells, so the row no longer matched the header.
+- **Root cause:** GitHub-flavoured markdown splits table rows on every unescaped `|` before it parses inline code, so backticks do not protect it. Dev checked the cell text, not the rendered table.
+- **Fix / guardrail:** In inventory table cells write `abs (x)`, `‖x‖` or `\|`, never a bare `|x|`. Add a cell-count check (every table row has as many unescaped `|` separators as its header) to the planned inventory lint next to the L1–L6 check, and run it before Dev hand-off and as a QE gate. Ops in 3c followed "Sub-phase on an already-pushed branch" without problems (`7d2eaa8`, draft PR #118).
+
+### 2026-10-09 — Orchestrator/Ops — Track an accepted open Finding that is a real Julia defect as a GitHub issue
+- **Problem:** Lean 3d closed Phase 3 with open Finding F3 (= benchmark B-1, stationary strategy cache misguard), which the operator accepted. Before this run, the defect was recorded only in repo docs (inventory, `benchmark/REPORT.md`, an unrun fix spec). Those are easy to miss once the phase PR merges, and the earlier F2 likewise lived only in docs.
+- **Root cause:** The Findings policy records defects in the inventory, but nothing tracks them outside the repo, and the phase PR body only lists sub-phase sections.
+- **Fix / guardrail:** When the operator accepts an open Finding that reflects a real Julia defect, Ops (1) checks `gh issue list --search "<id> in:title,body" --state all` and creates a GitHub issue (or comments on the existing one) with a minimal reproduction taken from the scratch counterexample and its logged output, the impact, the fix spec path and the Lean witness, and (2) adds a `### ⚠ Open Findings` section right after the PR Summary that links the issue and also lists earlier still-open Findings. In 3d this produced issue #119, and PR #118 was marked ready with F3 and F2 listed. Record the gate as "QE N/M, only failing criterion = accepted Finding Fx" in the commit, PR and a `decision` event.
+
+### 2026-10-09 — Ops — Count assertions for PR-body anchors must match the intended repetitions
+- **Problem:** The exact-match body builder asserted that every new anchor occurs once. The issue link `#119` occurs twice by design (Open Findings and the 3d gates line), so the build stopped.
+- **Root cause:** A single "occurs once" check was applied to both headings and cross-references.
+- **Fix / guardrail:** Assert `== 1` only for structural anchors (headings, checklist items, summary sentence, trailing attribution line). Assert the exact expected count for links that are repeated on purpose. The script failing before `gh pr edit` was the intended safety net; no wrong body was applied.
