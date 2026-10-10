@@ -1,7 +1,7 @@
 import IntervalMDPProofs.VI.Strategy
 
 /-!
-# Interval value iteration: bounds and bracket (Phase 4a)
+# Interval value iteration: bounds, bracket and gap stopping (Phase 4a, 4b)
 
 `_interval_value_iteration!` (`src/interval_value_iteration.jl`) runs
 
@@ -48,9 +48,36 @@ the upper bound, so `V_upper_1 < V*`; dually for `(Optimistic, Minimize)` `V* < 
 `Examples.ivi_reachLfp_lt_lower`). The theorem `IVI.bracket` for all four modes is therefore not
 stated.
 
+**Stopping (4b).** For infinite-time reach-avoid the loop condition is `IVIInitialGapCriteria`:
+the loop tests, after each call `k = 1, 2, …` (never on the initialised bounds), whether
+`max_initial_gap = max(0, max_{s ∈ initial_states(mp)} (V_upper_k(s) - V_lower_k(s))) <
+convergence_eps` (absolute gap), and returns the primary bound of the first such call. This is
+modelled by `maxInitialGap` (a transcription of the loop of `max_initial_gap`),
+`iviInitialGapCriteria`, `stopIndex` (the exit value of `k`) and `iviValueFunction` (the returned
+`value_function`). Both theorems below assume that the loop exits, i.e. they take
+`h : Terminates M sat strat prop o kind tol initial` as a hypothesis; termination is **not
+proved** (the gap need not close, e.g. when an end component lies in the don't-care region; see
+the design note in `src/interval_value_iteration.jl`). Proved:
+
+* `gap_stop_sound_aligned`: assuming the loop exits (`Terminates`, not proved), the returned value
+  is within `tol` of `V*` on the initial states, `abs (iviValueFunction h s - V* s) < tol`, for the
+  two modes `(Pessimistic, Minimize)` and `(Optimistic, Maximize)`, non-exact-time reach-avoid
+  properties (`prop.toReachProperty.isExactTime = false`), both strategy caches (via
+  `bracket_aligned`);
+* `gap_stop_primary_sound`: assuming the loop exits (`Terminates`, not proved), the returned value
+  is sound, `Sound sat (iviValueFunction h) V*`, all four modes, non-exact-time reach-avoid
+  properties (`prop.toReachProperty.isExactTime = false`), both strategy caches (via
+  `primary_sound`).
+
+The four-mode `IVI.gap_stop_sound` is false for Julia's coupling (Finding F4): in
+`(Pessimistic, Maximize)` and `(Optimistic, Minimize)` the gap can be `0` at `k = 1` while the
+returned value is `½` away from `V*` (`Examples.not_gap_stop_sound_pessimistic_maximize`,
+`Examples.not_gap_stop_sound_optimistic_minimize`). It is therefore not stated.
+
 **Scope.** Abstract (values in `ℝ`, exact operators), time-invariant model (`select_model(mp, k)
 = mp`), `V*` = dynamic-programming least fixed point (not the path measure). The termination test
-`IVIInitialGapCriteria` is not modelled here (sub-phase 4b). Floating point, threads, CUDA and the
+`IVIFixedIterationsCriteria` (finite horizon, `k = time_horizon`) is not modelled separately:
+`iviIter k` at that `k` is its result. Floating point, threads, CUDA and the
 Lean ↔ Julia correspondence are limitations L1–L6 of the inventory.
 -/
 
@@ -601,5 +628,253 @@ theorem bracket_aligned (M : RMDP S A) (sat : SatisfactionMode) (strat : Strateg
       reachLfp_le_upper M sat strat prop o kind (Or.inr hm) k⟩
   · exact ⟨lower_le_reachLfp M sat strat hprop o kind (Or.inr hm) k,
       reachLfp_le_upper M sat strat prop o kind (Or.inl hs) k⟩
+
+/-! ### Stopping on the initial-state gap (Phase 4b) -/
+
+omit [Fintype S] [DecidableEq S] [DecidableEq A] in
+/-- The gap `V_upper(s) - V_lower(s)` between the two bounds at state `s`.
+
+Julia counterpart: `d = V_upper[ci] - V_lower[ci]` in `max_initial_gap`, and the returned `gap`
+(`gap .= V_upper.current .- V_lower.current`) of `_interval_value_iteration!`
+(`src/interval_value_iteration.jl`). -/
+def gap (B : Bounds S A) (s : S) : ℝ := B.upper s - B.lower s
+
+omit [Fintype S] [DecidableEq S] [DecidableEq A] in
+/-- One iteration of the loop of `max_initial_gap`: `if d > diff; diff = d; end` with
+`d = V_upper[s] - V_lower[s]`.
+
+Julia counterpart: the loop body of `max_initial_gap` (`src/interval_value_iteration.jl`). -/
+noncomputable def maxGapStep (B : Bounds S A) (diff : ℝ) (s : S) : ℝ :=
+  if gap B s > diff then gap B s else diff
+
+omit [Fintype S] [DecidableEq S] [DecidableEq A] in
+/-- The largest gap over the initial states, floored at `0`: a transcription of the loop of
+`max_initial_gap` (`diff = 0`, then `maxGapStep` for each `s in initial`, in order). The initial
+states are the list `initial_states(mp)`; for `AllStates()` Julia loops over every state, which is
+`initial = (Finset.univ : Finset S).toList` here.
+
+Julia counterpart: `max_initial_gap(V_lower, V_upper, initial_states(mp))`
+(`src/interval_value_iteration.jl`). -/
+noncomputable def maxInitialGap (B : Bounds S A) (initial : List S) : ℝ :=
+  initial.foldl (maxGapStep B) 0
+
+omit [Fintype S] [DecidableEq S] [DecidableEq A] in
+/-- The termination test of IVI for infinite-time reach-avoid: the largest initial-state gap is
+strictly below the tolerance, `max_{s ∈ initial} (V_upper(s) - V_lower(s)) < tol` (absolute, not
+relative; floored at `0`). Julia's `tol` is `convergence_eps(prop)`.
+
+Julia counterpart: `IVIInitialGapCriteria` and its call operator
+`(f::IVIInitialGapCriteria)(V_lower, V_upper, k, mp)` (`src/interval_value_iteration.jl`), chosen
+by `ivi_termination_criteria(prop, Val(false))` for `InfiniteTimeReachAvoid`. -/
+def iviInitialGapCriteria (tol : ℝ) (initial : List S) (B : Bounds S A) : Prop :=
+  maxInitialGap B initial < tol
+
+omit [Fintype S] [DecidableEq S] [DecidableEq A] in
+/-- The criterion is decidable (a comparison of reals), so the loop exit `stopIndex` is the least
+call that satisfies it.
+
+Julia counterpart: the `Bool` returned by `(f::IVIInitialGapCriteria)(V_lower, V_upper, k, mp)`
+(`src/interval_value_iteration.jl`). -/
+noncomputable instance iviInitialGapCriteria.decidable (tol : ℝ) (initial : List S)
+    (B : Bounds S A) : Decidable (iviInitialGapCriteria tol initial B) :=
+  inferInstanceAs (Decidable (maxInitialGap B initial < tol))
+
+/-- The loop of `_interval_value_iteration!` exits under `IVIInitialGapCriteria`: some call
+`k + 1 ≥ 1` satisfies the criterion (Julia tests the criterion only after `ivi_step!`, never on the
+initialised bounds `iviIter 0`).
+
+Julia counterpart: termination of `while !term_criteria(V_lower, V_upper, k, mp)` in
+`_interval_value_iteration!` (`src/interval_value_iteration.jl`). -/
+def Terminates (M : RMDP S A) (sat : SatisfactionMode) (strat : StrategyMode)
+    (prop : ReachAvoidProperty S) (o : ActionOrder M) (kind : StrategyCacheKind) (tol : ℝ)
+    (initial : List S) : Prop :=
+  ∃ k, iviInitialGapCriteria tol initial (iviIter M sat strat prop o kind (k + 1))
+
+/-- The value of the Julia counter `k` when the loop exits: the least `k ≥ 1` at which the
+criterion holds. Transcription of
+
+    ivi_step!(…, 0, …); k = 1
+    while !term_criteria(V_lower, V_upper, k, mp)
+        nextiteration!(…); ivi_step!(…, k, …); k += 1
+    end
+
+where after the `k`-th call of `ivi_step!` the bounds are `iviIter k`: the loop tests `k = 1, 2, …`
+in order and stops at the first success, so the exit value is `Nat.find h + 1`.
+
+Julia counterpart: `k` returned by `_interval_value_iteration!` (`num_iterations` of the solution,
+`src/interval_value_iteration.jl`). -/
+noncomputable def stopIndex {M : RMDP S A} {sat : SatisfactionMode} {strat : StrategyMode}
+    {prop : ReachAvoidProperty S} {o : ActionOrder M} {kind : StrategyCacheKind} {tol : ℝ}
+    {initial : List S} (h : Terminates M sat strat prop o kind tol initial) : ℕ :=
+  Nat.find h + 1
+
+/-- The value function IVI returns: the primary bound (`V_lower` for `Pessimistic`, `V_upper` for
+`Optimistic`) after the last call, `iviIter (stopIndex h)`. The final
+`postprocess_value_function!` is a no-op for reach-avoid properties (`AbstractReachability`), so it
+is not modelled.
+
+Julia counterpart: `value_function(solve(problem, ::IntervalValueIteration))` via
+`_ivi_verification_solution` / `_ivi_control_synthesis_solution`
+(`src/interval_value_iteration.jl`). -/
+noncomputable def iviValueFunction {M : RMDP S A} {sat : SatisfactionMode} {strat : StrategyMode}
+    {prop : ReachAvoidProperty S} {o : ActionOrder M} {kind : StrategyCacheKind} {tol : ℝ}
+    {initial : List S} (h : Terminates M sat strat prop o kind tol initial) : S → ℝ :=
+  primary sat (iviIter M sat strat prop o kind (stopIndex h))
+
+omit [Fintype S] [DecidableEq S] [DecidableEq A] in
+/-- `V` is within `tol` of `W` on the initial states: `abs (V s - W s) < tol` for every
+`s ∈ initial`.
+
+Julia counterpart: the guarantee "the gap between the upper and lower bound over the set of initial
+states drops below `convergence_eps`" in the `solve(…, ::IntervalValueIteration)` docstring
+(`src/interval_value_iteration.jl`). -/
+def WithinOn (initial : List S) (tol : ℝ) (V W : S → ℝ) : Prop :=
+  ∀ s ∈ initial, abs (V s - W s) < tol
+
+omit [Fintype S] [DecidableEq S] [DecidableEq A] in
+/-- The loop of `max_initial_gap` never decreases `diff`, and ends above the gap of every state it
+visits.
+
+Julia counterpart: `max_initial_gap` (`src/interval_value_iteration.jl`). -/
+theorem le_foldl_maxGapStep (B : Bounds S A) (initial : List S) (d : ℝ) :
+    d ≤ initial.foldl (maxGapStep B) d ∧
+      ∀ s ∈ initial, gap B s ≤ initial.foldl (maxGapStep B) d := by
+  induction initial generalizing d with
+  | nil => simp
+  | cons t l ih =>
+    have hstep : d ≤ maxGapStep B d t ∧ gap B t ≤ maxGapStep B d t := by
+      unfold maxGapStep
+      split_ifs with h
+      · exact ⟨h.le, le_rfl⟩
+      · exact ⟨le_rfl, not_lt.mp h⟩
+    obtain ⟨ih₁, ih₂⟩ := ih (maxGapStep B d t)
+    refine ⟨hstep.1.trans ih₁, ?_⟩
+    intro s hs
+    rcases List.mem_cons.mp hs with rfl | hs
+    · exact hstep.2.trans ih₁
+    · exact ih₂ s hs
+
+omit [Fintype S] [DecidableEq S] [DecidableEq A] in
+/-- The gap at every initial state is at most `maxInitialGap`.
+
+Julia counterpart: `max_initial_gap` (`src/interval_value_iteration.jl`). -/
+theorem gap_le_maxInitialGap (B : Bounds S A) {initial : List S} {s : S} (hs : s ∈ initial) :
+    gap B s ≤ maxInitialGap B initial :=
+  (le_foldl_maxGapStep B initial 0).2 s hs
+
+omit [Fintype S] [DecidableEq S] [DecidableEq A] in
+/-- If the bounds bracket `V` and the initial-state gap is below `tol`, then the primary bound is
+within `tol` of `V` on the initial states (both lie in `[V_lower(s), V_upper(s)]`, an interval of
+length `< tol`).
+
+Julia counterpart: `IVIInitialGapCriteria` (`src/interval_value_iteration.jl`). -/
+theorem withinOn_of_bracket (sat : SatisfactionMode) {B : Bounds S A} {V : S → ℝ} {tol : ℝ}
+    {initial : List S} (hlo : B.lower ≤ V) (hup : V ≤ B.upper)
+    (hgap : iviInitialGapCriteria tol initial B) : WithinOn initial tol (primary sat B) V := by
+  intro s hs
+  have hg : B.upper s - B.lower s < tol :=
+    lt_of_le_of_lt (gap_le_maxInitialGap B hs) hgap
+  have h1 := hlo s
+  have h2 := hup s
+  rw [abs_lt]
+  cases sat
+  · exact ⟨by simp only [primary]; linarith, by simp only [primary]; linarith⟩
+  · exact ⟨by simp only [primary]; linarith, by simp only [primary]; linarith⟩
+
+/-- The loop stops after at least one call: `1 ≤ stopIndex h`.
+
+Julia counterpart: `ivi_step!(…, 0, …); k = 1` before the `while` loop of
+`_interval_value_iteration!` (`src/interval_value_iteration.jl`). -/
+theorem one_le_stopIndex {M : RMDP S A} {sat : SatisfactionMode} {strat : StrategyMode}
+    {prop : ReachAvoidProperty S} {o : ActionOrder M} {kind : StrategyCacheKind} {tol : ℝ}
+    {initial : List S} (h : Terminates M sat strat prop o kind tol initial) :
+    1 ≤ stopIndex h := by
+  unfold stopIndex
+  omega
+
+/-- The criterion holds when the loop stops.
+
+Julia counterpart: the exit test of `while !term_criteria(…)` in `_interval_value_iteration!`
+(`src/interval_value_iteration.jl`). -/
+theorem iviInitialGapCriteria_stopIndex {M : RMDP S A} {sat : SatisfactionMode}
+    {strat : StrategyMode} {prop : ReachAvoidProperty S} {o : ActionOrder M}
+    {kind : StrategyCacheKind} {tol : ℝ} {initial : List S}
+    (h : Terminates M sat strat prop o kind tol initial) :
+    iviInitialGapCriteria tol initial (iviIter M sat strat prop o kind (stopIndex h)) := by
+  exact Nat.find_spec h
+
+/-- The criterion fails at every earlier call `1 ≤ j < stopIndex h`, so the loop does not exit
+before `stopIndex h`.
+
+Julia counterpart: the `while !term_criteria(…)` loop of `_interval_value_iteration!`
+(`src/interval_value_iteration.jl`). -/
+theorem not_iviInitialGapCriteria_of_lt_stopIndex {M : RMDP S A} {sat : SatisfactionMode}
+    {strat : StrategyMode} {prop : ReachAvoidProperty S} {o : ActionOrder M}
+    {kind : StrategyCacheKind} {tol : ℝ} {initial : List S}
+    (h : Terminates M sat strat prop o kind tol initial) {j : ℕ} (hj₁ : 1 ≤ j)
+    (hj : j < stopIndex h) :
+    ¬ iviInitialGapCriteria tol initial (iviIter M sat strat prop o kind j) := by
+  obtain ⟨i, rfl⟩ : ∃ i, j = i + 1 := ⟨j - 1, by omega⟩
+  have hi : i < Nat.find h := by
+    have : i + 1 < Nat.find h + 1 := hj
+    omega
+  exact Nat.find_min h hi
+
+/-- **Gap stopping in the aligned modes** (A6): for `(Pessimistic, Minimize)` and
+`(Optimistic, Maximize)`, whenever the initial-state gap criterion holds at a call `k`, the primary
+bound is within `tol` of `V*` on the initial states. Non-exact-time reach-avoid properties
+(`prop.toReachProperty.isExactTime = false`), both strategy caches, every `k` (in particular
+`k = stopIndex h`). Proof: `bracket_aligned` (via `Approx.iter_sound`) and `withinOn_of_bracket`.
+
+Julia counterpart: `IVIInitialGapCriteria` and `_interval_value_iteration!`
+(`src/interval_value_iteration.jl`). -/
+theorem withinOn_of_iviInitialGapCriteria_aligned (M : RMDP S A) (sat : SatisfactionMode)
+    (strat : StrategyMode) {prop : ReachAvoidProperty S}
+    (hprop : prop.toReachProperty.isExactTime = false) (o : ActionOrder M)
+    (kind : StrategyCacheKind)
+    (hmode : (sat = .pessimistic ∧ strat = .minimize) ∨ (sat = .optimistic ∧ strat = .maximize))
+    {tol : ℝ} {initial : List S} {k : ℕ}
+    (hgap : iviInitialGapCriteria tol initial (iviIter M sat strat prop o kind k)) :
+    WithinOn initial tol (primary sat (iviIter M sat strat prop o kind k))
+      (reachLfp M sat strat prop.toReachProperty) :=
+  have hb := bracket_aligned M sat strat hprop o kind hmode k
+  withinOn_of_bracket sat hb.1 hb.2 hgap
+
+/-- **Gap stopping is sound in the aligned modes** (A6, strongest proved form of `gap_stop_sound`):
+for `(Pessimistic, Minimize)` and `(Optimistic, Maximize)`, if IVI stops on
+`IVIInitialGapCriteria(tol)`, the returned value function is within `tol` of `V*` on the initial
+states, `abs (iviValueFunction h s - V* s) < tol`. Non-exact-time reach-avoid properties
+(`prop.toReachProperty.isExactTime = false`), both strategy caches, a general `RMDP`. The
+four-mode statement `IVI.gap_stop_sound` is false for Julia's strategy coupling (Finding F4,
+witnesses `Examples.not_gap_stop_sound_pessimistic_maximize` and
+`Examples.not_gap_stop_sound_optimistic_minimize`) and is not stated.
+
+Julia counterpart: `solve(problem, ::IntervalValueIteration)` with `IVIInitialGapCriteria`
+(`src/interval_value_iteration.jl`). -/
+theorem gap_stop_sound_aligned (M : RMDP S A) (sat : SatisfactionMode) (strat : StrategyMode)
+    {prop : ReachAvoidProperty S} (hprop : prop.toReachProperty.isExactTime = false)
+    (o : ActionOrder M) (kind : StrategyCacheKind)
+    (hmode : (sat = .pessimistic ∧ strat = .minimize) ∨ (sat = .optimistic ∧ strat = .maximize))
+    {tol : ℝ} {initial : List S} (h : Terminates M sat strat prop o kind tol initial) :
+    WithinOn initial tol (iviValueFunction h) (reachLfp M sat strat prop.toReachProperty) :=
+  withinOn_of_iviInitialGapCriteria_aligned M sat strat hprop o kind hmode
+    (iviInitialGapCriteria_stopIndex h)
+
+/-- **The returned value is sound in all four modes** (A6, the part of `gap_stop_sound` that holds
+for every mode): if IVI stops on `IVIInitialGapCriteria(tol)`, the returned value function is a
+sound one-sided bound, `Sound sat (iviValueFunction h) V*` (`≤ V*` for `Pessimistic`, `≥ V*` for
+`Optimistic`), on all states. Non-exact-time reach-avoid properties
+(`prop.toReachProperty.isExactTime = false`), both strategy caches. It gives no two-sided `tol`
+guarantee in `(Pessimistic, Maximize)` and `(Optimistic, Minimize)` (Finding F4). Via
+`primary_sound` (`Approx.iter_sound`).
+
+Julia counterpart: `solve(problem, ::IntervalValueIteration)` with `IVIInitialGapCriteria`
+(`src/interval_value_iteration.jl`). -/
+theorem gap_stop_primary_sound (M : RMDP S A) (sat : SatisfactionMode) (strat : StrategyMode)
+    {prop : ReachAvoidProperty S} (hprop : prop.toReachProperty.isExactTime = false)
+    (o : ActionOrder M) (kind : StrategyCacheKind) {tol : ℝ} {initial : List S}
+    (h : Terminates M sat strat prop o kind tol initial) :
+    Sound sat (iviValueFunction h) (reachLfp M sat strat prop.toReachProperty) :=
+  primary_sound M sat strat hprop o kind (stopIndex h)
 
 end IntervalMDP.IVI

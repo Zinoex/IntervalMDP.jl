@@ -30,7 +30,11 @@ cache is (`VI.stationary_sound`).
 coupling of `ivi_step!` (`src/interval_value_iteration.jl`) the IVI bracket
 `V_lower_k ≤ V* ≤ V_upper_k` fails for `(Pessimistic, Maximize)` (`ivi_upper_lt_reachLfp`) and for
 `(Optimistic, Minimize)` (`ivi_reachLfp_lt_lower`); `IVI.bracket_aligned` proves it for the other
-two modes.
+two modes. On the same model, stopping on `IVIInitialGapCriteria(tol)` returns a value `½` away from
+`V*` for every `0 < tol ≤ ½` in those two modes (`not_gap_stop_sound_pessimistic_maximize`,
+`not_gap_stop_sound_optimistic_minimize`), refuting the four-mode `IVI.gap_stop_sound`;
+`IVI.gap_stop_sound_aligned` proves it for the other two modes (non-exact-time reach-avoid,
+assuming the loop exits: `IVI.Terminates`, which is not proved).
 -/
 
 noncomputable section
@@ -640,49 +644,84 @@ theorem iviOrder_cacheSeed (kind : StrategyCacheKind) (s : Fin 5) :
     cacheSeed iviOrder kind iviOrder.first s = 0 := by
   cases kind <;> rfl
 
-/-- **Witness for Finding F4, `(Pessimistic, Maximize)`.** After call `1`, the upper bound at `s`
-is `½` but the exact value is `1`: `V_upper_1(s) < V*(s)`, for both strategy caches.
+/-- The initial lower bound `𝟙_goal` of the F4 model.
 
-Julia counterpart: `ivi_step!` (`src/interval_value_iteration.jl`); reproduction in inventory
-Finding F4. -/
-theorem ivi_upper_lt_reachLfp (kind : StrategyCacheKind) :
-    (iviIter iviRMDP .pessimistic .maximize iviProp iviOrder kind 1).upper 0 <
-      reachLfp iviRMDP .pessimistic .maximize iviProp.toReachProperty 0 := by
+Julia counterpart: `initialize_ivi!` (`src/specification.jl`). -/
+theorem iviInitLower_apply (s : Fin 5) :
+    initializeValueFunction iviProp.toReachProperty s = if s = 3 then 1 else 0 := by
+  simp [initializeValueFunction, iviProp, ReachAvoidProperty.toReachProperty, ReachProperty.reach]
+
+/-- The initial upper bound `1 - 𝟙_avoid` of the F4 model.
+
+Julia counterpart: `initialize_ivi!` (`src/specification.jl`). -/
+theorem iviInitUpper_apply (s : Fin 5) :
+    initializeUpper iviProp s = if s = 4 then 0 else 1 := by
+  simp [initializeUpper, iviProp, ReachAvoidProperty.avoid]
+
+/-- In `(Pessimistic, Maximize)` the first call of `ivi_step!` picks action `0` in `s` (on the
+lower bound `𝟙_goal` the actions of `s` are worth `½, 0, 0`), for both strategy caches.
+
+Julia counterpart: `extract_strategy!` (`src/strategy_cache.jl`) in `ivi_step!`
+(`src/interval_value_iteration.jl`). -/
+theorem iviStrategy_pessimistic_maximize (kind : StrategyCacheKind) :
+    (iviStrategy iviRMDP .pessimistic .maximize iviOrder kind
+      (initializeIvi iviOrder iviProp)).strategy 0 = 0 := by
   set L₀ := initializeValueFunction iviProp.toReachProperty with hL₀
-  have hL₀v : ∀ s, L₀ s = if s = 3 then 1 else 0 := fun s => by
-    simp [hL₀, initializeValueFunction, iviProp, ReachAvoidProperty.toReachProperty,
-      ReachProperty.reach]
   have hv : ∀ a, stateActionBellman iviRMDP .pessimistic L₀ 0 a = if a = 0 then 1 / 2 else 0 := by
     intro a
     rw [iviRMDP_stateActionBellman]
-    fin_cases a <;> simp [iviDist, dot_halfGoalAvoid, dot_dirac_fin5, hL₀v]
-  have hσ : (iviStrategy iviRMDP .pessimistic .maximize iviOrder kind
-      (initializeIvi iviOrder iviProp)).strategy 0 = 0 := by
-    show argoptAction .maximize (stateActionBellman iviRMDP .pessimistic L₀ 0)
-      (cacheSeed iviOrder kind iviOrder.first 0) [0, 1, 2] = 0
-    rw [iviOrder_cacheSeed]
-    have h0 := hv 0
-    have h1 := hv 1
-    have h2 := hv 2
-    simp only [Fin.isValue, if_true, Fin.reduceEq, if_false] at h0 h1 h2
-    have e0 : argoptStep .maximize (stateActionBellman iviRMDP .pessimistic L₀ 0) 0 0 = 0 := by
-      simp [argoptStep]
-    have e1 : argoptStep .maximize (stateActionBellman iviRMDP .pessimistic L₀ 0) 0 1 = 0 := by
-      simp only [argoptStep, h0, h1]; norm_num
-    have e2 : argoptStep .maximize (stateActionBellman iviRMDP .pessimistic L₀ 0) 0 2 = 0 := by
-      simp only [argoptStep, h0, h2]; norm_num
-    simp only [argoptAction, List.foldl_cons, List.foldl_nil]
-    rw [e0, e1, e2]
-  have hU : (iviIter iviRMDP .pessimistic .maximize iviProp iviOrder kind 1).upper 0 = 1 / 2 := by
-    show (IVI.step iviRMDP .pessimistic .maximize iviProp iviOrder kind
+    fin_cases a <;> simp [iviDist, dot_halfGoalAvoid, dot_dirac_fin5, hL₀, iviInitLower_apply]
+  show argoptAction .maximize (stateActionBellman iviRMDP .pessimistic L₀ 0)
+    (cacheSeed iviOrder kind iviOrder.first 0) [0, 1, 2] = 0
+  rw [iviOrder_cacheSeed]
+  have h0 := hv 0
+  have h1 := hv 1
+  have h2 := hv 2
+  simp only [Fin.isValue, if_true, Fin.reduceEq, if_false] at h0 h1 h2
+  have e0 : argoptStep .maximize (stateActionBellman iviRMDP .pessimistic L₀ 0) 0 0 = 0 := by
+    simp [argoptStep]
+  have e1 : argoptStep .maximize (stateActionBellman iviRMDP .pessimistic L₀ 0) 0 1 = 0 := by
+    simp only [argoptStep, h0, h1]; norm_num
+  have e2 : argoptStep .maximize (stateActionBellman iviRMDP .pessimistic L₀ 0) 0 2 = 0 := by
+    simp only [argoptStep, h0, h2]; norm_num
+  simp only [argoptAction, List.foldl_cons, List.foldl_nil]
+  rw [e0, e1, e2]
+
+/-- In `(Pessimistic, Maximize)` both bounds at `s` are `½` after call `1` (gap `0`), for both
+strategy caches.
+
+Julia counterpart: `ivi_step!` (`src/interval_value_iteration.jl`); reproduction in inventory
+Finding F4. -/
+theorem iviIter_one_pessimistic_maximize (kind : StrategyCacheKind) :
+    (iviIter iviRMDP .pessimistic .maximize iviProp iviOrder kind 1).lower 0 = 1 / 2 ∧
+      (iviIter iviRMDP .pessimistic .maximize iviProp iviOrder kind 1).upper 0 = 1 / 2 := by
+  constructor
+  · show (IVI.step iviRMDP .pessimistic .maximize iviProp iviOrder kind
+      (initializeIvi iviOrder iviProp)).lower 0 = 1 / 2
+    rw [step_lower, iviProp_post _ (by decide) (by decide)]
+    show stateActionBellman iviRMDP .pessimistic
+      (initializeValueFunction iviProp.toReachProperty) 0
+      ((iviStrategy iviRMDP .pessimistic .maximize iviOrder kind
+        (initializeIvi iviOrder iviProp)).strategy 0) = 1 / 2
+    rw [iviStrategy_pessimistic_maximize, iviRMDP_stateActionBellman]
+    simp [iviDist, dot_halfGoalAvoid, iviInitLower_apply]
+  · show (IVI.step iviRMDP .pessimistic .maximize iviProp iviOrder kind
       (initializeIvi iviOrder iviProp)).upper 0 = 1 / 2
     rw [step_upper, iviProp_post _ (by decide) (by decide)]
     show stateActionBellman iviRMDP .pessimistic (initializeUpper iviProp) 0
       ((iviStrategy iviRMDP .pessimistic .maximize iviOrder kind
         (initializeIvi iviOrder iviProp)).strategy 0) = 1 / 2
-    rw [hσ, iviRMDP_stateActionBellman]
-    simp [iviDist, dot_halfGoalAvoid, initializeUpper, iviProp, ReachAvoidProperty.avoid]
-  -- `V*(s) ≥ V₂(s) ≥ V₁(t₁) ≥ V₀(goal) = 1`
+    rw [iviStrategy_pessimistic_maximize, iviRMDP_stateActionBellman]
+    simp [iviDist, dot_halfGoalAvoid, iviInitUpper_apply]
+
+/-- In `(Pessimistic, Maximize)` the exact value at `s` is at least `1`
+(`V*(s) ≥ V₂(s) ≥ V₁(t₁) ≥ V₀(goal) = 1`, via action `1`).
+
+Julia counterpart: `solve(…, RobustValueIteration(…))` (`src/robust_value_iteration.jl`) in the F4
+reproduction. -/
+theorem one_le_reachLfp_pessimistic_maximize :
+    1 ≤ reachLfp iviRMDP .pessimistic .maximize iviProp.toReachProperty 0 := by
+  set L₀ := initializeValueFunction iviProp.toReachProperty with hL₀
   set V := reachIter iviRMDP .pessimistic .maximize iviProp.toReachProperty
   have hT : ∀ (W : Fin 5 → ℝ) (s : Fin 5) (a : Fin 3),
       stateActionBellman iviRMDP .pessimistic W s a ≤ T iviRMDP .pessimistic .maximize W s :=
@@ -693,7 +732,7 @@ theorem ivi_upper_lt_reachLfp (kind : StrategyCacheKind) :
     rw [iviProp_post _ (by decide) (by decide)]
     refine le_trans (le_of_eq ?_) (hT L₀ 1 0)
     rw [iviRMDP_stateActionBellman]
-    simp [iviDist, dot_dirac_fin5, hL₀v]
+    simp [iviDist, dot_dirac_fin5, hL₀, iviInitLower_apply]
   have h2 : 1 ≤ V 2 0 := by
     show 1 ≤ stepPostprocessValueFunction iviProp.toReachProperty
       (T iviRMDP .pessimistic .maximize (V 1)) 0
@@ -703,53 +742,82 @@ theorem ivi_upper_lt_reachLfp (kind : StrategyCacheKind) :
     simp [iviDist, dot_dirac_fin5]
   have hsound := reachIter_sound iviRMDP .pessimistic .maximize
     (prop := iviProp.toReachProperty) rfl 2 0
-  rw [hU]
   linarith
 
-/-- **Witness for Finding F4, `(Optimistic, Minimize)`.** After call `1`, the lower bound at `s` is
-`½` but the exact value is `0`: `V*(s) < V_lower_1(s)`, for both strategy caches.
+/-- **Witness for Finding F4, `(Pessimistic, Maximize)`.** After call `1`, the upper bound at `s`
+is `½` but the exact value is `1`: `V_upper_1(s) < V*(s)`, for both strategy caches.
 
 Julia counterpart: `ivi_step!` (`src/interval_value_iteration.jl`); reproduction in inventory
 Finding F4. -/
-theorem ivi_reachLfp_lt_lower (kind : StrategyCacheKind) :
-    reachLfp iviRMDP .optimistic .minimize iviProp.toReachProperty 0 <
-      (iviIter iviRMDP .optimistic .minimize iviProp iviOrder kind 1).lower 0 := by
+theorem ivi_upper_lt_reachLfp (kind : StrategyCacheKind) :
+    (iviIter iviRMDP .pessimistic .maximize iviProp iviOrder kind 1).upper 0 <
+      reachLfp iviRMDP .pessimistic .maximize iviProp.toReachProperty 0 := by
+  rw [(iviIter_one_pessimistic_maximize kind).2]
+  linarith [one_le_reachLfp_pessimistic_maximize]
+
+/-- In `(Optimistic, Minimize)` the first call of `ivi_step!` picks action `0` in `s` (on the
+upper bound `1 - 𝟙_avoid` the actions of `s` are worth `½, 1, 1`), for both strategy caches.
+
+Julia counterpart: `extract_strategy!` (`src/strategy_cache.jl`) in `ivi_step!`
+(`src/interval_value_iteration.jl`). -/
+theorem iviStrategy_optimistic_minimize (kind : StrategyCacheKind) :
+    (iviStrategy iviRMDP .optimistic .minimize iviOrder kind
+      (initializeIvi iviOrder iviProp)).strategy 0 = 0 := by
   set U₀ := initializeUpper iviProp with hU₀
-  have hU₀v : ∀ s, U₀ s = if s = 4 then 0 else 1 := fun s => by
-    simp [hU₀, initializeUpper, iviProp, ReachAvoidProperty.avoid]
   have hv : ∀ a, stateActionBellman iviRMDP .optimistic U₀ 0 a = if a = 0 then 1 / 2 else 1 := by
     intro a
     rw [iviRMDP_stateActionBellman]
-    fin_cases a <;> simp [iviDist, dot_halfGoalAvoid, dot_dirac_fin5, hU₀v]
-  have hσ : (iviStrategy iviRMDP .optimistic .minimize iviOrder kind
-      (initializeIvi iviOrder iviProp)).strategy 0 = 0 := by
-    show argoptAction .minimize (stateActionBellman iviRMDP .optimistic U₀ 0)
-      (cacheSeed iviOrder kind iviOrder.first 0) [0, 1, 2] = 0
-    rw [iviOrder_cacheSeed]
-    have h0 := hv 0
-    have h1 := hv 1
-    have h2 := hv 2
-    simp only [Fin.isValue, if_true, Fin.reduceEq, if_false] at h0 h1 h2
-    have e0 : argoptStep .minimize (stateActionBellman iviRMDP .optimistic U₀ 0) 0 0 = 0 := by
-      simp [argoptStep]
-    have e1 : argoptStep .minimize (stateActionBellman iviRMDP .optimistic U₀ 0) 0 1 = 0 := by
-      simp only [argoptStep, h0, h1]; norm_num
-    have e2 : argoptStep .minimize (stateActionBellman iviRMDP .optimistic U₀ 0) 0 2 = 0 := by
-      simp only [argoptStep, h0, h2]; norm_num
-    simp only [argoptAction, List.foldl_cons, List.foldl_nil]
-    rw [e0, e1, e2]
-  have hL : (iviIter iviRMDP .optimistic .minimize iviProp iviOrder kind 1).lower 0 = 1 / 2 := by
-    show (IVI.step iviRMDP .optimistic .minimize iviProp iviOrder kind
+    fin_cases a <;> simp [iviDist, dot_halfGoalAvoid, dot_dirac_fin5, hU₀, iviInitUpper_apply]
+  show argoptAction .minimize (stateActionBellman iviRMDP .optimistic U₀ 0)
+    (cacheSeed iviOrder kind iviOrder.first 0) [0, 1, 2] = 0
+  rw [iviOrder_cacheSeed]
+  have h0 := hv 0
+  have h1 := hv 1
+  have h2 := hv 2
+  simp only [Fin.isValue, if_true, Fin.reduceEq, if_false] at h0 h1 h2
+  have e0 : argoptStep .minimize (stateActionBellman iviRMDP .optimistic U₀ 0) 0 0 = 0 := by
+    simp [argoptStep]
+  have e1 : argoptStep .minimize (stateActionBellman iviRMDP .optimistic U₀ 0) 0 1 = 0 := by
+    simp only [argoptStep, h0, h1]; norm_num
+  have e2 : argoptStep .minimize (stateActionBellman iviRMDP .optimistic U₀ 0) 0 2 = 0 := by
+    simp only [argoptStep, h0, h2]; norm_num
+  simp only [argoptAction, List.foldl_cons, List.foldl_nil]
+  rw [e0, e1, e2]
+
+/-- In `(Optimistic, Minimize)` both bounds at `s` are `½` after call `1` (gap `0`), for both
+strategy caches.
+
+Julia counterpart: `ivi_step!` (`src/interval_value_iteration.jl`); reproduction in inventory
+Finding F4. -/
+theorem iviIter_one_optimistic_minimize (kind : StrategyCacheKind) :
+    (iviIter iviRMDP .optimistic .minimize iviProp iviOrder kind 1).lower 0 = 1 / 2 ∧
+      (iviIter iviRMDP .optimistic .minimize iviProp iviOrder kind 1).upper 0 = 1 / 2 := by
+  constructor
+  · show (IVI.step iviRMDP .optimistic .minimize iviProp iviOrder kind
       (initializeIvi iviOrder iviProp)).lower 0 = 1 / 2
     rw [step_lower, iviProp_post _ (by decide) (by decide)]
     show stateActionBellman iviRMDP .optimistic
       (initializeValueFunction iviProp.toReachProperty) 0
       ((iviStrategy iviRMDP .optimistic .minimize iviOrder kind
         (initializeIvi iviOrder iviProp)).strategy 0) = 1 / 2
-    rw [hσ, iviRMDP_stateActionBellman]
-    simp [iviDist, dot_halfGoalAvoid, initializeValueFunction, iviProp,
-      ReachAvoidProperty.toReachProperty, ReachProperty.reach]
-  -- `W = 𝟙_{t₁, goal}` is a super-solution with `W(s) = 0`, so `V*(s) ≤ 0`
+    rw [iviStrategy_optimistic_minimize, iviRMDP_stateActionBellman]
+    simp [iviDist, dot_halfGoalAvoid, iviInitLower_apply]
+  · show (IVI.step iviRMDP .optimistic .minimize iviProp iviOrder kind
+      (initializeIvi iviOrder iviProp)).upper 0 = 1 / 2
+    rw [step_upper, iviProp_post _ (by decide) (by decide)]
+    show stateActionBellman iviRMDP .optimistic (initializeUpper iviProp) 0
+      ((iviStrategy iviRMDP .optimistic .minimize iviOrder kind
+        (initializeIvi iviOrder iviProp)).strategy 0) = 1 / 2
+    rw [iviStrategy_optimistic_minimize, iviRMDP_stateActionBellman]
+    simp [iviDist, dot_halfGoalAvoid, iviInitUpper_apply]
+
+/-- In `(Optimistic, Minimize)` the exact value at `s` is at most `0`: `W = 𝟙_{t₁, goal}` is a
+super-solution with `W(s) = 0` (action `2` leads to the avoid state).
+
+Julia counterpart: `solve(…, RobustValueIteration(…))` (`src/robust_value_iteration.jl`) in the F4
+reproduction. -/
+theorem reachLfp_optimistic_minimize_nonpos :
+    reachLfp iviRMDP .optimistic .minimize iviProp.toReachProperty 0 ≤ 0 := by
   set W : Fin 5 → ℝ := fun s => if s = 1 ∨ s = 3 then 1 else 0 with hW
   have hTle : ∀ (s : Fin 5) (a : Fin 3),
       T iviRMDP .optimistic .minimize W s ≤ stateActionBellman iviRMDP .optimistic W s a :=
@@ -778,8 +846,18 @@ theorem ivi_reachLfp_lt_lower (kind : StrategyCacheKind) :
   have hval := reachLfp_le_of_step_le iviRMDP .optimistic .minimize iviProp.toReachProperty
     hWunit hfix 0
   have hW0 : W 0 = 0 := by simp [hW]
-  rw [hL]
   linarith
+
+/-- **Witness for Finding F4, `(Optimistic, Minimize)`.** After call `1`, the lower bound at `s` is
+`½` but the exact value is `0`: `V*(s) < V_lower_1(s)`, for both strategy caches.
+
+Julia counterpart: `ivi_step!` (`src/interval_value_iteration.jl`); reproduction in inventory
+Finding F4. -/
+theorem ivi_reachLfp_lt_lower (kind : StrategyCacheKind) :
+    reachLfp iviRMDP .optimistic .minimize iviProp.toReachProperty 0 <
+      (iviIter iviRMDP .optimistic .minimize iviProp iviOrder kind 1).lower 0 := by
+  rw [(iviIter_one_optimistic_minimize kind).1]
+  linarith [reachLfp_optimistic_minimize_nonpos]
 
 /-- **The unrestricted bracket fails for `(Pessimistic, Maximize)`** on the F4 model (both strategy
 caches): `V* ≤ V_upper_k` is false at `k = 1`. So `IVI.bracket` for all four modes is false for
@@ -803,6 +881,88 @@ theorem not_bracket_optimistic_minimize (kind : StrategyCacheKind) :
       reachLfp iviRMDP .optimistic .minimize iviProp.toReachProperty ≤
         (iviIter iviRMDP .optimistic .minimize iviProp iviOrder kind k).upper :=
   fun h => absurd ((h 1).1 0) (not_le.mpr (ivi_reachLfp_lt_lower kind))
+
+/-! ### Finding F4, consequence for `IVI.gap_stop_sound`
+
+On the F4 model with initial states `[s]` (Julia `[1]`), both bounds at `s` are `½` after call `1`,
+so `IVIInitialGapCriteria(tol)` stops at `k = 1` for every `tol > 0`, and IVI returns `½` while
+`V*(s) = 1` in `(Pessimistic, Maximize)` and `V*(s) = 0` in `(Optimistic, Minimize)`: the returned
+value is not within `tol` of `V*` for any `tol ≤ ½`. -/
+
+/-- In `(Pessimistic, Maximize)` the initial-state gap criterion holds at call `1` for every
+`tol > 0` (the gap at `s` is `0`).
+
+Julia counterpart: `IVIInitialGapCriteria` (`src/interval_value_iteration.jl`) in the F4
+reproduction. -/
+theorem iviInitialGapCriteria_one_pessimistic_maximize (kind : StrategyCacheKind) {tol : ℝ}
+    (htol : 0 < tol) : iviInitialGapCriteria tol [0]
+      (iviIter iviRMDP .pessimistic .maximize iviProp iviOrder kind 1) := by
+  obtain ⟨hl, hu⟩ := iviIter_one_pessimistic_maximize kind
+  simp [iviInitialGapCriteria, maxInitialGap, maxGapStep, gap, hl, hu, htol]
+
+/-- In `(Optimistic, Minimize)` the initial-state gap criterion holds at call `1` for every
+`tol > 0` (the gap at `s` is `0`).
+
+Julia counterpart: `IVIInitialGapCriteria` (`src/interval_value_iteration.jl`) in the F4
+reproduction. -/
+theorem iviInitialGapCriteria_one_optimistic_minimize (kind : StrategyCacheKind) {tol : ℝ}
+    (htol : 0 < tol) : iviInitialGapCriteria tol [0]
+      (iviIter iviRMDP .optimistic .minimize iviProp iviOrder kind 1) := by
+  obtain ⟨hl, hu⟩ := iviIter_one_optimistic_minimize kind
+  simp [iviInitialGapCriteria, maxInitialGap, maxGapStep, gap, hl, hu, htol]
+
+/-- **`gap_stop_sound` fails for `(Pessimistic, Maximize)`** (Finding F4): on the F4 model with
+initial states `[s]`, for every `0 < tol ≤ ½` and both strategy caches, IVI stops at `k = 1` and
+the returned value `½` is not within `tol` of `V*(s) = 1`. This refutes the four-mode statement
+`IVI.gap_stop_sound`; `IVI.gap_stop_sound_aligned` is the proved restriction.
+
+Julia counterpart: `solve(problem, ::IntervalValueIteration)` with `IVIInitialGapCriteria`
+(`src/interval_value_iteration.jl`); reproduction in inventory Finding F4. -/
+theorem not_gap_stop_sound_pessimistic_maximize (kind : StrategyCacheKind) {tol : ℝ}
+    (htol : 0 < tol) (htol' : tol ≤ 1 / 2) :
+    ∃ h : Terminates iviRMDP .pessimistic .maximize iviProp iviOrder kind tol [0],
+      stopIndex h = 1 ∧ ¬ WithinOn [0] tol (iviValueFunction h)
+        (reachLfp iviRMDP .pessimistic .maximize iviProp.toReachProperty) := by
+  have hc := iviInitialGapCriteria_one_pessimistic_maximize kind htol
+  let h : Terminates iviRMDP .pessimistic .maximize iviProp iviOrder kind tol [0] := ⟨0, hc⟩
+  have hidx : stopIndex h = 1 := by
+    show Nat.find h + 1 = 1
+    rw [(Nat.find_eq_zero h).mpr hc]
+  refine ⟨h, hidx, fun hw => ?_⟩
+  have hv : iviValueFunction h 0 = 1 / 2 := by
+    show primary .pessimistic (iviIter iviRMDP .pessimistic .maximize iviProp iviOrder kind
+      (stopIndex h)) 0 = 1 / 2
+    rw [hidx]
+    exact (iviIter_one_pessimistic_maximize kind).1
+  have h1 := hw 0 (List.mem_singleton_self 0)
+  rw [hv, abs_lt] at h1
+  linarith [one_le_reachLfp_pessimistic_maximize]
+
+/-- **`gap_stop_sound` fails for `(Optimistic, Minimize)`** (Finding F4): on the F4 model with
+initial states `[s]`, for every `0 < tol ≤ ½` and both strategy caches, IVI stops at `k = 1` and
+the returned value `½` is not within `tol` of `V*(s) = 0`.
+
+Julia counterpart: `solve(problem, ::IntervalValueIteration)` with `IVIInitialGapCriteria`
+(`src/interval_value_iteration.jl`); reproduction in inventory Finding F4. -/
+theorem not_gap_stop_sound_optimistic_minimize (kind : StrategyCacheKind) {tol : ℝ}
+    (htol : 0 < tol) (htol' : tol ≤ 1 / 2) :
+    ∃ h : Terminates iviRMDP .optimistic .minimize iviProp iviOrder kind tol [0],
+      stopIndex h = 1 ∧ ¬ WithinOn [0] tol (iviValueFunction h)
+        (reachLfp iviRMDP .optimistic .minimize iviProp.toReachProperty) := by
+  have hc := iviInitialGapCriteria_one_optimistic_minimize kind htol
+  let h : Terminates iviRMDP .optimistic .minimize iviProp iviOrder kind tol [0] := ⟨0, hc⟩
+  have hidx : stopIndex h = 1 := by
+    show Nat.find h + 1 = 1
+    rw [(Nat.find_eq_zero h).mpr hc]
+  refine ⟨h, hidx, fun hw => ?_⟩
+  have hv : iviValueFunction h 0 = 1 / 2 := by
+    show primary .optimistic (iviIter iviRMDP .optimistic .minimize iviProp iviOrder kind
+      (stopIndex h)) 0 = 1 / 2
+    rw [hidx]
+    exact (iviIter_one_optimistic_minimize kind).2
+  have h1 := hw 0 (List.mem_singleton_self 0)
+  rw [hv, abs_lt] at h1
+  linarith [reachLfp_optimistic_minimize_nonpos]
 
 end IntervalMDP.Examples
 

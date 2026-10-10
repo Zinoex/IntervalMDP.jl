@@ -186,3 +186,25 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Examples.ivi_reachLfp_lt_lower
 #print axioms IntervalMDP.Examples.not_bracket_pessimistic_maximize
 #print axioms IntervalMDP.Examples.not_bracket_optimistic_minimize
+-- Phase 4b: interval value iteration (IVI): stopping on the initial-state gap (A6)
+-- `IntervalMDP.IVI.gap_stop_sound` (all four modes) is false for Julia's coupling (Finding F4) and is
+-- not stated; `gap_stop_sound_aligned` is the proved restriction, `gap_stop_primary_sound` the
+-- all-mode one-sided part.
+#print axioms IntervalMDP.IVI.gap_stop_sound_aligned
+#print axioms IntervalMDP.IVI.gap_stop_primary_sound
+#print axioms IntervalMDP.IVI.withinOn_of_iviInitialGapCriteria_aligned
+#print axioms IntervalMDP.IVI.withinOn_of_bracket
+#print axioms IntervalMDP.IVI.gap_le_maxInitialGap
+#print axioms IntervalMDP.IVI.le_foldl_maxGapStep
+#print axioms IntervalMDP.IVI.one_le_stopIndex
+#print axioms IntervalMDP.IVI.iviInitialGapCriteria_stopIndex
+#print axioms IntervalMDP.IVI.not_iviInitialGapCriteria_of_lt_stopIndex
+-- Phase 4b: Finding F4 witnesses for `gap_stop_sound`
+#print axioms IntervalMDP.Examples.not_gap_stop_sound_pessimistic_maximize
+#print axioms IntervalMDP.Examples.not_gap_stop_sound_optimistic_minimize
+#print axioms IntervalMDP.Examples.iviInitialGapCriteria_one_pessimistic_maximize
+#print axioms IntervalMDP.Examples.iviInitialGapCriteria_one_optimistic_minimize
+#print axioms IntervalMDP.Examples.iviIter_one_pessimistic_maximize
+#print axioms IntervalMDP.Examples.iviIter_one_optimistic_minimize
+#print axioms IntervalMDP.Examples.one_le_reachLfp_pessimistic_maximize
+#print axioms IntervalMDP.Examples.reachLfp_optimistic_minimize_nonpos
