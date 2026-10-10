@@ -25,6 +25,7 @@ import IntervalMDPProofs.VI.ExitTime
 import IntervalMDPProofs.VI.Reward
 import IntervalMDPProofs.VI.Strategy
 import IntervalMDPProofs.IVI
+import IntervalMDPProofs.Factored
 
 /-!
 # IntervalMDPProofs

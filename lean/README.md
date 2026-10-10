@@ -72,7 +72,21 @@ strategy coupling (inventory Finding F4; witnesses `Examples.ivi_upper_lt_reachL
 `V*` (`Examples.not_gap_stop_sound_pessimistic_maximize`,
 `Examples.not_gap_stop_sound_optimistic_minimize`), so neither `IVI.bracket` nor
 `IVI.gap_stop_sound` (all four modes) is stated.
-The factored algorithms (Phase 5) are not proved yet.
+Phase 5 (in progress; 5a done): factored IMDPs (`Factored.lean`). `Index.factored_successor_eq`:
+under the overflow bound `∏ state_vars < 2 ^ (N - 1)` (`hBound`) and for a value array storing `W`
+(`hV : StoresValues`), the index `I ∈ CartesianIndices(num_target.(ambiguity_sets))` of vertex
+enumeration and the factored O-max loops is in bijection with the joint successor states, `V[I]`
+reads `W (successorState I)`, and `prod(r -> γ[r][I[r]], …)` is the product distribution there.
+`Factored.vertices_complete` (no hypotheses beyond the model invariants; dense marginal storage
+only, sparse marginals not modelled, Observation O16): the loop over
+`Iterators.product` of the marginal `IntervalAmbiguitySetVertexIterator`s, including the
+iterator's permutation skipping (`nextPermutation`), visits exactly the tuples of extreme points
+(vertices) of the marginal sets. `Factored.vertexValue_eq_opt` and its corollary
+`vertexValue_eq_stateActionBellman` (no hypotheses beyond the model invariants; dense marginal
+storage only, O16; all four modes, `upper_bound = isoptimistic(sat)`): the vertex-enumeration value
+`vertexValue` equals the exact inner optimum over the literal, non-convex `productSet`
+(arXiv:2508.00707, Theorem 1); this is the exact reference value for A2/A3. Both theorems cover
+dense marginal storage only (`vertexValue` is built on the dense `vertices` transcription). Recursive O-max (5b) and McCormick (5c) are not proved yet.
 
 **Proof scope: abstract.** Values are real numbers and the semantics is the dynamic-programming
 recursion. The proofs do not cover floating-point rounding, overflow, CUDA kernels or threaded
@@ -132,6 +146,8 @@ Approx.Sound m W V, Approx.StepSound m T' T, Approx.iter_sound (A1)
 OMax.omax A s                  dense O-max on IntervalAmbiguity (Fin n) × SortedPerm n (exact: sSup / sInf)
 OMax.omaxSparse A σ            sparse O-max on SparseIntervalAmbiguity n (= IntervalAmbiguity + SparseCol gap)
                                × SortedValuesGaps s A.gapCol (= omax: omaxSparse_eq_omax)
+Factored.vertexValue F s a W ub  vertex enumeration over Factored.vertexEnumeration (exact: = innerOpt
+                               over FactoredIMDP.productSet, vertexValue_eq_opt; dense marginals only)
 ```
 
 ## Julia ↔ Lean glossary
@@ -225,6 +241,9 @@ OMax.omaxSparse A σ            sparse O-max on SparseIntervalAmbiguity n (= Int
 | `max_initial_gap(V_lower, V_upper, initial_states(mp))` (`src/interval_value_iteration.jl`); `gap = V_upper - V_lower` | `IntervalMDP.IVI.maxInitialGap B initial` (loop transcription, step `maxGapStep`), `IVI.gap B s` (`IVI.lean`) |
 | `IVIInitialGapCriteria(convergence_eps)` (`src/interval_value_iteration.jl`) | `IntervalMDP.IVI.iviInitialGapCriteria tol initial B` (`IVI.lean`) |
 | loop exit of `_interval_value_iteration!` (returned `k`, `num_iterations`) and the returned `value_function` | `IntervalMDP.IVI.Terminates`, `stopIndex h`, `iviValueFunction h`; `WithinOn initial tol V W`; `gap_stop_sound_aligned` (`(Pessimistic, Minimize)`, `(Optimistic, Maximize)`), `gap_stop_primary_sound` (all four modes), both non-exact-time reach-avoid only and both assuming the loop exits (`h : Terminates …`, termination not proved) (A6, 4b; Finding F4) (`IVI.lean`) |
+| `getindex.(marginals(model), jₐ, jₛ)`, `num_target.(ambiguity_sets)`, `CartesianIndices(num_target.(…))` and `V[I]` in `state_action_bellman(::FactoredVertexIteratorWorkspace, …)` (`src/bellman.jl`) | `IntervalMDP.Factored.ambiguitySets`, `numTarget`, `numTargets`, `successorState`, `StoresValues`, `readValue`; `Index.factored_successor_eq` (overflow bound `∏ state_vars < 2 ^ (N - 1)`, value array storing `W`) (`Factored.lean`) |
+| `IntervalAmbiguitySetVertexIterator`, `Base.iterate` (both methods), `vertex_generator`, `vertices` (`src/probabilities/IntervalAmbiguitySets.jl`) | `IntervalMDP.Factored.addAt`, `vertexLoop` (greedy loop, `(v, break_idx)`), `vertexOf`, `permGet`, `suffixStep`, `nextInSuffix`, `findSwap`, `swapSort`, `nextPermutation` (permutation skip), `vertexRun`, `vertices`; `mem_vertices_iff`, `mem_vertices_iff_extremePoints` (`Factored.lean`) |
+| `Iterators.product(iterators...)`, the `sum(V[I] * prod(…))` and `optval = optfunc(optval, v)` of `state_action_bellman(::FactoredVertexIteratorWorkspace, …)` (`src/bellman.jl`) | `IntervalMDP.Factored.productList`, `vertexEnumeration`, `vertexSum`, `optStep`, `maxStep`, `minStep`, `vertexValue`; `vertices_complete` (no extra hypotheses; dense marginals only, O16), `vertexValue_eq_opt` (no extra hypotheses, all four modes; dense marginals only, O16; arXiv:2508.00707 Theorem 1) (`Factored.lean`) |
 
 Indices: Julia is 1-based, Lean's `Fin n` is 0-based. The conversion is defined once, as
 `Index.toJulia` (`Index/Julia.lean`), and every index theorem is stated through it. Concrete
@@ -262,6 +281,7 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
 | `IntervalMDPProofs/VI/Reward.lean` | `VI.RewardProperty`, `Property.toRewardProperty`, `RewardProperty.discountNNReal`, `initializeValueFunction`, `stepPostprocessValueFunction`, `postprocessValueFunction`, `convergenceCriteria`, `rewardStep`, `rewardIter` (transcription of `_value_iteration!` for discounted reward), `rewardValue`; `Property.toRewardProperty_discount_lt_one`, `rewardIter_eq_iterate`, `rewardIter_succ`, `rewardStep_dist_le`, `reward_contracting`, `rewardValue_isFixedPt`, `rewardIter_tendsto`, `reward_error_bound` (A5), `reward_stop_bound`, `reward_error_interval` |
 | `IntervalMDPProofs/VI/Strategy.lean` | `VI.ActionOrder`, `ActionOrder.first`, `viIter`, `synthesizedStrategy`, `timeVaryingSeed`, `stationaryCacheSeed`, `timeVaryingCacheStrategy`, `stationaryCacheStrategy`, `selectStrategy`, `policyEvalIter`, `StepPostprocess`, `ReachProperty.stepPostprocess`, `ExpectedExitTime.stepPostprocess`, `strategyReachLfp`, `strategyRewardValue`; `timeVarying_attains`, `timeVarying_attains_reach`, `timeVarying_attains_safety`, `timeVarying_attains_reward`, `policyEvalIter_timeVaryingCacheStrategy`, `stationary_sound`, `stationary_sound_exitTime`, `stationary_reward_error_bound`, `stationary_le_superSolution`, `stationary_backward_step`, `viIter_le_superSolution_minimize`, `T_lt_of_switch`, `strategy_eq_of_T_eq`, `argoptAction_eq_or_lt`, `synthesizedStrategy_spec`, `stationaryCacheSeed_mem`, `stationaryCacheSeed_succ`, `timeVaryingCacheStrategy_valid`, `stationaryCacheStrategy_valid`, `selectStrategy_timeVaryingCacheStrategy`, `exists_dot_bracket`, `exists_eq_zero_of_dot_nonpos`, `stateActionBellman_mono`, `reachIter_eq_viIter`, `safetyIter_eq_viIter`, `exitIter_eq_viIter`, `rewardIter_eq_viIter`, `StepPostprocess.apply_mono`, `ReachProperty.stepPostprocess_apply`, `ExpectedExitTime.stepPostprocess_apply` |
 | `IntervalMDPProofs/IVI.lean` | `IVI.ReachAvoidProperty`, `ReachAvoidProperty.reach`, `avoid`, `toReachProperty`, `Bounds`, `StrategyCacheKind`, `cacheSeed`, `primary`, `secondary`, `ofPrimary`, `iviStrategy`, `step` (transcription of `ivi_step!`), `initializeUpper`, `initializeIvi` (`initialize_ivi!`), `iviIter` (transcription of `_interval_value_iteration!`); `lower_le_upper`, `primary_sound`, `lower_le_reachLfp`, `reachLfp_le_upper`, `bracket_aligned` (A6, restricted; Finding F4), `ReachAvoidProperty.disjoint_reach_avoid`, `reach_toReachProperty`, `stepPostprocess_avoid`, `step_lower`, `step_upper`, `step_strategy`, `primary_step_eq`, `cacheSeed_mem`, `iviStrategy_spec`, `iviIter_strategy_mem`, `Tπ_mono`, `primary_step`, `primary_iviIter`, `initializeIvi_lower_le_upper`, `initializeValueFunction_le_reachLfp`, `reachLfp_le_initializeUpper`, `iterate_sound`, `Tπ_iviStrategy_lower_le`, `T_le_Tπ_iviStrategy_upper`, `lower_le_iterate`, `iterate_le_upper`; stopping (4b): `gap`, `maxGapStep`, `maxInitialGap` (transcription of `max_initial_gap`), `iviInitialGapCriteria` (`IVIInitialGapCriteria`), `Terminates`, `stopIndex` (loop exit `k`), `iviValueFunction` (returned `value_function`), `WithinOn`; `gap_stop_sound_aligned` (A6, `(Pessimistic, Minimize)` / `(Optimistic, Maximize)`, non-exact-time, assumes `Terminates` (not proved); Finding F4), `gap_stop_primary_sound` (all four modes, non-exact-time, assumes `Terminates` (not proved)), `withinOn_of_iviInitialGapCriteria_aligned`, `withinOn_of_bracket`, `le_foldl_maxGapStep`, `gap_le_maxInitialGap`, `one_le_stopIndex`, `iviInitialGapCriteria_stopIndex`, `not_iviInitialGapCriteria_of_lt_stopIndex` |
+| `IntervalMDPProofs/Factored.lean` | Phase 5a. Index: `Factored.ambiguitySets`, `numTarget`, `numTargets`, `successorState`, `StoresValues`, `readValue`; `successorState_bijective`, `Index.factored_successor_eq` (hypotheses: overflow bound `∏ state_vars < 2 ^ (N - 1)`, `StoresValues`). Marginal iterator: `addAt`, `vertexLoop`, `vertexOf`, `permGet`, `suffixStep`, `nextInSuffix`, `findSwap`, `swapSort`, `nextPermutation`, `vertexRun`, `vertices`, `permsFrom`; `vertexLoop_fst`, `vertexLoop_prefix`, `vertexOf_snd_ne_zero`, `nextPermutation_some`, `nextPermutation_spec`, `vertexOf_mem_vertexRun`, `mem_vertices_iff`, `vertexOf_mem_extremePoints`, `boundary_of_mem_extremePoints`, `exists_perm_vertexOf_eq`, `mem_vertices_iff_extremePoints`. Product and value: `productList`, `vertexEnumeration`, `vertexSum`, `optStep`, `maxStep`, `minStep`, `vertexValue`, `vertexFinset`; `mem_productList`, `vertices_complete` (no extra hypotheses, dense marginals only, O16), `vecs_eq_convexHull_vertices`, `dot_piVec_eq_sum`, `exists_vertex_expansion`, `vertexValue_eq_opt` (all four modes, no extra hypotheses, dense marginals only, O16), `vertexValue_eq_stateActionBellman` (same scope) |
 | `AxiomCheck.lean` | `#print axioms` for every mapped theorem |
 | `DocLint.lean` | `#lint only docBlame docBlameThm` |
 
@@ -272,7 +292,11 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
   It is not convex in general (`FactoredIMDP.productSet_not_convex`; arXiv:2411.11803,
   arXiv:2508.00707), so `AmbiguitySet.WellFormed` requires only nonempty and closed, and the general
   `RMDP` results of later phases must not assume convexity. The factored algorithms (Phase 5) follow
-  the cited papers. The model assumes `source_dims = state_vars`.
+  the cited papers. The model assumes `source_dims = state_vars`. Vertex enumeration (5a) is
+  modelled for dense marginals (`support(p) = 1:d`); for sparse marginals Julia permutes only the
+  support, which is not modelled. Its exactness proof follows arXiv:2508.00707, Theorem 1 (convex
+  hull of the product set = convex hull of products of marginal vertices), without convexifying
+  `productSet`.
 * **Product process.** The DFA step uses the label of the *successor* state, as `bellman.jl` does
   (the `ProductProcess` docstring writes the source label).
 * **Available actions** must be nonempty in Lean; Julia's `ListAvailableActions` does not check it.
