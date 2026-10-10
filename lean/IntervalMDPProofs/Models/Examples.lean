@@ -2,6 +2,7 @@ import IntervalMDPProofs.Models.Factored
 import IntervalMDPProofs.Models.Product
 import IntervalMDPProofs.Models.Strategy
 import IntervalMDPProofs.VI.Strategy
+import IntervalMDPProofs.IVI
 
 /-!
 # Worked examples from the IntervalMDP.jl docstrings
@@ -24,6 +25,12 @@ Finally, `selfLoopRMDP` (two states, a self-loop tied with a goal action) is the
 `extract_strategy!(::StationaryStrategyCache, …)` before the B-1 fix (`src/strategy_cache.jl`,
 benchmark B-1, issue #119) the returned stationary strategy is not sound, while the documented
 cache is (`VI.stationary_sound`).
+
+`iviRMDP` (five states, three actions) is the witness of inventory Finding F4: under the strategy
+coupling of `ivi_step!` (`src/interval_value_iteration.jl`) the IVI bracket
+`V_lower_k ≤ V* ≤ V_upper_k` fails for `(Pessimistic, Maximize)` (`ivi_upper_lt_reachLfp`) and for
+`(Optimistic, Minimize)` (`ivi_reachLfp_lt_lower`); `IVI.bracket_aligned` proves it for the other
+two modes.
 -/
 
 noncomputable section
@@ -516,6 +523,286 @@ theorem b1_stationary_unsound (sat : SatisfactionMode) :
   rw [hV21] at h
   rw [hW1] at hval
   linarith
+
+end IntervalMDP.Examples
+
+/-! ### Finding F4: the IVI bracket fails under Julia's strategy coupling
+
+Five states (Julia `1, …, 5` are Lean `0, …, 4`): `0` = `s`, `1` = `t₁` (moves to the goal), `2` =
+`t₂` (moves to the avoid state), `3` = goal, `4` = avoid; three actions, point-mass ambiguity sets
+except `(s, 0)`, which is `½ goal + ½ avoid`. In `s`, action `0` reaches the goal with probability
+`½`, action `1` reaches it surely (via `t₁`), action `2` never (via `t₂`). Specification
+`InfiniteTimeReachAvoid([goal], [avoid])`, solved with `IntervalValueIteration`.
+
+* `(Pessimistic, Maximize)`: on the lower bound `𝟙_goal` the actions of `s` are worth `½, 0, 0`, so
+  IVI picks action `0`; applied to the upper bound this gives `V_upper_1(s) = ½ < 1 = V*(s)`
+  (`ivi_upper_lt_reachLfp`).
+* `(Optimistic, Minimize)`: on the upper bound `1 - 𝟙_avoid` the actions of `s` are worth
+  `½, 1, 1`, so IVI picks action `0`; applied to the lower bound this gives
+  `V_lower_1(s) = ½ > 0 = V*(s)` (`ivi_reachLfp_lt_lower`).
+
+In both cases Julia's gap at `s` after call `1` is `0`, so `IVIInitialGapCriteria` stops at `k = 1`
+(inventory Finding F4, Julia reproduction). -/
+
+namespace IntervalMDP.Examples
+
+open Bellman VI Approx
+open IVI hiding step
+
+/-- The distribution `½ goal + ½ avoid` (Lean states `3` and `4`).
+
+Julia counterpart: the point-mass column `[0, 0, 0, 0.5, 0.5]` of `IntervalAmbiguitySets(; lower,
+upper)` (`src/probabilities/IntervalAmbiguitySets.jl`) in the F4 reproduction. -/
+def halfGoalAvoid : ProbVec (Fin 5) where
+  toFun t := if t = 3 ∨ t = 4 then 1 / 2 else 0
+  nonneg t := by split_ifs <;> norm_num
+  sum_eq_one := by simp [Fin.sum_univ_five]; norm_num
+
+/-- Evaluation of `halfGoalAvoid`.
+
+Julia counterpart: none (Lean-side proof device). -/
+@[simp] theorem halfGoalAvoid_apply (t : Fin 5) :
+    halfGoalAvoid t = if t = 3 ∨ t = 4 then 1 / 2 else 0 := rfl
+
+/-- The transition distribution of `(s, a)` in the F4 model: `s = 0` has the three actions
+`½ goal + ½ avoid`, `→ t₁`, `→ t₂`; `t₁ → goal`, `t₂ → avoid`; goal and avoid are absorbing.
+
+Julia counterpart: the point-mass columns of `IntervalAmbiguitySets(; lower, upper)`
+(`src/probabilities/IntervalAmbiguitySets.jl`) in the F4 reproduction. -/
+def iviDist (s : Fin 5) (a : Fin 3) : ProbVec (Fin 5) :=
+  if s = 0 then
+    if a = 0 then halfGoalAvoid else if a = 1 then ProbVec.dirac 1 else ProbVec.dirac 2
+  else if s = 1 then ProbVec.dirac 3
+  else if s = 2 then ProbVec.dirac 4
+  else ProbVec.dirac s
+
+/-- The five-state model of Finding F4, with point-mass ambiguity sets.
+
+Julia counterpart: `IntervalMarkovDecisionProcess` (`src/models/IntervalMarkovDecisionProcess.jl`)
+of the F4 reproduction. -/
+def iviRMDP : RMDP (Fin 5) (Fin 3) where
+  toAvailableActions := AvailableActions.all
+  ambiguity s a := {iviDist s a}
+  ambiguity_wellFormed s a :=
+    { nonempty := Set.singleton_nonempty _
+      closed := by
+        simp only [AmbiguitySet.vecs, Set.image_singleton]
+        exact isClosed_singleton }
+
+/-- Julia's action order `[1, 2, 3]` (0-based `[0, 1, 2]`) in every state.
+
+Julia counterpart: `AllAvailableActions` (`src/available_actions.jl`). -/
+def iviOrder : ActionOrder iviRMDP where
+  acts _ := [0, 1, 2]
+  toFinset_acts _ := by
+    ext a
+    fin_cases a <;> simp [iviRMDP, AvailableActions.all]
+
+/-- `InfiniteTimeReachAvoid([goal], [avoid])` (Lean states `3` and `4`).
+
+Julia counterpart: `InfiniteTimeReachAvoid` (`src/specification.jl`). -/
+def iviProp : ReachAvoidProperty (Fin 5) :=
+  .reachAvoid {3} {4} (by decide)
+
+/-- Action values in the F4 model: `stateActionBellman V s a = ⟨iviDist s a, V⟩`.
+
+Julia counterpart: `state_action_bellman` (`src/bellman.jl`) on a point-mass column. -/
+theorem iviRMDP_stateActionBellman (sat : SatisfactionMode) (V : Fin 5 → ℝ) (s : Fin 5)
+    (a : Fin 3) : stateActionBellman iviRMDP sat V s a = OMax.dot V (iviDist s a) := by
+  have hexp : expectations (iviRMDP.ambiguity s a) V = {OMax.dot V (iviDist s a)} := by
+    simp [expectations, iviRMDP, AmbiguitySet.vecs, Set.image_singleton]
+  cases sat <;> simp [stateActionBellman, innerOpt, hexp]
+
+/-- `⟨δₜ, V⟩ = V t`.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem dot_dirac_fin5 (V : Fin 5 → ℝ) (t : Fin 5) : OMax.dot V (ProbVec.dirac t) = V t := by
+  simp [OMax.dot]
+
+/-- `⟨½ goal + ½ avoid, V⟩ = (V goal + V avoid) / 2`.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem dot_halfGoalAvoid (V : Fin 5 → ℝ) : OMax.dot V halfGoalAvoid = (V 3 + V 4) / 2 := by
+  simp [OMax.dot, Fin.sum_univ_five]
+  ring
+
+/-- The postprocessing of `iviProp` leaves the states `s`, `t₁`, `t₂` unchanged.
+
+Julia counterpart: `step_postprocess_value_function!` (`src/specification.jl`). -/
+theorem iviProp_post (X : Fin 5 → ℝ) {s : Fin 5} (h3 : s ≠ 3) (h4 : s ≠ 4) :
+    stepPostprocessValueFunction iviProp.toReachProperty X s = X s := by
+  simp [iviProp, ReachAvoidProperty.toReachProperty, stepPostprocessValueFunction, h3, h4]
+
+/-- Both strategy caches start from action `0` (`first(available_actions)`).
+
+Julia counterpart: `neutral` in `extract_strategy!` (`src/strategy_cache.jl`). -/
+theorem iviOrder_cacheSeed (kind : StrategyCacheKind) (s : Fin 5) :
+    cacheSeed iviOrder kind iviOrder.first s = 0 := by
+  cases kind <;> rfl
+
+/-- **Witness for Finding F4, `(Pessimistic, Maximize)`.** After call `1`, the upper bound at `s`
+is `½` but the exact value is `1`: `V_upper_1(s) < V*(s)`, for both strategy caches.
+
+Julia counterpart: `ivi_step!` (`src/interval_value_iteration.jl`); reproduction in inventory
+Finding F4. -/
+theorem ivi_upper_lt_reachLfp (kind : StrategyCacheKind) :
+    (iviIter iviRMDP .pessimistic .maximize iviProp iviOrder kind 1).upper 0 <
+      reachLfp iviRMDP .pessimistic .maximize iviProp.toReachProperty 0 := by
+  set L₀ := initializeValueFunction iviProp.toReachProperty with hL₀
+  have hL₀v : ∀ s, L₀ s = if s = 3 then 1 else 0 := fun s => by
+    simp [hL₀, initializeValueFunction, iviProp, ReachAvoidProperty.toReachProperty,
+      ReachProperty.reach]
+  have hv : ∀ a, stateActionBellman iviRMDP .pessimistic L₀ 0 a = if a = 0 then 1 / 2 else 0 := by
+    intro a
+    rw [iviRMDP_stateActionBellman]
+    fin_cases a <;> simp [iviDist, dot_halfGoalAvoid, dot_dirac_fin5, hL₀v]
+  have hσ : (iviStrategy iviRMDP .pessimistic .maximize iviOrder kind
+      (initializeIvi iviOrder iviProp)).strategy 0 = 0 := by
+    show argoptAction .maximize (stateActionBellman iviRMDP .pessimistic L₀ 0)
+      (cacheSeed iviOrder kind iviOrder.first 0) [0, 1, 2] = 0
+    rw [iviOrder_cacheSeed]
+    have h0 := hv 0
+    have h1 := hv 1
+    have h2 := hv 2
+    simp only [Fin.isValue, if_true, Fin.reduceEq, if_false] at h0 h1 h2
+    have e0 : argoptStep .maximize (stateActionBellman iviRMDP .pessimistic L₀ 0) 0 0 = 0 := by
+      simp [argoptStep]
+    have e1 : argoptStep .maximize (stateActionBellman iviRMDP .pessimistic L₀ 0) 0 1 = 0 := by
+      simp only [argoptStep, h0, h1]; norm_num
+    have e2 : argoptStep .maximize (stateActionBellman iviRMDP .pessimistic L₀ 0) 0 2 = 0 := by
+      simp only [argoptStep, h0, h2]; norm_num
+    simp only [argoptAction, List.foldl_cons, List.foldl_nil]
+    rw [e0, e1, e2]
+  have hU : (iviIter iviRMDP .pessimistic .maximize iviProp iviOrder kind 1).upper 0 = 1 / 2 := by
+    show (IVI.step iviRMDP .pessimistic .maximize iviProp iviOrder kind
+      (initializeIvi iviOrder iviProp)).upper 0 = 1 / 2
+    rw [step_upper, iviProp_post _ (by decide) (by decide)]
+    show stateActionBellman iviRMDP .pessimistic (initializeUpper iviProp) 0
+      ((iviStrategy iviRMDP .pessimistic .maximize iviOrder kind
+        (initializeIvi iviOrder iviProp)).strategy 0) = 1 / 2
+    rw [hσ, iviRMDP_stateActionBellman]
+    simp [iviDist, dot_halfGoalAvoid, initializeUpper, iviProp, ReachAvoidProperty.avoid]
+  -- `V*(s) ≥ V₂(s) ≥ V₁(t₁) ≥ V₀(goal) = 1`
+  set V := reachIter iviRMDP .pessimistic .maximize iviProp.toReachProperty
+  have hT : ∀ (W : Fin 5 → ℝ) (s : Fin 5) (a : Fin 3),
+      stateActionBellman iviRMDP .pessimistic W s a ≤ T iviRMDP .pessimistic .maximize W s :=
+    fun W s a => Finset.le_sup' (stateActionBellman iviRMDP .pessimistic W s) (Finset.mem_univ a)
+  have h1 : 1 ≤ V 1 1 := by
+    show 1 ≤ stepPostprocessValueFunction iviProp.toReachProperty
+      (T iviRMDP .pessimistic .maximize L₀) 1
+    rw [iviProp_post _ (by decide) (by decide)]
+    refine le_trans (le_of_eq ?_) (hT L₀ 1 0)
+    rw [iviRMDP_stateActionBellman]
+    simp [iviDist, dot_dirac_fin5, hL₀v]
+  have h2 : 1 ≤ V 2 0 := by
+    show 1 ≤ stepPostprocessValueFunction iviProp.toReachProperty
+      (T iviRMDP .pessimistic .maximize (V 1)) 0
+    rw [iviProp_post _ (by decide) (by decide)]
+    refine le_trans h1 (le_trans (le_of_eq ?_) (hT (V 1) 0 1))
+    rw [iviRMDP_stateActionBellman]
+    simp [iviDist, dot_dirac_fin5]
+  have hsound := reachIter_sound iviRMDP .pessimistic .maximize
+    (prop := iviProp.toReachProperty) rfl 2 0
+  rw [hU]
+  linarith
+
+/-- **Witness for Finding F4, `(Optimistic, Minimize)`.** After call `1`, the lower bound at `s` is
+`½` but the exact value is `0`: `V*(s) < V_lower_1(s)`, for both strategy caches.
+
+Julia counterpart: `ivi_step!` (`src/interval_value_iteration.jl`); reproduction in inventory
+Finding F4. -/
+theorem ivi_reachLfp_lt_lower (kind : StrategyCacheKind) :
+    reachLfp iviRMDP .optimistic .minimize iviProp.toReachProperty 0 <
+      (iviIter iviRMDP .optimistic .minimize iviProp iviOrder kind 1).lower 0 := by
+  set U₀ := initializeUpper iviProp with hU₀
+  have hU₀v : ∀ s, U₀ s = if s = 4 then 0 else 1 := fun s => by
+    simp [hU₀, initializeUpper, iviProp, ReachAvoidProperty.avoid]
+  have hv : ∀ a, stateActionBellman iviRMDP .optimistic U₀ 0 a = if a = 0 then 1 / 2 else 1 := by
+    intro a
+    rw [iviRMDP_stateActionBellman]
+    fin_cases a <;> simp [iviDist, dot_halfGoalAvoid, dot_dirac_fin5, hU₀v]
+  have hσ : (iviStrategy iviRMDP .optimistic .minimize iviOrder kind
+      (initializeIvi iviOrder iviProp)).strategy 0 = 0 := by
+    show argoptAction .minimize (stateActionBellman iviRMDP .optimistic U₀ 0)
+      (cacheSeed iviOrder kind iviOrder.first 0) [0, 1, 2] = 0
+    rw [iviOrder_cacheSeed]
+    have h0 := hv 0
+    have h1 := hv 1
+    have h2 := hv 2
+    simp only [Fin.isValue, if_true, Fin.reduceEq, if_false] at h0 h1 h2
+    have e0 : argoptStep .minimize (stateActionBellman iviRMDP .optimistic U₀ 0) 0 0 = 0 := by
+      simp [argoptStep]
+    have e1 : argoptStep .minimize (stateActionBellman iviRMDP .optimistic U₀ 0) 0 1 = 0 := by
+      simp only [argoptStep, h0, h1]; norm_num
+    have e2 : argoptStep .minimize (stateActionBellman iviRMDP .optimistic U₀ 0) 0 2 = 0 := by
+      simp only [argoptStep, h0, h2]; norm_num
+    simp only [argoptAction, List.foldl_cons, List.foldl_nil]
+    rw [e0, e1, e2]
+  have hL : (iviIter iviRMDP .optimistic .minimize iviProp iviOrder kind 1).lower 0 = 1 / 2 := by
+    show (IVI.step iviRMDP .optimistic .minimize iviProp iviOrder kind
+      (initializeIvi iviOrder iviProp)).lower 0 = 1 / 2
+    rw [step_lower, iviProp_post _ (by decide) (by decide)]
+    show stateActionBellman iviRMDP .optimistic
+      (initializeValueFunction iviProp.toReachProperty) 0
+      ((iviStrategy iviRMDP .optimistic .minimize iviOrder kind
+        (initializeIvi iviOrder iviProp)).strategy 0) = 1 / 2
+    rw [hσ, iviRMDP_stateActionBellman]
+    simp [iviDist, dot_halfGoalAvoid, initializeValueFunction, iviProp,
+      ReachAvoidProperty.toReachProperty, ReachProperty.reach]
+  -- `W = 𝟙_{t₁, goal}` is a super-solution with `W(s) = 0`, so `V*(s) ≤ 0`
+  set W : Fin 5 → ℝ := fun s => if s = 1 ∨ s = 3 then 1 else 0 with hW
+  have hTle : ∀ (s : Fin 5) (a : Fin 3),
+      T iviRMDP .optimistic .minimize W s ≤ stateActionBellman iviRMDP .optimistic W s a :=
+    fun s a => Finset.inf'_le (stateActionBellman iviRMDP .optimistic W s) (Finset.mem_univ a)
+  have hWunit : ∀ s, W s ∈ Set.Icc (0 : ℝ) 1 := fun s => by
+    simp only [hW]; split_ifs <;> norm_num
+  have hfix : VI.step iviRMDP .optimistic .minimize iviProp.toReachProperty W ≤ W := by
+    intro s
+    show stepPostprocessValueFunction iviProp.toReachProperty
+      (T iviRMDP .optimistic .minimize W) s ≤ W s
+    fin_cases s
+    · rw [iviProp_post _ (by decide) (by decide)]
+      refine le_trans (hTle 0 2) (le_of_eq ?_)
+      rw [iviRMDP_stateActionBellman]
+      simp [iviDist, dot_dirac_fin5, hW]
+    · rw [iviProp_post _ (by decide) (by decide)]
+      refine le_trans (hTle 1 0) (le_of_eq ?_)
+      rw [iviRMDP_stateActionBellman]
+      simp [iviDist, dot_dirac_fin5, hW]
+    · rw [iviProp_post _ (by decide) (by decide)]
+      refine le_trans (hTle 2 0) (le_of_eq ?_)
+      rw [iviRMDP_stateActionBellman]
+      simp [iviDist, dot_dirac_fin5, hW]
+    · simp [iviProp, ReachAvoidProperty.toReachProperty, stepPostprocessValueFunction, hW]
+    · simp [iviProp, ReachAvoidProperty.toReachProperty, stepPostprocessValueFunction, hW]
+  have hval := reachLfp_le_of_step_le iviRMDP .optimistic .minimize iviProp.toReachProperty
+    hWunit hfix 0
+  have hW0 : W 0 = 0 := by simp [hW]
+  rw [hL]
+  linarith
+
+/-- **The unrestricted bracket fails for `(Pessimistic, Maximize)`** on the F4 model (both strategy
+caches): `V* ≤ V_upper_k` is false at `k = 1`. So `IVI.bracket` for all four modes is false for
+Julia's strategy coupling (Finding F4); `IVI.bracket_aligned` is the proved restriction.
+
+Julia counterpart: `_interval_value_iteration!` (`src/interval_value_iteration.jl`). -/
+theorem not_bracket_pessimistic_maximize (kind : StrategyCacheKind) :
+    ¬ ∀ k, (iviIter iviRMDP .pessimistic .maximize iviProp iviOrder kind k).lower ≤
+        reachLfp iviRMDP .pessimistic .maximize iviProp.toReachProperty ∧
+      reachLfp iviRMDP .pessimistic .maximize iviProp.toReachProperty ≤
+        (iviIter iviRMDP .pessimistic .maximize iviProp iviOrder kind k).upper :=
+  fun h => absurd ((h 1).2 0) (not_le.mpr (ivi_upper_lt_reachLfp kind))
+
+/-- **The unrestricted bracket fails for `(Optimistic, Minimize)`** on the F4 model (both strategy
+caches): `V_lower_k ≤ V*` is false at `k = 1` (Finding F4).
+
+Julia counterpart: `_interval_value_iteration!` (`src/interval_value_iteration.jl`). -/
+theorem not_bracket_optimistic_minimize (kind : StrategyCacheKind) :
+    ¬ ∀ k, (iviIter iviRMDP .optimistic .minimize iviProp iviOrder kind k).lower ≤
+        reachLfp iviRMDP .optimistic .minimize iviProp.toReachProperty ∧
+      reachLfp iviRMDP .optimistic .minimize iviProp.toReachProperty ≤
+        (iviIter iviRMDP .optimistic .minimize iviProp iviOrder kind k).upper :=
+  fun h => absurd ((h 1).1 0) (not_le.mpr (ivi_reachLfp_lt_lower kind))
 
 end IntervalMDP.Examples
 
