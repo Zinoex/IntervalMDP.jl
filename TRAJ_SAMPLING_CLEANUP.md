@@ -66,6 +66,20 @@ schedule `fixed` (`action_temperature`) or `gap_based` (`action_temperature_k`,
   Bellman-update decay) now only describes `T_s`. Keep it until the state-selection
   rework, then rewrite it to match.
 
+## Gauss-Seidel batch size as `k_frac` (2026-10-10)
+
+Trajectory sampling now takes `k_frac`, so batch size = `max(1, ceil(k_frac·|S|))`,
+resolved per problem by `resolve_k_frac` in `bench/src/registry.jl`. It requires
+`gauss_seidel = true`.
+
+- [ ] **Decide whether to drop absolute `k` for `sampling = "trajectory"`** and
+  require `k_frac`. Absolute `k` is still accepted in `resolve_trajectory`
+  (`_require_k`). Banked configs use it, e.g. smoke-4 `k = 1` and the grid-search
+  configs, so convert them first.
+- [ ] **`k` without `gauss_seidel = true` is silently ignored** (`resolve_trajectory`
+  falls back to `Int(get(params, "k", 1))`). Make it an error to match the
+  hierarchical parameters, as `k_frac` already does.
+
 ## Preset removal (2026-10-10)
 
 - [ ] **Optional, `bench/configs/smoke-{2,3,4}*.toml`:** the rows rewritten from
