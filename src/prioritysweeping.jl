@@ -80,6 +80,7 @@ import ..IntervalMDP.TrajectorySampling:
     TemperatureSchedule,
     TemperatureContext,
     FixedTemperature,
+    GapBasedTemperature,
     GapDecayTemperature,
     UpdateDecayTemperature,
     _temperature,

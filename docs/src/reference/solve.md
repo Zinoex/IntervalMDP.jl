@@ -107,6 +107,7 @@ IntervalMDP.TrajectorySampling.Boltzmann
 ```@docs
 IntervalMDP.TrajectorySampling.TemperatureSchedule
 IntervalMDP.TrajectorySampling.FixedTemperature
+IntervalMDP.TrajectorySampling.GapBasedTemperature
 IntervalMDP.TrajectorySampling.GapDecayTemperature
 IntervalMDP.TrajectorySampling.UpdateDecayTemperature
 IntervalMDP.TrajectorySampling.TemperatureContext

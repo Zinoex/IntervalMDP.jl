@@ -163,6 +163,7 @@ import ..IntervalMDP:
 
 How a [`Boltzmann`](@ref) policy's temperature `T` is obtained at the start of
 each rollout: [`FixedTemperature`](@ref) (a constant),
+[`GapBasedTemperature`](@ref) (the gap's odds at the rollout's initial state),
 [`GapDecayTemperature`](@ref) (annealed by how far apart the bounds still are
 at the rollout's initial state), or [`UpdateDecayTemperature`](@ref) (annealed
 by how many Bellman updates the strategy has issued so far).
@@ -211,6 +212,37 @@ struct FixedTemperature <: TemperatureSchedule
     function FixedTemperature(t::Real)
         t > 0 || throw(ArgumentError("t must be positive, got $t"))
         return new(Float64(t))
+    end
+end
+
+"""
+    GapBasedTemperature(k, t_min = 0.1)
+
+`T = max(t_min, k·Diff(s₀) / (1 − Diff(s₀)))`: the temperature is `k` times the
+odds of the gap at the state the rollout starts from, `Diff(s₀) = U(s₀) − L(s₀)`
+(clamped to `[0, 1]`, see [`TemperatureContext`](@ref)), floored at `t_min`.
+
+`Diff = ½` gives `T = k`. A wide-open `s₀` heats without bound (`Diff → 1`,
+`T → ∞`, uniform), and a converged one cools to the floor (`Diff → 0`,
+`T → t_min`). The odds alone reach `T ≈ k·ε` once the gap is down to `ε`, which
+is argmax in all but name; `t_min` is the exploration floor that keeps the
+policy from getting there — see the warning on
+[`IntervalMDP.TrajectorySampling.TrajectorySampling`](@ref).
+
+`T` is also clamped to the representable positive range, so a rollout from
+`Diff = 1` draws uniformly, and with `t_min = 0` (the bare odds, no floor) one
+from `Diff = 0` takes the argmax (uniform among ties).
+
+Requires `k > 0` and `t_min ≥ 0`.
+"""
+struct GapBasedTemperature <: TemperatureSchedule
+    k::Float64
+    t_min::Float64
+
+    function GapBasedTemperature(k::Real, t_min::Real = 0.1)
+        k > 0 || throw(ArgumentError("k must be positive, got $k"))
+        t_min >= 0 || throw(ArgumentError("t_min must be non-negative, got $t_min"))
+        return new(Float64(k), Float64(t_min))
     end
 end
 
@@ -288,6 +320,15 @@ The temperature `schedule` gives a rollout starting in context `ctx` —
 """
 _temperature(schedule::FixedTemperature, ::TemperatureContext) = schedule.t
 
+# `Diff = 1` gives T = ∞, and `Diff = 0` with `t_min = 0` gives T = 0, neither of
+# which `FixedTemperature` (nor the log-sum-exp in `_select`) accepts; the clamp
+# turns them into uniform and argmax.
+_temperature(schedule::GapBasedTemperature, ctx::TemperatureContext) = clamp(
+    max(schedule.t_min, schedule.k * ctx.diff / (1 - ctx.diff)),
+    floatmin(Float64),
+    floatmax(Float64),
+)
+
 _temperature(schedule::GapDecayTemperature, ctx::TemperatureContext) =
     schedule.t_min + (schedule.t_max - schedule.t_min) * ctx.diff^schedule.tau
 
@@ -328,7 +369,7 @@ concentrates on the argmax; large `T` approaches uniform.
 
 `T` is a [`TemperatureSchedule`](@ref), and a positive number is shorthand for
 [`FixedTemperature`](@ref) — `Boltzmann(0.5) == Boltzmann(FixedTemperature(0.5))`.
-A decaying schedule ([`GapDecayTemperature`](@ref),
+A varying schedule ([`GapBasedTemperature`](@ref), [`GapDecayTemperature`](@ref),
 [`UpdateDecayTemperature`](@ref)) is resolved to one number at the top of each
 rollout, so every draw within one trajectory shares a temperature; see
 `_resolve_policy`.
@@ -1375,6 +1416,9 @@ policy and the successor policy each get their own `T` from their own schedule
 (`τ_a` and `τ_s` of the writeup):
 
 * [`FixedTemperature`](@ref) — `T = t`, the constant.
+* [`GapBasedTemperature`](@ref) — `T = max(t_min, k·Diff(s₀) / (1 − Diff(s₀)))`,
+  the odds of the gap at the state *this* rollout starts from, scaled by `k`
+  and floored at `t_min`.
 * [`GapDecayTemperature`](@ref) — `T = t_min + (t_max − t_min)·Diff(s₀)^τ`,
   where `Diff(s₀) = U(s₀) − L(s₀)` is the gap at the state *this* rollout
   starts from. Exploration therefore fades where the bounds have already met.
@@ -1395,7 +1439,9 @@ sampled at.
     onto the states it already prefers, the rest keep their initial values, and
     the gap criterion never fires. `t_min` is the exploration floor the schedule
     can never anneal past — on a three-state IMDP, `t_min = 0.01` stalls where
-    `t_min = 0.5` converges.
+    `t_min = 0.5` converges. The same goes for [`GapBasedTemperature`](@ref),
+    whose odds alone reach `T ≈ k·ε` once the gap at `s₀` is down to `ε`:
+    `t_min = 0` removes its floor.
 
 # Gauss-Seidel batching
 

@@ -773,6 +773,39 @@ end
         @test TS._temperature(sched, TS.TemperatureContext(0.5, 10^6)) == mid
     end
 
+    @testset "gap based is k times the odds of Diff(s0), floored at t_min" begin
+        @test_throws ArgumentError TS.GapBasedTemperature(0.0)
+        @test_throws ArgumentError TS.GapBasedTemperature(-1.0)
+        @test_throws ArgumentError TS.GapBasedTemperature(1.0, -0.1)
+        @test TS.GapBasedTemperature(1.0).t_min == 0.1
+
+        sched = TS.GapBasedTemperature(2.0, 0.0)
+        @test TS._temperature(sched, TS.TemperatureContext(0.5, 0)) == 2.0
+        @test TS._temperature(sched, TS.TemperatureContext(0.2, 0)) ≈ 2.0 * 0.2 / 0.8
+        @test TS._temperature(sched, TS.TemperatureContext(0.9, 0)) ≈ 2.0 * 0.9 / 0.1
+        # The backup count is irrelevant to this schedule.
+        @test TS._temperature(sched, TS.TemperatureContext(0.2, 10^6)) ≈ 2.0 * 0.2 / 0.8
+
+        # The floor holds the temperature up once the odds drop below it.
+        floored = TS.GapBasedTemperature(2.0, 0.25)
+        @test TS._temperature(floored, TS.TemperatureContext(0.5, 0)) == 2.0
+        @test TS._temperature(floored, TS.TemperatureContext(0.01, 0)) == 0.25
+        @test TS._temperature(floored, TS.TemperatureContext(0.0, 0)) == 0.25
+
+        # Without a floor the endpoints (T = 0, T = ∞) are clamped to a valid
+        # temperature, and resolve to argmax and uniform respectively.
+        cold = TS._resolve_policy(TS.Boltzmann(sched), TS.TemperatureContext(0.0, 0))
+        hot = TS._resolve_policy(TS.Boltzmann(sched), TS.TemperatureContext(1.0, 0))
+        @test cold.T.t == floatmin(Float64)
+        @test hot.T.t == floatmax(Float64)
+
+        cands, scores = [:a, :b, :c], [0.1, 0.9, -Inf]
+        @test all(TS._select(cold, cands, scores) == :b for _ in 1:200)
+        draws = [TS._select(hot, cands, scores) for _ in 1:2000]
+        @test :c ∉ draws                                    # -Inf is never drawn
+        @test count(==(:a), draws) / 2000 ≈ 0.5 atol = 0.05
+    end
+
     @testset "update decay falls geometrically and floors at t_min" begin
         sched = TS.UpdateDecayTemperature(0.05, 1.0, 0.99)
         @test TS._temperature(sched, TS.TemperatureContext(1.0, 0)) == 1.0
