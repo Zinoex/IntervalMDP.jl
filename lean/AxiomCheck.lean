@@ -161,3 +161,50 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.VI.stationary_reward_error_bound
 -- Phase 3d: Finding F3 witness (benchmark B-1)
 #print axioms IntervalMDP.Examples.b1_stationary_unsound
+-- Phase 4a: interval value iteration (IVI): bounds and bracket (A6)
+-- `IntervalMDP.IVI.bracket` (all four modes) is false for Julia's coupling (Finding F4) and is not stated;
+-- `bracket_aligned` is the proved restriction.
+#print axioms IntervalMDP.IVI.lower_le_upper
+#print axioms IntervalMDP.IVI.primary_sound
+#print axioms IntervalMDP.IVI.lower_le_reachLfp
+#print axioms IntervalMDP.IVI.reachLfp_le_upper
+#print axioms IntervalMDP.IVI.bracket_aligned
+#print axioms IntervalMDP.IVI.primary_iviIter
+#print axioms IntervalMDP.IVI.primary_step
+#print axioms IntervalMDP.IVI.iviStrategy_spec
+#print axioms IntervalMDP.IVI.iviIter_strategy_mem
+#print axioms IntervalMDP.IVI.iterate_sound
+#print axioms IntervalMDP.IVI.initializeIvi_lower_le_upper
+#print axioms IntervalMDP.IVI.initializeValueFunction_le_reachLfp
+#print axioms IntervalMDP.IVI.reachLfp_le_initializeUpper
+#print axioms IntervalMDP.IVI.lower_le_iterate
+#print axioms IntervalMDP.IVI.iterate_le_upper
+#print axioms IntervalMDP.IVI.Tπ_iviStrategy_lower_le
+#print axioms IntervalMDP.IVI.T_le_Tπ_iviStrategy_upper
+-- Phase 4a: Finding F4 witnesses
+#print axioms IntervalMDP.Examples.ivi_upper_lt_reachLfp
+#print axioms IntervalMDP.Examples.ivi_reachLfp_lt_lower
+#print axioms IntervalMDP.Examples.not_bracket_pessimistic_maximize
+#print axioms IntervalMDP.Examples.not_bracket_optimistic_minimize
+-- Phase 4b: interval value iteration (IVI): stopping on the initial-state gap (A6)
+-- `IntervalMDP.IVI.gap_stop_sound` (all four modes) is false for Julia's coupling (Finding F4) and is
+-- not stated; `gap_stop_sound_aligned` is the proved restriction, `gap_stop_primary_sound` the
+-- all-mode one-sided part.
+#print axioms IntervalMDP.IVI.gap_stop_sound_aligned
+#print axioms IntervalMDP.IVI.gap_stop_primary_sound
+#print axioms IntervalMDP.IVI.withinOn_of_iviInitialGapCriteria_aligned
+#print axioms IntervalMDP.IVI.withinOn_of_bracket
+#print axioms IntervalMDP.IVI.gap_le_maxInitialGap
+#print axioms IntervalMDP.IVI.le_foldl_maxGapStep
+#print axioms IntervalMDP.IVI.one_le_stopIndex
+#print axioms IntervalMDP.IVI.iviInitialGapCriteria_stopIndex
+#print axioms IntervalMDP.IVI.not_iviInitialGapCriteria_of_lt_stopIndex
+-- Phase 4b: Finding F4 witnesses for `gap_stop_sound`
+#print axioms IntervalMDP.Examples.not_gap_stop_sound_pessimistic_maximize
+#print axioms IntervalMDP.Examples.not_gap_stop_sound_optimistic_minimize
+#print axioms IntervalMDP.Examples.iviInitialGapCriteria_one_pessimistic_maximize
+#print axioms IntervalMDP.Examples.iviInitialGapCriteria_one_optimistic_minimize
+#print axioms IntervalMDP.Examples.iviIter_one_pessimistic_maximize
+#print axioms IntervalMDP.Examples.iviIter_one_optimistic_minimize
+#print axioms IntervalMDP.Examples.one_le_reachLfp_pessimistic_maximize
+#print axioms IntervalMDP.Examples.reachLfp_optimistic_minimize_nonpos

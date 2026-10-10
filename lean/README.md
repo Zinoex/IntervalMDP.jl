@@ -50,8 +50,29 @@ modes; it relies on the documented cache keeping its action on ties (a state swi
 strict value increase). Exit time (`stationary_sound_exitTime`) and discounted reward
 (`stationary_reward_error_bound`, the A5 interval contains `V^σ`) are covered too. Julia's guard
 `jₛ ∉ available_actions` breaks this for states whose index exceeds the number of actions
-(inventory Finding F3, benchmark B-1; witness `Examples.b1_stationary_unsound`). IVI (Phase 4) and
-the factored algorithms (Phase 5) are not proved yet.
+(inventory Finding F3, benchmark B-1; witness `Examples.b1_stationary_unsound`). Phase 4
+(complete, with open Finding F4): interval value iteration (`IVI.lean`). `IVI.iviIter` transcribes
+`_interval_value_iteration!` / `ivi_step!` (strategy synthesized on the primary bound, applied to
+the other); `lower_le_upper` (`V_lower_k ≤ V_upper_k`, all four modes, all reach-avoid properties)
+and `primary_sound` (the returned bound is `Sound sat` for `V*`, all four modes, non-exact-time
+reach-avoid properties `prop.toReachProperty.isExactTime = false`, via `Approx.iter_sound`) hold.
+`V_lower_k ≤ V*` holds for `sat = pessimistic` or `strat = maximize` on non-exact-time properties
+(`lower_le_reachLfp`), `V* ≤ V_upper_k` for `sat = optimistic` or `strat = minimize` on all
+reach-avoid properties (`reachLfp_le_upper`), so the bracket holds for `(Pessimistic, Minimize)` and
+`(Optimistic, Maximize)` on non-exact-time properties (`bracket_aligned`, 4a). Stopping on
+`IVIInitialGapCriteria` (4b; `maxInitialGap`, `iviInitialGapCriteria`, `stopIndex`,
+`iviValueFunction`), assuming the loop exits (hypothesis `h : Terminates …`; termination is not
+proved, and Julia notes the gap may not close when an end component lies in the don't-care region):
+in those two aligned modes the returned value is within `tol` of `V*` on the initial states, for
+non-exact-time reach-avoid properties (`gap_stop_sound_aligned`); in all four modes it is sound,
+`Sound sat`, for non-exact-time reach-avoid properties (`gap_stop_primary_sound`).
+For `(Pessimistic, Maximize)` and `(Optimistic, Minimize)` the bracket is false under Julia's
+strategy coupling (inventory Finding F4; witnesses `Examples.ivi_upper_lt_reachLfp`,
+`Examples.ivi_reachLfp_lt_lower`), and Julia's gap test stops at `k = 1` with a value `½` away from
+`V*` (`Examples.not_gap_stop_sound_pessimistic_maximize`,
+`Examples.not_gap_stop_sound_optimistic_minimize`), so neither `IVI.bracket` nor
+`IVI.gap_stop_sound` (all four modes) is stated.
+The factored algorithms (Phase 5) are not proved yet.
 
 **Proof scope: abstract.** Values are real numbers and the semantics is the dynamic-programming
 recursion. The proofs do not cover floating-point rounding, overflow, CUDA kernels or threaded
@@ -194,6 +215,16 @@ OMax.omaxSparse A σ            sparse O-max on SparseIntervalAmbiguity n (= Int
 | `select_strategy_cache(cache, k) = cache[time_length(cache) - k]` (`src/robust_value_iteration.jl`); `_value_iteration!` of a `VerificationProblem` with a time-varying strategy | `IntervalMDP.VI.selectStrategy π k`, `policyEvalIter M sat post V₀ π k` (`VI/Strategy.lean`); `timeVarying_attains` (A7) |
 | value of a given stationary strategy (`solve(VerificationProblem(mdp, spec, π))`, infinite horizon) | `IntervalMDP.VI.strategyReachLfp`, `strategyRewardValue` (`VI/Strategy.lean`); `stationary_sound` (A7), `stationary_sound_exitTime`, `stationary_reward_error_bound` |
 | `step_postprocess_value_function!` of reset/shift shape (reachability types, `ExpectedExitTime`) | `IntervalMDP.VI.StepPostprocess` (`reset`, `resetValue`, `shift`, `apply`), `ReachProperty.stepPostprocess`, `ExpectedExitTime.stepPostprocess` (`VI/Strategy.lean`) |
+| `AbstractReachAvoid` (`FiniteTimeReachAvoid`, `InfiniteTimeReachAvoid`, `ExactTimeReachAvoid`; `checkivisupported`, `src/specification.jl`) | `IntervalMDP.IVI.ReachAvoidProperty` (`reach`, `avoid`, `toReachProperty`) (`IVI.lean`) |
+| `V_lower.current`, `V_upper.current`, strategy cache content in `_interval_value_iteration!` (`src/interval_value_iteration.jl`) | `IntervalMDP.IVI.Bounds` (`lower`, `upper`, `strategy`) (`IVI.lean`) |
+| `construct_ivi_strategy_cache` (`TimeVaryingStrategyCache` / `StationaryStrategyCache`, `src/strategy_cache.jl`) | `IntervalMDP.IVI.StrategyCacheKind`, `cacheSeed` (`IVI.lean`) |
+| `primary_current` / `secondary_current` in `ivi_step!` | `IntervalMDP.IVI.primary sat B`, `secondary sat B`, `ofPrimary` (`IVI.lean`) |
+| `initialize_ivi!(V_lower, V_upper, prop)` (`src/specification.jl`) | `IntervalMDP.IVI.initializeIvi o prop` (`lower = 𝟙_reach`, `upper = initializeUpper prop = 1 - 𝟙_avoid`) (`IVI.lean`) |
+| `ivi_step!` (`src/interval_value_iteration.jl`): `bellman!` on the primary bound with the optimizing cache, then on the secondary bound with `applied_strategy_cache` | `IntervalMDP.IVI.step M sat strat prop o kind B`, `iviStrategy` (the synthesized strategy) (`IVI.lean`) |
+| `_interval_value_iteration!` loop (`src/interval_value_iteration.jl`) | `IntervalMDP.IVI.iviIter M sat strat prop o kind k`; `lower_le_upper`, `primary_sound`, `lower_le_reachLfp`, `reachLfp_le_upper`, `bracket_aligned` (A6) |
+| `max_initial_gap(V_lower, V_upper, initial_states(mp))` (`src/interval_value_iteration.jl`); `gap = V_upper - V_lower` | `IntervalMDP.IVI.maxInitialGap B initial` (loop transcription, step `maxGapStep`), `IVI.gap B s` (`IVI.lean`) |
+| `IVIInitialGapCriteria(convergence_eps)` (`src/interval_value_iteration.jl`) | `IntervalMDP.IVI.iviInitialGapCriteria tol initial B` (`IVI.lean`) |
+| loop exit of `_interval_value_iteration!` (returned `k`, `num_iterations`) and the returned `value_function` | `IntervalMDP.IVI.Terminates`, `stopIndex h`, `iviValueFunction h`; `WithinOn initial tol V W`; `gap_stop_sound_aligned` (`(Pessimistic, Minimize)`, `(Optimistic, Maximize)`), `gap_stop_primary_sound` (all four modes), both non-exact-time reach-avoid only and both assuming the loop exits (`h : Terminates …`, termination not proved) (A6, 4b; Finding F4) (`IVI.lean`) |
 
 Indices: Julia is 1-based, Lean's `Fin n` is 0-based. The conversion is defined once, as
 `Index.toJulia` (`Index/Julia.lean`), and every index theorem is stated through it. Concrete
@@ -214,7 +245,7 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
 | `IntervalMDPProofs/Models/Product.lean` | `ProductProcess`, `toRMDP`; `ProductProcess.toRMDP_wellFormed`, `lift_deterministic` |
 | `IntervalMDPProofs/Models/Strategy.lean` | `StationaryStrategy`, `TimeVaryingStrategy`, validity |
 | `IntervalMDPProofs/Models/Specification.lean` | `Property`, `SatisfactionMode`, `StrategyMode`, `Specification` |
-| `IntervalMDPProofs/Models/Examples.lean` | `docIMDP`, `docFIMDP`; `binaryFIMDP` and `FactoredIMDP.productSet_not_convex`; `selfLoopTarget`, `selfLoopRMDP`, `selfLoopOrder`, `selfLoopProp`, `b1Strategy`, `selfLoop_stateActionBellman`, `b1_stationary_unsound` (witness of Finding F3) |
+| `IntervalMDPProofs/Models/Examples.lean` | `docIMDP`, `docFIMDP`; `binaryFIMDP` and `FactoredIMDP.productSet_not_convex`; `selfLoopTarget`, `selfLoopRMDP`, `selfLoopOrder`, `selfLoopProp`, `b1Strategy`, `selfLoop_stateActionBellman`, `b1_stationary_unsound` (witness of Finding F3); `halfGoalAvoid`, `iviDist`, `iviRMDP`, `iviOrder`, `iviProp`, `iviRMDP_stateActionBellman`, `dot_dirac_fin5`, `dot_halfGoalAvoid`, `iviProp_post`, `iviOrder_cacheSeed`, `ivi_upper_lt_reachLfp`, `ivi_reachLfp_lt_lower`, `not_bracket_pessimistic_maximize`, `not_bracket_optimistic_minimize` (witnesses of Finding F4), `iviInitLower_apply`, `iviInitUpper_apply`, `iviStrategy_pessimistic_maximize`, `iviStrategy_optimistic_minimize`, `iviIter_one_pessimistic_maximize`, `iviIter_one_optimistic_minimize`, `one_le_reachLfp_pessimistic_maximize`, `reachLfp_optimistic_minimize_nonpos`, `iviInitialGapCriteria_one_pessimistic_maximize`, `iviInitialGapCriteria_one_optimistic_minimize`, `not_gap_stop_sound_pessimistic_maximize`, `not_gap_stop_sound_optimistic_minimize` (Finding F4 witnesses against `IVI.gap_stop_sound`) |
 | `IntervalMDPProofs/Approx/Sound.lean` | `Approx.Sound`, `Approx.StepSound` |
 | `IntervalMDPProofs/Approx/Lift.lean` | `Approx.iter_sound` (A1), `Approx.fixedPoint_sound` |
 | `IntervalMDPProofs/Index/Julia.lean` | `Index.toJulia`, `juliaRange`, `ofJulia`, `juliaGet`, `machineInt`; round trips, `toJulia_bijOn`, `machineInt_eq_self` |
@@ -230,6 +261,7 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
 | `IntervalMDPProofs/VI/ExitTime.lean` | `VI.ExpectedExitTime`, `Property.toExpectedExitTime`, `ExpectedExitTime.initializeValueFunction`, `stepPostprocessValueFunction`, `exitStep`, `exitIter` (transcription of `_value_iteration!` for expected exit time), `exitValue`; `exitIter_eq_iterate`, `initializeValueFunction_eq_exitStep_zero`, `ExpectedExitTime.stepPostprocessValueFunction_mono`, `exitStep_mono`, `exitIter_succ`, `ExpectedExitTime.initializeValueFunction_nonneg`, `exitIter_nonneg`, `exitIter_mono`, `exitIter_sound` (A4), `exitIter_le_exitValue`, `exitValue_le_of_step_le` |
 | `IntervalMDPProofs/VI/Reward.lean` | `VI.RewardProperty`, `Property.toRewardProperty`, `RewardProperty.discountNNReal`, `initializeValueFunction`, `stepPostprocessValueFunction`, `postprocessValueFunction`, `convergenceCriteria`, `rewardStep`, `rewardIter` (transcription of `_value_iteration!` for discounted reward), `rewardValue`; `Property.toRewardProperty_discount_lt_one`, `rewardIter_eq_iterate`, `rewardIter_succ`, `rewardStep_dist_le`, `reward_contracting`, `rewardValue_isFixedPt`, `rewardIter_tendsto`, `reward_error_bound` (A5), `reward_stop_bound`, `reward_error_interval` |
 | `IntervalMDPProofs/VI/Strategy.lean` | `VI.ActionOrder`, `ActionOrder.first`, `viIter`, `synthesizedStrategy`, `timeVaryingSeed`, `stationaryCacheSeed`, `timeVaryingCacheStrategy`, `stationaryCacheStrategy`, `selectStrategy`, `policyEvalIter`, `StepPostprocess`, `ReachProperty.stepPostprocess`, `ExpectedExitTime.stepPostprocess`, `strategyReachLfp`, `strategyRewardValue`; `timeVarying_attains`, `timeVarying_attains_reach`, `timeVarying_attains_safety`, `timeVarying_attains_reward`, `policyEvalIter_timeVaryingCacheStrategy`, `stationary_sound`, `stationary_sound_exitTime`, `stationary_reward_error_bound`, `stationary_le_superSolution`, `stationary_backward_step`, `viIter_le_superSolution_minimize`, `T_lt_of_switch`, `strategy_eq_of_T_eq`, `argoptAction_eq_or_lt`, `synthesizedStrategy_spec`, `stationaryCacheSeed_mem`, `stationaryCacheSeed_succ`, `timeVaryingCacheStrategy_valid`, `stationaryCacheStrategy_valid`, `selectStrategy_timeVaryingCacheStrategy`, `exists_dot_bracket`, `exists_eq_zero_of_dot_nonpos`, `stateActionBellman_mono`, `reachIter_eq_viIter`, `safetyIter_eq_viIter`, `exitIter_eq_viIter`, `rewardIter_eq_viIter`, `StepPostprocess.apply_mono`, `ReachProperty.stepPostprocess_apply`, `ExpectedExitTime.stepPostprocess_apply` |
+| `IntervalMDPProofs/IVI.lean` | `IVI.ReachAvoidProperty`, `ReachAvoidProperty.reach`, `avoid`, `toReachProperty`, `Bounds`, `StrategyCacheKind`, `cacheSeed`, `primary`, `secondary`, `ofPrimary`, `iviStrategy`, `step` (transcription of `ivi_step!`), `initializeUpper`, `initializeIvi` (`initialize_ivi!`), `iviIter` (transcription of `_interval_value_iteration!`); `lower_le_upper`, `primary_sound`, `lower_le_reachLfp`, `reachLfp_le_upper`, `bracket_aligned` (A6, restricted; Finding F4), `ReachAvoidProperty.disjoint_reach_avoid`, `reach_toReachProperty`, `stepPostprocess_avoid`, `step_lower`, `step_upper`, `step_strategy`, `primary_step_eq`, `cacheSeed_mem`, `iviStrategy_spec`, `iviIter_strategy_mem`, `Tπ_mono`, `primary_step`, `primary_iviIter`, `initializeIvi_lower_le_upper`, `initializeValueFunction_le_reachLfp`, `reachLfp_le_initializeUpper`, `iterate_sound`, `Tπ_iviStrategy_lower_le`, `T_le_Tπ_iviStrategy_upper`, `lower_le_iterate`, `iterate_le_upper`; stopping (4b): `gap`, `maxGapStep`, `maxInitialGap` (transcription of `max_initial_gap`), `iviInitialGapCriteria` (`IVIInitialGapCriteria`), `Terminates`, `stopIndex` (loop exit `k`), `iviValueFunction` (returned `value_function`), `WithinOn`; `gap_stop_sound_aligned` (A6, `(Pessimistic, Minimize)` / `(Optimistic, Maximize)`, non-exact-time, assumes `Terminates` (not proved); Finding F4), `gap_stop_primary_sound` (all four modes, non-exact-time, assumes `Terminates` (not proved)), `withinOn_of_iviInitialGapCriteria_aligned`, `withinOn_of_bracket`, `le_foldl_maxGapStep`, `gap_le_maxInitialGap`, `one_le_stopIndex`, `iviInitialGapCriteria_stopIndex`, `not_iviInitialGapCriteria_of_lt_stopIndex` |
 | `AxiomCheck.lean` | `#print axioms` for every mapped theorem |
 | `DocLint.lean` | `#lint only docBlame docBlameThm` |
 
@@ -260,3 +292,12 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
   can be strictly worse than the reported value for `maximize` (Finding F3, benchmark B-1; witness
   `Examples.b1_stationary_unsound`). For `minimize` every valid strategy is sound
   (`viIter_le_superSolution_minimize`), so the guard cannot break it.
+* **IVI strategy coupling.** `ivi_step!` synthesizes the strategy on the primary bound (`V_lower`
+  for `Pessimistic`, `V_upper` for `Optimistic`) and applies it, with the same nature, to the other
+  bound. The primary bound is plain robust value iteration (`primary_iviIter`) and is sound; the
+  secondary bound is sound only when the strategy-mode direction agrees (a fixed strategy is never
+  better than the optimum). For `(Pessimistic, Maximize)` the upper bound can fall below `V*`, for
+  `(Optimistic, Minimize)` the lower bound can exceed `V*` (Finding F4), and Julia's gap test can
+  then stop with gap `0` at a value that is not `V*` (`½` away in the F4 model,
+  `Examples.not_gap_stop_sound_*`). `V*` is `reachLfp` (the infinite-horizon value); the
+  finite-horizon value (`IVIFixedIterationsCriteria`) is not compared (Observation O15).
