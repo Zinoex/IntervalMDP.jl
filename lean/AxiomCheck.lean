@@ -208,3 +208,15 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Examples.iviIter_one_optimistic_minimize
 #print axioms IntervalMDP.Examples.one_le_reachLfp_pessimistic_maximize
 #print axioms IntervalMDP.Examples.reachLfp_optimistic_minimize_nonpos
+-- Phase 5a: factored successor index and vertex enumeration (arXiv:2508.00707, Theorem 1)
+#print axioms IntervalMDP.Index.factored_successor_eq
+#print axioms IntervalMDP.Factored.vertices_complete
+#print axioms IntervalMDP.Factored.vertexValue_eq_opt
+#print axioms IntervalMDP.Factored.vertexValue_eq_stateActionBellman
+#print axioms IntervalMDP.Factored.mem_vertices_iff
+#print axioms IntervalMDP.Factored.mem_vertices_iff_extremePoints
+#print axioms IntervalMDP.Factored.vertexLoop_prefix
+#print axioms IntervalMDP.Factored.nextPermutation_spec
+#print axioms IntervalMDP.Factored.vertexOf_mem_vertexRun
+#print axioms IntervalMDP.Factored.vecs_eq_convexHull_vertices
+#print axioms IntervalMDP.Factored.exists_vertex_expansion
