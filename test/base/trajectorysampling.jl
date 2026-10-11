@@ -569,6 +569,160 @@ end
     end
 end
 
+@testitem "TrajectorySampling: exploit/explore mixture score" tags =
+    [:base, :trajectory_sampling, :trajectory_state_scores] begin
+    using IntervalMDP
+    const TS = IntervalMDP.TrajectorySampling
+
+    probs = [0.5, 0.5]
+    supp = [1, 2]
+    vf = (upper = (current = [1.0, 0.5],), lower = (current = [0.9, 0.0],))
+    # p·f_exploit (U)  = [0.5, 0.25] -> f'_exploit = [2/3, 1/3]
+    # p·f_explore (gap) = [0.05, 0.25] -> f'_explore = [1/6, 5/6]
+    exploit = [2 / 3, 1 / 3]
+    explore = [1 / 6, 5 / 6]
+    mix(ae, ap = 0.0) = TS.MixtureStateScore(; alpha_explore = ae, alpha_prob = ap)
+
+    @testset "alpha schedules" begin
+        @test_throws ArgumentError TS.FixedAlpha(-0.1)
+        @test_throws ArgumentError TS.FixedAlpha(1.1)
+        @test_throws ArgumentError TS.PowerAlpha(0.0)
+        @test_throws ArgumentError TS.ClippedAlpha(TS.PowerAlpha(1.0), 0.6, 0.4)
+        @test_throws ArgumentError TS.ClippedAlpha(TS.PowerAlpha(1.0), -0.1, 0.4)
+        @test TS._alpha(TS.FixedAlpha(0.3), 0.9) == 0.3
+        @test TS._alpha(TS.PowerAlpha(2.0), 0.5) ≈ 0.25
+        @test TS._alpha(TS.PowerAlpha(1.0), 0.0) == 0.0
+        @test TS._alpha(TS.CustomAlpha(d -> 2d), 0.25) ≈ 0.5
+        @test TS._alpha(TS.CustomAlpha(d -> 2d), 0.75) == 1.0   # clamped
+        clipped = TS.ClippedAlpha(TS.PowerAlpha(1.0), 0.1, 0.9)
+        @test TS._alpha(clipped, 1.0) == 0.9
+        @test TS._alpha(clipped, 0.0) == 0.1
+        @test TS._alpha(clipped, 0.5) == 0.5
+    end
+
+    @testset "defaults: exploit Upper, gap explore, alpha_e = 0.5, alpha_p = 0" begin
+        score = TS.MixtureStateScore()
+        @test score.exploit === IntervalMDP.Upper
+        @test score.explore isa TS.GapExplore
+        @test score.alpha_explore == TS.FixedAlpha(0.5)
+        @test score.alpha_prob == TS.FixedAlpha(0.0)
+        @test TS._greedy_bound(score) === IntervalMDP.Upper
+        @test TS._greedy_bound(TS.MixtureStateScore(; exploit = IntervalMDP.Lower)) ===
+              IntervalMDP.Lower
+    end
+
+    @testset "alpha_e mixes the two normalized terms" begin
+        @test TS._state_scores(mix(0.0), probs, supp, vf) ≈ exploit
+        @test TS._state_scores(mix(1.0), probs, supp, vf) ≈ explore
+        @test TS._state_scores(mix(0.5), probs, supp, vf) ≈ (exploit .+ explore) ./ 2
+        @test sum(TS._state_scores(mix(0.3), probs, supp, vf)) ≈ 1
+    end
+
+    @testset "alpha_p flattens p towards uniform" begin
+        skewed = [0.8, 0.2]
+        # alpha_p = 1 -> p' uniform, so the skew is gone.
+        @test TS._state_scores(mix(0.0, 1.0), skewed, supp, vf) ≈ exploit
+        pp = 0.5 .* skewed .+ 0.25
+        w = pp .* vf.upper.current
+        @test TS._state_scores(mix(0.0, 0.5), skewed, supp, vf) ≈ w ./ sum(w)
+    end
+
+    @testset "exploit reads the chosen bound" begin
+        score = TS.MixtureStateScore(; exploit = IntervalMDP.Lower, alpha_explore = 0.0)
+        @test TS._state_scores(score, probs, supp, vf) ≈ [1.0, 0.0]
+    end
+
+    @testset "a term that vanishes is uniform; negatives are clamped" begin
+        zero_vf = (upper = (current = [0.0, -0.5],), lower = (current = [0.0, -0.5],))
+        @test TS._state_scores(mix(0.0), probs, supp, zero_vf) ≈ [0.5, 0.5]
+        @test TS._state_scores(mix(1.0), probs, supp, zero_vf) ≈ [0.5, 0.5]
+    end
+
+    @testset "explore term is pluggable" begin
+        score = TS.MixtureStateScore(;
+            explore = TS.UpperBoundExplore(),
+            alpha_explore = 1.0,
+        )
+        @test TS._state_scores(score, probs, supp, vf) ≈ exploit
+    end
+
+    @testset "LogStateScore wraps the mixture" begin
+        @test TS._state_scores(TS.LogStateScore(mix(0.5)), probs, supp, vf) ≈
+              log.((exploit .+ explore) ./ 2)
+    end
+
+    @testset "a non-fixed schedule must be resolved first" begin
+        score = TS.MixtureStateScore(; alpha_explore = TS.PowerAlpha(1.0))
+        @test_throws ArgumentError TS._state_scores(score, probs, supp, vf)
+    end
+
+    amb = IntervalAmbiguitySets(;
+        lower = [0.0 0.0 0.0; 0.0 0.0 0.0; 0.0 0.0 1.0],
+        upper = [1.0 1.0 0.0; 1.0 1.0 0.0; 1.0 1.0 1.0],
+    )
+    gap_vf = (
+        upper = (current = [0.9, 0.7, 1.0],),
+        lower = (current = [0.4, 0.0, 1.0],),
+    )
+
+    @testset "initial gap is the max over S0, or over all states" begin
+        @test TS._initial_gap(IntervalMarkovDecisionProcess([amb, amb, amb], [1]), gap_vf) ≈
+              0.5
+        @test TS._initial_gap(IntervalMarkovDecisionProcess([amb, amb, amb], [1, 2]), gap_vf) ≈
+              0.7
+        @test TS._initial_gap(IntervalMarkovDecisionProcess([amb, amb, amb]), gap_vf) ≈ 0.7
+    end
+
+    @testset "the rollout context reads the max gap over S0, not Diff(s0)" begin
+        # Whichever of states 1 (Diff 0.5) and 2 (Diff 0.7) the rollout starts
+        # from, every schedule sees delta = 0.7.
+        ss = TS.TrajectorySampling()
+        mdp = IntervalMarkovDecisionProcess([amb, amb, amb], [1, 2])
+        @test TS._rollout_context(ss, mdp, gap_vf).diff ≈ 0.7
+        @test TS._rollout_context(ss, mdp, gap_vf).n == 0
+        sched = TS.GapBasedTemperature(1.0, 0.0)
+        @test TS._temperature(sched, TS._rollout_context(ss, mdp, gap_vf)) ≈ 0.7 / 0.3
+    end
+
+    @testset "_resolve_score evaluates the schedules at the initial gap" begin
+        fixed = TS.MixtureStateScore()
+        @test TS._resolve_score(fixed, 0.5) === fixed
+        @test TS._resolve_score(TS.GreedyScore(), 0.5) isa TS.GreedyScore
+
+        term = TS.BellmanErrorExplore()
+        score = TS.MixtureStateScore(;
+            exploit = IntervalMDP.Lower,
+            explore = term,
+            alpha_explore = TS.PowerAlpha(2.0),
+            alpha_prob = TS.ClippedAlpha(TS.PowerAlpha(1.0), 0.0, 0.3),
+        )
+        resolved = TS._resolve_score(score, 0.5)
+        @test resolved.alpha_explore == TS.FixedAlpha(0.25)
+        @test resolved.alpha_prob == TS.FixedAlpha(0.3)
+        @test resolved.exploit === IntervalMDP.Lower
+        # Shares the term, so the lifecycle hooks on the strategy's score reach it.
+        @test resolved.explore === term
+
+        wrapped = TS._resolve_score(TS.LogStateScore(score), 0.5)
+        @test wrapped isa TS.LogStateScore
+        @test wrapped.inner.alpha_explore == TS.FixedAlpha(0.25)
+    end
+
+    @testset "_sample_state: Boltzmann follows f_S, epsilon-greedy p·f_exploit" begin
+        mdp = IntervalMarkovDecisionProcess([amb, amb, amb], [1])
+        s, a = CartesianIndex(1), CartesianIndex(1)
+        p = [0.5, 0.5, 0.0]
+        vf3 = (upper = (current = [1.0, 0.5, 1.0],), lower = (current = [0.9, 0.0, 1.0],))
+        score = mix(1.0)   # explore only: state 2 has the larger gap
+
+        ss = TS.TrajectorySampling(; state_policy = TS.Boltzmann(0.001), state_score = score)
+        @test all(_ -> TS._sample_state(ss, s, a, p, vf3, mdp, nothing) == CartesianIndex(2), 1:50)
+
+        ss = TS.TrajectorySampling(; state_policy = TS.EpsilonGreedy(0.0), state_score = score)
+        @test all(_ -> TS._sample_state(ss, s, a, p, vf3, mdp, nothing) == CartesianIndex(1), 1:50)
+    end
+end
+
 @testitem "TrajectorySampling: VPI successor score" tags =
     [:base, :trajectory_sampling, :trajectory_vpi] begin
     using IntervalMDP
@@ -1321,6 +1475,28 @@ end
                     1.0,
                     TS.ExponentialGap(1.0);
                     explore = TS.MaxBellmanErrorExplore(),
+                ),
+                gauss_seidel = true,
+                k = 2,
+            ),
+            "mixture (fixed alphas)" => TS.TrajectorySampling(;
+                state_policy = TS.Boltzmann(0.1),
+                state_score = TS.MixtureStateScore(),
+            ),
+            "mixture (power alphas, clipped)" => TS.TrajectorySampling(;
+                state_policy = TS.Boltzmann(0.1),
+                state_score = TS.MixtureStateScore(;
+                    alpha_explore = TS.ClippedAlpha(TS.PowerAlpha(1.0), 0.1, 0.9),
+                    alpha_prob = TS.PowerAlpha(2.0),
+                ),
+            ),
+            "log mixture, Bellman error, gauss-seidel" => TS.TrajectorySampling(;
+                state_policy = TS.Boltzmann(1.0),
+                state_score = TS.LogStateScore(
+                    TS.MixtureStateScore(;
+                        explore = TS.BellmanErrorExplore(),
+                        alpha_explore = TS.PowerAlpha(1.0),
+                    ),
                 ),
                 gauss_seidel = true,
                 k = 2,

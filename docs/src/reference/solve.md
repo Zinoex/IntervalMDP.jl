@@ -136,6 +136,12 @@ IntervalMDP.TrajectorySampling.StateScore
 IntervalMDP.TrajectorySampling.GreedyScore
 IntervalMDP.TrajectorySampling.ExplorationScore
 IntervalMDP.TrajectorySampling.GapWeightedExplorationScore
+IntervalMDP.TrajectorySampling.MixtureStateScore
+IntervalMDP.TrajectorySampling.AlphaSchedule
+IntervalMDP.TrajectorySampling.FixedAlpha
+IntervalMDP.TrajectorySampling.PowerAlpha
+IntervalMDP.TrajectorySampling.CustomAlpha
+IntervalMDP.TrajectorySampling.ClippedAlpha
 IntervalMDP.TrajectorySampling.GapFunction
 IntervalMDP.TrajectorySampling.ExponentialGap
 IntervalMDP.TrajectorySampling.PolynomialGap

@@ -21,11 +21,12 @@ schedule `fixed` (`action_temperature`) or `gap_based` (`action_temperature_k`,
   `UpdateDecayTemperature`. Validate it in the constructor so only `FixedTemperature`
   and `GapBasedTemperature` are allowed.
 - [ ] **Remove `GapDecayTemperature` and `UpdateDecayTemperature`** once nothing uses
-  them. Current users:
-  - the successor policy (`state_temperature_schedule = gap_decay | update_decay` in
-    the benchmark);
+  them. The benchmark no longer exposes them for either policy (state selection
+  reworked 2026-10-11). Remaining users:
   - the priority-sweeping sampler (`src/prioritysweeping.jl` imports both, and its
-    tests use them in `test/base/prioritysweeping.jl`).
+    tests use them in `test/base/prioritysweeping.jl`);
+  - the library's own trajectory tests ("gap-decay temperature", "update-decay
+    temperature", and the backup-counter testset in `test/base/trajectorysampling.jl`).
 - [ ] **When `UpdateDecayTemperature` goes, check whether the backup counter can go
   too.** `ss.updates` and `TemperatureContext.n` only exist to feed it
   (`src/trajectorysampling.jl`, see `_count_updates!`; and the same counter in
@@ -42,12 +43,8 @@ schedule `fixed` (`action_temperature`) or `gap_based` (`action_temperature_k`,
 
 ### Benchmark (`bench/`)
 
-- [ ] **`_traj_policy` and `_traj_temperature` in `src/registry.jl`** are still generic
-  over `kind`, but only the successor policy uses them now. Fold them into the
-  state-selection rework, or rename them to `_traj_state_*`.
-- [ ] **`docs/experiment-config.md`, temperature notes:** the bullets on `gap_decay`,
-  `update_decay` and `state_temperature_min` only apply to the successor policy now.
-  Rewrite them when the state side is reworked.
+- [ ] **`_traj_policy` and `_traj_temperature` in `src/registry.jl`** are dead since
+  the state-selection rework, so delete them (see that section below).
 - [ ] **`src/analysis/report.jl`:** `_FACTOR_FAMILIES`, `_FACTOR_NAMES` and
   `_PARAM_SHORT` only know the state temperature keys. Add an
   `action_temperature_schedule` family (members: schedule, `action_temperature`,
@@ -63,8 +60,87 @@ schedule `fixed` (`action_temperature`) or `gap_based` (`action_temperature_k`,
   `T_a = ComputeTemp(n, t_min, t_max, τ_a)` should become
   `T_a = ComputeTemp_A(t, k, t_min)`.
 - [ ] **The general `ComputeTemp` equation** (fixed / termination-criteria decay /
-  Bellman-update decay) now only describes `T_s`. Keep it until the state-selection
-  rework, then rewrite it to match.
+  Bellman-update decay) is obsolete now that `T_s` is fixed too. Delete it, along with
+  the `T_s = ComputeTemp(n, t_min, t_max, τ_s)` line in `SampleTrajectory` (see the
+  state-selection section).
+
+## State selection (reworked 2026-10-11)
+
+The new design: `state_exploit` (U/L, both policies); `epsilon_greedy` → `state_epsilon`,
+or `boltzmann` → `state_temperature` (fixed), `state_score = mixture | log_mixture`,
+`state_explore`, and the weights α_e and α_p (`state_alpha_{e,p}_schedule = fixed |
+power`, with `_k`, `_min` and `_max` under `power`). Library: `MixtureStateScore`,
+`AlphaSchedule` (`FixedAlpha`, `PowerAlpha`, `CustomAlpha`, `ClippedAlpha`),
+`_resolve_score`, `_initial_gap`.
+
+### Library (`lib/`)
+
+- [ ] **Remove the old successor scores** once the tests stop using them:
+  `GreedyScore`, `ExplorationScore`, `GapWeightedExplorationScore`, `GapFunction`,
+  `ExponentialGap`, `PolynomialGap` (and `_gap_weight`), `VPIScore` (and `_vpi`,
+  `_vpi_gain`). Keep `LogStateScore` and every `ExplorationTerm`, since the mixture uses
+  them. Current users: `test/base/trajectorysampling.jl` (the "successor scores f_S",
+  "VPI successor score" and ε-greedy/Boltzmann testitems, and most solve-parity cases);
+  the `src/prioritysweeping.jl` docstring that points at `ExplorationScore` (line ~159);
+  `docs/src/reference/solve.md`.
+- [ ] **Change the library default `state_score = GreedyScore()`** to
+  `LogStateScore(MixtureStateScore())`, the power rule the benchmark defaults to under
+  Boltzmann (2026-10-11). Under the default ε-greedy only the bound is read, so it
+  behaves the same.
+- [ ] **Restrict the state policy's schedule** in the `TrajectorySampling` constructor
+  to `FixedTemperature`, to match the benchmark.
+- [ ] **Rename "greedy" to "exploit":** `_greedy_bound` → `_exploit_bound`, and
+  `f_greedy` → `f_exploit` in the docstrings (`StateScore`, `_sample_state`, the
+  `state_policy` keyword note in `TrajectorySampling`).
+- [ ] **Shrink `_ExploringScore`** to `MixtureStateScore` alone, or fold the hooks into
+  its methods, once the old scores are gone. The four-argument `_state_scores`
+  fallback for the union goes with it.
+- [ ] **Stale "reach-avoid is negative on avoid states" comments.** It isn't (checked
+  2026-10-11): reach-avoid initializes avoid states to `0` in both bounds, the
+  per-step postprocess pins them to `0`, and the final postprocess is a no-op. The
+  `-1` sentinel and the final `+1` shift belong to (DFA) safety, which GSRDP rejects.
+  Keep the guards, but re-justify them (round-off below zero in `U − L`, negative
+  `ActionUncertaintyExplore`, values from a caller-supplied value function):
+  - `src/trajectorysampling.jl`: the `_categorical_sample` and `_safe_log`
+    docstrings (the `TemperatureContext` one was rewritten 2026-10-11);
+  - `test/base/trajectorysampling.jl`: the comments in the `_safe_log` and
+    "TemperatureContext clamps the gap" testsets.
+- [ ] **`GapDecayTemperature` docstring/tests:** since 2026-10-11 the rollout context's
+  `diff` is the initial gap `δ = max_{s ∈ S₀} Diff(s)`, not `Diff(s₀)`, so the legacy
+  schedules changed meaning too. Moot if they are removed (see the action section);
+  otherwise re-check the "gap-decay temperature" solve case.
+- [ ] **Module header comment** at the top of `src/trajectorysampling.jl`: drop "incl.
+  VPI" and the per-policy annealed temperature schedule from the list of choices.
+
+### Benchmark (`bench/`)
+
+- [ ] **Delete the dead resolvers in `src/registry.jl`:** `_traj_policy`,
+  `_traj_temperature`, `_traj_state_score` and `_traj_state_score_base`. There is a
+  NOTE above them; `_traj_explore` is still used.
+- [ ] **Banked `configs/grid-search-1/*.toml` no longer resolve.** Every trajectory arm
+  uses removed keys (`state_temperature_schedule`, `state_bound`, `state_beta`,
+  `gap_fn`, `tau`, ...), and the old scores have no equivalent under the mixture. They
+  are records of past runs: archive them, add a header saying they need a pre-rework
+  commit to re-run, or delete them.
+- [ ] **`src/analysis/report.jl`:** the `state_temperature_schedule` and
+  `state_score`/`state_beta`/`tau` entries in `_FACTOR_FAMILIES`, `_FACTOR_NAMES` and
+  `_PARAM_SHORT`, and the `T∈[min,max]` special case in the label formatter, only
+  describe the old keys. Keep them while banked results are being reported, then
+  replace them with `state_alpha_e_schedule` and `state_alpha_p_schedule` families
+  (members: schedule, α, `_k`, `_min`, `_max`) and `state_temperature`.
+
+### Thesis (`thesis/chapters/sampling.tex`)
+
+- [ ] **Replace the old `\subsection{State Selection}`** (the greedy / exploration /
+  gap-weighted `f_S`, `G(δ)`, and the "Near Greedy States" `f_gap` paragraph) with
+  `\subsection{New State Selection}`, and rename the new one to "State Selection". The
+  old one uses `p_S`; the new one uses `\epsilon_S`.
+- [ ] **Heuristics:** rename the "Greedy State" paragraph and `f_{\mathrm{greedy}}` to
+  the exploit heuristic `f_{\mathrm{exploit}}`. The new subsection currently says that
+  `f_exploit` "is the greedy state heuristic above", so fix that sentence too.
+- [ ] **`SampleTrajectory` algorithm:** replace the `T_s = ComputeTemp(...)` line with
+  the computation of `α_e(δ)` and `α_p(δ)` from `δ = max_{s ∈ S₀} Diff(s)` (`T_s` is a
+  fixed parameter now), and pass them to `SampleState`.
 
 ## Gauss-Seidel batch size as `k_frac` (2026-10-10)
 
@@ -82,8 +158,9 @@ resolved per problem by `resolve_k_frac` in `bench/src/registry.jl`. It requires
 
 ## Preset removal (2026-10-10)
 
-- [ ] **Optional, `bench/configs/smoke-{2,3,4}*.toml`:** the rows rewritten from
-  presets carry explicit `label`s (`gsrdp_trajectory_gap_weighted`,
-  `gsrdp_trajectory_boltzmann` and `gsrdp_trajectory_gauss_seidel_k1`) only so they
-  pool with banked results. Rename them freely once those banked runs no longer
-  matter.
+- [ ] **Optional, `bench/configs/smoke-4*.toml`:** `gsrdp_trajectory_gauss_seidel_k1`
+  carries an explicit `label` only so it pools with banked results. Rename it freely
+  once those banked runs no longer matter. (The `gap_weighted` and `boltzmann` rows
+  were rewritten to the mixture in the state rework, with new labels
+  `gsrdp_trajectory_mixture` and `gsrdp_trajectory_boltzmann_mixture`, so they no
+  longer pool with the banked ones.)
