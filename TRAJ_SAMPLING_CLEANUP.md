@@ -164,3 +164,14 @@ resolved per problem by `resolve_k_frac` in `bench/src/registry.jl`. It requires
   were rewritten to the mixture in the state rework, with new labels
   `gsrdp_trajectory_mixture` and `gsrdp_trajectory_boltzmann_mixture`, so they no
   longer pool with the banked ones.)
+- [ ] **One preset is back (2026-10-11): `trajectory_brtdp`** (`TRAJECTORY_PRESETS` and
+  `_expand_preset` in `bench/src/registry.jl`). It is the closest point to slow-tail's
+  preset, with no library changes. It differs from slow-tail in four ways, listed in
+  `bench/docs/experiment-config.md`. If exact parity with slow-tail's brtdp is ever
+  needed, port these from `jy/slow-tail`:
+  - a `max(p_U, p_L)` probability source on the mixture, over the union support (from
+    slow-tail's `GapContributionScore`);
+  - `ExpectedGapStop(; max_adversary)`;
+  - the strategy's `dedup` flag.
+  Its DelftBlue run lives in `bench/configs/brtdp-rework/`, under the label
+  `brtdp_rework`.
