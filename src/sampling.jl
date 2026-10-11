@@ -835,6 +835,382 @@ function _omax_expectation(ambiguity_set, V, upper_bound::Bool)
     return res
 end
 
+# Sparse fast paths. For an ambiguity set backed by columns of sparse matrices, the
+# generic versions above go through `getindex` on a sparse column view, a binary search
+# per element: `gap(ambiguity_set, i)` once per filled target, and `Vector(lower(...))`
+# once per *target state*, O(|S| log nnz) per call. These walk the stored entries of the
+# column directly and compute the same thing:
+#
+# - The fill visits the stored entries in the order of `_omax_value_order`: rows are
+#   ascending within a CSC column, so a stable sort of the stored positions by `V` at
+#   their row is the same sequence as the stable sort of `support(ambiguity_set)`, and
+#   the stored value at a position is what `gap(ambiguity_set, i)` reads for its row.
+# - The arithmetic (budget, `min`, the running sums) is unchanged, so results are
+#   bit-identical.
+const _SparseIntervalAmbiguitySet{R} = IntervalAmbiguitySet{R, <:SparseColumnView{R}}
+
+# The matrix behind a sparse column view and the range of the column's stored entries.
+@inline function _stored_range(v::SparseColumnView)
+    A = parent(v)
+    j = parentindices(v)[2]
+    colptr = SparseArrays.getcolptr(A)
+    return A, Int(colptr[j]):Int(colptr[j + 1] - 1)
+end
+
+# The greedy fill of `_omax_fill`, over the stored entries of the gap column in the
+# order a stable sort by `V` at their row would put them, descending (optimistic) if
+# `upper_bound`. Instead of sorting the whole support, the entries are drawn lazily off a
+# binary heap ordered by (value, position): the fill usually stops after a small prefix,
+# so this costs O(n + t log n) for t filled entries rather than O(n log n). Ties in `V`
+# are broken by position, ascending, which is exactly the order a stable sort keeps
+# them in, and `isless` is a total order on the values, so the sequence is the same.
+function _omax_fill_sorted(f, ambiguity_set::_SparseIntervalAmbiguitySet, V, upper_bound::Bool, budget)
+    return upper_bound ? _omax_fill_sorted(f, ambiguity_set, V, Val(true), budget) :
+           _omax_fill_sorted(f, ambiguity_set, V, Val(false), budget)
+end
+
+function _omax_fill_sorted(f, ambiguity_set::_SparseIntervalAmbiguitySet, V, ::Val{rev}, budget) where {rev}
+    A, r = _stored_range(gap(ambiguity_set))
+    rv, nz = rowvals(A), nonzeros(A)
+    n = length(r)
+    n == 0 && return nothing
+    o = first(r) - 1
+    keys = [@inbounds(V[rv[o + j]]) for j in 1:n]
+    # `a` goes before `b` (local indices into the column).
+    @inline before(a, b) = @inbounds begin
+        ka, kb = keys[a], keys[b]
+        rev ? (isless(kb, ka) || (!isless(ka, kb) && a < b)) :
+              (isless(ka, kb) || (!isless(kb, ka) && a < b))
+    end
+    heap = collect(1:n)
+    @inbounds for i in (n >> 1):-1:1
+        _heap_sift_down!(heap, i, n, before)
+    end
+    m = n
+    @inbounds while m > 0
+        j = heap[1]
+        heap[1] = heap[m]
+        m -= 1
+        m > 1 && _heap_sift_down!(heap, 1, m, before)
+
+        k = o + j
+        Δ = min(budget, nz[k])
+        Δ > zero(Δ) && f(rv[k], Δ)
+        budget -= Δ
+        budget <= zero(budget) && break
+    end
+    return nothing
+end
+
+Base.@propagate_inbounds function _heap_sift_down!(heap, i, m, before)
+    x = heap[i]
+    while true
+        c = 2i
+        c > m && break
+        (c < m && before(heap[c + 1], heap[c])) && (c += 1)
+        before(heap[c], x) || break
+        heap[i] = heap[c]
+        i = c
+    end
+    heap[i] = x
+    return heap
+end
+
+function _omax_distribution(ambiguity_set::_SparseIntervalAmbiguitySet{R}, V, upper_bound::Bool) where {R}
+    p = _dense_lower(ambiguity_set)
+    budget = one(eltype(p)) - sum(p)
+    _omax_fill_sorted(ambiguity_set, V, upper_bound, budget) do i, Δ
+        p[i] += Δ
+    end
+    return p
+end
+
+# `Vector(lower(ambiguity_set))`, built from the stored entries instead of one sparse
+# lookup per target.
+function _dense_lower(ambiguity_set::_SparseIntervalAmbiguitySet{R}) where {R}
+    l = lower(ambiguity_set)
+    p = zeros(R, length(l))
+    A, r = _stored_range(l)
+    rv, nz = rowvals(A), nonzeros(A)
+    @inbounds for k in r
+        p[rv[k]] = nz[k]
+    end
+    return p
+end
+
+function _omax_expectation(ambiguity_set::_SparseIntervalAmbiguitySet, V, upper_bound::Bool)
+    budget = one(eltype(V)) - sum(lower(ambiguity_set))
+    res = dot(V, lower(ambiguity_set))
+    _omax_fill_sorted(ambiguity_set, V, upper_bound, budget) do i, Δ
+        res += Δ * V[i]
+    end
+    return res
+end
+
+# A realized distribution handed out by `_omax_realize!`: the dense vector over every
+# target, as `_omax_distribution` returns it, plus the ascending target indices outside
+# which it is zero. Code that only walks the positive entries (`_positive_support`,
+# `ExpectedGapStop`) visits `candidates` instead of all |S| targets, in the same
+# ascending order, so the result is unchanged. Indexing reads `p`.
+#
+# `p` is the scratch buffer of an `_OMaxScratch` and is overwritten by the next
+# realization from that scratch, so the vector is only valid until then.
+struct _RealizedDistribution{R} <: AbstractVector{R}
+    p::Vector{R}
+    candidates::Vector{Int}
+end
+Base.size(d::_RealizedDistribution) = size(d.p)
+Base.IndexStyle(::Type{<:_RealizedDistribution}) = IndexLinear()
+Base.@propagate_inbounds Base.getindex(d::_RealizedDistribution, i::Int) = d.p[i]
+
+"""
+    _positive_support(probs) -> Vector{Int}
+
+The indices of `probs` carrying positive mass, ascending.
+"""
+_positive_support(probs::AbstractVector) =
+    [i for i in eachindex(probs) if probs[i] > zero(eltype(probs))]
+_positive_support(d::_RealizedDistribution) =
+    [i for i in d.candidates if @inbounds(d.p[i]) > zero(eltype(d.p))]
+
+# Reused across the steps of a rollout by `_omax_realize!`.
+#
+# - `p` is zero everywhere except the entries the previous realization wrote, which are
+#   listed in `written` and cleared first, so a realization costs O(nnz), not O(|S|).
+# - `budget` caches `one(R) - sum(Vector(lower column))` per column of the lower-bound
+#   matrix `lower`. That dense sum is what `_omax_distribution` computes and its
+#   rounding depends on the zeros it runs over, so it is reproduced, not recomputed from
+#   the stored entries (see `_dense_budget`).
+mutable struct _OMaxScratch{R, M}
+    lower::M
+    p::Vector{R}
+    written::Vector{Int}
+    budget::Dict{Int, R}
+    # For `_omax_expectations!`: per-target scratch (zero between calls) and
+    # `sum(lower column)` per column.
+    slot::Vector{Int}
+    lower_sum::Dict{Int, R}
+end
+
+_OMaxScratch(lower::AbstractMatrix{R}) where {R} = _OMaxScratch(
+    lower,
+    zeros(R, size(lower, 1)),
+    Int[],
+    Dict{Int, R}(),
+    zeros(Int, size(lower, 1)),
+    Dict{Int, R}(),
+)
+
+# `one(R) - sum(p)` for `p = Vector(lower(ambiguity_set))`, exactly. With at most two
+# stored entries, all positive, every association of the dense sum adds the zeros
+# exactly and the two values once, so it is `a + b` whatever order `sum` uses; otherwise
+# the dense sum is taken once per column and cached.
+function _dense_budget(scratch::_OMaxScratch{R}, j, r, nz) where {R}
+    if length(r) <= 2 && all(k -> @inbounds(nz[k]) > zero(R), r)
+        t = zero(R)
+        for k in r
+            t += @inbounds(nz[k])
+        end
+        return one(R) - t
+    end
+    return get!(scratch.budget, j) do
+        p = scratch.p   # zero here: called between clearing and writing
+        rv = rowvals(scratch.lower)
+        @inbounds for k in r
+            p[rv[k]] = nz[k]
+        end
+        b = one(R) - sum(p)
+        @inbounds for k in r
+            p[rv[k]] = zero(R)
+        end
+        b
+    end
+end
+
+# A fresh scratch for `marginal`, or `nothing` when its ambiguity sets are not sparse
+# interval sets (then `_omax_realize!` is plain `_omax_distribution`).
+_omax_scratch(marginal::Marginal) = _omax_scratch(ambiguity_sets(marginal))
+_omax_scratch(sets) = nothing
+_omax_scratch(sets::IntervalAmbiguitySets{R, <:SparseArrays.AbstractSparseMatrixCSC{R}}) where {R} =
+    _OMaxScratch(sets.lower)
+
+# Whether `scratch` was made for `marginal`'s lower-bound matrix.
+_omax_scratch_matches(scratch, marginal) = false
+_omax_scratch_matches(scratch::_OMaxScratch, marginal::Marginal) =
+    _omax_scratch_matches(scratch, ambiguity_sets(marginal))
+_omax_scratch_matches(scratch::_OMaxScratch, sets::IntervalAmbiguitySets) = scratch.lower === sets.lower
+
+"""
+    _omax_realize!(scratch, ambiguity_set, V, upper_bound) -> AbstractVector
+
+[`_omax_distribution`](@ref) into `scratch`, for a rollout that realizes one
+distribution per step. Without a sparse ambiguity set (or a matching scratch) this is
+`_omax_distribution` itself.
+"""
+_omax_realize!(scratch, ambiguity_set, V, upper_bound::Bool) =
+    _omax_distribution(ambiguity_set, V, upper_bound)
+
+function _omax_realize!(
+    scratch::_OMaxScratch{R},
+    ambiguity_set::_SparseIntervalAmbiguitySet{R},
+    V,
+    upper_bound::Bool,
+) where {R}
+    l = lower(ambiguity_set)
+    L, rl = _stored_range(l)
+    L === scratch.lower || return _omax_distribution(ambiguity_set, V, upper_bound)
+    p = scratch.p
+    length(p) == length(l) || return _omax_distribution(ambiguity_set, V, upper_bound)
+
+    @inbounds for i in scratch.written
+        p[i] = zero(R)
+    end
+
+    rvl, nzl = rowvals(L), nonzeros(L)
+    budget = _dense_budget(scratch, parentindices(l)[2], rl, nzl)
+    @inbounds for k in rl
+        p[rvl[k]] = nzl[k]
+    end
+    _omax_fill_sorted(ambiguity_set, V, upper_bound, budget) do i, Δ
+        p[i] += Δ
+    end
+
+    # Where `p` can be nonzero: the stored rows of the lower and gap columns. They are
+    # usually the same rows.
+    G, rg = _stored_range(gap(ambiguity_set))
+    rvg = rowvals(G)
+    candidates = if length(rl) == length(rg) && all(t -> @inbounds(rvl[t[1]] == rvg[t[2]]), zip(rl, rg))
+        Int[rvl[k] for k in rl]
+    else
+        sort!(unique!(vcat(Int[rvl[k] for k in rl], Int[rvg[k] for k in rg])))
+    end
+    scratch.written = candidates
+    return _RealizedDistribution(p, candidates)
+end
+
+"""
+    _omax_expectations!(out, scratch, marginal, s, actions, V, upper_bound) -> out
+
+`out[n] = _omax_expectation(marginal[actions[n], s], V, upper_bound)` for every
+action, bit-identically, with one sort shared by all of them. The stored rows of
+all the actions' gap columns are ordered by `(V[row], row)`, `V` descending if
+`upper_bound`, row ascending. That is a total order, so restricted to one action's
+rows it is the stable sort of that action's support, the order `_omax_fill` walks.
+Each action walks the shared order and skips rows it does not store; the order is
+drawn lazily off a heap, only as far as the deepest fill needs it.
+`budget` and the `dot` are the library's own: `sum` of the lower column (cached per
+column) and SparseArrays' sequential `dot`, replicated over the stored entries.
+
+Falls back to one `_omax_expectation` per action when `scratch` does not fit.
+"""
+function _omax_expectations!(out, scratch, marginal, s, actions, V, upper_bound::Bool)
+    for (n, a) in enumerate(actions)
+        out[n] = _omax_expectation(marginal[a, s], V, upper_bound)
+    end
+    return out
+end
+
+function _omax_expectations!(
+    out,
+    scratch::_OMaxScratch{R},
+    marginal,
+    s,
+    actions,
+    V::AbstractVector{R},
+    upper_bound::Bool,
+) where {R <: AbstractFloat}
+    sets = ambiguity_sets(marginal)
+    (sets isa IntervalAmbiguitySets && sets.lower === scratch.lower &&
+     sets.gap isa SparseArrays.AbstractSparseMatrixCSC && length(V) == length(scratch.slot)) ||
+        return invoke(_omax_expectations!, Tuple{Any, Any, Any, Any, Any, Any, Bool},
+            out, scratch, marginal, s, actions, V, upper_bound)
+    G, L = sets.gap, sets.lower
+    rvg, nzg = rowvals(G), nonzeros(G)
+    rvl, nzl = rowvals(L), nonzeros(L)
+    slot = scratch.slot
+
+    # The union of the stored gap rows and their values. Its sorted order is drawn
+    # lazily off a heap into `order`, only as deep as the actions' fills reach.
+    rows = Int[]
+    for a in actions
+        _, r = _stored_range(gap(marginal[a, s]))
+        @inbounds for k in r
+            row = Int(rvg[k])
+            if slot[row] == 0
+                slot[row] = 1
+                push!(rows, row)
+            end
+        end
+    end
+    @inbounds for row in rows
+        slot[row] = 0
+    end
+    keys = R[@inbounds(V[row]) for row in rows]
+    # Rows are distinct, so this is a strict total order.
+    @inline before(x, y) = @inbounds begin
+        kx, ky = keys[x], keys[y]
+        upper_bound ? (isless(ky, kx) || (!isless(kx, ky) && rows[x] < rows[y])) :
+                      (isless(kx, ky) || (!isless(ky, kx) && rows[x] < rows[y]))
+    end
+    heap = collect(1:length(rows))
+    m = length(heap)
+    if m <= 384
+        # Small unions: a full sort is cheaper than drawing most of a heap.
+        sort!(heap; lt = before)
+        order = rows[heap]
+        m = 0
+    else
+        @inbounds for i in (m >> 1):-1:1
+            _heap_sift_down!(heap, i, m, before)
+        end
+        order = Int[]   # rows, in sorted order, as far as drawn
+        sizehint!(order, m)
+    end
+
+    for (n, a) in enumerate(actions)
+        as = marginal[a, s]
+        l = lower(as)
+        _, rl = _stored_range(l)
+        j = parentindices(l)[2]
+        lsum = get!(() -> sum(l), scratch.lower_sum, j)
+        budget = one(eltype(V)) - lsum
+        # SparseArrays' `dot(::Vector, ::SparseColumnView)`: a sequential sum from
+        # `dot(zero, zero)` of `dot(V[row], value)`.
+        res = dot(zero(eltype(V)), zero(R))
+        @inbounds for k in rl
+            res += dot(V[rvl[k]], nzl[k])
+        end
+
+        _, rg = _stored_range(gap(as))
+        @inbounds for k in rg
+            slot[rvg[k]] = k
+        end
+        t = 0
+        @inbounds while true
+            t += 1
+            if t > length(order)
+                m == 0 && break
+                push!(order, rows[heap[1]])
+                heap[1] = heap[m]
+                m -= 1
+                m > 1 && _heap_sift_down!(heap, 1, m, before)
+            end
+            row = order[t]
+            k = slot[row]
+            k == 0 && continue
+            Δ = min(budget, nzg[k])
+            Δ > zero(Δ) && (res += Δ * V[row])
+            budget -= Δ
+            budget <= zero(budget) && break
+        end
+        @inbounds for k in rg
+            slot[rvg[k]] = 0
+        end
+        out[n] = res
+    end
+    return out
+end
+
 """
     _omax_best_action(model, jₛ, V, upper_bound; exclude=nothing, maximize=true) -> (action_or_nothing, value_or_nothing)
 

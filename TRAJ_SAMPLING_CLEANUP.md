@@ -175,3 +175,21 @@ resolved per problem by `resolve_k_frac` in `bench/src/registry.jl`. It requires
   - the strategy's `dedup` flag.
   Its DelftBlue run lives in `bench/configs/brtdp-rework/`, under the label
   `brtdp_rework`.
+
+## Performance pass (2026-10-11)
+
+Speedups with behaviour unchanged bit for bit. The changes are uncommitted in the worktree
+`lib/.claude/worktrees/perf-sampling` (branch `jy/perf-sampling`) and touch `sampling.jl`,
+`trajectorysampling.jl`, `gsrdp.jl`, `value.jl`, `workspace.jl` and `bellman/{kernels,state}.jl`.
+
+- [ ] **Bring the changes into `jy/traj-sampling-rework`** before re-running DelftBlue. The
+  benchmark env develops the main checkout, so it doesn't see the worktree.
+- [ ] **Remove the subagent worktree** `lib/.claude/worktrees/agent-a06ec297a56ed9096`, whose
+  changes are merged into `perf-sampling`, and remove `perf-sampling` once merged.
+- [ ] **The full test suite needs to run from `test/`.** Under `julia -e`,
+  `@run_package_tests` scans `..` relative to the working directory, so from the repo root
+  it scans `~/thesis`. Run it from `test/` with a filter relative to the repo, and skip
+  `test/cuda`, which segfaults without a GPU. The suite also rewrites
+  `test/data/multiObj_robotIMDP.nc`; restore it with `git checkout`.
+- [ ] **Optional:** the generic `_omax_value_order`/`_omax_fill` are now used only by dense
+  ambiguity sets and by tests. Keep them as the reference implementation.

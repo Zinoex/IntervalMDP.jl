@@ -134,6 +134,13 @@ import ..IntervalMDP:
     _omax_marginal,
     _omax_distribution,
     _omax_expectation,
+    _omax_realize!,
+    _omax_expectations!,
+    _OMaxScratch,
+    _omax_scratch,
+    _omax_scratch_matches,
+    _positive_support,
+    _RealizedDistribution,
     _isoptimistic,
     _ismaximize,
     _is_source_state,
@@ -398,8 +405,21 @@ A `-Inf` score (which [`LogScore`](@ref) produces for a non-positive inner
 score) is never selected by either policy — unless *every* score is `-Inf`, in
 which case there is no signal to act on and both policies fall back to uniform.
 """
-function _select(policy::EpsilonGreedy, candidates, scores)
+_select(policy::EpsilonGreedy, candidates, scores) = _select_lazy(policy, candidates, () -> scores)
+
+"""
+    _select_lazy(policy, candidates, scores_fn)
+
+`_select(policy, candidates, scores_fn())`, but under [`EpsilonGreedy`](@ref) the
+scores are only computed when the greedy branch needs them: the exploration draw
+comes first and never reads them. The random draws are the same either way.
+"""
+_select_lazy(policy::SelectionPolicy, candidates, scores_fn) =
+    _select(policy, candidates, scores_fn())
+
+function _select_lazy(policy::EpsilonGreedy, candidates, scores_fn)
     rand() < policy.p && return rand(candidates)
+    scores = scores_fn()
     m = maximum(scores)
     isfinite(m) || return rand(candidates)   # all -Inf: nothing to prefer
     return candidates[argmax(scores)]
@@ -574,7 +594,10 @@ end
 
 _bound_values(::Val{Upper}, vf) = vf.upper.current
 _bound_values(::Val{Lower}, vf) = vf.lower.current
-_bound_values(bound::IntervalMode, vf) = _bound_values(Val(bound), vf)
+# A branch rather than `Val(bound)`: the bound is a run-time value, and a `Val` built
+# from it is a dynamic dispatch on every call.
+_bound_values(bound::IntervalMode, vf) =
+    bound == Upper ? _bound_values(Val(Upper), vf) : _bound_values(Val(Lower), vf)
 
 _adversary_direction(::Nothing, spec) = _isoptimistic(spec)
 _adversary_direction(mode::SatisfactionMode, spec) = isoptimistic(mode)
@@ -1586,13 +1609,28 @@ function terminate_post(
 
     # Summed over the support rather than via a full `U .- L` vector: this runs at
     # every step of every rollout, and the allocation was O(|S|) per step.
-    Uv, Lv = vec(U), vec(L)
+    return _expected_gap(probs, vec(U), vec(L)) < diff / rule.tau
+end
+
+# `B = Σ p·(U − L)` over the positive entries of `probs`, in ascending index order.
+function _expected_gap(probs::AbstractVector, Uv, Lv)
     B = zero(Float64)
     for j in eachindex(probs)
         p = probs[j]
         p > 0 && (B += Float64(p) * (Float64(Uv[j]) - Float64(Lv[j])))
     end
-    return B < diff / rule.tau
+    return B
+end
+
+# The same sum over the indices where a realized distribution can be nonzero, which
+# are ascending, so the terms are added in the same order.
+function _expected_gap(probs::_RealizedDistribution, Uv, Lv)
+    B = zero(Float64)
+    for j in probs.candidates
+        p = probs[j]
+        p > 0 && (B += Float64(p) * (Float64(Uv[j]) - Float64(Lv[j])))
+    end
+    return B
 end
 
 """
@@ -1795,6 +1833,9 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
     # Whether this solve has already warned about `exclude_converged` without
     # `restrict_to_initial` (`_warn_converged_scope!`).
     warned_scope::Base.RefValue{Bool}
+    # The `_OMaxScratch` rollouts realize their transition distributions into
+    # (`_rollout_scratch`), or `nothing` before the first rollout of a solve.
+    omax_scratch::Base.RefValue{Any}
 
     function TrajectorySampling(;
         action_policy::SelectionPolicy = EpsilonGreedy(0.1),
@@ -1840,6 +1881,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
             Ref(0),
             Ref{BoundUpdateMode}(FollowDrive()),
             Ref(false),
+            Ref{Any}(nothing),
         )
     end
 end
@@ -1856,6 +1898,7 @@ function reset_sampling_strategy!(ss::TrajectorySampling)
     # the strategy object, so the backup count restarts with it.
     ss.updates[] = 0
     ss.warned_scope[] = false
+    ss.omax_scratch[] = nothing
     # Backup magnitudes measured in the previous `solve` say nothing about this
     # one's value function.
     _reset_score!(ss.state_score)
@@ -1886,16 +1929,41 @@ function _step_cap(ss::TrajectorySampling, model)
     return cap
 end
 
-_terminate_pre(ss::TrajectorySampling, s, trajectory, i, vf, model, spec) =
-    any(r -> terminate_pre(r, s, trajectory, i, vf, model, spec), ss.terminate)
+# `ss.terminate` holds abstractly typed rules, so the built-in ones are split out by
+# hand to avoid a dynamic dispatch per rule and step. Same rules, same order, same
+# short-circuit as `any`.
+function _terminate_pre(ss::TrajectorySampling, s, trajectory, i, vf, model, spec)
+    for r in ss.terminate
+        hit = if r isa MaxSteps
+            terminate_pre(r, s, trajectory, i, vf, model, spec)
+        elseif r isa ExpectedGapStop
+            terminate_pre(r, s, trajectory, i, vf, model, spec)
+        else
+            terminate_pre(r, s, trajectory, i, vf, model, spec)
+        end
+        hit && return true
+    end
+    return false
+end
 
-_terminate_post(ss::TrajectorySampling, s, a, probs, trajectory, i, vf, model, spec) =
-    any(r -> terminate_post(r, s, a, probs, trajectory, i, vf, model, spec), ss.terminate)
+function _terminate_post(ss::TrajectorySampling, s, a, probs, trajectory, i, vf, model, spec)
+    for r in ss.terminate
+        hit = if r isa MaxSteps
+            terminate_post(r, s, a, probs, trajectory, i, vf, model, spec)
+        elseif r isa ExpectedGapStop
+            terminate_post(r, s, a, probs, trajectory, i, vf, model, spec)
+        else
+            terminate_post(r, s, a, probs, trajectory, i, vf, model, spec)
+        end
+        hit && return true
+    end
+    return false
+end
 
 """
-    _sample_action(ss, s, vf, model, spec, marginal, dir, policy = ss.action_policy) -> Union{CartesianIndex, Nothing}
+    _sample_action(ss, s, vf, model, spec, marginal, dir, policy = ss.action_policy, score = ss.action_score, scratch = nothing) -> Union{CartesianIndex, Nothing}
 
-Score every action available at `s` with `ss.action_score`, oriented to the
+Score every action available at `s` with `score` (the strategy's `action_score`), oriented to the
 specification's strategy mode (see [`ActionScore`](@ref)), and draw one under
 `policy` — the strategy's action policy with its temperature already resolved
 for this rollout (`_resolve_policy`). `nothing` if `s` has no available
@@ -1910,16 +1978,45 @@ function _sample_action(
     marginal,
     dir,
     policy::SelectionPolicy = ss.action_policy,
+    score::ActionScore = ss.action_score,
+    scratch = nothing,
 )
     actions = collect(available(model, s))
     isempty(actions) && return nothing
 
     U, L = vf.upper.current, vf.lower.current
     maximize = _ismaximize(spec)
-    scores = [
-        _action_score(ss.action_score, marginal[a, s], U, L, dir; maximize) for a in actions
-    ]
-    return _select(policy, actions, scores)
+    scores_fn = () -> _action_scores(score, scratch, marginal, s, actions, U, L, dir, maximize)
+    return _select_lazy(policy, actions, scores_fn)
+end
+
+"""
+    _action_scores(score, scratch, marginal, s, actions, U, L, dir, maximize) -> Vector{Float64}
+
+`_action_score` for every action at `s`. For the plain bound scores, with a rollout
+scratch and more than one action, the Q-values come from one shared sort
+(`_omax_expectations!`); the values are the same.
+"""
+_action_scores(score, scratch, marginal, s, actions, U, L, dir, maximize) =
+    [_action_score(score, marginal[a, s], U, L, dir; maximize) for a in actions]
+
+function _action_scores(
+    score::Union{UpperBoundScore, LowerBoundScore},
+    scratch::_OMaxScratch,
+    marginal,
+    s,
+    actions,
+    U,
+    L,
+    dir,
+    maximize,
+)
+    length(actions) > 1 ||
+        return [_action_score(score, marginal[a, s], U, L, dir; maximize) for a in actions]
+    # UpperBoundScore: maximize ? _q(U) : 1 - _q(L); LowerBoundScore the other way.
+    V = (score isa UpperBoundScore) == maximize ? U : L
+    q = _omax_expectations!(Vector{eltype(V)}(undef, length(actions)), scratch, marginal, s, actions, V, dir)
+    return maximize ? Float64[Float64(x) for x in q] : Float64[1 - Float64(x) for x in q]
 end
 
 """
@@ -1987,7 +2084,7 @@ function _sample_state(
     converged_eps = nothing,
     terminal = nothing,
 )
-    supp = [i for i in eachindex(probs) if probs[i] > zero(eltype(probs))]
+    supp = _positive_support(probs)
     _filter_successors!(supp, model, vf, visited, converged_eps, terminal)
     isempty(supp) && return nothing
 
@@ -2019,7 +2116,26 @@ step, so the state that ends the rollout — a goal state, an obstacle state, an
 implicit sink, or one reached when a termination rule fires — is not part of
 the result and is never relaxed.
 """
-function _sample_trajectory(ss::TrajectorySampling, model, value_function, spec)
+_sample_trajectory(ss::TrajectorySampling, model, value_function, spec) =
+    _sample_trajectory(ss, model, value_function, spec, _rollout_scratch(ss, model))
+
+"""
+    _rollout_scratch(ss, model) -> Union{_OMaxScratch, Nothing}
+
+The scratch the rollout realizes each step's transition distribution into
+(`_omax_realize!`), kept on the strategy so its per-column budget cache lasts the
+solve. `nothing` for models without sparse interval ambiguity sets.
+"""
+function _rollout_scratch(ss::TrajectorySampling, model)
+    marginal = _omax_marginal(model)
+    scratch = ss.omax_scratch[]
+    _omax_scratch_matches(scratch, marginal) && return scratch
+    scratch = _omax_scratch(marginal)
+    ss.omax_scratch[] = scratch
+    return scratch
+end
+
+function _sample_trajectory(ss::TrajectorySampling, model, value_function, spec, scratch)
     prop = system_property(spec)
     reach_set = Set(_trajectory_reach_states(prop))
     avoid_set = Set(_trajectory_avoid_states(prop))
@@ -2049,6 +2165,55 @@ function _sample_trajectory(ss::TrajectorySampling, model, value_function, spec)
         ss.exclude_converged ? something(ss.converged_eps, Float64(convergence_eps(prop))) :
         nothing
     terminal = ss.exclude_converged ? union(reach_set, avoid_set) : nothing
+
+    # A function barrier: the resolved policies and scores are only known at run
+    # time, so the loop is compiled for their concrete types.
+    return _rollout!(
+        trajectory,
+        s,
+        ss,
+        model,
+        value_function,
+        spec,
+        scratch,
+        reach_set,
+        avoid_set,
+        marginal,
+        dir,
+        Vt,
+        cap,
+        ss.action_score,
+        action_policy,
+        state_policy,
+        state_score,
+        visited,
+        converged_eps,
+        terminal,
+    )
+end
+
+function _rollout!(
+    trajectory,
+    s,
+    ss,
+    model,
+    value_function,
+    spec,
+    scratch,
+    reach_set,
+    avoid_set,
+    marginal,
+    dir,
+    Vt,
+    cap,
+    action_score,
+    action_policy,
+    state_policy,
+    state_score,
+    visited,
+    converged_eps,
+    terminal,
+)
     i = 0
 
     while !(s in reach_set) &&
@@ -2058,10 +2223,21 @@ function _sample_trajectory(ss::TrajectorySampling, model, value_function, spec)
         push!(trajectory, s)
         visited === nothing || push!(visited, s)
 
-        a = _sample_action(ss, s, value_function, model, spec, marginal, dir, action_policy)
+        a = _sample_action(
+            ss,
+            s,
+            value_function,
+            model,
+            spec,
+            marginal,
+            dir,
+            action_policy,
+            action_score,
+            scratch,
+        )
         a === nothing && break
 
-        probs = _omax_distribution(marginal[a, s], Vt, dir)
+        probs = _omax_realize!(scratch, marginal[a, s], Vt, dir)
         _terminate_post(ss, s, a, probs, trajectory, i, value_function, model, spec) &&
             break
 
