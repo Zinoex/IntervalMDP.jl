@@ -723,6 +723,136 @@ end
     end
 end
 
+@testitem "TrajectorySampling: successor filters" tags =
+    [:base, :trajectory_sampling, :trajectory_filters] begin
+    using IntervalMDP
+    const TS = IntervalMDP.TrajectorySampling
+
+    # States 1 and 2 loop among themselves; 3 is the goal.
+    amb1 = IntervalAmbiguitySets(;
+        lower = [0.2 0.2; 0.2 0.2; 0.1 0.1],
+        upper = [0.6 0.6; 0.6 0.6; 0.3 0.3],
+    )
+    absorbing = IntervalAmbiguitySets(;
+        lower = [0.0 0.0; 0.0 0.0; 1.0 1.0],
+        upper = [0.0 0.0; 0.0 0.0; 1.0 1.0],
+    )
+    mdp = IntervalMarkovDecisionProcess([amb1, amb1, absorbing], [1])
+    spec = Specification(InfiniteTimeReachability([3], 1e-3), Pessimistic, Maximize)
+    s, a = CartesianIndex(1), CartesianIndex(1)
+
+    @testset "constructor: off by default, eps only with the flag" begin
+        ss = TS.TrajectorySampling()
+        @test !ss.exclude_visited && !ss.exclude_converged && ss.converged_eps === nothing
+        @test TS.TrajectorySampling(; exclude_converged = true, converged_eps = 0.01).converged_eps ==
+              0.01
+        @test_throws ArgumentError TS.TrajectorySampling(; converged_eps = 0.01)
+        @test_throws ArgumentError TS.TrajectorySampling(;
+            exclude_converged = true,
+            converged_eps = -1.0,
+        )
+    end
+
+    vf = (upper = (current = [0.9, 0.5, 1.0],), lower = (current = [0.1, 0.4995, 1.0],))
+    # Diff = [0.8, 0.0005, 0.0]
+
+    @testset "_filter_successors!" begin
+        @test TS._filter_successors!([1, 2, 3], mdp, vf, nothing, nothing) == [1, 2, 3]
+        @test TS._filter_successors!([1, 2, 3], mdp, vf, nothing, 1e-3) == [1]
+        @test TS._filter_successors!([1, 2, 3], mdp, vf, nothing, 1e-4) == [1, 2]
+        @test TS._filter_successors!([1, 2, 3], mdp, vf, nothing, 0.0) == [1, 2, 3]
+        @test TS._filter_successors!([1, 2, 3], mdp, vf, Set([CartesianIndex(1)]), nothing) ==
+              [2, 3]
+        @test TS._filter_successors!(
+            [1, 2, 3],
+            mdp,
+            vf,
+            Set([CartesianIndex(1)]),
+            1e-3,
+        ) == Int[]
+        # Terminal states are exempt from the convergence filter (not from `visited`).
+        goal = Set([CartesianIndex(3)])
+        @test TS._filter_successors!([1, 2, 3], mdp, vf, nothing, 1e-3, goal) == [1, 3]
+        @test TS._filter_successors!([1, 2, 3], mdp, vf, Set([CartesianIndex(1)]), 1e-3, goal) ==
+              [3]
+        # So are implicit sinks: target 3 below has no source column.
+        dirac(rows) = IntervalAmbiguitySets(; lower = rows, upper = rows)
+        sink_mdp = IntervalMarkovDecisionProcess(
+            [dirac([0.0 0.0; 0.0 0.0; 1.0 1.0]), dirac([0.0 0.0; 0.0 0.0; 1.0 1.0])],
+            [1],
+        )
+        @test TS._filter_successors!([1, 2, 3], sink_mdp, vf, nothing, 1e-3) == [1, 3]
+    end
+
+    @testset "_sample_state honours the filters under every policy" begin
+        probs = [0.4, 0.4, 0.2]
+        for (policy, score) in (
+            (TS.EpsilonGreedy(1.0), TS.GreedyScore()),       # always the uniform branch
+            (TS.EpsilonGreedy(0.0), TS.GreedyScore()),       # always the argmax (state 1)
+            (TS.Boltzmann(1.0), TS.MixtureStateScore()),
+            (TS.Boltzmann(1.0), TS.LogStateScore(TS.MixtureStateScore())),
+        )
+            ss = TS.TrajectorySampling(; state_policy = policy, state_score = score)
+            draw(; kw...) = TS._sample_state(ss, s, a, probs, vf, mdp, nothing, policy, score; kw...)
+            @test all(_ -> draw(; visited = Set([CartesianIndex(1)])) != CartesianIndex(1), 1:100)
+            @test all(_ -> draw(; converged_eps = 1e-4) in (CartesianIndex(1), CartesianIndex(2)), 1:100)
+            @test all(_ -> draw(; converged_eps = 1e-3) == CartesianIndex(1), 1:20)
+            @test draw(; visited = Set([CartesianIndex(1)]), converged_eps = 1e-3) === nothing
+        end
+    end
+
+    open_vf = (upper = (current = [1.0, 1.0, 1.0],), lower = (current = [0.0, 0.0, 1.0],))
+
+    @testset "exclude_visited: a rollout never revisits a state" begin
+        # Uniform successor draws on a looping model: without the filter, rollouts revisit.
+        loose = TS.TrajectorySampling(;
+            state_policy = TS.EpsilonGreedy(1.0),
+            terminate = [TS.MaxSteps(50)],
+        )
+        @test any(_ -> !allunique(TS._sample_trajectory(loose, mdp, open_vf, spec)), 1:200)
+
+        strict = TS.TrajectorySampling(;
+            state_policy = TS.EpsilonGreedy(1.0),
+            terminate = [TS.MaxSteps(50)],
+            exclude_visited = true,
+        )
+        @test all(_ -> allunique(TS._sample_trajectory(strict, mdp, open_vf, spec)), 1:200)
+    end
+
+    @testset "exclude_converged: a rollout never enters a converged state" begin
+        # State 2 is converged; with the filter, rollouts from state 1 never reach it.
+        conv_vf = (upper = (current = [1.0, 0.5, 1.0],), lower = (current = [0.0, 0.5, 1.0],))
+        ss = TS.TrajectorySampling(;
+            state_policy = TS.EpsilonGreedy(1.0),
+            terminate = [TS.MaxSteps(50)],
+            exclude_converged = true,
+        )
+        @test all(
+            _ -> !(CartesianIndex(2) in TS._sample_trajectory(ss, mdp, conv_vf, spec)),
+            1:200,
+        )
+        # The default threshold is the property's convergence_eps (1e-3 here): a gap
+        # of 5e-4 counts as converged, one of 2e-3 does not.
+        near = (upper = (current = [1.0, 0.5005, 1.0],), lower = (current = [0.0, 0.5, 1.0],))
+        @test all(_ -> !(CartesianIndex(2) in TS._sample_trajectory(ss, mdp, near, spec)), 1:200)
+        far = (upper = (current = [1.0, 0.502, 1.0],), lower = (current = [0.0, 0.5, 1.0],))
+        @test any(_ -> CartesianIndex(2) in TS._sample_trajectory(ss, mdp, far, spec), 1:200)
+    end
+
+    @testset "exclude_converged: rollouts still end at the goal" begin
+        # The goal (state 3) has a zero gap but stays drawable, so rollouts end by
+        # reaching it rather than all running to the 50-step cap.
+        conv_vf = (upper = (current = [1.0, 0.5, 1.0],), lower = (current = [0.0, 0.5, 1.0],))
+        ss = TS.TrajectorySampling(;
+            state_policy = TS.EpsilonGreedy(1.0),
+            terminate = [TS.MaxSteps(50)],
+            exclude_converged = true,
+        )
+        lens = [length(TS._sample_trajectory(ss, mdp, conv_vf, spec)) for _ in 1:200]
+        @test count(<(50), lens) > 150
+    end
+end
+
 @testitem "TrajectorySampling: VPI successor score" tags =
     [:base, :trajectory_sampling, :trajectory_vpi] begin
     using IntervalMDP
@@ -1280,6 +1410,21 @@ end
         @test !stop(2.5)
     end
 
+    @testset "ExpectedGapStop: no allocation that grows with |S|" begin
+        # It runs at every step of every rollout, so it must not build `U .- L`.
+        rule = TS.ExpectedGapStop(10.0)
+        s, a = CartesianIndex(1), CartesianIndex(1)
+        function allocs(n)
+            vf = (upper = (current = fill(1.0, n),), lower = (current = fill(0.5, n),))
+            probs = zeros(n)
+            probs[2] = 1.0
+            check() = TS.terminate_post(rule, s, a, probs, CartesianIndex[], 0, vf, mdp, nothing)
+            check()   # compile
+            return @allocated check()
+        end
+        @test allocs(10_000) <= allocs(10)
+    end
+
     @testset "ExpectedGapStop: a converged state ends the rollout" begin
         s, a = CartesianIndex(1), CartesianIndex(1)
         # U(s) == L(s), so the threshold is 0 and B >= 0 can never fall below
@@ -1501,6 +1646,7 @@ end
                 gauss_seidel = true,
                 k = 2,
             ),
+            "exclude visited" => TS.TrajectorySampling(; exclude_visited = true),
             "expected-gap stop" => TS.TrajectorySampling(;
                 terminate = [TS.MaxSteps(), TS.ExpectedGapStop(10.0)],
             ),
@@ -1539,6 +1685,46 @@ end
             )
             (V, _, _) = solve(problem, gsdp)
             @test maximum(abs, V_rvi .- V) <= 2 * eps
+        end
+
+        # exclude_converged is meant for convergence on the initial states, so its
+        # parity is checked there, at the initial state, and without the warning.
+        init_prop = InfiniteTimeReachability([3], eps; restrict_to_initial = true)
+        init_problem = VerificationProblem(mdp, Specification(init_prop, Pessimistic, Maximize))
+        @testset "$name (restrict_to_initial)" for (name, ss) in [
+            "exclude converged" => TS.TrajectorySampling(; exclude_converged = true),
+            "both filters, power rule, gauss-seidel" => TS.TrajectorySampling(;
+                state_policy = TS.Boltzmann(1.0),
+                state_score = TS.LogStateScore(TS.MixtureStateScore()),
+                exclude_visited = true,
+                exclude_converged = true,
+                gauss_seidel = true,
+                k = 2,
+            ),
+        ]
+            gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
+                default_bellman_algorithm(mdp);
+                sampling_strategy = ss,
+            )
+            (V, _, _) = @test_logs solve(init_problem, gsdp)
+            @test abs(V_rvi[1] - V[1]) <= 2 * eps
+        end
+
+        @testset "exclude_converged warns once per solve without restrict_to_initial" begin
+            ss = TS.TrajectorySampling(; exclude_converged = true)
+            gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
+                default_bellman_algorithm(mdp);
+                sampling_strategy = ss,
+            )
+            # Exactly one warning over the whole solve, and again on the next solve.
+            @test_logs (:warn, r"restrict_to_initial") solve(problem, gsdp)
+            @test_logs (:warn, r"restrict_to_initial") solve(problem, gsdp)
+            # Not without the filter.
+            plain = GeneralizedSamplingbasedRobustDynamicProgramming(
+                default_bellman_algorithm(mdp);
+                sampling_strategy = TS.TrajectorySampling(),
+            )
+            @test_logs solve(problem, plain)
         end
 
         # `n` for UpdateDecayTemperature is meant to BE the solver's backup

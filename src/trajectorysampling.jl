@@ -138,6 +138,9 @@ import ..IntervalMDP:
     _ismaximize,
     _is_source_state,
     _maybe_target_state,
+    _target_state,
+    convergence_eps,
+    restrict_to_initial,
     _action_uncertainty,
     _categorical_sample,
     _trajectory_reach_states,
@@ -1577,11 +1580,18 @@ function terminate_post(
     model,
     spec,
 )
-    gap = value_function.upper.current .- value_function.lower.current
-    diff = gap[s]
+    U, L = value_function.upper.current, value_function.lower.current
+    diff = U[s] - L[s]
     iszero(diff) && return true
 
-    B = dot(probs, vec(gap))
+    # Summed over the support rather than via a full `U .- L` vector: this runs at
+    # every step of every rollout, and the allocation was O(|S|) per step.
+    Uv, Lv = vec(U), vec(L)
+    B = zero(Float64)
+    for j in eachindex(probs)
+        p = probs[j]
+        p > 0 && (B += Float64(p) * (Float64(Uv[j]) - Float64(Lv[j])))
+    end
     return B < diff / rule.tau
 end
 
@@ -1627,6 +1637,13 @@ Each of the four decisions is configured independently:
 - `state_score::StateScore = GreedyScore()`: `f_S(s', s, a)`. A
   [`MixtureStateScore`](@ref)'s weights `α_e`, `α_p` are resolved once per
   rollout against the initial gap, like a temperature (below).
+- `exclude_visited::Bool = false`: never move to a state this rollout has
+  already visited. See "Successor filters" below.
+- `exclude_converged::Bool = false`: never move to a successor whose gap
+  `U(s') − L(s')` is below `converged_eps`. See "Successor filters" below.
+- `converged_eps = nothing`: the threshold for `exclude_converged`; `nothing`
+  means the property's `convergence_eps`, the tolerance GSRDP itself terminates
+  on. Only allowed with `exclude_converged = true`.
 - `terminate = [MaxSteps()]`: extra [`TerminationRule`](@ref)s, ORed together.
 - `gauss_seidel::Bool = false`: see below.
 - `k::Int = 1`: batch size, used only when `gauss_seidel = true`.
@@ -1667,6 +1684,40 @@ sampled at.
     `t_min = 0.5` converges. The same goes for [`GapBasedTemperature`](@ref),
     whose odds alone reach `T ≈ k·ε` once the initial gap is down to `ε`:
     `t_min = 0` removes its floor.
+
+# Successor filters
+
+`exclude_visited` and `exclude_converged` remove successors from the support of
+`p(·|s,a)` before anything is scored, so they hold under every policy and score:
+ε-greedy's argmax and its uniform branch, the softmax and the power rule alike,
+with a [`MixtureStateScore`](@ref) renormalizing over the successors that remain.
+The transition is still realized over the full ambiguity set, and the Bellman
+backups still use the full model, so neither filter affects correctness, only
+which states the rollouts reach.
+
+* `exclude_visited` keeps the states of the current rollout, the one being
+  stood on included, and drops them from every later draw of that rollout, so a
+  trajectory never revisits a state (no self-loops, no cycles). The set starts
+  empty for each rollout.
+* `exclude_converged` drops a successor `s'` with `U(s') − L(s') < converged_eps`.
+  Terminal states are exempt: goal and avoid states and implicit sinks have a
+  zero gap, but stepping onto one is how a rollout ends, so it still can.
+
+A rollout whose successors are all filtered out ends at the current state, as
+when no successor carries mass.
+
+!!! warning
+    Pair `exclude_converged` with a property that sets `restrict_to_initial`
+    (and a model that declares its initial states); `sample` warns once per
+    solve otherwise.
+    A state's gap can fall below `converged_eps` while one of its successors'
+    gaps is still above it (that successor carries little probability), and
+    once every route to an open state passes through such a converged state, no
+    rollout reaches it again. Converging on the initial states alone is
+    unaffected, but GSRDP's default criterion asks every state's gap to close,
+    and those cut-off states never do: on `linear_stochastically_switched_S10`
+    and `car_parking_S10_I3` the solve stalls with a handful of open states that
+    no rollout can reach.
 
 # Gauss-Seidel batching
 
@@ -1723,6 +1774,9 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
     gauss_seidel::Bool
     k::Int
     reverse::Bool
+    exclude_visited::Bool
+    exclude_converged::Bool
+    converged_eps::Union{Nothing, Float64}
 
     # Active-trajectory batching state. `Base.RefValue{Any}` because the
     # `CartesianIndex{N}` arity isn't known until there is a model in hand —
@@ -1738,6 +1792,9 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
     # GSRDP's bound-update mode, which sets what one relaxed state costs; see
     # `set_bound_update!`.
     bound_update::Base.RefValue{BoundUpdateMode}
+    # Whether this solve has already warned about `exclude_converged` without
+    # `restrict_to_initial` (`_warn_converged_scope!`).
+    warned_scope::Base.RefValue{Bool}
 
     function TrajectorySampling(;
         action_policy::SelectionPolicy = EpsilonGreedy(0.1),
@@ -1749,11 +1806,22 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
         gauss_seidel::Bool = false,
         k::Int = 1,
         reverse::Bool = true,
+        exclude_visited::Bool = false,
+        exclude_converged::Bool = false,
+        converged_eps::Union{Nothing, Real} = nothing,
     )
         rules = collect(TerminationRule, terminate)
         gauss_seidel &&
             k < 1 &&
             throw(ArgumentError("k must be positive when gauss_seidel = true, got $k"))
+        if converged_eps !== nothing
+            exclude_converged || throw(
+                ArgumentError("converged_eps only applies with exclude_converged = true"),
+            )
+            converged_eps >= 0 || throw(
+                ArgumentError("converged_eps must be non-negative, got $converged_eps"),
+            )
+        end
         return new(
             action_policy,
             action_score,
@@ -1764,10 +1832,14 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
             gauss_seidel,
             k,
             reverse,
+            exclude_visited,
+            exclude_converged,
+            converged_eps === nothing ? nothing : Float64(converged_eps),
             Ref{Any}(nothing),
             Ref(0),
             Ref(0),
             Ref{BoundUpdateMode}(FollowDrive()),
+            Ref(false),
         )
     end
 end
@@ -1783,6 +1855,7 @@ function reset_sampling_strategy!(ss::TrajectorySampling)
     # The temperature schedules anneal over one solve, not over the lifetime of
     # the strategy object, so the backup count restarts with it.
     ss.updates[] = 0
+    ss.warned_scope[] = false
     # Backup magnitudes measured in the previous `solve` say nothing about this
     # one's value function.
     _reset_score!(ss.state_score)
@@ -1850,7 +1923,35 @@ function _sample_action(
 end
 
 """
-    _sample_state(ss, s, a, probs, vf, model, spec, policy = ss.state_policy, score = ss.state_score) -> Union{CartesianIndex, Nothing}
+    _filter_successors!(supp, model, vf, visited, converged_eps, terminal = nothing) -> supp
+
+Drop from `supp` (linear target indices) every successor whose gap
+`U − L` is below `converged_eps`, and every one in `visited`, a set of state
+indices. `nothing` turns either filter off.
+
+Terminal successors are exempt from the convergence filter: the states in
+`terminal` (the property's reach and avoid states) and the implicit sinks. Their
+gap is zero, but drawing one is how a rollout ends, so dropping them would leave
+every rollout running to its step cap.
+"""
+function _filter_successors!(supp, model, vf, visited, converged_eps, terminal = nothing)
+    if converged_eps !== nothing
+        Uv, Lv = vec(vf.upper.current), vec(vf.lower.current)
+        filter!(supp) do i
+            Float64(Uv[i]) - Float64(Lv[i]) >= converged_eps && return true
+            t = _target_state(model, i)
+            return (terminal !== nothing && t in terminal) || !_is_source_state(model, t)
+        end
+    end
+    if visited !== nothing
+        filter!(i -> !(_target_state(model, i) in visited), supp)
+    end
+    return supp
+end
+
+"""
+    _sample_state(ss, s, a, probs, vf, model, spec, policy = ss.state_policy, score = ss.state_score;
+                  visited = nothing, converged_eps = nothing, terminal = nothing) -> Union{CartesianIndex, Nothing}
 
 Draw a successor from the support of `probs` — the linear target indices
 carrying positive mass. `nothing` if nothing does, which ends the rollout.
@@ -1860,7 +1961,10 @@ latter returns the *full* target range for a dense `IntervalAmbiguitySets`, so
 going by it would offer successors the realized distribution assigns no mass.
 
 `policy` and `score` are the strategy's successor policy and score, resolved
-for this rollout (`_resolve_policy`, `_resolve_score`).
+for this rollout (`_resolve_policy`, `_resolve_score`). `visited` and
+`converged_eps` are the successor filters, applied before scoring
+(`_filter_successors!`); `nothing` turns each off. `terminal`, the reach and
+avoid states, are exempt from the convergence filter, as are implicit sinks.
 
 `EpsilonGreedy` and `Boltzmann` score differently here, deliberately, following
 the writeup: ε-greedy exploits on `p(x)·f_greedy(x)` alone, whatever
@@ -1878,9 +1982,13 @@ function _sample_state(
     model,
     spec,
     policy::SelectionPolicy = ss.state_policy,
-    score::StateScore = ss.state_score,
+    score::StateScore = ss.state_score;
+    visited = nothing,
+    converged_eps = nothing,
+    terminal = nothing,
 )
     supp = [i for i in eachindex(probs) if probs[i] > zero(eltype(probs))]
+    _filter_successors!(supp, model, vf, visited, converged_eps, terminal)
     isempty(supp) && return nothing
 
     if policy isa EpsilonGreedy
@@ -1935,6 +2043,12 @@ function _sample_trajectory(ss::TrajectorySampling, model, value_function, spec)
         state_policy isa EpsilonGreedy ? ss.state_score : _resolve_score(ss.state_score, ctx.diff)
 
     trajectory = typeof(s)[]
+    # The successor filters, fixed for the rollout.
+    visited = ss.exclude_visited ? Set{typeof(s)}() : nothing
+    converged_eps =
+        ss.exclude_converged ? something(ss.converged_eps, Float64(convergence_eps(prop))) :
+        nothing
+    terminal = ss.exclude_converged ? union(reach_set, avoid_set) : nothing
     i = 0
 
     while !(s in reach_set) &&
@@ -1942,6 +2056,7 @@ function _sample_trajectory(ss::TrajectorySampling, model, value_function, spec)
               !_terminate_pre(ss, s, trajectory, i, value_function, model, spec) &&
               i < cap
         push!(trajectory, s)
+        visited === nothing || push!(visited, s)
 
         a = _sample_action(ss, s, value_function, model, spec, marginal, dir, action_policy)
         a === nothing && break
@@ -1959,11 +2074,14 @@ function _sample_trajectory(ss::TrajectorySampling, model, value_function, spec)
             model,
             spec,
             state_policy,
-            state_score,
+            state_score;
+            visited,
+            converged_eps,
+            terminal,
         )
-        # `nothing` = no successor carries mass under this weighting, so there
-        # is none the strategy can honestly pick — end the rollout rather than
-        # move to an arbitrary state.
+        # `nothing` = no successor carries mass under this weighting, or the
+        # filters left none, so there is none the strategy can honestly pick —
+        # end the rollout rather than move to an arbitrary state.
         sp === nothing && break
 
         s = sp
@@ -1998,7 +2116,32 @@ function _count_updates!(ss::TrajectorySampling, model, batch)
     return batch
 end
 
+"""
+    _warn_converged_scope!(ss, model, spec)
+
+Warn, once per solve, when `exclude_converged` is on but the solve converges on
+every state: the property does not set `restrict_to_initial`, or the model
+declares no initial states, so the restriction has nothing to restrict to.
+Trajectory sampling is designed for convergence on the initial states, and
+there a converged state can cut rollouts off from open states the criterion
+still waits on (see the warning on [`TrajectorySampling`](@ref)).
+"""
+function _warn_converged_scope!(ss::TrajectorySampling, model, spec)
+    (ss.exclude_converged && !ss.warned_scope[]) || return nothing
+    prop = system_property(spec)
+    restrict_to_initial(prop) && !(initial_states(model) isa AllStates) && return nothing
+    ss.warned_scope[] = true
+    @warn "TrajectorySampling: exclude_converged = true, but the solve converges on every " *
+          "state (the property does not set restrict_to_initial, or the model declares " *
+          "no initial states). A converged state can cut rollouts off from open states, " *
+          "and the solve can stall. Trajectory sampling is designed for " *
+          "restrict_to_initial = true."
+    return nothing
+end
+
 function sample(ss::TrajectorySampling, model, strategy_cache, value_function, spec)
+    _warn_converged_scope!(ss, model, spec)
+
     # The previous batch has been backed up by now, so its backup magnitudes can
     # be measured before this call's rollout is scored.
     _before_sample!(ss.state_score, value_function)
