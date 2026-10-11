@@ -98,14 +98,37 @@ Base.@propagate_inbounds function state_action_bellman(
     budget,
     upper_bound,
 )
-    Vp_workspace = @view workspace.values_gaps[1:supportsize(ambiguity_set)]
+    n = supportsize(ambiguity_set)
+    Vp_workspace = @view workspace.values_gaps[1:n]
     Vnonzero = @view V[support(ambiguity_set)]
     for (i, (v, p)) in enumerate(zip(Vnonzero, nonzeros(gap(ambiguity_set))))
         Vp_workspace[i] = (v, p)
     end
-    sort!(Vp_workspace; rev = upper_bound, by = first, scratch = scratch(workspace))
-    return dot(V, lower(ambiguity_set)) + gap_value(Vp_workspace, budget)
+    gv = sorted_gap_value!(workspace.values_gaps, n, budget, upper_bound, scratch(workspace))
+    return dot(V, lower(ambiguity_set)) + gv
 end
+
+# Stable sort of `(value, gap)` tuples by value, descending iff `upper_bound`. This is
+# exactly `sort!(Vp; rev = upper_bound, by = first, scratch)`: that call builds the
+# ordering `ord(isless, first, rev)`, i.e. `By(first, Forward)` or (for `rev = true`)
+# `ReverseOrdering(By(first, Forward)) === By(first, Reverse)`, and passes it with the
+# default algorithm to `_sort!`. Building the same ordering object in a branch on
+# `upper_bound` yields the identical sort call (same algorithm, same ordering, same
+# permutation), but with a concrete ordering type: the keyword form constructs the
+# ordering from a runtime `Bool` through an unspecialized `by::Function`, which costs a
+# dynamic dispatch (and an allocation) per call — dominant for the small supports
+# sorted here once per (state, action) pair.
+@inline function _sort_by_value!(Vp, upper_bound::Bool, scratch)
+    if upper_bound
+        sort!(Vp; order = Base.Order.By(first, Base.Order.Reverse), scratch = scratch)
+    else
+        sort!(Vp; order = Base.Order.By(first, Base.Order.Forward), scratch = scratch)
+    end
+    return Vp
+end
+# Any non-`Bool` `upper_bound` keeps the original keyword call (and its behaviour).
+@inline _sort_by_value!(Vp, upper_bound, scratch) =
+    sort!(Vp; rev = upper_bound, by = first, scratch = scratch)
 
 Base.@propagate_inbounds function gap_value(
     Vp::VP,
@@ -121,6 +144,162 @@ Base.@propagate_inbounds function gap_value(
         end
     end
     return res
+end
+
+# `sorted_gap_value!(buf, n, budget, upper_bound, scratch)` returns exactly
+#
+#     Vp = view(buf, 1:n); _sort_by_value!(Vp, upper_bound, scratch); gap_value(Vp, budget)
+#
+# i.e. the O-max gap mass accumulated along the *stable* sort of the `(value, gap)`
+# tuples by value. `gap_value` only reads the sorted prefix up to the element that
+# exhausts the budget (typically a third of the support), so the fast path sorts lazily:
+# a stable three-way quicksort that recurses into the "better" part first and feeds the
+# elements, in sorted order, straight into the identical `gap_value` accumulation,
+# stopping as soon as the budget is exhausted. The unsorted remainder is never sorted.
+#
+# Exactness: a stable sort's output is unique for a given strict weak order, and the
+# accumulation consumes elements one by one in that order with the same arithmetic as
+# `gap_value`, so the result is bit-identical. Comparisons use the native `<` on the
+# values, which coincides with `isless` (what `by = first` sorts with) unless a value is
+# `NaN` or `-0.0`; inputs containing either take the original sort-then-accumulate path.
+# The contents of `buf` afterwards are unspecified (no caller reads them).
+function sorted_gap_value!(
+    buf::Vector{Tuple{T, T}},
+    n::Integer,
+    budget::T,
+    upper_bound::Bool,
+    scratch::Vector{Tuple{T, T}},
+) where {T <: Base.IEEEFloat}
+    (n <= length(buf) && n <= length(scratch)) ||
+        return _sorted_gap_value_fallback!(buf, n, budget, upper_bound, scratch)
+    clean = true
+    @inbounds for i in 1:n
+        v = buf[i][1]
+        clean &= !(isnan(v) | (iszero(v) & signbit(v)))
+    end
+    clean || return _sorted_gap_value_fallback!(buf, n, budget, upper_bound, scratch)
+
+    res = zero(T)
+    if upper_bound
+        res, _, _ = _lazy_gap_value!(buf, scratch, 1, Int(n), res, budget, Val(true), 0)
+    else
+        res, _, _ = _lazy_gap_value!(buf, scratch, 1, Int(n), res, budget, Val(false), 0)
+    end
+    return res
+end
+
+sorted_gap_value!(buf, n, budget, upper_bound, scratch) =
+    _sorted_gap_value_fallback!(buf, n, budget, upper_bound, scratch)
+
+function _sorted_gap_value_fallback!(buf, n, budget, upper_bound, scratch)
+    Vp = @view buf[1:n]
+    _sort_by_value!(Vp, upper_bound, scratch)
+    return gap_value(Vp, budget)
+end
+
+# Strict "comes first" relation: ascending (`Val(false)`) or descending (`Val(true)`).
+@inline _gap_value_lt(::Val{false}, a, b) = a < b
+@inline _gap_value_lt(::Val{true}, a, b) = b < a
+
+# One step of `gap_value`'s loop; the flag is its `break` condition.
+@inline function _gap_value_step(res::T, budget::T, x::Tuple{T, T}) where {T}
+    v, p = x
+    p = min(budget, p)
+    res += p * v
+    budget -= p
+    return res, budget, budget <= zero(T)
+end
+
+const _LAZY_GAP_VALUE_SMALL = 32
+const _LAZY_GAP_VALUE_MAX_DEPTH = 48
+
+# Consume `v[lo:hi]` in stable sorted order into `(res, budget)`. Invariant: `v[lo:hi]`
+# holds exactly the elements that follow everything consumed so far in the stable
+# order, in their original relative order. Returns `(res, budget, exhausted)`.
+function _lazy_gap_value!(
+    v::Vector{Tuple{T, T}},
+    t::Vector{Tuple{T, T}},
+    lo::Int,
+    hi::Int,
+    res::T,
+    budget::T,
+    r::Val,
+    depth::Int,
+) where {T}
+    @inbounds while hi - lo >= _LAZY_GAP_VALUE_SMALL
+        if depth > _LAZY_GAP_VALUE_MAX_DEPTH
+            # Degenerate pivots: stable-sort the rest (same order) and consume it below.
+            order = r === Val(true) ? Base.Order.By(first, Base.Order.Reverse) :
+                    Base.Order.By(first, Base.Order.Forward)
+            sort!(view(v, lo:hi); order = order, scratch = t)
+            break
+        end
+
+        # Median-of-three pivot value (any element's value is correct; this is speed).
+        a = v[lo][1]
+        b = v[(lo + hi) >>> 1][1]
+        c = v[hi][1]
+        pivot = if _gap_value_lt(r, a, b)
+            _gap_value_lt(r, b, c) ? b : (_gap_value_lt(r, a, c) ? c : a)
+        else
+            _gap_value_lt(r, a, c) ? a : (_gap_value_lt(r, b, c) ? c : b)
+        end
+
+        # Stable three-way partition: "before" compacted in place at the front, "equal"
+        # buffered at the front of `t`, "after" buffered from the back of `t`.
+        len = hi - lo + 1
+        w = lo
+        ne = 0
+        na = 0
+        for i in lo:hi
+            x = v[i]
+            if _gap_value_lt(r, x[1], pivot)
+                v[w] = x
+                w += 1
+            elseif _gap_value_lt(r, pivot, x[1])
+                t[len - na] = x
+                na += 1
+            else
+                ne += 1
+                t[ne] = x
+            end
+        end
+        for j in 1:ne
+            v[w + j - 1] = t[j]
+        end
+        for j in 1:na
+            v[w + ne + j - 1] = t[len - j + 1]
+        end
+
+        if w > lo
+            res, budget, done = _lazy_gap_value!(v, t, lo, w - 1, res, budget, r, depth + 1)
+            done && return res, budget, true
+        end
+        for j in w:(w + ne - 1)
+            res, budget, done = _gap_value_step(res, budget, v[j])
+            done && return res, budget, true
+        end
+        lo = w + ne
+        depth += 1
+    end
+
+    # Small range: stable insertion sort, then consume.
+    @inbounds for i in (lo + 1):hi
+        x = v[i]
+        j = i
+        while j > lo
+            y = v[j - 1]
+            _gap_value_lt(r, x[1], y[1]) || break
+            v[j] = y
+            j -= 1
+        end
+        v[j] = x
+    end
+    @inbounds for j in lo:hi
+        res, budget, done = _gap_value_step(res, budget, v[j])
+        done && return res, budget, true
+    end
+    return res, budget, false
 end
 
 ###############################################################################
@@ -191,12 +370,13 @@ Base.@propagate_inbounds function orthogonal_inner_bellman!(
     budget,
     upper_bound::Bool,
 )
-    Vp_workspace = @view workspace.values_gaps[1:supportsize(ambiguity_set)]
+    n = supportsize(ambiguity_set)
+    Vp_workspace = @view workspace.values_gaps[1:n]
     @inbounds for (i, j) in enumerate(support(ambiguity_set))
         Vp_workspace[i] = (V[j], gap(ambiguity_set, j))
     end
-    sort!(Vp_workspace; rev = upper_bound, by = first, scratch = scratch(workspace))
-    return dot(V, lower(ambiguity_set)) + gap_value(Vp_workspace, budget)
+    gv = sorted_gap_value!(workspace.values_gaps, n, budget, upper_bound, scratch(workspace))
+    return dot(V, lower(ambiguity_set)) + gv
 end
 
 ###############################################################################
@@ -344,7 +524,7 @@ end
 
 # Flat IMDP — single ambiguity set per (a, s).
 Base.@propagate_inbounds function _populate_actions!(
-    workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
+    workspace::DenseIntervalOMaxWorkspace,
     V,
     model,
     jₛ,
@@ -357,6 +537,233 @@ Base.@propagate_inbounds function _populate_actions!(
         workspace.actions[jₐ] =
             state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)
     end
+end
+
+Base.@propagate_inbounds function _populate_actions!(
+    workspace::SparseIntervalOMaxWorkspace,
+    V,
+    model,
+    jₛ,
+    upper_bound,
+)
+    marginal = marginals(model)[1]
+    actions = available(model, jₛ)
+    _populate_actions_shared_order!(workspace, V, marginal, actions, jₛ, upper_bound) &&
+        return nothing
+    for jₐ in actions
+        ambiguity_set = marginal[jₐ, jₛ]
+        budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
+        workspace.actions[jₐ] =
+            state_action_bellman(workspace, V, ambiguity_set, budget, upper_bound)
+    end
+    return nothing
+end
+
+# Speed heuristic only (exactness does not depend on it): the shared order pays off when
+# many actions share most of their rows (it amortizes one lazy sort over the actions but
+# costs a row -> position map per action); with few actions the per-action lazy sort is
+# faster (measured: 9 and 25 actions win by ~25%, 3 actions lose).
+const _SHARED_ORDER_MIN_ACTIONS = 4
+const _SHARED_ORDER_MIN_UNION = 16
+const _SHARED_ORDER_MIN_OVERLAP = 2
+
+# Strict total order on `(value, row)`: value ascending (`Rev = false`) or descending
+# (`Rev = true`), ties by row ascending. Only used on `NaN`/`-0.0`-free values.
+struct _ValueRowOrder{Rev} <: Base.Order.Ordering end
+Base.Order.lt(::_ValueRowOrder{false}, a, b) =
+    (a[1] < b[1]) | ((a[1] == b[1]) & (a[2] < b[2]))
+Base.Order.lt(::_ValueRowOrder{true}, a, b) =
+    (b[1] < a[1]) | ((a[1] == b[1]) & (a[2] < b[2]))
+
+# Shared per-state order for the sparse O-max kernel.
+#
+# Per action, `state_action_bellman` stable-sorts the support's `(V[row], gap)` tuples by
+# value — buffered in stored order, so ties keep stored order — and accumulates the gap
+# mass along that order (`gap_value`). When a state's actions share most of their
+# support rows (e.g. 9 actions over ~1.1k stored entries but only ~140 distinct rows on
+# car_parking_S20_I3), it is cheaper to sort the union of the rows once — lazily, only as
+# deep as the walks need — by the strict total order "value first (descending iff
+# `upper_bound`), then row ascending" and let every action walk that order, skipping rows
+# it does not store (a per-target row -> stored-position map, set and reset per action).
+#
+# Exactness: filtering a total order to an action's rows gives a total order on them;
+# when the action's stored rows are strictly ascending (the canonical CSC layout; checked
+# per action, otherwise that action takes the per-action kernel), "row ascending" is
+# "stored order", so this is exactly the stable sort by value the per-action kernel
+# walks. The walk feeds the elements to the identical `gap_value` step with the same
+# early exit and adds the same `dot(V, lower)`, so each Q-value is bit-identical. Values
+# are compared with `<`/`==`, which agree with `isless` unless a value is `NaN` or `-0.0`;
+# then (or for non-`Bool` directions or non-IEEE types) this returns `false` before any
+# action is written and the caller runs the per-action kernel. It also declines when the
+# state has few actions or they overlap too little (a pure speed heuristic, see below).
+_populate_actions_shared_order!(workspace, V, marginal, actions, jₛ, upper_bound) = false
+
+function _populate_actions_shared_order!(
+    workspace::SparseIntervalOMaxWorkspace{T},
+    V::AbstractVector{T},
+    marginal,
+    actions,
+    jₛ,
+    upper_bound::Bool,
+) where {T <: Base.IEEEFloat}
+    length(actions) >= _SHARED_ORDER_MIN_ACTIONS || return false
+    total = 0
+    for jₐ in actions
+        total += Int(supportsize(marginal[jₐ, jₛ]))
+    end
+    # Speed heuristic only: share the sort when the union is large enough to be worth
+    # it and at most `total / _SHARED_ORDER_MIN_OVERLAP` rows.
+    max_union = total ÷ _SHARED_ORDER_MIN_OVERLAP
+    max_union >= _SHARED_ORDER_MIN_UNION || return false
+
+    rowpos = workspace.rowpos
+    keys = workspace.union_keys
+    empty!(keys)
+
+    # Union of the support rows (marking with `rowpos`, then restoring it to zeros).
+    @inbounds for jₐ in actions
+        for row in support(marginal[jₐ, jₛ])
+            if rowpos[row] == 0
+                rowpos[row] = 1
+                push!(keys, (V[row], Int(row)))
+            end
+        end
+        length(keys) > max_union && break
+    end
+    clean = true
+    @inbounds for (v, row) in keys
+        rowpos[row] = 0
+        clean &= !(isnan(v) | (iszero(v) & signbit(v)))
+    end
+    (clean && length(keys) <= max_union) || return false
+
+    if upper_bound
+        _shared_order_actions!(workspace, V, marginal, actions, jₛ, _ValueRowOrder{true}())
+    else
+        _shared_order_actions!(workspace, V, marginal, actions, jₛ, _ValueRowOrder{false}())
+    end
+    return true
+end
+
+# Every action walks `workspace.union_keys` in `order`. The union is sorted lazily, only
+# as far as the deepest walk needs: `sorted` is the length of the sorted prefix and
+# `segments` a stack of the unsorted remainder's segments, leftmost on top.
+function _shared_order_actions!(
+    workspace::SparseIntervalOMaxWorkspace{T},
+    V,
+    marginal,
+    actions,
+    jₛ,
+    order::_ValueRowOrder,
+) where {T}
+    rowpos = workspace.rowpos
+    keys = workspace.union_keys
+    nkeys = length(keys)
+    t = workspace.union_scratch
+    length(t) < nkeys && resize!(t, nkeys)
+    segments = workspace.union_segments
+    empty!(segments)
+    nkeys > 0 && push!(segments, (1, nkeys))
+    sorted = 0
+
+    @inbounds for jₐ in actions
+        ambiguity_set = marginal[jₐ, jₛ]
+        budget = workspace.budget[sub2ind(marginal, jₐ, jₛ)]
+        rows = support(ambiguity_set)
+        gaps = nonzeros(gap(ambiguity_set))
+        n = length(rows)
+
+        ascending = true
+        prev = 0
+        for k in 1:n
+            row = Int(rows[k])
+            ascending &= row > prev
+            prev = row
+            rowpos[row] = k
+        end
+
+        if ascending
+            res = zero(T)
+            remaining = budget
+            pos = 0
+            while true
+                pos += 1
+                if pos > sorted
+                    isempty(segments) && break
+                    sorted = _extend_sorted_prefix!(keys, t, segments, order)
+                end
+                v, row = keys[pos]
+                k = rowpos[row]
+                k == 0 && continue
+                res, remaining, exhausted = _gap_value_step(res, remaining, (v, gaps[k]))
+                exhausted && break
+            end
+            for k in 1:n
+                rowpos[rows[k]] = 0
+            end
+            workspace.actions[jₐ] = dot(V, lower(ambiguity_set)) + res
+        else
+            for k in 1:n
+                rowpos[rows[k]] = 0
+            end
+            workspace.actions[jₐ] =
+                state_action_bellman(workspace, V, ambiguity_set, budget, order isa _ValueRowOrder{true})
+        end
+    end
+    return nothing
+end
+
+# Sort the leftmost pending segment of `keys` far enough to extend the sorted prefix by
+# at least one element (quicksort partitions under the strict total order `order`, which
+# has no ties, so stability is moot); returns the new sorted-prefix length.
+function _extend_sorted_prefix!(keys, t, segments, order)
+    lt = Base.Order.lt
+    lo, hi = pop!(segments)
+    @inbounds while hi - lo >= _LAZY_GAP_VALUE_SMALL
+        a = keys[lo]
+        b = keys[(lo + hi) >>> 1]
+        c = keys[hi]
+        pivot = if lt(order, a, b)
+            lt(order, b, c) ? b : (lt(order, a, c) ? c : a)
+        else
+            lt(order, a, c) ? a : (lt(order, b, c) ? c : b)
+        end
+        w = lo
+        ng = 0
+        for i in lo:hi
+            x = keys[i]
+            if lt(order, x, pivot)
+                keys[w] = x
+                w += 1
+            elseif lt(order, pivot, x)
+                ng += 1
+                t[ng] = x
+            end
+        end
+        keys[w] = pivot
+        for j in 1:ng
+            keys[w + j] = t[j]
+        end
+        ng > 0 && push!(segments, (w + 1, hi))
+        push!(segments, (w, w))
+        if w > lo
+            hi = w - 1
+        else
+            lo, hi = pop!(segments)
+        end
+    end
+    @inbounds for i in (lo + 1):hi
+        x = keys[i]
+        j = i
+        while j > lo
+            y = keys[j - 1]
+            lt(order, x, y) || break
+            keys[j] = y
+            j -= 1
+        end
+        keys[j] = x
+    end
+    return hi
 end
 
 # Factored O-Max — needs ambiguity sets per marginal and budget per

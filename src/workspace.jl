@@ -122,6 +122,13 @@ struct SparseIntervalOMaxWorkspace{T <: Real}
     scratch::Vector{Tuple{T, T}}
     values_gaps::Vector{Tuple{T, T}}
     actions::Vector{T}
+    # Shared per-state order (see `_populate_actions!` in bellman/kernels.jl): a
+    # per-target row -> stored-position map (all zeros between uses), the `(V[row], row)`
+    # keys of the union of a state's action supports, and lazy-sort scratch for them.
+    rowpos::Vector{Int}
+    union_keys::Vector{Tuple{T, Int}}
+    union_scratch::Vector{Tuple{T, Int}}
+    union_segments::Vector{Tuple{Int, Int}}
 end
 
 function SparseIntervalOMaxWorkspace(
@@ -134,7 +141,20 @@ function SparseIntervalOMaxWorkspace(
     scratch = Vector{Tuple{R, R}}(undef, max_support)
     values_gaps = Vector{Tuple{R, R}}(undef, max_support)
     actions = Vector{R}(undef, nactions)
-    return SparseIntervalOMaxWorkspace(budget, scratch, values_gaps, actions)
+    rowpos = zeros(Int, num_target(ambiguity_sets))
+    union_keys = Tuple{R, Int}[]
+    union_scratch = Tuple{R, Int}[]
+    union_segments = Tuple{Int, Int}[]
+    return SparseIntervalOMaxWorkspace(
+        budget,
+        scratch,
+        values_gaps,
+        actions,
+        rowpos,
+        union_keys,
+        union_scratch,
+        union_segments,
+    )
 end
 
 scratch(ws::SparseIntervalOMaxWorkspace) = ws.scratch

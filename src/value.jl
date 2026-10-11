@@ -201,7 +201,59 @@ end
 _bracket_tolerance(::Type{R}) where {R <: AbstractFloat} = sqrt(eps(R))
 _bracket_tolerance(::Type{R}) where {R} = zero(R)
 
+"""
+    gap!(g, V::IntervalValueFunction)
+
+In-place [`gap`](@ref): write `upper - lower` into the preallocated `g` (same shape as
+the bounds) and run the same bracket check, throwing the same `InvertedBracketError`.
+Used by the GSRDP loop, which checks the gap once per iteration.
+"""
+function gap!(g::Array{R}, V::IntervalValueFunction) where {R <: AbstractFloat}
+    u, l = V.upper.current, V.lower.current
+    if u isa Array{R} && l isa Array{R} && axes(g) == axes(u) == axes(l)
+        # Fused `g .= u .- l` and a scan for a candidate inversion (see `checkbracket`).
+        t = -_bracket_tolerance(R)
+        candidate = isempty(g)  # `findmin` throws on an empty collection
+        @inbounds @simd for i in eachindex(g, u, l)
+            d = u[i] - l[i]
+            g[i] = d
+            candidate |= d < t
+        end
+        candidate && _checkbracket_findmin(V, g)
+        return g
+    end
+    g .= u .- l
+    return checkbracket(V, g)
+end
+
+function gap!(g, V::IntervalValueFunction)
+    g .= V.upper.current .- V.lower.current
+    return checkbracket(V, g)
+end
+
+# Throws iff `findmin(g)` (first minimum, NaN-propagating) is below `-tolerance`.
+#
+# A fast pre-scan for any entry `< -tolerance` is exact: if there is none, the minimum
+# `findmin` returns is either such an entry (`≥ -tolerance`) or `NaN`, and neither
+# compares `< -tolerance`, so the full check cannot throw. If there is one, the original
+# `findmin` check decides (a `NaN` elsewhere still suppresses the throw) and reports the
+# same state.
+function checkbracket(V::IntervalValueFunction, g::Array{R}) where {R <: AbstractFloat}
+    t = -_bracket_tolerance(R)
+    candidate = isempty(g)  # `findmin` throws on an empty collection
+    @inbounds @simd for i in eachindex(g)
+        candidate |= g[i] < t
+    end
+    candidate && _checkbracket_findmin(V, g)
+    return g
+end
+
 function checkbracket(V::IntervalValueFunction, g)
+    _checkbracket_findmin(V, g)
+    return g
+end
+
+function _checkbracket_findmin(V::IntervalValueFunction, g)
     minimum_gap, state = findmin(g)
 
     if minimum_gap < -_bracket_tolerance(eltype(g))

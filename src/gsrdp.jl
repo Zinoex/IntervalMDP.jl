@@ -202,7 +202,11 @@ function _gsrdp!(
 
     _invoke_callback(callback, value_function, bellman_updates, state_seq)
 
-    while !term_criteria(value_function, k, gap(value_function))
+    # The per-iteration gap goes into one reused buffer (`gap!` is `gap` in place, with
+    # the identical bracket check); the termination criteria only read it within the
+    # call. The returned residual below is still a freshly allocated `gap`.
+    gap_buffer = similar(value_function.lower.current)
+    while !term_criteria(value_function, k, gap!(gap_buffer, value_function))
         nextiteration!(value_function)
 
         update_sequence = _gsrdp_sample(

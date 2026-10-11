@@ -120,6 +120,16 @@ function _bellman_v!(
     upper_bound,
     maximize,
 )
+    _threaded_sweep_pays_off(model, update_sequence, _sweep_actions(model)) || return _bellman_v!(
+        workspace[1],
+        strategy_cache,
+        Vres,
+        V,
+        model,
+        update_sequence;
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
     @inbounds bellman_precomputation!(workspace, V, upper_bound)
 
     @threadstid tid for jₛ in update_sequence
@@ -149,6 +159,16 @@ function _bellman_v!(
     upper_bound,
     maximize,
 )
+    _threaded_sweep_pays_off(model, update_sequence, 1) || return _bellman_v!(
+        workspace[1],
+        strategy_cache,
+        Vres,
+        V,
+        model,
+        update_sequence;
+        upper_bound = upper_bound,
+        maximize = maximize,
+    )
     @inbounds bellman_precomputation!(workspace, V, upper_bound)
     marginal = marginals(model)[1]
 
@@ -161,6 +181,35 @@ function _bellman_v!(
     end
     return Vres
 end
+
+# Spawning and joining the thread tasks of `@threadstid` costs several µs per sweep, more
+# than a whole serial sweep of a short update sequence (e.g. the ~8 states a GSRDP
+# trajectory iteration relaxes on a model with small supports). Short sweeps therefore
+# run serially on the first thread's workspace, which shares the precomputation buffers
+# and runs the identical per-state code. Each state's result depends only on `V`, the
+# model and its own strategy-cache entry, so the schedule cannot change any value.
+# `work` estimates the serial cost in units of roughly 10 ns (stored entries scanned per
+# (state, action) plus a per-action overhead); a pure speed heuristic.
+const _THREADED_SWEEP_MIN_WORK = 1000
+
+function _threaded_sweep_pays_off(model, update_sequence, actions_per_state)
+    support = _mean_support(marginals(model)[1])
+    support === nothing && return true
+    work = length(update_sequence) * actions_per_state * (support + 4)
+    return work >= _THREADED_SWEEP_MIN_WORK
+end
+
+_mean_support(marginal::Marginal) = _mean_support(ambiguity_sets(marginal))
+function _mean_support(p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractSparseMatrix}
+    n = num_sets(p)
+    return n == 0 ? 0.0 : nnz(p.gap) / n
+end
+_mean_support(p::IntervalAmbiguitySets{R, MR}) where {R, MR <: AbstractMatrix} =
+    Float64(num_target(p))
+_mean_support(_) = nothing
+
+_sweep_actions(model::FactoredRMDP) = num_actions(model)
+_sweep_actions(_) = 1
 
 ###############################################################################
 # Factored: O-Max / McCormick / Vertex enumeration                            #
