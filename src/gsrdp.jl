@@ -45,6 +45,10 @@ before any update, with a count of zero) at either of two arities:
 The three-argument form additionally receives the states relaxed in that
 iteration — exactly the sequence the Bellman update swept, duplicates
 included — and `nothing` on the pre-update fire. See `_invoke_callback`.
+
+The callback must only read the value function: the loop refreshes its gap and
+`previous` bounds incrementally, assuming only the Bellman update and the
+property's step postprocess write to it (see `_IncrementalBounds`).
 """
 struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm} <:
        ModelCheckingAlgorithm
@@ -204,10 +208,13 @@ function _gsrdp!(
 
     # The per-iteration gap goes into one reused buffer (`gap!` is `gap` in place, with
     # the identical bracket check); the termination criteria only read it within the
-    # call. The returned residual below is still a freshly allocated `gap`.
+    # call. Where `_IncrementalBounds` applies, the buffer and the `previous` arrays are
+    # refreshed only at the states the last iteration relaxed (see there). The returned
+    # residual below is still a freshly allocated `gap`.
     gap_buffer = similar(value_function.lower.current)
-    while !term_criteria(value_function, k, gap!(gap_buffer, value_function))
-        nextiteration!(value_function)
+    tracker = _incremental_bounds(value_function, prop, gap_buffer)
+    while !term_criteria(value_function, k, _iteration_gap!(tracker, gap_buffer, value_function, state_seq))
+        _iteration_next!(tracker, value_function, state_seq)
 
         update_sequence = _gsrdp_sample(
             sampling_strat,
@@ -238,6 +245,83 @@ function _gsrdp!(
     postprocess_value_function!(value_function.upper, prop)
 
     return value_function.lower.current, k, gap(value_function), strategy_cache
+end
+
+"""
+    _IncrementalBounds
+
+Per-iteration bookkeeping for the GSRDP loop that only touches the states the last
+iteration relaxed, instead of every state: the gap buffer handed to the termination
+criteria, the number of its entries below `-tol` (the bracket check), and the
+`current → previous` copy of `nextiteration!`.
+
+Within an iteration only two things write the bounds: `bellman_v!`, at the states of
+the update sequence, and `step_postprocess_value_function!`, which writes the same
+constants (1 on reach states, 0 on avoid states) every iteration. So after the first
+loop iteration, which refreshes everything, `current` and `previous` (and the gap) can
+only differ at the last update sequence. Samplers and the callback only read the value
+function; a callback that wrote to it would break this, which the `solve` docstring
+rules out.
+
+The gap buffer and the count stay equal to what a full `gap!` would produce, and the
+bracket check calls the same `findmin` whenever a full scan would, so results and
+`InvertedBracketError`s are unchanged.
+"""
+mutable struct _IncrementalBounds{A}
+    gap::A
+    below::Int       # entries of `gap` below `-tol`
+    synced::Bool     # the first full refresh has happened
+end
+
+# Only for plain CPU arrays and the properties whose step postprocess writes constants
+# to fixed states (`AbstractReachability`, which includes reach-avoid); anything else
+# keeps the full refresh every iteration.
+function _incremental_bounds(V::IntervalValueFunction, prop, gap_buffer)
+    prop isa AbstractReachability || return nothing
+    R = eltype(gap_buffer)
+    R <: AbstractFloat || return nothing
+    arrays = (V.lower.current, V.lower.previous, V.upper.current, V.upper.previous)
+    all(a -> a isa Array{R} && axes(a) == axes(gap_buffer), arrays) || return nothing
+    gap_buffer isa Array{R} || return nothing
+    return _IncrementalBounds(gap_buffer, 0, false)
+end
+
+_iteration_gap!(::Nothing, gap_buffer, V, state_seq) = gap!(gap_buffer, V)
+
+function _iteration_gap!(t::_IncrementalBounds, gap_buffer, V, state_seq)
+    g = t.gap
+    tol = -_bracket_tolerance(eltype(g))
+    if !t.synced
+        gap!(g, V)
+        t.below = count(<(tol), g)
+        return g
+    end
+    u, l = V.upper.current, V.lower.current
+    @inbounds for s in state_seq
+        old = g[s]
+        new = u[s] - l[s]
+        t.below += (new < tol) - (old < tol)
+        g[s] = new
+    end
+    (isempty(g) || t.below > 0) && _checkbracket_findmin(V, g)
+    return g
+end
+
+_iteration_next!(::Nothing, V, state_seq) = nextiteration!(V)
+
+function _iteration_next!(t::_IncrementalBounds, V, state_seq)
+    if !t.synced
+        nextiteration!(V)
+        t.synced = true
+        return V
+    end
+    lc, lp = V.lower.current, V.lower.previous
+    uc, up = V.upper.current, V.upper.previous
+    @inbounds for s in state_seq
+        lp[s] = lc[s]
+        up[s] = uc[s]
+    end
+    return V
 end
 
 # Invoke a user callback at whichever arity it supports.

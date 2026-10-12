@@ -178,14 +178,21 @@ resolved per problem by `resolve_k_frac` in `bench/src/registry.jl`. It requires
 
 ## Performance pass (2026-10-11)
 
-Speedups with behaviour unchanged bit for bit. The changes are uncommitted in the worktree
-`lib/.claude/worktrees/perf-sampling` (branch `jy/perf-sampling`) and touch `sampling.jl`,
-`trajectorysampling.jl`, `gsrdp.jl`, `value.jl`, `workspace.jl` and `bellman/{kernels,state}.jl`.
+Speedups with behaviour unchanged bit for bit. They touch `sampling.jl`,
+`trajectorysampling.jl`, `gsrdp.jl`, `value.jl`, `workspace.jl` and
+`bellman/{kernels,state}.jl`. They were developed in the worktree
+`lib/.claude/worktrees/perf-sampling` and are now on `jy/traj-sampling-rework` (commits
+`6c2794b` and `483170a`). The incremental gap/`previous` bookkeeping in the GSRDP loop
+(`_IncrementalBounds`, 2026-10-12) came after and is not in `perf-sampling`.
 
-- [ ] **Bring the changes into `jy/traj-sampling-rework`** before re-running DelftBlue. The
-  benchmark env develops the main checkout, so it doesn't see the worktree.
-- [ ] **Remove the subagent worktree** `lib/.claude/worktrees/agent-a06ec297a56ed9096`, whose
-  changes are merged into `perf-sampling`, and remove `perf-sampling` once merged.
+- [x] **Bring the changes into `jy/traj-sampling-rework`.** Done. The benchmark env
+  develops the main checkout, so DelftBlue needs this branch pulled and `bootstrap.jl`
+  re-run.
+- [ ] **Remove the worktrees** `lib/.claude/worktrees/agent-a06ec297a56ed9096` (the
+  subagent's) and `lib/.claude/worktrees/perf-sampling`. Both are merged.
+- [ ] **Callbacks must only read the value function.** `_IncrementalBounds` relies on it,
+  and the `solve` docstring says so. Revisit if a callback or sampler ever needs to
+  write the bounds.
 - [ ] **The full test suite needs to run from `test/`.** Under `julia -e`,
   `@run_package_tests` scans `..` relative to the working directory, so from the repo root
   it scans `~/thesis`. Run it from `test/` with a filter relative to the repo, and skip
