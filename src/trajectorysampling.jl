@@ -1682,6 +1682,11 @@ Each of the four decisions is configured independently:
 - `converged_eps = nothing`: the threshold for `exclude_converged`; `nothing`
   means the property's `convergence_eps`, the tolerance GSRDP itself terminates
   on. Only allowed with `exclude_converged = true`.
+- `dedup::Bool = false`: drop repeated states from each batch (the whole
+  trajectory when `gauss_seidel = false`), keeping the first occurrence. Every
+  backup in a batch reads the previous iterate, so a second backup of the same
+  state in one batch recomputes the same value and only costs a Bellman update.
+  Unlike `exclude_visited` it does not change where rollouts go.
 - `terminate = [MaxSteps()]`: extra [`TerminationRule`](@ref)s, ORed together.
 - `gauss_seidel::Bool = false`: see below.
 - `k::Int = 1`: batch size, used only when `gauss_seidel = true`.
@@ -1815,6 +1820,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
     exclude_visited::Bool
     exclude_converged::Bool
     converged_eps::Union{Nothing, Float64}
+    dedup::Bool
 
     # Active-trajectory batching state. `Base.RefValue{Any}` because the
     # `CartesianIndex{N}` arity isn't known until there is a model in hand —
@@ -1850,6 +1856,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
         exclude_visited::Bool = false,
         exclude_converged::Bool = false,
         converged_eps::Union{Nothing, Real} = nothing,
+        dedup::Bool = false,
     )
         rules = collect(TerminationRule, terminate)
         gauss_seidel &&
@@ -1876,6 +1883,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
             exclude_visited,
             exclude_converged,
             converged_eps === nothing ? nothing : Float64(converged_eps),
+            dedup,
             Ref{Any}(nothing),
             Ref(0),
             Ref(0),
@@ -2327,6 +2335,7 @@ function sample(ss::TrajectorySampling, model, strategy_cache, value_function, s
         # A no-op under GSRDP's Jacobi backup, but applied here too so the
         # flag's meaning doesn't depend on `gauss_seidel`.
         ss.reverse && reverse!(trajectory)
+        ss.dedup && unique!(trajectory)
         _count_updates!(ss, model, trajectory)
         _after_sample!(ss.state_score, trajectory, value_function)
         return StateIterator(trajectory)
@@ -2349,6 +2358,7 @@ function sample(ss::TrajectorySampling, model, strategy_cache, value_function, s
     start = ss.cursor[]
     stop = min(start + ss.k - 1, length(buffer))
     batch = buffer[start:stop]
+    ss.dedup && unique!(batch)
     ss.cursor[] = stop + 1
     _count_updates!(ss, model, batch)
     _after_sample!(ss.state_score, batch, value_function)

@@ -1530,6 +1530,22 @@ end
         @test batch(ss) == full_reversed[1:2]
     end
 
+    @testset "dedup drops repeats within a batch, keeping the first" begin
+        @test !TS.TrajectorySampling().dedup
+        ss = TS.TrajectorySampling(; gauss_seidel = false, dedup = true)
+        @test batch(ss) == [CartesianIndex(3), CartesianIndex(1)]
+        # Only the states left after dedup are charged as backups.
+        @test ss.updates[] == 2 * TS._backups_per_state(ss.bound_update[], mdp)
+
+        # Per batch, not per trajectory: the repeat split across batches stays.
+        ss = TS.TrajectorySampling(; gauss_seidel = true, k = 2, reverse = false, dedup = true)
+        @test batch(ss) == [CartesianIndex(1), CartesianIndex(3)]
+        @test batch(ss) == [CartesianIndex(3)]
+
+        ss = TS.TrajectorySampling(; gauss_seidel = true, k = 99, dedup = true)
+        @test batch(ss) == [CartesianIndex(3), CartesianIndex(1)]
+    end
+
     @testset "k must be positive when gauss_seidel = true" begin
         @test_throws ArgumentError TS.TrajectorySampling(; gauss_seidel = true, k = 0)
         # Irrelevant, and hence unvalidated, when batching is off.
