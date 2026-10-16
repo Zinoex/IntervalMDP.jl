@@ -4,9 +4,14 @@ import IntervalMDPProofs
 # Axiom check
 
 One `#print axioms` line per theorem in the spec's mapping tables, for the current and all earlier
-phases. Run from `lean/`:
+phases, and (since Phase 5c) for every other `theorem` declared in `IntervalMDPProofs/**`. Run from
+`lean/`:
 
     lake env lean AxiomCheck.lean
+
+Completeness check (every declared theorem has an entry):
+
+    python3 lean/scripts/check_axiom_check.py
 
 Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in particular
 `sorryAx`) fails the formal gate.
@@ -29,6 +34,57 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.ProductProcess.lift_deterministic
 #print axioms IntervalMDP.Examples.pi_not_convex_of_dirac_mem
 #print axioms IntervalMDP.Examples.binaryFIMDP_productSet_not_convex
+-- Phase 0: further theorems declared in this phase (completeness: every `theorem` of
+-- `IntervalMDPProofs/**` is listed; hypotheses and scope as in each docstring)
+#print axioms IntervalMDP.Approx.sound_pessimistic
+#print axioms IntervalMDP.Approx.sound_optimistic
+#print axioms IntervalMDP.Approx.Sound.refl
+#print axioms IntervalMDP.Approx.Sound.trans
+#print axioms IntervalMDP.Approx.Sound.apply_mono
+#print axioms IntervalMDP.Approx.Sound.of_tendsto
+#print axioms IntervalMDP.AmbiguitySet.mem_vecs
+#print axioms IntervalMDP.AmbiguitySet.coe_mem_vecs
+#print axioms IntervalMDP.AmbiguitySet.vecs_subset_stdSimplex
+#print axioms IntervalMDP.AmbiguitySet.WellFormed.isCompact
+#print axioms IntervalMDP.AmbiguitySet.vecs_ofVecs
+#print axioms IntervalMDP.AmbiguitySet.ofVecs_vecs
+#print axioms IntervalMDP.AmbiguitySet.vecs_map
+#print axioms IntervalMDP.AmbiguitySet.IsConvex.map
+#print axioms IntervalMDP.AmbiguitySet.continuous_piVec
+#print axioms IntervalMDP.AmbiguitySet.vecs_pi
+#print axioms IntervalMDP.AmbiguitySet.pi_nonempty
+#print axioms IntervalMDP.AbstractLabelling.dist_deterministic
+#print axioms IntervalMDP.AbstractLabelling.dist_probabilistic
+#print axioms IntervalMDP.ProbVec.toFun_eq_coe
+#print axioms IntervalMDP.ProbVec.ext
+#print axioms IntervalMDP.ProbVec.ext_iff
+#print axioms IntervalMDP.ProbVec.coe_injective
+#print axioms IntervalMDP.ProbVec.coe_mem_stdSimplex
+#print axioms IntervalMDP.ProbVec.coe_ofStdSimplex
+#print axioms IntervalMDP.ProbVec.range_coe
+#print axioms IntervalMDP.ProbVec.le_one
+#print axioms IntervalMDP.ProbVec.dirac_apply
+#print axioms IntervalMDP.ProbVec.map_apply
+#print axioms IntervalMDP.ProbVec.map_dirac
+#print axioms IntervalMDP.ProbVec.pi_apply
+#print axioms IntervalMDP.ProbVec.prodKernel_apply
+#print axioms IntervalMDP.Examples.mem_fullBinary_toSet
+#print axioms IntervalMDP.Marginal.get_congr
+#print axioms IntervalMDP.FactoredIMDP.toRMDP_ambiguity
+#print axioms IntervalMDP.IMDP.toRMDP_ambiguity
+#print axioms IntervalMDP.ProductProcess.toRMDP_ambiguity
+#print axioms IntervalMDP.IMDP.toRMDP_available
+#print axioms IntervalMDP.IntervalAmbiguity.lower_add_gap
+#print axioms IntervalMDP.IntervalAmbiguity.gap_nonneg
+#print axioms IntervalMDP.IntervalAmbiguity.budget_le_sum_gap
+#print axioms IntervalMDP.IntervalAmbiguity.feasiblePoint_mem
+#print axioms IntervalMDP.IntervalAmbiguity.toSet_eq_ofVecs
+#print axioms IntervalMDP.IntervalAmbiguity.vecs_toSet
+#print axioms IntervalMDP.ProductProcess.coe_lift
+#print axioms IntervalMDP.AvailableActions.mem_all
+#print axioms IntervalMDP.RMDP.withAvailable_ambiguity
+#print axioms IntervalMDP.StationaryStrategy.Valid.toTimeVarying
+#print axioms IntervalMDP.AvailableActions.exists_valid
 -- Phase 1a: index foundations
 #print axioms IntervalMDP.Index.linear_bijective
 #print axioms IntervalMDP.Index.linear_succ_first
@@ -40,6 +96,23 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Index.toJulia_bijOn
 #print axioms IntervalMDP.Index.sortedPerm_fits_int32
 #print axioms IntervalMDP.Index.gapValue_eq_sum_allocation
+-- Phase 1a: further theorems declared in this phase (completeness: every `theorem` of
+-- `IntervalMDPProofs/**` is listed; hypotheses and scope as in each docstring)
+#print axioms IntervalMDP.Index.toJulia_mem
+#print axioms IntervalMDP.Index.ofJulia_toJulia
+#print axioms IntervalMDP.Index.toJulia_ofJulia
+#print axioms IntervalMDP.Index.toJulia_injective
+#print axioms IntervalMDP.Index.juliaGet_toJulia
+#print axioms IntervalMDP.Index.map_toJulia_finRange
+#print axioms IntervalMDP.Index.linear_eq_toJulia
+#print axioms IntervalMDP.Index.juliaGet_nonneg
+#print axioms IntervalMDP.Index.allocation_zero
+#print axioms IntervalMDP.Index.budget_sub_min_nonneg
+#print axioms IntervalMDP.Index.allocation_eq_zero_of_not_visited
+#print axioms IntervalMDP.Index.gapValue_eq_res_add_sum
+#print axioms IntervalMDP.Index.lookup_zip_eq_none
+#print axioms IntervalMDP.Index.zip_map_eq
+#print axioms IntervalMDP.Index.SparseCol.rowval_eq
 -- Phase 1b: marginal indexing
 #print axioms IntervalMDP.Index.marginalSub2ind_eq_linear
 #print axioms IntervalMDP.Index.marginalSub2ind_bijective
@@ -48,6 +121,11 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 -- Phase 1b: supporting results referenced by the inventory
 #print axioms IntervalMDP.Index.intervalSub2ind_wrong_multiAction
 #print axioms IntervalMDP.Index.marginalCartesian_surjective
+-- Phase 1b: further theorems declared in this phase (completeness: every `theorem` of
+-- `IntervalMDPProofs/**` is listed; hypotheses and scope as in each docstring)
+#print axioms IntervalMDP.Index.foldl_horner
+#print axioms IntervalMDP.Index.linear_eq_foldl
+#print axioms IntervalMDP.Index.finRange_add
 -- Phase 1c: dense O-maximization
 #print axioms IntervalMDP.OMax.omax_mem
 #print axioms IntervalMDP.OMax.omax_eq_sSup
@@ -57,12 +135,35 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.OMax.stateActionBellman_isGreatest
 #print axioms IntervalMDP.OMax.stateActionBellman_isLeast
 #print axioms IntervalMDP.OMax.stateActionBellman_eq_dot
+-- Phase 1c: further theorems declared in this phase (completeness: every `theorem` of
+-- `IntervalMDPProofs/**` is listed; hypotheses and scope as in each docstring)
+#print axioms IntervalMDP.OMax.allocation_nonneg
+#print axioms IntervalMDP.OMax.allocation_le_gap
+#print axioms IntervalMDP.OMax.allocation_cons_of_ne
+#print axioms IntervalMDP.OMax.sum_allocation
+#print axioms IntervalMDP.OMax.exists_threshold
+#print axioms IntervalMDP.OMax.sum_perm_eq
+#print axioms IntervalMDP.OMax.Permutation.nodup
+#print axioms IntervalMDP.OMax.Permutation.mem
+#print axioms IntervalMDP.OMax.sum_allocation_eq_budget
+#print axioms IntervalMDP.OMax.greedy_apply
+#print axioms IntervalMDP.OMax.greedy_mem
+#print axioms IntervalMDP.OMax.juliaGet_neg
+#print axioms IntervalMDP.OMax.dot_neg
+#print axioms IntervalMDP.OMax.dot_le_greedy
 -- Phase 1d: sparse O-maximization
 #print axioms IntervalMDP.OMax.omaxSparse_eq_omax
 -- Phase 1d: supporting results referenced by the inventory
 #print axioms IntervalMDP.OMax.omaxSparse_exact
 #print axioms IntervalMDP.OMax.gapValue_sublist
 #print axioms IntervalMDP.OMax.exists_permutation_sublist
+-- Phase 1d: further theorems declared in this phase (completeness: every `theorem` of
+-- `IntervalMDPProofs/**` is listed; hypotheses and scope as in each docstring)
+#print axioms IntervalMDP.OMax.exists_perm_map_eq
+#print axioms IntervalMDP.OMax.gapValueSparse_map
+#print axioms IntervalMDP.OMax.gapValue_zero_budget
+#print axioms IntervalMDP.OMax.sortedLe_trans
+#print axioms IntervalMDP.OMax.sortedLe_total
 -- Phase 2a: robust Bellman operator on general RMDPs (all four modes, no convexity)
 #print axioms IntervalMDP.Bellman.T_mono
 #print axioms IntervalMDP.Bellman.T_add_const
@@ -72,6 +173,14 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Bellman.T_monotone
 #print axioms IntervalMDP.Bellman.T_lipschitz
 #print axioms IntervalMDP.Bellman.innerOpt_mem
+-- Phase 2a: further theorems declared in this phase (completeness: every `theorem` of
+-- `IntervalMDPProofs/**` is listed; hypotheses and scope as in each docstring)
+#print axioms IntervalMDP.Bellman.continuous_dot
+#print axioms IntervalMDP.Bellman.expectations_isCompact
+#print axioms IntervalMDP.Bellman.expectations_nonempty
+#print axioms IntervalMDP.Bellman.dot_le_dot_add
+#print axioms IntervalMDP.Bellman.innerOpt_le_add
+#print axioms IntervalMDP.Bellman.extractValue_le_add
 
 -- Phase 2b: interval specialisation, strategy extraction, policy evaluation (spec theorems)
 #print axioms IntervalMDP.Bellman.T_interval_eq_omax
@@ -90,6 +199,17 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Bellman.Tπ_eq_T_strategyAvailable
 #print axioms IntervalMDP.Bellman.Tπ_stepSound
 #print axioms IntervalMDP.Bellman.Tπ_interval_eq_omax
+-- Phase 2b: further theorems declared in this phase (completeness: every `theorem` of
+-- `IntervalMDPProofs/**` is listed; hypotheses and scope as in each docstring)
+#print axioms IntervalMDP.Bellman.expectations_toSet
+#print axioms IntervalMDP.Bellman.innerOpt_interval_eq_omax
+#print axioms IntervalMDP.Bellman.optLE_refl
+#print axioms IntervalMDP.Bellman.optLE_trans
+#print axioms IntervalMDP.Bellman.argoptStep_spec
+#print axioms IntervalMDP.Bellman.argoptAction_spec
+#print axioms IntervalMDP.Bellman.extractValue_eq_of_opt
+#print axioms IntervalMDP.Index.actionTuple_injective
+#print axioms IntervalMDP.Index.strategyAction_eq_linear
 -- Phase 3a: value iteration, reachability / reach-avoid
 #print axioms IntervalMDP.VI.reachIter_mem_unit
 #print axioms IntervalMDP.VI.reachIter_mono
@@ -161,6 +281,25 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.VI.stationary_reward_error_bound
 -- Phase 3d: Finding F3 witness (benchmark B-1)
 #print axioms IntervalMDP.Examples.b1_stationary_unsound
+-- Phase 3d: further theorems declared in this phase (completeness: every `theorem` of
+-- `IntervalMDPProofs/**` is listed; hypotheses and scope as in each docstring)
+#print axioms IntervalMDP.VI.StepPostprocess.apply_mono
+#print axioms IntervalMDP.Examples.selfLoop_stateActionBellman
+#print axioms IntervalMDP.VI.ActionOrder.acts_ne_nil
+#print axioms IntervalMDP.VI.ActionOrder.first_mem
+#print axioms IntervalMDP.VI.stationaryCacheSeed_mem
+#print axioms IntervalMDP.VI.stationaryCacheSeed_succ
+#print axioms IntervalMDP.VI.selectStrategy_timeVaryingCacheStrategy
+#print axioms IntervalMDP.VI.reachIter_eq_viIter
+#print axioms IntervalMDP.VI.safetyIter_eq_viIter
+#print axioms IntervalMDP.VI.exitIter_eq_viIter
+#print axioms IntervalMDP.VI.rewardIter_eq_viIter
+#print axioms IntervalMDP.VI.ReachProperty.stepPostprocess_apply
+#print axioms IntervalMDP.VI.ExpectedExitTime.stepPostprocess_apply
+#print axioms IntervalMDP.VI.argoptAction_eq_or_lt
+#print axioms IntervalMDP.VI.stateActionBellman_mono
+#print axioms IntervalMDP.VI.exists_dot_bracket
+#print axioms IntervalMDP.VI.exists_eq_zero_of_dot_nonpos
 -- Phase 4a: interval value iteration (IVI): bounds and bracket (A6)
 -- `IntervalMDP.IVI.bracket` (all four modes) is false for Julia's coupling (Finding F4) and is not stated;
 -- `bracket_aligned` is the proved restriction.
@@ -186,6 +325,23 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Examples.ivi_reachLfp_lt_lower
 #print axioms IntervalMDP.Examples.not_bracket_pessimistic_maximize
 #print axioms IntervalMDP.Examples.not_bracket_optimistic_minimize
+-- Phase 4a: further theorems declared in this phase (completeness: every `theorem` of
+-- `IntervalMDPProofs/**` is listed; hypotheses and scope as in each docstring)
+#print axioms IntervalMDP.IVI.ReachAvoidProperty.disjoint_reach_avoid
+#print axioms IntervalMDP.IVI.ReachAvoidProperty.reach_toReachProperty
+#print axioms IntervalMDP.IVI.ReachAvoidProperty.stepPostprocess_avoid
+#print axioms IntervalMDP.IVI.step_lower
+#print axioms IntervalMDP.IVI.step_upper
+#print axioms IntervalMDP.IVI.step_strategy
+#print axioms IntervalMDP.IVI.primary_step_eq
+#print axioms IntervalMDP.IVI.cacheSeed_mem
+#print axioms IntervalMDP.IVI.Tπ_mono
+#print axioms IntervalMDP.Examples.halfGoalAvoid_apply
+#print axioms IntervalMDP.Examples.iviRMDP_stateActionBellman
+#print axioms IntervalMDP.Examples.dot_dirac_fin5
+#print axioms IntervalMDP.Examples.dot_halfGoalAvoid
+#print axioms IntervalMDP.Examples.iviProp_post
+#print axioms IntervalMDP.Examples.iviOrder_cacheSeed
 -- Phase 4b: interval value iteration (IVI): stopping on the initial-state gap (A6)
 -- `IntervalMDP.IVI.gap_stop_sound` (all four modes) is false for Julia's coupling (Finding F4) and is
 -- not stated; `gap_stop_sound_aligned` is the proved restriction, `gap_stop_primary_sound` the
@@ -208,6 +364,12 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Examples.iviIter_one_optimistic_minimize
 #print axioms IntervalMDP.Examples.one_le_reachLfp_pessimistic_maximize
 #print axioms IntervalMDP.Examples.reachLfp_optimistic_minimize_nonpos
+-- Phase 4b: further theorems declared in this phase (completeness: every `theorem` of
+-- `IntervalMDPProofs/**` is listed; hypotheses and scope as in each docstring)
+#print axioms IntervalMDP.Examples.iviInitLower_apply
+#print axioms IntervalMDP.Examples.iviInitUpper_apply
+#print axioms IntervalMDP.Examples.iviStrategy_pessimistic_maximize
+#print axioms IntervalMDP.Examples.iviStrategy_optimistic_minimize
 -- Phase 5a: factored successor index and vertex enumeration (arXiv:2508.00707, Theorem 1)
 #print axioms IntervalMDP.Index.factored_successor_eq
 #print axioms IntervalMDP.Factored.vertices_complete
@@ -220,6 +382,52 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Factored.vertexOf_mem_vertexRun
 #print axioms IntervalMDP.Factored.vecs_eq_convexHull_vertices
 #print axioms IntervalMDP.Factored.exists_vertex_expansion
+-- Phase 5a: further theorems declared in this phase (completeness: every `theorem` of
+-- `IntervalMDPProofs/**` is listed; hypotheses and scope as in each docstring)
+#print axioms IntervalMDP.Factored.successorState_bijective
+#print axioms IntervalMDP.Factored.allocation_of_not_mem
+#print axioms IntervalMDP.Factored.vertexLoop_fst
+#print axioms IntervalMDP.Factored.vertexLoop_snd
+#print axioms IntervalMDP.Factored.vertexLoop_take
+#print axioms IntervalMDP.Factored.vertexLoop_append
+#print axioms IntervalMDP.Factored.sum_lt_of_vertexLoop_snd_eq_zero
+#print axioms IntervalMDP.Factored.sum_map_of_perm
+#print axioms IntervalMDP.Factored.sum_map_juliaGet
+#print axioms IntervalMDP.Factored.vertexOf_snd_ne_zero
+#print axioms IntervalMDP.Factored.vertexOf_fst
+#print axioms IntervalMDP.Factored.vertexOf_fst_of_budget_eq_zero
+#print axioms IntervalMDP.Factored.suffixStep_spec
+#print axioms IntervalMDP.Factored.foldl_suffixStep
+#print axioms IntervalMDP.Factored.nextInSuffix_some
+#print axioms IntervalMDP.Factored.nextInSuffix_none
+#print axioms IntervalMDP.Factored.findSwap_some
+#print axioms IntervalMDP.Factored.findSwap_none
+#print axioms IntervalMDP.Factored.permGet_eq
+#print axioms IntervalMDP.Factored.swapSort_eq
+#print axioms IntervalMDP.Factored.lt_or_eq_of_sorted_perm
+#print axioms IntervalMDP.Factored.nextPermutation_some
+#print axioms IntervalMDP.Factored.mem_vertexRun
+#print axioms IntervalMDP.Factored.permsFrom_pos
+#print axioms IntervalMDP.Factored.permsFrom_le
+#print axioms IntervalMDP.Factored.permsFrom_lt
+#print axioms IntervalMDP.Factored.range_le_of_perm
+#print axioms IntervalMDP.Factored.allocation_boundary
+#print axioms IntervalMDP.Factored.vertexOf_mem_vecs
+#print axioms IntervalMDP.Factored.mem_extremePoints_of_boundary
+#print axioms IntervalMDP.Factored.vertexOf_mem_extremePoints
+#print axioms IntervalMDP.Factored.boundary_of_mem_extremePoints
+#print axioms IntervalMDP.Factored.allocation_full_prefix
+#print axioms IntervalMDP.Factored.exists_toJulia_of_mem_range
+#print axioms IntervalMDP.Factored.exists_perm_vertexOf_eq
+#print axioms IntervalMDP.Factored.mem_productList
+#print axioms IntervalMDP.Factored.foldl_maxStep
+#print axioms IntervalMDP.Factored.foldl_minStep
+#print axioms IntervalMDP.Factored.vertexSum_eq_dot
+#print axioms IntervalMDP.Factored.dot_piVec_eq_sum
+#print axioms IntervalMDP.Factored.sum_prod_weights
+#print axioms IntervalMDP.Factored.vertexEnumeration_ne_nil
+#print axioms IntervalMDP.Factored.mem_vertexEnumeration_iff
+#print axioms IntervalMDP.Factored.vertexSum_mem_expectations
 
 -- Phase 5b: recursive O-max soundness (A2; arXiv:2411.11803, Theorem 6.1).
 -- The six theorem entries directly below assume two or more state variables
@@ -262,3 +470,38 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Factored.partialProduct_of_le
 #print axioms IntervalMDP.Factored.nestedOMax_le_dot
 #print axioms IntervalMDP.Factored.dot_le_nestedOMax
+
+-- Phase 5c: McCormick relaxation soundness (A3; arXiv:2508.00707, Section 3.2 and Appendix B,
+-- no theorem number in the paper). Entries grouped by their actual scope.
+-- `mcCormick_sound`: one or more state variables (`n + 1`, `FactoredIMDP (n + 1) m`), dense, all four modes.
+#print axioms IntervalMDP.Factored.mcCormick_sound
+-- `mcCormick_vi_sound`: `n + 1`, dense, all four modes, takes `h₀ : Sound sat W₀ V₀`.
+#print axioms IntervalMDP.Factored.mcCormick_vi_sound
+-- `mcCormick_vi_sound_post`: `n + 1`, dense, all four modes, takes `hpost : Monotone post` and `h₀`.
+#print axioms IntervalMDP.Factored.mcCormick_vi_sound_post
+-- `mcCormickLP_le_innerOpt`: `n + 1`, dense, pessimistic only (`upper_bound = false`).
+#print axioms IntervalMDP.Factored.mcCormickLP_le_innerOpt
+-- `innerOpt_le_mcCormickLP`: `n + 1`, dense, optimistic only (`upper_bound = true`).
+#print axioms IntervalMDP.Factored.innerOpt_le_mcCormickLP
+-- Phase 5c helpers taking `FactoredIMDP (n + 1) m` (dense; no mode):
+#print axioms IntervalMDP.Factored.dot_mem_mcCormickValues
+#print axioms IntervalMDP.Factored.mcCormickValues_bddBelow
+#print axioms IntervalMDP.Factored.mcCormickValues_bddAbove
+#print axioms IntervalMDP.Factored.mcCormickObjective_bounds
+#print axioms IntervalMDP.Factored.mcCormickTree_branchIndex_bijective
+-- Phase 5c helpers on the tree shape only (lists of `Fin (n + 1)`, no model):
+#print axioms IntervalMDP.Factored.mccormickBranch_leaves
+#print axioms IntervalMDP.Factored.mcCormickTree_leaves
+-- Phase 5c generic helpers (any `McCormickTree N` and any interval marginals; the envelope lemma is
+-- about reals only):
+#print axioms IntervalMDP.Factored.mcCormickEnvelope_mul
+#print axioms IntervalMDP.Factored.branchLower_nonneg
+#print axioms IntervalMDP.Factored.branchFeasible_bounds
+#print axioms IntervalMDP.Factored.branchFeasible_sum
+#print axioms IntervalMDP.Factored.branchFeasible_mem_unit
+#print axioms IntervalMDP.Factored.branchFeasible_branchProduct
+#print axioms IntervalMDP.Factored.branchVars_branchProduct
+#print axioms IntervalMDP.Factored.branchIndex_congr
+#print axioms IntervalMDP.Factored.eq_of_branchIndex_eq
+#print axioms IntervalMDP.Factored.branchFill_of_not_mem
+#print axioms IntervalMDP.Factored.branchIndex_branchFill

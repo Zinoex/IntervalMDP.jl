@@ -2,7 +2,7 @@ import IntervalMDPProofs.Bellman
 import IntervalMDPProofs.Approx.Lift
 
 /-!
-# Factored IMDPs: successor index, vertex enumeration (Phase 5a), recursive O-max (Phase 5b)
+# Factored IMDPs: successor index, vertex enumeration (Phase 5a), recursive O-max (Phase 5b), McCormick relaxation (Phase 5c)
 
 For a factored IMDP (`FactoredIMDP`, `Models/Factored.lean`) the default Bellman algorithm is
 O-maximization (`default_bellman_algorithm(::FactoredRMDP, ::IsFIMDP) = OMaximization()` in
@@ -117,6 +117,59 @@ Limitations L1–L5 apply: floating-point rounding (in `gap_value` and the cache
 beyond the stated index bound, threaded (`ThreadedFactoredIntervalOMaxWorkspace`, `@threadstid`)
 and CUDA execution, the Lean ↔ Julia correspondence (literal transcription, not proved), DP ↔
 path-measure semantics; L6 (LP solvers) does not arise here.
+
+## McCormick relaxation (Phase 5c)
+
+With `RobustValueIteration(LPMcCormickRelaxation())` Julia evaluates each state–action pair with
+`state_action_bellman(::FactoredIntervalMcCormickWorkspace, …)` (`src/bellman.jl`): a JuMP model built
+by the recursion `mccormick_branch` (one marginal: `marginal_lp_constraints`, box `lower ≤ p ≤ upper`
+and `sum(p) == 1`; two marginals: both leaves; three or more: split at `mid = fld(k, 2) + 1`), where
+each node adds variables `w[I, J]` with box bounds `p_lower[I] * q_lower[J] ≤ w ≤ p_upper[I] * q_upper[J]`,
+the four McCormick inequalities and `sum(w) == 1`; objective `sum(V[I] * p[I])`, `Max` if
+`upper_bound`, else `Min`, solved by HiGHS. Lean transcribes the recursion (`McCormickTree`,
+`mccormickBranch`, `mcCormickTree`) and the constraints (`marginalLPFeasible`, `mcCormickEnvelope`,
+`branchFeasible`) and takes the LP's mathematical optimum (`mcCormickLP`: `sInf`/`sSup` of
+`mcCormickObjective` over `mcCormickFeasible`).
+
+* `IntervalMDP.Factored.dot_mem_mcCormickValues` — `FactoredIMDP (n + 1) m`, dense: the relaxation
+  contains the image of the literal, non-convex `productSet` (the product point
+  `branchProduct`, `w[I, J] = p[I] * q[J]`, is feasible: `branchFeasible_branchProduct`, any tree).
+* `IntervalMDP.Factored.mcCormick_sound` (A3, one step) — one or more state variables
+  (`n + 1`, `FactoredIMDP (n + 1) m`; Julia accepts `LPMcCormickRelaxation` for `IsIMDP` and
+  `IsFIMDP`), dense marginal storage only, all four satisfaction × strategy modes, no hypotheses
+  beyond the model invariants: `Sound sat (mcCormickBellman F sat strat W) (Bellman.T F.toRMDP sat strat W)`,
+  i.e. the McCormick update is `≤` the exact update over `productSet` for pessimistic and `≥` for
+  optimistic. Per state–action pair (`n + 1`, dense): `mcCormickLP_le_innerOpt` (pessimistic,
+  `upper_bound = false`) and `innerOpt_le_mcCormickLP` (optimistic, `upper_bound = true`).
+* `IntervalMDP.Factored.mcCormick_vi_sound` (A3, end to end, via `Approx.iter_sound`) — `n + 1`
+  state variables (`FactoredIMDP (n + 1) m`), dense marginal storage only, all four modes, hypothesis
+  `h₀ : Sound sat W₀ V₀` (sound initial values): every iterate, and every limit when both sequences
+  converge, is sound. `mcCormick_vi_sound_post` — same `n + 1`, dense, all four modes, `h₀`, plus
+  `hpost : Monotone post` (iterates of `step!`).
+
+Source: Schnitzer, Abate, Parker, arXiv:2508.00707, Section 3.2 ("McCormick Relaxation", Eqs.
+(12a)–(12d)) and Appendix B (B.1 two factors, B.2 recursive relaxation); the paper states soundness in
+prose ("the relaxed set is a superset of the true one", Section 3.2) and has **no numbered theorem**
+for it (checked in arXiv v2; Theorem 1 is vertex-enumeration exactness, Theorems 2 and 3 are about
+`Lp` sets and PAC learning). The Lean proof is that argument: the product point is feasible
+(`mcCormickEnvelope_mul`: `(p − p_lower)(q − q_lower) ≥ 0` etc., as in the paper's derivation of
+Eq. (12a)), so the LP `inf` is at most, and the LP `sup` at least, every expectation over
+`productSet`.
+
+**Finding F6 (tree shape and extra constraints).** The paper's recursive relaxation (Appendix B.2) is
+a left-deep chain `h¹ = p¹p²`, `hʳ = hʳ⁻¹pʳ⁺¹`, with box constraints on the marginals, the McCormick
+inequalities and one global simplex constraint. Julia (a) splits at `mid = fld(k, 2) + 1`, which
+equals the chain for `N ≤ 4` but not for `N ≥ 5` (e.g. `(((1, 2), 3), (4, 5))`), and (b) adds
+`sum(p) == 1` at every leaf and `sum(w) == 1` at every inner node. Soundness holds for Julia's LP
+(proved here) and the values differ from the paper's LP (inventory F6).
+
+**Scope.** Abstract, exact arithmetic; the LP is its mathematical optimum (HiGHS not modelled, L6).
+One or more state variables (`FactoredIMDP (n + 1) m`). Dense marginal storage only
+(`support(p) = 1:d`, so `V = @view V[map(support, ambiguity_sets)...]` is `V`). Limitations L1–L6
+apply: floating-point rounding in the LP data and the solver tolerances (L1), overflow/underflow
+(L2), threaded execution (`ThreadedFactoredIntervalMcCormickWorkspace`, `@threadstid`; no CUDA path)
+(L3), the Lean ↔ Julia correspondence (literal transcription, not proved) (L4), DP ↔ path-measure
+semantics (L5), and the correctness of HiGHS (L6).
 -/
 
 namespace IntervalMDP
@@ -2692,7 +2745,7 @@ noncomputable def recursiveOMaxIter (F : FactoredIMDP (n + 2) m) (sat : Satisfac
 literal product set).
 
 Julia counterpart: none (Lean-side proof device). -/
-noncomputable def bellmanIter (F : FactoredIMDP (n + 2) m) (sat : SatisfactionMode)
+noncomputable def bellmanIter (F : FactoredIMDP n m) (sat : SatisfactionMode)
     (strat : StrategyMode) (V₀ : F.stateVars.State → ℝ) (k : ℕ) : F.stateVars.State → ℝ :=
   (Bellman.T F.toRMDP sat strat)^[k] V₀
 
@@ -2726,7 +2779,7 @@ noncomputable def recursiveOMaxStep (F : FactoredIMDP (n + 2) m) (sat : Satisfac
 /-- One exact value-iteration step `post ∘ Bellman.T F.toRMDP sat strat`.
 
 Julia counterpart: none (Lean-side proof device). -/
-noncomputable def bellmanStep (F : FactoredIMDP (n + 2) m) (sat : SatisfactionMode)
+noncomputable def bellmanStep (F : FactoredIMDP n m) (sat : SatisfactionMode)
     (strat : StrategyMode) (post : (F.stateVars.State → ℝ) → F.stateVars.State → ℝ)
     (V : F.stateVars.State → ℝ) : F.stateVars.State → ℝ :=
   post (Bellman.T F.toRMDP sat strat V)
@@ -2748,6 +2801,671 @@ theorem recursiveOMax_vi_sound_post (F : FactoredIMDP (n + 2) m) (sat : Satisfac
     Approx.Sound sat ((recursiveOMaxStep F sat strat post)^[k] W₀)
       ((bellmanStep F sat strat post)^[k] V₀) := by
   refine (Approx.iter_sound (fun V => (recursiveOMax_sound F sat strat V).apply_mono hpost)
+    (Or.inl (hpost.comp (Bellman.T_monotone _ _ _))) h₀).1 k
+
+/-! ### A3: the binary-tree McCormick relaxation LP (Phase 5c)
+
+Julia's `state_action_bellman(::FactoredIntervalMcCormickWorkspace, V, ambiguity_sets,
+upper_bound)` (`src/bellman.jl`) builds one JuMP model per state–action pair with
+`mccormick_branch(model, ambiguity_sets)`, sets the objective `sum(V[I] * p[I] for I in
+CartesianIndices(p))` (`Max` if `upper_bound`, else `Min`), and returns
+`JuMP.objective_value(model)` after `JuMP.optimize!` with HiGHS. Lean transcribes the recursion of
+`mccormick_branch` as a tree (`McCormickTree`, `mccormickBranch`) and the constraints it adds
+(`marginalLPFeasible`, `mcCormickEnvelope`, `branchFeasible`), and takes the LP's **mathematical
+optimum** (`mcCormickLP`, `sInf`/`sSup` over the feasible set). Whether HiGHS returns that optimum is
+not modelled (limitation L6). -/
+
+/-- The call tree of `mccormick_branch`: a `leaf i` is one marginal, whose LP block
+`marginal_lp_constraints(model, ambiguity_sets[i])` adds the variables `p[1:d]`; a `node l r`
+adds the McCormick variables `w[I, J] ≈ p[I] * q[J]` over the blocks `p` of `l` and `q` of `r`.
+
+Julia counterpart: the recursion of `mccormick_branch(model, ambiguity_sets)` (`src/bellman.jl`). -/
+inductive McCormickTree (N : ℕ) where
+  /-- One marginal `i` (Julia `marginal_lp_constraints(model, ambiguity_sets[i])`). -/
+  | leaf (i : Fin N)
+  /-- The McCormick envelopes of two branches (Julia: the `else` branch of `mccormick_branch`). -/
+  | node (l r : McCormickTree N)
+
+namespace McCormickTree
+
+variable {N : ℕ}
+
+/-- The marginals of a branch, left to right (Julia: the slice of `ambiguity_sets` the call of
+`mccormick_branch` receives).
+
+Julia counterpart: the argument `ambiguity_sets` of `mccormick_branch` (`src/bellman.jl`). -/
+def leaves : McCormickTree N → List (Fin N)
+  | .leaf i => [i]
+  | .node l r => l.leaves ++ r.leaves
+
+/-- The index set of a branch's variable array: `1:d` (here `Fin (dims i)`) for a leaf, and the
+pairs `(I, J)` for a node, as Julia's `w = Array{VariableRef}(undef, (size(p)..., size(q)...))` is
+indexed by `w[I, J]`.
+
+Julia counterpart: `CartesianIndices(p)` of the arrays returned by `mccormick_branch`
+(`src/bellman.jl`). -/
+def Idx (dims : Fin N → ℕ) : McCormickTree N → Type
+  | .leaf i => Fin (dims i)
+  | .node l r => Idx dims l × Idx dims r
+
+/-- The index sets of a branch are finite (sums over them are the JuMP `sum(w)`).
+
+Julia counterpart: `CartesianIndices(p)` in `mccormick_branch` (`src/bellman.jl`) is finite. -/
+instance instFintypeIdx (dims : Fin N → ℕ) : (t : McCormickTree N) → Fintype (t.Idx dims)
+  | .leaf i => inferInstanceAs (Fintype (Fin (dims i)))
+  | .node l r =>
+    letI := instFintypeIdx dims l
+    letI := instFintypeIdx dims r
+    inferInstanceAs (Fintype (Idx dims l × Idx dims r))
+
+/-- The LP variables of a branch: the vector `p` of a leaf (`@variable(model, [1:supportsize])`),
+and for a node the variables of both children plus the McCormick array `w`
+(`w[I, J] = @variable(model, …)`).
+
+Julia counterpart: the `@variable` calls of `marginal_lp_constraints` and `mccormick_branch`
+(`src/bellman.jl`). -/
+def Vars (dims : Fin N → ℕ) : McCormickTree N → Type
+  | .leaf i => Fin (dims i) → ℝ
+  | .node l r => Vars dims l × Vars dims r × (Idx dims l × Idx dims r → ℝ)
+
+end McCormickTree
+
+open McCormickTree
+
+/-- The tree of `mccormick_branch(model, ambiguity_sets)` on the list `L` of marginals, transcribing
+its recursion literally:
+
+    if length(ambiguity_sets) == 1        -- leaf
+    elseif length(ambiguity_sets) == 2    -- node of the two leaves
+    else
+        mid = fld(length(ambiguity_sets), 2) + 1
+        mccormick_branch(model, ambiguity_sets[1:mid])           -- `L.take mid`
+        mccormick_branch(model, ambiguity_sets[(mid + 1):end])   -- `L.drop mid`
+
+For three or more marginals the left branch gets the first `fld(k, 2) + 1`. On the empty list Julia
+throws a `BoundsError`; Lean returns `leaf 0`, a case that is never used (`mcCormickTree` calls it on
+`1:N`).
+
+Julia counterpart: `mccormick_branch(model, ambiguity_sets)` (`src/bellman.jl`). -/
+def mccormickBranch : List (Fin (n + 1)) → McCormickTree (n + 1)
+  | [] => .leaf 0
+  | [i] => .leaf i
+  | [i, j] => .node (.leaf i) (.leaf j)
+  | i :: j :: k :: rest =>
+    let L := i :: j :: k :: rest
+    let mid := L.length / 2 + 1
+    .node (mccormickBranch (L.take mid)) (mccormickBranch (L.drop mid))
+termination_by L => L.length
+decreasing_by
+  all_goals simp only [List.length_take, List.length_drop, List.length_cons]
+  all_goals omega
+
+/-- The tree Julia builds for a model with `N = n + 1` state variables: `mccormick_branch` on all
+marginals `ambiguity_sets = getindex.(marginals(model), jₐ, jₛ)`, in variable order `1:N`.
+
+Julia counterpart: `mccormick_branch(model, ambiguity_sets)` called from
+`state_action_bellman(::FactoredIntervalMcCormickWorkspace, …)` (`src/bellman.jl`). -/
+def mcCormickTree (n : ℕ) : McCormickTree (n + 1) := mccormickBranch (List.finRange (n + 1))
+
+section Branch
+
+variable {N : ℕ} {dims : Fin N → ℕ}
+
+/-- The first return value `p` of `mccormick_branch`: the variable array of a branch (the leaf
+vector `p`, or the node's McCormick array `w`).
+
+Julia counterpart: `p, _, _ = mccormick_branch(model, ambiguity_sets)` and `return w, w_lower,
+w_upper` (`src/bellman.jl`). -/
+def branchVars : (t : McCormickTree N) → t.Vars dims → t.Idx dims → ℝ
+  | .leaf _, p => p
+  | .node _ _, x => x.2.2
+
+/-- The second return value of `mccormick_branch`: `p_lower = map(i -> lower(ambiguity_set, i),
+support(ambiguity_set))` at a leaf and `w_lower[I, J] = p_lower[I] * q_lower[J]` at a node.
+
+Julia counterpart: `p_lower` in `marginal_lp_constraints` and `w_lower` in `mccormick_branch`
+(`src/bellman.jl`). -/
+def branchLower (A : (i : Fin N) → IntervalAmbiguity (Fin (dims i))) :
+    (t : McCormickTree N) → t.Idx dims → ℝ
+  | .leaf i => (A i).lower
+  | .node l r => fun IJ => branchLower A l IJ.1 * branchLower A r IJ.2
+
+/-- The third return value of `mccormick_branch`: `p_upper = map(i -> upper(ambiguity_set, i),
+support(ambiguity_set))` at a leaf and `w_upper[I, J] = p_upper[I] * q_upper[J]` at a node.
+
+Julia counterpart: `p_upper` in `marginal_lp_constraints` and `w_upper` in `mccormick_branch`
+(`src/bellman.jl`). -/
+def branchUpper (A : (i : Fin N) → IntervalAmbiguity (Fin (dims i))) :
+    (t : McCormickTree N) → t.Idx dims → ℝ
+  | .leaf i => (A i).upper
+  | .node l r => fun IJ => branchUpper A l IJ.1 * branchUpper A r IJ.2
+
+/-- The constraints Julia puts on one McCormick variable `w = w[I, J]` for `p = p[I]` and
+`q = q[J]`: the box `w_lower[I, J] ≤ w ≤ w_upper[I, J]` (`lower_bound`/`upper_bound` of the
+`@variable`) and the four McCormick inequalities of arXiv:2508.00707, Eqs. (12a)–(12d),
+
+    w ≥ p * q_lower + q * p_lower − p_lower * q_lower
+    w ≥ p * q_upper + q * p_upper − p_upper * q_upper
+    w ≤ p * q_upper + q * p_lower − p_lower * q_upper
+    w ≤ p * q_lower + q * p_upper − p_upper * q_lower
+
+in Julia's order.
+
+Julia counterpart: the `@variable` and the four `@constraint` calls inside the loop over
+`CartesianIndices(q)` and `CartesianIndices(p)` in `mccormick_branch` (`src/bellman.jl`). -/
+def mcCormickEnvelope (p pLower pUpper q qLower qUpper w : ℝ) : Prop :=
+  pLower * qLower ≤ w ∧ w ≤ pUpper * qUpper ∧
+    w ≥ p * qLower + q * pLower - pLower * qLower ∧
+    w ≥ p * qUpper + q * pUpper - pUpper * qUpper ∧
+    w ≤ p * qUpper + q * pLower - pLower * qUpper ∧
+    w ≤ p * qLower + q * pUpper - pUpper * qLower
+
+/-- The LP block of one marginal: `lower(ambiguity_set, i) ≤ p[i] ≤ upper(ambiguity_set, i)`
+(`set_lower_bound`/`set_upper_bound`) for every `i` in the (dense) support, and `sum(p) == 1`.
+
+Julia counterpart: `marginal_lp_constraints(model, ambiguity_set::IntervalAmbiguitySet)`
+(`src/bellman.jl`). -/
+def marginalLPFeasible {d : ℕ} (A : IntervalAmbiguity (Fin d)) (p : Fin d → ℝ) : Prop :=
+  (∀ k, A.lower k ≤ p k ∧ p k ≤ A.upper k) ∧ ∑ k, p k = 1
+
+/-- Feasibility of the LP variables of a branch for every constraint `mccormick_branch` adds: a leaf
+satisfies `marginalLPFeasible`; a node satisfies the constraints of both children, the McCormick
+constraints `mcCormickEnvelope` for every `J` and `I` (Julia's loop order: `for J in
+CartesianIndices(q)`, then `for I in CartesianIndices(p)`; only the order of the constraint rows),
+and `sum(w) == 1`.
+
+Julia counterpart: the constraints added by `mccormick_branch(model, ambiguity_sets)` and
+`marginal_lp_constraints` (`src/bellman.jl`). -/
+def branchFeasible (A : (i : Fin N) → IntervalAmbiguity (Fin (dims i))) :
+    (t : McCormickTree N) → t.Vars dims → Prop
+  | .leaf i, p => marginalLPFeasible (A i) p
+  | .node l r, x =>
+    branchFeasible A l x.1 ∧ branchFeasible A r x.2.1 ∧
+      (∀ J I, mcCormickEnvelope (branchVars l x.1 I) (branchLower A l I) (branchUpper A l I)
+        (branchVars r x.2.1 J) (branchLower A r J) (branchUpper A r J) (x.2.2 (I, J))) ∧
+      ∑ IJ, x.2.2 IJ = 1
+
+/-- The entry of a branch's variable array that a joint successor state `t` reads: the coordinate
+`t i` at a leaf, and the pair `(I, J)` of both children's indices at a node. At the root this is
+Julia's `p[I]` for the `CartesianIndex` `I = t` (the root array has shape `(state_vars...)`, sizes
+concatenated in variable order; `mcCormickTree_branchIndex_bijective`).
+
+Julia counterpart: the indexing `p[I]`, `w[I, J]` for `I ∈ CartesianIndices(p)` in
+`state_action_bellman(::FactoredIntervalMcCormickWorkspace, …)` (`src/bellman.jl`). -/
+def branchIndex : (t : McCormickTree N) → ((i : Fin N) → Fin (dims i)) → t.Idx dims
+  | .leaf i, s => s i
+  | .node l r, s => (branchIndex l s, branchIndex r s)
+
+/-- The LP point of a choice `γ` of marginal vectors: `p = γ i` at a leaf and
+`w[I, J] = p[I] * q[J]` at a node (the McCormick variables set to the exact bilinear products).
+
+Julia counterpart: none (Lean-side proof device). -/
+def branchProduct (γ : (i : Fin N) → Fin (dims i) → ℝ) : (t : McCormickTree N) → t.Vars dims
+  | .leaf i => γ i
+  | .node l r =>
+    (branchProduct γ l, branchProduct γ r,
+      fun IJ => branchVars l (branchProduct γ l) IJ.1 * branchVars r (branchProduct γ r) IJ.2)
+
+/-- The probability `γ i (s i)` that marginal `i` gives to the value `s i`.
+
+Julia counterpart: none (Lean-side proof device). -/
+def coordValue (γ : (i : Fin N) → Fin (dims i) → ℝ) (s : (i : Fin N) → Fin (dims i)) (i : Fin N) :
+    ℝ :=
+  γ i (s i)
+
+variable (A : (i : Fin N) → IntervalAmbiguity (Fin (dims i)))
+
+/-- The lower bounds of every branch are nonnegative (products of the nonnegative `lower`).
+
+Julia counterpart: `w_lower[I, J] = p_lower[I] * q_lower[J]` in `mccormick_branch`
+(`src/bellman.jl`) with `lower ≥ 0` (`checkprobabilities`, `src/probabilities/IntervalAmbiguitySets.jl`). -/
+theorem branchLower_nonneg : ∀ (t : McCormickTree N) (I : t.Idx dims), 0 ≤ branchLower A t I
+  | .leaf i, I => (A i).lower_nonneg I
+  | .node l r, IJ => mul_nonneg (branchLower_nonneg l IJ.1) (branchLower_nonneg r IJ.2)
+
+/-- A feasible point lies in the box of its branch: `lower ≤ p ≤ upper`.
+
+Julia counterpart: the variable bounds set in `marginal_lp_constraints` and `mccormick_branch`
+(`src/bellman.jl`). -/
+theorem branchFeasible_bounds : ∀ (t : McCormickTree N) {x : t.Vars dims}, branchFeasible A t x →
+    ∀ I, branchLower A t I ≤ branchVars t x I ∧ branchVars t x I ≤ branchUpper A t I
+  | .leaf _, _, h, I => h.1 I
+  | .node _ _, _, h, IJ => ⟨(h.2.2.1 IJ.2 IJ.1).1, (h.2.2.1 IJ.2 IJ.1).2.1⟩
+
+/-- The variable array of a feasible branch sums to one (`sum(p) == 1`, `sum(w) == 1`).
+
+Julia counterpart: the `@constraint(model, sum(p) == one(R))` and `sum(w) == one(…)` in
+`marginal_lp_constraints` and `mccormick_branch` (`src/bellman.jl`). -/
+theorem branchFeasible_sum : ∀ (t : McCormickTree N) {x : t.Vars dims}, branchFeasible A t x →
+    ∑ I, branchVars t x I = 1
+  | .leaf _, _, h => h.2
+  | .node _ _, _, h => h.2.2.2
+
+/-- Every entry of a feasible branch lies in `[0, 1]` (nonnegative lower bounds and sum one).
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem branchFeasible_mem_unit (t : McCormickTree N) {x : t.Vars dims}
+    (h : branchFeasible A t x) (I : t.Idx dims) : 0 ≤ branchVars t x I ∧ branchVars t x I ≤ 1 := by
+  have h0 : ∀ J, 0 ≤ branchVars t x J := fun J =>
+    (branchLower_nonneg A t J).trans (branchFeasible_bounds A t h J).1
+  refine ⟨h0 I, ?_⟩
+  rw [← branchFeasible_sum A t h]
+  exact Finset.single_le_sum (fun J _ => h0 J) (Finset.mem_univ I)
+
+/-- The exact product `w = p * q` satisfies the McCormick constraints whenever `p` and `q` lie in
+their boxes with nonnegative lower bounds: the four inequalities are the products
+`(p − p_lower)(q − q_lower) ≥ 0`, `(p_upper − p)(q_upper − q) ≥ 0`, `(p − p_lower)(q_upper − q) ≥ 0`
+and `(p_upper − p)(q − q_lower) ≥ 0` (arXiv:2508.00707, Section 3.2, the derivation of Eq. (12a)).
+
+Julia counterpart: the McCormick `@constraint`s in `mccormick_branch` (`src/bellman.jl`). -/
+theorem mcCormickEnvelope_mul {p pLower pUpper q qLower qUpper : ℝ} (hpl : 0 ≤ pLower)
+    (hql : 0 ≤ qLower) (hp : pLower ≤ p ∧ p ≤ pUpper) (hq : qLower ≤ q ∧ q ≤ qUpper) :
+    mcCormickEnvelope p pLower pUpper q qLower qUpper (p * q) := by
+  obtain ⟨hp1, hp2⟩ := hp
+  obtain ⟨hq1, hq2⟩ := hq
+  refine ⟨mul_le_mul hp1 hq1 hql (hpl.trans hp1), mul_le_mul hp2 hq2 (hql.trans hq1)
+    ((hpl.trans hp1).trans hp2), ?_, ?_, ?_, ?_⟩
+  · nlinarith [mul_nonneg (sub_nonneg.2 hp1) (sub_nonneg.2 hq1)]
+  · nlinarith [mul_nonneg (sub_nonneg.2 hp2) (sub_nonneg.2 hq2)]
+  · nlinarith [mul_nonneg (sub_nonneg.2 hp1) (sub_nonneg.2 hq2)]
+  · nlinarith [mul_nonneg (sub_nonneg.2 hp2) (sub_nonneg.2 hq1)]
+
+/-- **The relaxation contains the product set.** If every `γ i` is a distribution in the marginal
+interval set `P(lⁱ, uⁱ)`, the product point `branchProduct γ t` (`w[I, J] = p[I] * q[J]` at every
+node) satisfies every constraint of the branch: the leaves satisfy `marginal_lp_constraints`, each
+node the McCormick constraints (`mcCormickEnvelope_mul`) and `sum(w) = sum(p) * sum(q) = 1`. Any
+tree shape; in particular Julia's.
+
+Julia counterpart: the feasible set of the JuMP model built by `mccormick_branch`
+(`src/bellman.jl`). -/
+theorem branchFeasible_branchProduct {γ : (i : Fin N) → Fin (dims i) → ℝ}
+    (hγ : ∀ i, γ i ∈ (A i).toSet.vecs) :
+    ∀ t : McCormickTree N, branchFeasible A t (branchProduct γ t)
+  | .leaf i => by
+    obtain ⟨p, hp, hpγ⟩ := hγ i
+    refine ⟨fun k => ?_, ?_⟩
+    · show (A i).lower k ≤ γ i k ∧ γ i k ≤ (A i).upper k
+      rw [← hpγ]; exact hp k
+    · show ∑ k, γ i k = 1
+      rw [← hpγ]; exact p.sum_eq_one
+  | .node l r => by
+    have hl := branchFeasible_branchProduct hγ l
+    have hr := branchFeasible_branchProduct hγ r
+    refine ⟨hl, hr, fun J I => ?_, ?_⟩
+    · exact mcCormickEnvelope_mul (branchLower_nonneg A l I) (branchLower_nonneg A r J)
+        (branchFeasible_bounds A l hl I) (branchFeasible_bounds A r hr J)
+    · show ∑ IJ : l.Idx dims × r.Idx dims,
+        branchVars l (branchProduct γ l) IJ.1 * branchVars r (branchProduct γ r) IJ.2 = 1
+      rw [Fintype.sum_prod_type, ← Finset.sum_mul_sum, branchFeasible_sum A l hl,
+        branchFeasible_sum A r hr, one_mul]
+
+/-- At the product point, the entry a joint state `s` reads is the product of the marginal
+probabilities over the branch's marginals: `∏_{i ∈ leaves t} γ i (s i)`.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem branchVars_branchProduct (γ : (i : Fin N) → Fin (dims i) → ℝ)
+    (s : (i : Fin N) → Fin (dims i)) : ∀ t : McCormickTree N,
+    branchVars t (branchProduct γ t) (branchIndex t s) = (t.leaves.map (coordValue γ s)).prod
+  | .leaf i => by simp [branchVars, branchProduct, branchIndex, leaves, coordValue]
+  | .node l r => by
+    show branchVars l (branchProduct γ l) (branchIndex l s) *
+      branchVars r (branchProduct γ r) (branchIndex r s) = _
+    rw [branchVars_branchProduct γ s l, branchVars_branchProduct γ s r, leaves, List.map_append,
+      List.prod_append]
+
+/-- `branchIndex` reads only the coordinates of the branch's marginals.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem branchIndex_congr : ∀ (t : McCormickTree N) {s s' : (i : Fin N) → Fin (dims i)},
+    (∀ i ∈ t.leaves, s i = s' i) → branchIndex t s = branchIndex t s'
+  | .leaf i, _, _, h => h i (by simp [leaves])
+  | .node l r, _, _, h => Prod.ext
+    (branchIndex_congr l fun i hi => h i (List.mem_append_left _ hi))
+    (branchIndex_congr r fun i hi => h i (List.mem_append_right _ hi))
+
+/-- Equal indices mean equal coordinates on the branch's marginals.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem eq_of_branchIndex_eq : ∀ (t : McCormickTree N) {s s' : (i : Fin N) → Fin (dims i)},
+    branchIndex t s = branchIndex t s' → ∀ i ∈ t.leaves, s i = s' i
+  | .leaf i, _, _, h, j, hj => by
+    simp only [leaves, List.mem_singleton] at hj
+    subst hj; exact h
+  | .node l r, _, _, h, j, hj => by
+    rcases List.mem_append.1 hj with hj | hj
+    · exact eq_of_branchIndex_eq l (congrArg Prod.fst h) j hj
+    · exact eq_of_branchIndex_eq r (congrArg Prod.snd h) j hj
+
+/-- Overwrite the coordinates of the branch's marginals in `s` with the index `I` (the inverse of
+`branchIndex` when every marginal occurs once).
+
+Julia counterpart: none (Lean-side proof device). -/
+def branchFill : (t : McCormickTree N) → t.Idx dims → ((i : Fin N) → Fin (dims i)) →
+    (i : Fin N) → Fin (dims i)
+  | .leaf i, I, s => Function.update s i I
+  | .node l r, IJ, s => branchFill r IJ.2 (branchFill l IJ.1 s)
+
+/-- `branchFill` leaves the coordinates outside the branch unchanged.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem branchFill_of_not_mem : ∀ (t : McCormickTree N) (I : t.Idx dims)
+    (s : (i : Fin N) → Fin (dims i)) (j : Fin N), j ∉ t.leaves → branchFill t I s j = s j
+  | .leaf i, I, s, j, hj => by
+    have : j ≠ i := by simpa [leaves] using hj
+    exact Function.update_of_ne this (show Fin (dims i) from I) s
+  | .node l r, IJ, s, j, hj => by
+    simp only [leaves, List.mem_append, not_or] at hj
+    simp only [branchFill]
+    rw [branchFill_of_not_mem r _ _ j hj.2, branchFill_of_not_mem l _ _ j hj.1]
+
+/-- If no marginal occurs twice in the branch, `branchFill` is a right inverse of `branchIndex`.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem branchIndex_branchFill : ∀ (t : McCormickTree N), t.leaves.Nodup →
+    ∀ (I : t.Idx dims) (s : (i : Fin N) → Fin (dims i)), branchIndex t (branchFill t I s) = I
+  | .leaf i, _, I, s => Function.update_self (β := fun j => Fin (dims j)) i I s
+  | .node l r, h, IJ, s => by
+    rw [leaves, List.nodup_append] at h
+    obtain ⟨hl, hr, hd⟩ := h
+    refine Prod.ext ?_ ?_
+    · show branchIndex l (branchFill r IJ.2 (branchFill l IJ.1 s)) = IJ.1
+      rw [branchIndex_congr l (s' := branchFill l IJ.1 s) fun i hi =>
+        branchFill_of_not_mem r _ _ i fun hi' => hd i hi i hi' rfl]
+      exact branchIndex_branchFill l hl IJ.1 s
+    · exact branchIndex_branchFill r hr IJ.2 _
+
+end Branch
+
+/-- `mccormick_branch` keeps every marginal of its argument, in order: the leaves of
+`mccormickBranch L` are `L` (nonempty `L`), because `ambiguity_sets[1:mid]` and
+`ambiguity_sets[(mid + 1):end]` concatenate to `ambiguity_sets`.
+
+Julia counterpart: `mccormick_branch(model, ambiguity_sets)` (`src/bellman.jl`). -/
+theorem mccormickBranch_leaves :
+    ∀ (L : List (Fin (n + 1))), L ≠ [] → (mccormickBranch L).leaves = L
+  | [], h => absurd rfl h
+  | [i], _ => by simp [mccormickBranch, leaves]
+  | [i, j], _ => by simp [mccormickBranch, leaves]
+  | i :: j :: k :: rest, _ => by
+    rw [mccormickBranch]
+    simp only [leaves]
+    rw [mccormickBranch_leaves _ (by simp), mccormickBranch_leaves _ (by simp; omega),
+      List.take_append_drop]
+termination_by L => L.length
+decreasing_by
+  all_goals simp only [List.length_take, List.length_drop, List.length_cons]
+  all_goals omega
+
+/-- Julia's tree has the marginals `1:N` as its leaves, in order.
+
+Julia counterpart: `mccormick_branch(model, ambiguity_sets)` on all marginals (`src/bellman.jl`). -/
+theorem mcCormickTree_leaves (n : ℕ) : (mcCormickTree n).leaves = List.finRange (n + 1) :=
+  mccormickBranch_leaves _ (by simp)
+
+/-- The root array of Julia's tree is indexed by the joint successor states: `branchIndex` is a
+bijection from joint states onto the root index set, so `sum(V[I] * p[I] for I in
+CartesianIndices(p))` is the sum over joint states (`mcCormickObjective`).
+
+Julia counterpart: `CartesianIndices(p)` for the root `p` of `mccormick_branch` in
+`state_action_bellman(::FactoredIntervalMcCormickWorkspace, …)` (`src/bellman.jl`). -/
+theorem mcCormickTree_branchIndex_bijective (F : FactoredIMDP (n + 1) m) :
+    Function.Bijective (branchIndex (dims := F.stateVars.dims) (mcCormickTree n)) := by
+  refine ⟨fun s s' h => funext fun i => eq_of_branchIndex_eq _ h i ?_, fun I => ?_⟩
+  · rw [mcCormickTree_leaves]; exact List.mem_finRange i
+  · exact ⟨branchFill _ I (Classical.arbitrary _),
+      branchIndex_branchFill _ (by rw [mcCormickTree_leaves]; exact List.nodup_finRange _) I _⟩
+
+/-- The LP objective `sum(V[I] * p[I] for I in CartesianIndices(p))` at the root `p` of Julia's
+tree, as a sum over joint successor states `t` (`mcCormickTree_branchIndex_bijective`); dense
+marginals, so `V = @view V[map(support, ambiguity_sets)...]` is `V` itself.
+
+Julia counterpart: the `@objective` in `state_action_bellman(::FactoredIntervalMcCormickWorkspace,
+…)` (`src/bellman.jl`). -/
+noncomputable def mcCormickObjective (F : FactoredIMDP (n + 1) m) (W : F.stateVars.State → ℝ)
+    (x : (mcCormickTree n).Vars F.stateVars.dims) : ℝ :=
+  ∑ t, W t * branchVars (mcCormickTree n) x (branchIndex (mcCormickTree n) t)
+
+/-- The feasible set of the LP for `(s, a)`: the points satisfying every constraint that
+`mccormick_branch(model, ambiguity_sets)` adds for `ambiguity_sets = getindex.(marginals(model), jₐ,
+jₛ)`.
+
+Julia counterpart: the JuMP model built by `mccormick_branch` in
+`state_action_bellman(::FactoredIntervalMcCormickWorkspace, …)` (`src/bellman.jl`). -/
+def mcCormickFeasible (F : FactoredIMDP (n + 1) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) : Set ((mcCormickTree n).Vars F.stateVars.dims) :=
+  {x | branchFeasible (ambiguitySets F s a) (mcCormickTree n) x}
+
+/-- The objective values of the feasible points of the LP for `(s, a)`.
+
+Julia counterpart: the objective of the JuMP model in
+`state_action_bellman(::FactoredIntervalMcCormickWorkspace, …)` (`src/bellman.jl`). -/
+def mcCormickValues (F : FactoredIMDP (n + 1) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) : Set ℝ :=
+  mcCormickObjective F W '' mcCormickFeasible F s a
+
+/-- **The McCormick relaxation LP**, mathematical optimum: the `sup` (`upperBound = true`,
+`@objective(model, Max, …)`) or `inf` (`upperBound = false`, `Min`) of the objective
+`mcCormickObjective` over the feasible set `mcCormickFeasible` of the binary-tree relaxation built
+by `mccormick_branch` (arXiv:2508.00707, Section 3.2 "McCormick Relaxation", Eqs. (12a)–(12d), and
+Appendix B.1–B.2; that paper has no numbered theorem for this relaxation). The feasible set is
+nonempty (`dot_mem_mcCormickValues`) and bounded (`mcCormickValues_bddBelow`,
+`mcCormickValues_bddAbove`). Whether HiGHS (`JuMP.optimize!`, `JuMP.objective_value`) returns this
+optimum is not modelled (L6). Julia's tree and constraints depart from the paper's (Finding F6).
+
+Julia counterpart: `state_action_bellman(::FactoredIntervalMcCormickWorkspace, V, ambiguity_sets,
+upper_bound)` (`src/bellman.jl`). -/
+noncomputable def mcCormickLP (F : FactoredIMDP (n + 1) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) (upperBound : Bool) : ℝ :=
+  if upperBound then sSup (mcCormickValues F s a W) else sInf (mcCormickValues F s a W)
+
+/-- Every feasible objective value lies in `[−∑ abs (W t), ∑ abs (W t)]` (the root entries lie in
+`[0, 1]`).
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem mcCormickObjective_bounds (F : FactoredIMDP (n + 1) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ)
+    {x : (mcCormickTree n).Vars F.stateVars.dims} (hx : x ∈ mcCormickFeasible F s a) :
+    -∑ t, |W t| ≤ mcCormickObjective F W x ∧ mcCormickObjective F W x ≤ ∑ t, |W t| := by
+  have hb := branchFeasible_mem_unit (ambiguitySets F s a) (mcCormickTree n) hx
+  unfold mcCormickObjective
+  rw [← Finset.sum_neg_distrib]
+  constructor
+  · refine Finset.sum_le_sum fun t _ => ?_
+    obtain ⟨h0, h1⟩ := hb (branchIndex (mcCormickTree n) t)
+    have := neg_abs_le (W t)
+    have := le_abs_self (W t)
+    nlinarith [abs_nonneg (W t)]
+  · refine Finset.sum_le_sum fun t _ => ?_
+    obtain ⟨h0, h1⟩ := hb (branchIndex (mcCormickTree n) t)
+    have := neg_abs_le (W t)
+    have := le_abs_self (W t)
+    nlinarith [abs_nonneg (W t)]
+
+/-- The LP values are bounded below.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem mcCormickValues_bddBelow (F : FactoredIMDP (n + 1) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) :
+    BddBelow (mcCormickValues F s a W) := by
+  refine ⟨-∑ t, |W t|, ?_⟩
+  rintro _ ⟨x, hx, rfl⟩
+  exact (mcCormickObjective_bounds F s a W hx).1
+
+/-- The LP values are bounded above.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem mcCormickValues_bddAbove (F : FactoredIMDP (n + 1) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) :
+    BddAbove (mcCormickValues F s a W) := by
+  refine ⟨∑ t, |W t|, ?_⟩
+  rintro _ ⟨x, hx, rfl⟩
+  exact (mcCormickObjective_bounds F s a W hx).2
+
+/-- **The relaxation contains (the image of) the product set**: for every distribution `x` in the
+literal, non-convex `productSet s a`, the expectation `⟨x, W⟩` is the LP objective at a feasible
+point (the product point `branchProduct`). This is the paper's "the relaxed set is a superset of the
+true one" (arXiv:2508.00707, Section 3.2), for Julia's tree and constraints.
+
+Julia counterpart: the feasible set of the JuMP model in
+`state_action_bellman(::FactoredIntervalMcCormickWorkspace, …)` (`src/bellman.jl`). -/
+theorem dot_mem_mcCormickValues (F : FactoredIMDP (n + 1) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) {x : F.stateVars.State → ℝ}
+    (hx : x ∈ (F.productSet s a).vecs) : dot W x ∈ mcCormickValues F s a W := by
+  rw [FactoredIMDP.productSet, AmbiguitySet.vecs_pi] at hx
+  obtain ⟨γ, hγ, rfl⟩ := hx
+  refine ⟨branchProduct γ (mcCormickTree n),
+    branchFeasible_branchProduct (ambiguitySets F s a) (fun i => hγ i (Set.mem_univ i)) _, ?_⟩
+  unfold mcCormickObjective dot
+  refine Finset.sum_congr rfl fun t _ => ?_
+  rw [branchVars_branchProduct, mcCormickTree_leaves, ← Fin.prod_univ_def]
+  rfl
+
+/-- **One state–action pair, pessimistic** (`upper_bound = false`): the McCormick LP minimum is at
+most the exact inner optimum over the literal, non-convex product set,
+`mcCormickLP ≤ inf_{γ ∈ productSet s a} ⟨γ, W⟩` (arXiv:2508.00707, Section 3.2). One or more state
+variables (`FactoredIMDP (n + 1) m`); dense marginal storage only; no other hypotheses.
+
+Julia counterpart: `state_action_bellman(::FactoredIntervalMcCormickWorkspace, …)` with
+`upper_bound = false` (`src/bellman.jl`). -/
+theorem mcCormickLP_le_innerOpt (F : FactoredIMDP (n + 1) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) :
+    mcCormickLP F s a W false ≤ Bellman.innerOpt .pessimistic (F.productSet s a) W := by
+  refine le_csInf (Bellman.expectations_nonempty (F.toRMDP_wellFormed s a).2 W) ?_
+  rintro _ ⟨x, hx, rfl⟩
+  exact csInf_le (mcCormickValues_bddBelow F s a W) (dot_mem_mcCormickValues F s a W hx)
+
+/-- **One state–action pair, optimistic** (`upper_bound = true`): the McCormick LP maximum is at
+least the exact inner optimum over the literal, non-convex product set,
+`sup_{γ ∈ productSet s a} ⟨γ, W⟩ ≤ mcCormickLP` (arXiv:2508.00707, Section 3.2). One or more state
+variables (`FactoredIMDP (n + 1) m`); dense marginal storage only; no other hypotheses.
+
+Julia counterpart: `state_action_bellman(::FactoredIntervalMcCormickWorkspace, …)` with
+`upper_bound = true` (`src/bellman.jl`). -/
+theorem innerOpt_le_mcCormickLP (F : FactoredIMDP (n + 1) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) :
+    Bellman.innerOpt .optimistic (F.productSet s a) W ≤ mcCormickLP F s a W true := by
+  refine csSup_le (Bellman.expectations_nonempty (F.toRMDP_wellFormed s a).2 W) ?_
+  rintro _ ⟨x, hx, rfl⟩
+  exact le_csSup (mcCormickValues_bddAbove F s a W) (dot_mem_mcCormickValues F s a W hx)
+
+/-! ### A3: one Bellman step and value iteration -/
+
+/-- `workspace.actions[jₐ] = state_action_bellman(workspace, V, ambiguity_sets, upper_bound)` for
+every action, with `upper_bound = isoptimistic(sat)`, computed by the McCormick LP.
+
+Julia counterpart: the loop over `available(model, jₛ)` in
+`state_bellman!(::FactoredIntervalMcCormickWorkspace, ::OptimizingStrategyCache, …)`
+(`src/bellman.jl`). -/
+noncomputable def mcCormickActionValues (F : FactoredIMDP (n + 1) m) (sat : SatisfactionMode)
+    (W : F.stateVars.State → ℝ) (s : F.stateVars.State) : F.actionVars.Action → ℝ :=
+  fun a => mcCormickLP F s a W (Bellman.isOptimistic sat)
+
+/-- The Bellman update computed with the McCormick LP:
+`Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, available(model, jₛ), jₛ, maximize)`
+over the McCormick action values (`max` for maximize, `min` for minimize).
+
+Julia counterpart: `bellman!` → `_bellman_helper!` →
+`state_bellman!(::FactoredIntervalMcCormickWorkspace, ::OptimizingStrategyCache, …)`
+(`src/bellman.jl`), `extract_strategy!` (`src/strategy_cache.jl`). -/
+noncomputable def mcCormickBellman (F : FactoredIMDP (n + 1) m) (sat : SatisfactionMode)
+    (strat : StrategyMode) (W : F.stateVars.State → ℝ) : F.stateVars.State → ℝ :=
+  fun s => Bellman.extractValue strat (F.toRMDP.available s) (F.toRMDP.available_nonempty s)
+    (mcCormickActionValues F sat W s)
+
+/-- **A3, one step: the McCormick relaxation is sound** (arXiv:2508.00707, Section 3.2 and
+Appendix B; the paper states soundness in prose, without a theorem number). For a factored IMDP with
+one or more state variables (`FactoredIMDP (n + 1) m`; Julia accepts `LPMcCormickRelaxation` for
+`IsIMDP` and `IsFIMDP`) and dense marginal storage, in all four satisfaction × strategy modes
+(`sat`, `strat`), the Bellman update computed with `FactoredIntervalMcCormickWorkspace` (the LP's
+mathematical optimum, `mcCormickLP`) is sound for the exact Bellman operator `Bellman.T F.toRMDP`,
+whose inner optimum ranges over the literal, non-convex `productSet`:
+`Sound sat (mcCormickBellman F sat strat W) (Bellman.T F.toRMDP sat strat W)` for every `W`, i.e.
+`≤` for pessimistic and `≥` for optimistic. No hypotheses beyond the model invariants. Exactness is
+not claimed (Observation O18). HiGHS is not modelled (L6).
+
+Proof: the product point of every product distribution is LP-feasible
+(`branchFeasible_branchProduct`, `dot_mem_mcCormickValues`), so the LP `inf` is at most and the LP
+`sup` at least every expectation over `productSet` (`mcCormickLP_le_innerOpt`,
+`innerOpt_le_mcCormickLP`); the action optimum is monotone (`extractValue_le_add`). Julia's tree
+shape and its extra simplex constraints depart from the paper's LP (Finding F6); the argument holds
+for any tree shape.
+
+Julia counterpart: `bellman!` with `FactoredIntervalMcCormickWorkspace`, `state_bellman!` and
+`state_action_bellman(::FactoredIntervalMcCormickWorkspace, …)` (`src/bellman.jl`). -/
+theorem mcCormick_sound (F : FactoredIMDP (n + 1) m) (sat : SatisfactionMode)
+    (strat : StrategyMode) :
+    Approx.StepSound sat (mcCormickBellman F sat strat) (Bellman.T F.toRMDP sat strat) := by
+  intro W
+  cases sat with
+  | pessimistic =>
+    intro s
+    have h := Bellman.extractValue_le_add strat (F.toRMDP.available_nonempty s)
+      (f := mcCormickActionValues F .pessimistic W s)
+      (g := Bellman.stateActionBellman F.toRMDP .pessimistic W s) (c := 0) fun a _ => by
+        simpa [mcCormickActionValues, Bellman.stateActionBellman, Bellman.isOptimistic] using
+          mcCormickLP_le_innerOpt F s a W
+    simpa [mcCormickBellman, Bellman.T] using h
+  | optimistic =>
+    intro s
+    have h := Bellman.extractValue_le_add strat (F.toRMDP.available_nonempty s)
+      (f := Bellman.stateActionBellman F.toRMDP .optimistic W s)
+      (g := mcCormickActionValues F .optimistic W s) (c := 0) fun a _ => by
+        simpa [mcCormickActionValues, Bellman.stateActionBellman, Bellman.isOptimistic] using
+          innerOpt_le_mcCormickLP F s a W
+    simpa [mcCormickBellman, Bellman.T] using h
+
+/-- The `k`-th value-iteration iterate `(mcCormickBellman)^[k] W₀` with the McCormick LP.
+
+Julia counterpart: `k` repeated `bellman!` calls with `FactoredIntervalMcCormickWorkspace` in
+`_value_iteration!` (`src/robust_value_iteration.jl`). -/
+noncomputable def mcCormickIter (F : FactoredIMDP (n + 1) m) (sat : SatisfactionMode)
+    (strat : StrategyMode) (W₀ : F.stateVars.State → ℝ) (k : ℕ) : F.stateVars.State → ℝ :=
+  (mcCormickBellman F sat strat)^[k] W₀
+
+open Filter Topology in
+/-- **A3, end to end: value iteration with the McCormick LP is sound** (via
+`IntervalMDP.Approx.iter_sound`). For a factored IMDP with one or more state variables
+(`FactoredIMDP (n + 1) m`) and dense marginal storage, in all four satisfaction × strategy modes:
+if the initial values are sound (`h₀ : Sound sat W₀ V₀`), then every iterate is sound,
+`Sound sat (mcCormickIter k) (bellmanIter k)`, and so are the limits whenever both iterate sequences
+converge. No other hypotheses. Exactness is not claimed; HiGHS is not modelled (L6).
+
+Julia counterpart: `_value_iteration!` (`src/robust_value_iteration.jl`) with
+`FactoredIntervalMcCormickWorkspace` (`src/bellman.jl`), without step postprocessing (see
+`mcCormick_vi_sound_post`). -/
+theorem mcCormick_vi_sound (F : FactoredIMDP (n + 1) m) (sat : SatisfactionMode)
+    (strat : StrategyMode) {W₀ V₀ : F.stateVars.State → ℝ} (h₀ : Approx.Sound sat W₀ V₀) :
+    (∀ k, Approx.Sound sat (mcCormickIter F sat strat W₀ k) (bellmanIter F sat strat V₀ k)) ∧
+      ∀ {L' L : F.stateVars.State → ℝ}, Tendsto (mcCormickIter F sat strat W₀) atTop (𝓝 L') →
+        Tendsto (bellmanIter F sat strat V₀) atTop (𝓝 L) → Approx.Sound sat L' L :=
+  Approx.iter_sound (mcCormick_sound F sat strat) (Or.inl (Bellman.T_monotone _ _ _)) h₀
+
+/-- One value-iteration step with the McCormick LP followed by a step postprocessing `post`.
+
+Julia counterpart: `step!` (`src/robust_value_iteration.jl`): `bellman!` with
+`FactoredIntervalMcCormickWorkspace` then `step_postprocess_value_function!`
+(`src/specification.jl`). -/
+noncomputable def mcCormickStep (F : FactoredIMDP (n + 1) m) (sat : SatisfactionMode)
+    (strat : StrategyMode) (post : (F.stateVars.State → ℝ) → F.stateVars.State → ℝ)
+    (W : F.stateVars.State → ℝ) : F.stateVars.State → ℝ :=
+  post (mcCormickBellman F sat strat W)
+
+/-- **A3, end to end with step postprocessing.** As `mcCormick_vi_sound`, for the Julia step
+`step!` = `bellman!` followed by a monotone step postprocessing (`hpost : Monotone post`): if
+`h₀ : Sound sat W₀ V₀`, every iterate of `post ∘ mcCormickBellman` is sound for the matching iterate
+of `post ∘ Bellman.T F.toRMDP`. One or more state variables (`FactoredIMDP (n + 1) m`), dense
+marginal storage only, all four modes.
+
+Julia counterpart: `_value_iteration!` and `step!` (`src/robust_value_iteration.jl`) with
+`FactoredIntervalMcCormickWorkspace` (`src/bellman.jl`) and `step_postprocess_value_function!`
+(`src/specification.jl`). -/
+theorem mcCormick_vi_sound_post (F : FactoredIMDP (n + 1) m) (sat : SatisfactionMode)
+    (strat : StrategyMode) {post : (F.stateVars.State → ℝ) → F.stateVars.State → ℝ}
+    (hpost : Monotone post) {W₀ V₀ : F.stateVars.State → ℝ} (h₀ : Approx.Sound sat W₀ V₀)
+    (k : ℕ) :
+    Approx.Sound sat ((mcCormickStep F sat strat post)^[k] W₀)
+      ((bellmanStep F sat strat post)^[k] V₀) :=
+  (Approx.iter_sound (fun V => (mcCormick_sound F sat strat V).apply_mono hpost)
     (Or.inl (hpost.comp (Bellman.T_monotone _ _ _))) h₀).1 k
 
 end Factored
