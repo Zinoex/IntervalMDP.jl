@@ -72,11 +72,60 @@ strategy coupling (inventory Finding F4; witnesses `Examples.ivi_upper_lt_reachL
 `V*` (`Examples.not_gap_stop_sound_pessimistic_maximize`,
 `Examples.not_gap_stop_sound_optimistic_minimize`), so neither `IVI.bracket` nor
 `IVI.gap_stop_sound` (all four modes) is stated.
-The factored algorithms (Phase 5) are not proved yet.
+Phase 5 done (5a, 5b, 5c): factored IMDPs (`Factored.lean`). `Index.factored_successor_eq`:
+under the overflow bound `∏ state_vars < 2 ^ (N - 1)` (`hBound`) and for a value array storing `W`
+(`hV : StoresValues`), the index `I ∈ CartesianIndices(num_target.(ambiguity_sets))` of vertex
+enumeration and the factored O-max loops is in bijection with the joint successor states, `V[I]`
+reads `W (successorState I)`, and `prod(r -> γ[r][I[r]], …)` is the product distribution there.
+`Factored.vertices_complete` (no hypotheses beyond the model invariants; dense marginal storage
+only, sparse marginals not modelled, Observation O16): the loop over
+`Iterators.product` of the marginal `IntervalAmbiguitySetVertexIterator`s, including the
+iterator's permutation skipping (`nextPermutation`), visits exactly the tuples of extreme points
+(vertices) of the marginal sets. `Factored.vertexValue_eq_opt` and its corollary
+`vertexValue_eq_stateActionBellman` (no hypotheses beyond the model invariants; dense marginal
+storage only, O16; all four modes, `upper_bound = isoptimistic(sat)`): the vertex-enumeration value
+`vertexValue` equals the exact inner optimum over the literal, non-convex `productSet`
+(arXiv:2508.00707, Theorem 1); this is the exact reference value for A2/A3. Both theorems cover
+dense marginal storage only (`vertexValue` is built on the dense `vertices` transcription).
+Recursive O-max (5b; A2): `Factored.recursiveOMax` transcribes the loop of
+`state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`), and
+`Factored.recursiveOMax_eq_nestedOMax` (`n + 2` state variables, dense marginals) shows that it
+computes the tree value `nestedOMax`. `Factored.recursiveOMax_sound` (A2, one step; two or more
+state variables, `FactoredIMDP (n + 2) m`; dense marginal storage only; all four satisfaction ×
+strategy modes; no hypotheses beyond the model invariants):
+`StepSound sat (recursiveOMaxBellman F sat strat) (Bellman.T F.toRMDP sat strat)`, i.e. `≤` the
+exact update over the literal, non-convex `productSet` for pessimistic and `≥` for optimistic
+(per pair: `recursiveOMax_le_innerOpt` (pessimistic, `upper_bound = false`),
+`innerOpt_le_recursiveOMax` (optimistic, `upper_bound = true`), both `n + 2` state variables and
+dense marginals). `Factored.recursiveOMax_vi_sound` (A2, end to end via `Approx.iter_sound`; `n + 2` state
+variables, dense marginals, all four modes, hypothesis `h₀ : Sound sat W₀ V₀`): every iterate,
+and every limit when both sequences converge, is sound; `recursiveOMax_vi_sound_post` (same
+`n + 2`, dense, all four modes, `h₀`, plus `hpost : Monotone post`) covers `step!` with a monotone
+step postprocessing. The proof follows arXiv:2411.11803, Theorem 6.1; exactness is not claimed
+(Observation O17). Julia reduces the first variable innermost, the paper's Eqn. (15) the last
+(Finding F5; soundness is unaffected).
+McCormick relaxation (5c; A3): `Factored.mccormickBranch` transcribes the recursion of
+`mccormick_branch` (`src/bellman.jl`; split at `mid = fld(k, 2) + 1`), `branchFeasible` its
+constraints (leaf box and `sum(p) == 1`, node box, four McCormick inequalities `mcCormickEnvelope` and
+`sum(w) == 1`), and `Factored.mcCormickLP` is the LP's mathematical optimum (`sInf`/`sSup` over the
+feasible set; HiGHS not modelled, L6). The relaxation contains the image of the literal `productSet`
+(`dot_mem_mcCormickValues`, `FactoredIMDP (n + 1) m`, dense). `Factored.mcCormick_sound` (A3, one
+step; one or more state variables, `n + 1`, `FactoredIMDP (n + 1) m`; dense marginal storage only;
+all four satisfaction × strategy modes; no hypotheses beyond the model invariants):
+`StepSound sat (mcCormickBellman F sat strat) (Bellman.T F.toRMDP sat strat)` (per pair:
+`mcCormickLP_le_innerOpt` (pessimistic, `upper_bound = false`) and `innerOpt_le_mcCormickLP`
+(optimistic, `upper_bound = true`), both `n + 1`, dense). `Factored.mcCormick_vi_sound` (A3, end to
+end via `Approx.iter_sound`; `n + 1` state variables, dense marginals, all four modes, hypothesis
+`h₀ : Sound sat W₀ V₀`): every iterate, and every limit when both sequences converge, is sound;
+`mcCormick_vi_sound_post` (same `n + 1`, dense, all four modes, `h₀`, plus `hpost : Monotone post`)
+covers `step!`. Source: arXiv:2508.00707, Section 3.2 and Appendix B (no numbered theorem for the
+relaxation in the paper). Julia's tree differs from the paper's chain for five or more state
+variables and Julia adds simplex constraints at every leaf and node (Finding F6; soundness is
+unaffected); exactness is not claimed (Observation O18).
 
 **Proof scope: abstract.** Values are real numbers and the semantics is the dynamic-programming
 recursion. The proofs do not cover floating-point rounding, overflow, CUDA kernels or threaded
-execution, and the Lean ↔ Julia correspondence is argued by transcription and docstrings, not
+execution, or the LP solver of the McCormick relaxation (HiGHS), and the Lean ↔ Julia correspondence is argued by transcription and docstrings, not
 proved.
 
 ## Build
@@ -88,9 +137,10 @@ the Mathlib release tag `v4.33.0-rc2` pinned in `lakefile.toml`. Do not change o
 cd lean
 lake exe cache get           # once: download Mathlib's build cache
 lake build                   # builds the library; must finish with no warnings
-lake env lean AxiomCheck.lean   # #print axioms for every mapped theorem
+lake env lean AxiomCheck.lean   # #print axioms for every theorem
 lake env lean DocLint.lean      # docBlame / docBlameThm: every declaration has a docstring
 python3 scripts/check_julia_refs.py   # every declaration docstring names its Julia counterpart
+python3 scripts/check_axiom_check.py  # AxiomCheck.lean lists every declared theorem
 ```
 
 `scripts/check_julia_refs.py` (no Lean needed; runs from any directory) checks every declaration
@@ -132,6 +182,8 @@ Approx.Sound m W V, Approx.StepSound m T' T, Approx.iter_sound (A1)
 OMax.omax A s                  dense O-max on IntervalAmbiguity (Fin n) × SortedPerm n (exact: sSup / sInf)
 OMax.omaxSparse A σ            sparse O-max on SparseIntervalAmbiguity n (= IntervalAmbiguity + SparseCol gap)
                                × SortedValuesGaps s A.gapCol (= omax: omaxSparse_eq_omax)
+Factored.vertexValue F s a W ub  vertex enumeration over Factored.vertexEnumeration (exact: = innerOpt
+                               over FactoredIMDP.productSet, vertexValue_eq_opt; dense marginals only)
 ```
 
 ## Julia ↔ Lean glossary
@@ -225,6 +277,17 @@ OMax.omaxSparse A σ            sparse O-max on SparseIntervalAmbiguity n (= Int
 | `max_initial_gap(V_lower, V_upper, initial_states(mp))` (`src/interval_value_iteration.jl`); `gap = V_upper - V_lower` | `IntervalMDP.IVI.maxInitialGap B initial` (loop transcription, step `maxGapStep`), `IVI.gap B s` (`IVI.lean`) |
 | `IVIInitialGapCriteria(convergence_eps)` (`src/interval_value_iteration.jl`) | `IntervalMDP.IVI.iviInitialGapCriteria tol initial B` (`IVI.lean`) |
 | loop exit of `_interval_value_iteration!` (returned `k`, `num_iterations`) and the returned `value_function` | `IntervalMDP.IVI.Terminates`, `stopIndex h`, `iviValueFunction h`; `WithinOn initial tol V W`; `gap_stop_sound_aligned` (`(Pessimistic, Minimize)`, `(Optimistic, Maximize)`), `gap_stop_primary_sound` (all four modes), both non-exact-time reach-avoid only and both assuming the loop exits (`h : Terminates …`, termination not proved) (A6, 4b; Finding F4) (`IVI.lean`) |
+| `getindex.(marginals(model), jₐ, jₛ)`, `num_target.(ambiguity_sets)`, `CartesianIndices(num_target.(…))` and `V[I]` in `state_action_bellman(::FactoredVertexIteratorWorkspace, …)` (`src/bellman.jl`) | `IntervalMDP.Factored.ambiguitySets`, `numTarget`, `numTargets`, `successorState`, `StoresValues`, `readValue`; `Index.factored_successor_eq` (overflow bound `∏ state_vars < 2 ^ (N - 1)`, value array storing `W`) (`Factored.lean`) |
+| `IntervalAmbiguitySetVertexIterator`, `Base.iterate` (both methods), `vertex_generator`, `vertices` (`src/probabilities/IntervalAmbiguitySets.jl`) | `IntervalMDP.Factored.addAt`, `vertexLoop` (greedy loop, `(v, break_idx)`), `vertexOf`, `permGet`, `suffixStep`, `nextInSuffix`, `findSwap`, `swapSort`, `nextPermutation` (permutation skip), `vertexRun`, `vertices`; `mem_vertices_iff`, `mem_vertices_iff_extremePoints` (`Factored.lean`) |
+| `Iterators.product(iterators...)`, the `sum(V[I] * prod(…))` and `optval = optfunc(optval, v)` of `state_action_bellman(::FactoredVertexIteratorWorkspace, …)` (`src/bellman.jl`) | `IntervalMDP.Factored.productList`, `vertexEnumeration`, `vertexSum`, `optStep`, `maxStep`, `minStep`, `vertexValue`; `vertices_complete` (no extra hypotheses; dense marginals only, O16), `vertexValue_eq_opt` (no extra hypotheses, all four modes; dense marginals only, O16; arXiv:2508.00707 Theorem 1) (`Factored.lean`) |
+| `orthogonal_inner_bellman!(workspace, V, ambiguity_set, budget, upper_bound)` (`src/bellman.jl`) for a dense marginal; `support`/`gap` of a dense column (`src/probabilities/IntervalAmbiguitySets.jl`) | `IntervalMDP.Factored.orthogonalInnerBellman` (sparse O-max `OMax.omaxSparse` on `denseAmbiguity`, `denseCol`); `orthogonalInnerBellman_eq_innerOpt` (exact for one marginal, both satisfaction modes, dense) |
+| `state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`): loop over `CartesianIndices(ssize[2:end])`, `Isparse[d - 1] == ssize[d]`, the `for d in 2:(length(ambiguity_sets) - 1)` loop with `break`, `Vₑ[d][I[d]] = v`, `fill!`; `expectation_cache` (`src/workspace.jl`) | `IntervalMDP.Factored.recursiveOMax` (literal transcription), `cartesianIndices`, `cartesianBlock`, `loopBody`, `cascadeLoop`, `cascadeStep`, `firstInnerBellman`, `innerBellmanAt`, `cartIdx`, `supportSize`, `writeCache`, `fillZero`, `expectationCache`; tree value `nestedOMax` (arXiv:2411.11803 Eqn. (15), Julia's variable order, Finding F5); `recursiveOMax_eq_nestedOMax` (`n + 2` state variables, dense) |
+| `state_bellman!(::FactoredIntervalOMaxWorkspace, ::OptimizingStrategyCache, …)` and `extract_strategy!` (`src/bellman.jl`, `src/strategy_cache.jl`) | `IntervalMDP.Factored.actionValues`, `recursiveOMaxBellman`; `recursiveOMax_sound` (A2, one step: `n + 2` state variables, dense, all four modes, no extra hypotheses), per pair `recursiveOMax_le_innerOpt` (pessimistic, `upper_bound = false`) / `innerOpt_le_recursiveOMax` (optimistic, `upper_bound = true`), both `n + 2` state variables and dense marginals |
+| `_value_iteration!` / `step!` with `FactoredIntervalOMaxWorkspace` (`src/robust_value_iteration.jl`) | `IntervalMDP.Factored.recursiveOMaxIter`, `bellmanIter`, `recursiveOMaxStep`, `bellmanStep`; `recursiveOMax_vi_sound` (A2 via `Approx.iter_sound`: `n + 2` state variables, dense, all four modes, `h₀ : Sound sat W₀ V₀`), `recursiveOMax_vi_sound_post` (same, plus `hpost : Monotone post`) |
+| `mccormick_branch(model, ambiguity_sets)` (`src/bellman.jl`): the recursion (one marginal, two marginals, split at `mid = fld(length(ambiguity_sets), 2) + 1`) | `IntervalMDP.Factored.McCormickTree` (`leaf`, `node`; `leaves`, `Idx`, `Vars`), `mccormickBranch` (literal transcription of the recursion), `mcCormickTree` (on `1:N`) |
+| `marginal_lp_constraints(model, ambiguity_set)`; the `w[I, J]` variables with bounds `w_lower`/`w_upper` and the four McCormick `@constraint`s; `sum(w) == 1`; return values `p, p_lower, p_upper` (`src/bellman.jl`) | `IntervalMDP.Factored.marginalLPFeasible`, `mcCormickEnvelope` (arXiv:2508.00707, Eqs. (12a)–(12d)), `branchFeasible`, `branchVars`, `branchLower`, `branchUpper`, `branchIndex` (`p[I]` for `I ∈ CartesianIndices(p)`) |
+| `state_action_bellman(::FactoredIntervalMcCormickWorkspace, V, ambiguity_sets, upper_bound)`: `@objective(model, Max/Min, sum(V[I] * p[I] …))`, `JuMP.optimize!`, `JuMP.objective_value` (`src/bellman.jl`) | `IntervalMDP.Factored.mcCormickObjective`, `mcCormickFeasible`, `mcCormickValues`, `mcCormickLP` (mathematical optimum, `sSup`/`sInf`; HiGHS not modelled) |
+| `state_bellman!(::FactoredIntervalMcCormickWorkspace, ::OptimizingStrategyCache, …)` and `extract_strategy!`; `_value_iteration!` / `step!` with `FactoredIntervalMcCormickWorkspace` (`src/bellman.jl`, `src/strategy_cache.jl`, `src/robust_value_iteration.jl`) | `IntervalMDP.Factored.mcCormickActionValues`, `mcCormickBellman`, `mcCormickIter`, `mcCormickStep` (with `bellmanIter`, `bellmanStep`) |
 
 Indices: Julia is 1-based, Lean's `Fin n` is 0-based. The conversion is defined once, as
 `Index.toJulia` (`Index/Julia.lean`), and every index theorem is stated through it. Concrete
@@ -262,7 +325,8 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
 | `IntervalMDPProofs/VI/Reward.lean` | `VI.RewardProperty`, `Property.toRewardProperty`, `RewardProperty.discountNNReal`, `initializeValueFunction`, `stepPostprocessValueFunction`, `postprocessValueFunction`, `convergenceCriteria`, `rewardStep`, `rewardIter` (transcription of `_value_iteration!` for discounted reward), `rewardValue`; `Property.toRewardProperty_discount_lt_one`, `rewardIter_eq_iterate`, `rewardIter_succ`, `rewardStep_dist_le`, `reward_contracting`, `rewardValue_isFixedPt`, `rewardIter_tendsto`, `reward_error_bound` (A5), `reward_stop_bound`, `reward_error_interval` |
 | `IntervalMDPProofs/VI/Strategy.lean` | `VI.ActionOrder`, `ActionOrder.first`, `viIter`, `synthesizedStrategy`, `timeVaryingSeed`, `stationaryCacheSeed`, `timeVaryingCacheStrategy`, `stationaryCacheStrategy`, `selectStrategy`, `policyEvalIter`, `StepPostprocess`, `ReachProperty.stepPostprocess`, `ExpectedExitTime.stepPostprocess`, `strategyReachLfp`, `strategyRewardValue`; `timeVarying_attains`, `timeVarying_attains_reach`, `timeVarying_attains_safety`, `timeVarying_attains_reward`, `policyEvalIter_timeVaryingCacheStrategy`, `stationary_sound`, `stationary_sound_exitTime`, `stationary_reward_error_bound`, `stationary_le_superSolution`, `stationary_backward_step`, `viIter_le_superSolution_minimize`, `T_lt_of_switch`, `strategy_eq_of_T_eq`, `argoptAction_eq_or_lt`, `synthesizedStrategy_spec`, `stationaryCacheSeed_mem`, `stationaryCacheSeed_succ`, `timeVaryingCacheStrategy_valid`, `stationaryCacheStrategy_valid`, `selectStrategy_timeVaryingCacheStrategy`, `exists_dot_bracket`, `exists_eq_zero_of_dot_nonpos`, `stateActionBellman_mono`, `reachIter_eq_viIter`, `safetyIter_eq_viIter`, `exitIter_eq_viIter`, `rewardIter_eq_viIter`, `StepPostprocess.apply_mono`, `ReachProperty.stepPostprocess_apply`, `ExpectedExitTime.stepPostprocess_apply` |
 | `IntervalMDPProofs/IVI.lean` | `IVI.ReachAvoidProperty`, `ReachAvoidProperty.reach`, `avoid`, `toReachProperty`, `Bounds`, `StrategyCacheKind`, `cacheSeed`, `primary`, `secondary`, `ofPrimary`, `iviStrategy`, `step` (transcription of `ivi_step!`), `initializeUpper`, `initializeIvi` (`initialize_ivi!`), `iviIter` (transcription of `_interval_value_iteration!`); `lower_le_upper`, `primary_sound`, `lower_le_reachLfp`, `reachLfp_le_upper`, `bracket_aligned` (A6, restricted; Finding F4), `ReachAvoidProperty.disjoint_reach_avoid`, `reach_toReachProperty`, `stepPostprocess_avoid`, `step_lower`, `step_upper`, `step_strategy`, `primary_step_eq`, `cacheSeed_mem`, `iviStrategy_spec`, `iviIter_strategy_mem`, `Tπ_mono`, `primary_step`, `primary_iviIter`, `initializeIvi_lower_le_upper`, `initializeValueFunction_le_reachLfp`, `reachLfp_le_initializeUpper`, `iterate_sound`, `Tπ_iviStrategy_lower_le`, `T_le_Tπ_iviStrategy_upper`, `lower_le_iterate`, `iterate_le_upper`; stopping (4b): `gap`, `maxGapStep`, `maxInitialGap` (transcription of `max_initial_gap`), `iviInitialGapCriteria` (`IVIInitialGapCriteria`), `Terminates`, `stopIndex` (loop exit `k`), `iviValueFunction` (returned `value_function`), `WithinOn`; `gap_stop_sound_aligned` (A6, `(Pessimistic, Minimize)` / `(Optimistic, Maximize)`, non-exact-time, assumes `Terminates` (not proved); Finding F4), `gap_stop_primary_sound` (all four modes, non-exact-time, assumes `Terminates` (not proved)), `withinOn_of_iviInitialGapCriteria_aligned`, `withinOn_of_bracket`, `le_foldl_maxGapStep`, `gap_le_maxInitialGap`, `one_le_stopIndex`, `iviInitialGapCriteria_stopIndex`, `not_iviInitialGapCriteria_of_lt_stopIndex` |
-| `AxiomCheck.lean` | `#print axioms` for every mapped theorem |
+| `IntervalMDPProofs/Factored.lean` | Phase 5a. Index: `Factored.ambiguitySets`, `numTarget`, `numTargets`, `successorState`, `StoresValues`, `readValue`; `successorState_bijective`, `Index.factored_successor_eq` (hypotheses: overflow bound `∏ state_vars < 2 ^ (N - 1)`, `StoresValues`). Marginal iterator: `addAt`, `vertexLoop`, `vertexOf`, `permGet`, `suffixStep`, `nextInSuffix`, `findSwap`, `swapSort`, `nextPermutation`, `vertexRun`, `vertices`, `permsFrom`; `vertexLoop_fst`, `vertexLoop_prefix`, `vertexOf_snd_ne_zero`, `nextPermutation_some`, `nextPermutation_spec`, `vertexOf_mem_vertexRun`, `mem_vertices_iff`, `vertexOf_mem_extremePoints`, `boundary_of_mem_extremePoints`, `exists_perm_vertexOf_eq`, `mem_vertices_iff_extremePoints`. Product and value: `productList`, `vertexEnumeration`, `vertexSum`, `optStep`, `maxStep`, `minStep`, `vertexValue`, `vertexFinset`; `mem_productList`, `vertices_complete` (no extra hypotheses, dense marginals only, O16), `vecs_eq_convexHull_vertices`, `dot_piVec_eq_sum`, `exists_vertex_expansion`, `vertexValue_eq_opt` (all four modes, no extra hypotheses, dense marginals only, O16), `vertexValue_eq_stateActionBellman` (same scope). Phase 5b (recursive O-max, A2): `denseCol`, `denseAmbiguity`, `orthogonalInnerBellman`, `nestedOMax`, `cartIdx`, `supportSize`, `innerBellmanAt`, `firstInnerBellman`, `writeCache`, `fillZero`, `cascadeStep`, `cascadeLoop`, `loopBody`, `cartesianBlock`, `firstState`, `cartesianIndices`, `expectationCache`, `recursiveOMax`, `actionValues`, `recursiveOMaxBellman`, `recursiveOMaxIter`, `bellmanIter`, `recursiveOMaxStep`, `bellmanStep` (proof devices `lastValue`, `lastOf`, `cacheValue`, `writeAt`, `diracVec`, `partialProduct`); `orthogonalInnerBellman_eq_innerOpt`, `recursiveOMax_eq_nestedOMax` (`n + 2`, dense; loop invariant `foldl_cartesianBlock`), `expectationCache_fill`, `nestedOMax_le_dot`, `dot_le_nestedOMax`, `recursiveOMax_le_innerOpt` (pessimistic, `upper_bound = false`; `n + 2` state variables, dense), `innerOpt_le_recursiveOMax` (optimistic, `upper_bound = true`; `n + 2` state variables, dense), `recursiveOMax_sound` (A2 one step: `n + 2` state variables, dense, all four modes, no extra hypotheses), `recursiveOMax_vi_sound` (A2 via `iter_sound`: `n + 2`, dense, all four modes, `h₀ : Sound sat W₀ V₀`), `recursiveOMax_vi_sound_post` (same, plus `hpost : Monotone post`); arXiv:2411.11803, Theorem 6.1; Finding F5, Observation O17. Phase 5c (McCormick relaxation, A3): `McCormickTree`, `McCormickTree.leaves`, `Idx`, `Vars`, `mccormickBranch` (transcription of `mccormick_branch`), `mcCormickTree`, `branchVars`, `branchLower`, `branchUpper`, `mcCormickEnvelope`, `marginalLPFeasible`, `branchFeasible`, `branchIndex`, `mcCormickObjective`, `mcCormickFeasible`, `mcCormickValues`, `mcCormickLP`, `mcCormickActionValues`, `mcCormickBellman`, `mcCormickIter`, `mcCormickStep` (proof devices `branchProduct`, `coordValue`, `branchFill`); `mcCormickEnvelope_mul`, `branchLower_nonneg`, `branchFeasible_bounds`, `branchFeasible_sum`, `branchFeasible_mem_unit`, `branchFeasible_branchProduct` (any tree), `branchVars_branchProduct`, `branchIndex_congr`, `eq_of_branchIndex_eq`, `branchFill_of_not_mem`, `branchIndex_branchFill`, `mccormickBranch_leaves`, `mcCormickTree_leaves`, `mcCormickTree_branchIndex_bijective`, `mcCormickObjective_bounds`, `mcCormickValues_bddBelow`, `mcCormickValues_bddAbove`, `dot_mem_mcCormickValues` (`n + 1`, dense), `mcCormickLP_le_innerOpt` (pessimistic, `upper_bound = false`; `n + 1` state variables, dense), `innerOpt_le_mcCormickLP` (optimistic, `upper_bound = true`; `n + 1` state variables, dense), `mcCormick_sound` (A3 one step: `n + 1` state variables, dense, all four modes, no extra hypotheses), `mcCormick_vi_sound` (A3 via `iter_sound`: `n + 1`, dense, all four modes, `h₀ : Sound sat W₀ V₀`), `mcCormick_vi_sound_post` (same, plus `hpost : Monotone post`); arXiv:2508.00707, Section 3.2 and Appendix B; Finding F6, Observation O18 |
+| `AxiomCheck.lean` | `#print axioms` for every theorem of `IntervalMDPProofs/**` (completeness checked by `scripts/check_axiom_check.py`) |
 | `DocLint.lean` | `#lint only docBlame docBlameThm` |
 
 ## Modelling notes
@@ -272,7 +336,18 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
   It is not convex in general (`FactoredIMDP.productSet_not_convex`; arXiv:2411.11803,
   arXiv:2508.00707), so `AmbiguitySet.WellFormed` requires only nonempty and closed, and the general
   `RMDP` results of later phases must not assume convexity. The factored algorithms (Phase 5) follow
-  the cited papers. The model assumes `source_dims = state_vars`.
+  the cited papers. The model assumes `source_dims = state_vars`. Vertex enumeration (5a) is
+  modelled for dense marginals (`support(p) = 1:d`); for sparse marginals Julia permutes only the
+  support, which is not modelled. Its exactness proof follows arXiv:2508.00707, Theorem 1 (convex
+  hull of the product set = convex hull of products of marginal vertices), without convexifying
+  `productSet`. Recursive O-max (5b) needs two or more state variables (`FactoredIMDP (n + 2) m`; one
+  variable is Julia's `IsIMDP`, which uses dense/sparse O-max) and is modelled for dense marginals;
+  it is only sound (arXiv:2411.11803, Theorem 6.1), not exact, and Julia reduces the variables in
+  the reverse of the paper's order (Finding F5). The McCormick relaxation (5c) works for one or more
+state variables (`FactoredIMDP (n + 1) m`) and dense marginals; Lean reasons about the LP's
+mathematical optimum (HiGHS is not modelled); it is only sound, not exact (arXiv:2508.00707,
+Section 3.2), and Julia's tree shape (for five or more variables) and extra simplex constraints
+differ from the paper's LP (Finding F6).
 * **Product process.** The DFA step uses the label of the *successor* state, as `bellman.jl` does
   (the `ProductProcess` docstring writes the source label).
 * **Available actions** must be nonempty in Lean; Julia's `ListAvailableActions` does not check it.
