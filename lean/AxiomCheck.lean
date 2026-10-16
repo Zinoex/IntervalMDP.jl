@@ -220,3 +220,45 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Factored.vertexOf_mem_vertexRun
 #print axioms IntervalMDP.Factored.vecs_eq_convexHull_vertices
 #print axioms IntervalMDP.Factored.exists_vertex_expansion
+
+-- Phase 5b: recursive O-max soundness (A2; arXiv:2411.11803, Theorem 6.1).
+-- The six theorem entries directly below assume two or more state variables
+-- (`FactoredIMDP (n + 2) m`) and dense marginals.
+-- `recursiveOMax_eq_nestedOMax`: `n + 2` state variables, dense (no mode).
+-- `recursiveOMax_sound` (`n + 2`, dense, all four modes), `recursiveOMax_vi_sound` (`n + 2`, dense,
+-- all four modes, takes `h₀ : Sound sat W₀ V₀`) and `recursiveOMax_vi_sound_post` (`n + 2`, dense,
+-- takes `hpost : Monotone post` and `h₀`; all four modes).
+-- `recursiveOMax_le_innerOpt`: `n + 2`, dense, pessimistic only (`upper_bound = false`).
+-- `innerOpt_le_recursiveOMax`: `n + 2`, dense, optimistic only (`upper_bound = true`).
+#print axioms IntervalMDP.Factored.recursiveOMax_sound
+#print axioms IntervalMDP.Factored.recursiveOMax_vi_sound
+#print axioms IntervalMDP.Factored.recursiveOMax_vi_sound_post
+#print axioms IntervalMDP.Factored.recursiveOMax_le_innerOpt
+#print axioms IntervalMDP.Factored.innerOpt_le_recursiveOMax
+#print axioms IntervalMDP.Factored.recursiveOMax_eq_nestedOMax
+-- Phase 5b helper entries. These take `FactoredIMDP (n + 2) m`, except seven generic ones:
+-- `lookup_zip_map_toJulia`, `denseCol_getindex` and `orthogonalInnerBellman_eq_innerOpt` (a single
+-- marginal over `Fin d`; the last covers both directions), and `foldl_finRange_last`,
+-- `foldl_writeAt_apply`, `foldl_writeAt_finRange` and `dot_piVec_update_sum` (list/fold/sum
+-- lemmas); see their docstrings.
+#print axioms IntervalMDP.Factored.lookup_zip_map_toJulia
+#print axioms IntervalMDP.Factored.denseCol_getindex
+#print axioms IntervalMDP.Factored.orthogonalInnerBellman_eq_innerOpt
+#print axioms IntervalMDP.Factored.lastOf_apply
+#print axioms IntervalMDP.Factored.nestedOMax_congr
+#print axioms IntervalMDP.Factored.foldl_finRange_last
+#print axioms IntervalMDP.Factored.foldl_writeAt_apply
+#print axioms IntervalMDP.Factored.foldl_writeAt_finRange
+#print axioms IntervalMDP.Factored.cascadeLoop_tail
+#print axioms IntervalMDP.Factored.firstInnerBellman_eq
+#print axioms IntervalMDP.Factored.innerBellmanAt_cacheValue
+#print axioms IntervalMDP.Factored.supportSize_succ
+#print axioms IntervalMDP.Factored.foldl_cartesianBlock
+#print axioms IntervalMDP.Factored.expectationCache_fill
+#print axioms IntervalMDP.Factored.dot_piVec_update_sum
+#print axioms IntervalMDP.Factored.dot_piVec_partialProduct_zero
+#print axioms IntervalMDP.Factored.partialProduct_update
+#print axioms IntervalMDP.Factored.partialProduct_succ
+#print axioms IntervalMDP.Factored.partialProduct_of_le
+#print axioms IntervalMDP.Factored.nestedOMax_le_dot
+#print axioms IntervalMDP.Factored.dot_le_nestedOMax

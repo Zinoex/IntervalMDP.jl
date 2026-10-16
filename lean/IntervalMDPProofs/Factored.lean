@@ -1,11 +1,15 @@
 import IntervalMDPProofs.Bellman
+import IntervalMDPProofs.Approx.Lift
 
 /-!
-# Factored IMDPs: successor index and vertex enumeration (Phase 5a)
+# Factored IMDPs: successor index, vertex enumeration (Phase 5a), recursive O-max (Phase 5b)
 
 For a factored IMDP (`FactoredIMDP`, `Models/Factored.lean`) the default Bellman algorithm is
-vertex enumeration, `state_action_bellman(::FactoredVertexIteratorWorkspace, V, ambiguity_sets,
-upper_bound)` in `src/bellman.jl`:
+O-maximization (`default_bellman_algorithm(::FactoredRMDP, ::IsFIMDP) = OMaximization()` in
+`src/algorithms.jl`; Phase 5b below). Phase 5a covers an alternative the user selects with
+`RobustValueIteration(VertexEnumeration())`: vertex enumeration,
+`state_action_bellman(::FactoredVertexIteratorWorkspace, V, ambiguity_sets, upper_bound)` in
+`src/bellman.jl`:
 
     iterators = vertex_generator.(ambiguity_sets, workspace.result_vectors)
     optval = upper_bound ? typemin(R) : typemax(R)
@@ -63,6 +67,56 @@ Limitations L1–L6 of the inventory apply: floating-point rounding (including t
 `budget <= gap` and `iszero(budget)` tests and `budget -= gap`), overflow beyond the stated index
 bound, threaded/CUDA execution, the Lean ↔ Julia correspondence (literal transcription, not
 proved), DP ↔ path-measure semantics; L6 (LP solvers) does not arise here.
+
+## Recursive O-maximization (Phase 5b)
+
+With `OMaximization()` (the default for `IsFIMDP`, i.e. two or more state variables), Julia
+evaluates the product set with `state_action_bellman(::FactoredIntervalOMaxWorkspace, …)`
+(`src/bellman.jl`): one loop over `CartesianIndices(ssize[2:end])` that reduces marginal 1 on each
+column `V[:, I]` with `orthogonal_inner_bellman!` (one-marginal O-max), stores the result in the
+expectation cache `Vₑ[1]`, and, whenever a cache is full (`Isparse[d - 1] == ssize[d]`), reduces it
+with marginal `d` into `Vₑ[d]`; after the loop marginal `N` reduces `Vₑ[end]`. `recursiveOMax`
+transcribes this loop literally (`cartesianIndices`, `loopBody`, `cascadeLoop`, `cascadeStep`,
+`orthogonalInnerBellman`; loop order, `break` and `± 1` shifts kept).
+
+* `IntervalMDP.Factored.recursiveOMax_eq_nestedOMax` — the loop computes the tree value
+  `nestedOMax (n + 2)`: variable 1 reduced innermost, variable `N` outermost
+  (`foldl_cartesianBlock` is the loop invariant).
+* `IntervalMDP.Factored.recursiveOMax_sound` (A2, one step) — two or more state variables
+  (`FactoredIMDP (n + 2) m`), dense marginal storage only, all four satisfaction × strategy modes,
+  no hypotheses beyond the model invariants:
+  `Sound sat (recursiveOMaxBellman F sat strat W) (Bellman.T F.toRMDP sat strat W)`, i.e. the
+  recursive O-max update is `≤` the exact update over the literal, non-convex `productSet` for
+  pessimistic and `≥` for optimistic. Per state–action pair: `recursiveOMax_le_innerOpt`
+  (`upper_bound = false`) and `innerOpt_le_recursiveOMax` (`upper_bound = true`), same scope.
+* `IntervalMDP.Factored.recursiveOMax_vi_sound` (A2, end to end, via `Approx.iter_sound`) — two or
+  more state variables (`FactoredIMDP (n + 2) m`), dense marginal storage only, all four modes,
+  hypothesis `h₀ : Sound sat W₀ V₀` (sound initial values): every iterate, and every limit when both
+  sequences converge, is sound. `recursiveOMax_vi_sound_post` — same scope, plus
+  `hpost : Monotone post`: the same for the iterates of `step!` (`bellman!` followed by a monotone
+  step postprocessing).
+
+The proof follows Mathiesen, Haesaert, Laurenti, "Scalable control synthesis for stochastic systems
+via structural IMDP abstractions", arXiv:2411.11803 (HSCC '25), **Theorem 6.1** (soundness of the
+divide-and-conquer recursion, Eqn. (15); numbering checked in the arXiv PDF): by induction over the
+reduced variables, each one-marginal step is a `min` (or `max`) over that marginal, so it is at most
+(at least) the value of any fixed marginal distribution, and multilinearity of the product
+(`dot_piVec_update_sum`) assembles the bound for every product distribution
+(`nestedOMax_le_dot`, `dot_le_nestedOMax`). Exactness is not claimed.
+
+**Finding F5 (reduction order).** The paper's Eqn. (15) reduces the **last** variable innermost
+(`W^{k,n} = V`, `W^{k,i-1} = min_{γⁱ} ∑_{tⁱ} W^{k,i} γⁱ(tⁱ)`); Julia reduces the **first**
+variable innermost. The tree shape (one level per variable, each internal node one O-max) is the
+same; the variable order is reversed. Soundness does not depend on the order, but the values differ
+(neither order dominates; inventory F5).
+
+**Scope.** Abstract, exact arithmetic. Two or more state variables (`FactoredIMDP (n + 2) m`;
+Julia's `IsFIMDP`, one variable is an `IsIMDP`). Dense marginal storage only (`support(p) = 1:d`);
+for sparse marginals Julia iterates only the supports and relies on zeroed caches (not modelled).
+Limitations L1–L5 apply: floating-point rounding (in `gap_value` and the cache sums), overflow
+beyond the stated index bound, threaded (`ThreadedFactoredIntervalOMaxWorkspace`, `@threadstid`)
+and CUDA execution, the Lean ↔ Julia correspondence (literal transcription, not proved), DP ↔
+path-measure semantics; L6 (LP solvers) does not arise here.
 -/
 
 namespace IntervalMDP
@@ -1685,6 +1739,1016 @@ theorem vertexValue_eq_stateActionBellman (F : FactoredIMDP n m) (sat : Satisfac
     vertexValue F s a W (Bellman.isOptimistic sat) =
       (Bellman.stateActionBellman F.toRMDP sat W s a : EReal) :=
   vertexValue_eq_opt F sat s a W
+
+/-! ### Recursive O-maximization (Phase 5b): one marginal -/
+
+/-- The gap column of a **dense** marginal interval set on `Fin d`, stored as a CSC column that
+keeps every row: `rowval = 1:d` and `nzval = gap`. For a dense column Julia's
+`support(p) = eachindex(p.gap)` is `1:d`, so the pairs `(V[j], gap(ambiguity_set, j))` that
+`orthogonal_inner_bellman!` builds are exactly `zip(V[support], nonzeros(gap))` of this column. This
+lets the factored step reuse the sparse O-max transcription `OMax.omaxSparse` (Phase 1d).
+
+Julia counterpart: `support(::IntervalAmbiguitySet{R, <:ColumnView{R}})` and `gap(ambiguity_set, j)`
+(`src/probabilities/IntervalAmbiguitySets.jl`) as read in `orthogonal_inner_bellman!`
+(`src/bellman.jl`). -/
+def denseCol {d : ℕ} (gap : Fin d → ℝ) : SparseCol d where
+  rowval := List.range' 1 d
+  nzval := (List.finRange d).map gap
+  length_eq := by simp
+  rowval_sorted := by
+    rw [← map_toJulia_finRange, List.pairwise_map]
+    exact (List.pairwise_lt_finRange d).imp fun h => by simp only [toJulia]; omega
+  rowval_mem := by
+    intro r hr
+    rw [List.mem_range'_1] at hr
+    exact ⟨hr.1, by omega⟩
+
+/-- Looking up the Julia index of `i` in the zipped list of Julia indices and values of `L` gives
+`g i` if `i ∈ L` and the default `0` otherwise.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem lookup_zip_map_toJulia {d : ℕ} (g : Fin d → ℝ) (i : Fin d) :
+    ∀ L : List (Fin d), (((L.map toJulia).zip (L.map g)).lookup (toJulia i)).getD 0 =
+      if i ∈ L then g i else 0
+  | [] => by simp
+  | j :: L => by
+    by_cases h : i = j
+    · subst h
+      simp
+    · have hne : (toJulia i == toJulia j) = false :=
+        beq_eq_false_iff_ne.2 (toJulia_injective.ne h)
+      simp [List.lookup, hne, h, lookup_zip_map_toJulia g i L]
+
+/-- Reading the dense gap column at row `i` gives `gap[i]`.
+
+Julia counterpart: `gap(ambiguity_set, j)` for a dense column
+(`src/probabilities/IntervalAmbiguitySets.jl`). -/
+theorem denseCol_getindex {d : ℕ} (gap : Fin d → ℝ) (i : Fin d) :
+    (denseCol gap).getindex i = gap i := by
+  simp only [SparseCol.getindex, denseCol]
+  rw [← map_toJulia_finRange, lookup_zip_map_toJulia]
+  simp
+
+/-- A dense marginal interval set together with its gap column `denseCol` (every row stored).
+
+Julia counterpart: `IntervalAmbiguitySet{R, <:ColumnView{R}}`, a column `marginal[jₐ, jₛ]` of a dense
+`IntervalAmbiguitySets` (`src/probabilities/IntervalAmbiguitySets.jl`). -/
+def denseAmbiguity {d : ℕ} (A : IntervalAmbiguity (Fin d)) : SparseIntervalAmbiguity d where
+  toIntervalAmbiguity := A
+  gapCol := denseCol A.gap
+  gap_eq := funext fun i => (denseCol_getindex A.gap i).symm
+
+/-- Transcription of `orthogonal_inner_bellman!(workspace, V, ambiguity_set, budget, upper_bound)`
+for a dense marginal:
+
+    for (i, j) in enumerate(support(ambiguity_set))
+        Vp_workspace[i] = (V[j], gap(ambiguity_set, j))
+    end
+    sort!(Vp_workspace; rev = upper_bound, by = first, scratch = scratch(workspace))
+    return dot(V, lower(ambiguity_set)) + gap_value(Vp_workspace, budget)
+
+The pairs are `valuesGaps v (denseCol gap)`, the sort is the stable `stableValuesGaps` (Julia's
+default `sort!` is stable; by `omax_tie_invariant` the value does not depend on how ties are ordered),
+and `budget = workspace.budgets[r][sub2ind(marginal, jₐ, jₛ)] = 1 - sum(lower)` is `A.budget`. So this
+is `OMax.omaxSparse` on the dense column.
+
+Julia counterpart: `orthogonal_inner_bellman!` (`src/bellman.jl`); budgets precomputed in
+`FactoredIntervalOMaxWorkspace` (`src/workspace.jl`). -/
+noncomputable def orthogonalInnerBellman {d : ℕ} (A : IntervalAmbiguity (Fin d)) (v : Fin d → ℝ)
+    (upperBound : Bool) : ℝ :=
+  omaxSparse (denseAmbiguity A) (stableValuesGaps ⟨v, upperBound⟩ (denseAmbiguity A).gapCol)
+
+/-- **One marginal is reduced exactly.** With `upper_bound = isoptimistic(sat)`,
+`orthogonal_inner_bellman!` returns the exact inner optimum `opt_{p ∈ P(l, u)} ⟨p, v⟩` over the
+marginal interval set (`sup` for optimistic, `inf` for pessimistic): it is the sparse O-max of the
+dense column (`omaxSparse_eq_omax`, Phase 1d) and hence dense O-max (`innerOpt_interval_eq_omax`,
+Phase 2a). Both satisfaction modes; dense marginal storage only.
+
+Julia counterpart: `orthogonal_inner_bellman!` (`src/bellman.jl`). -/
+theorem orthogonalInnerBellman_eq_innerOpt {d : ℕ} (A : IntervalAmbiguity (Fin d))
+    (sat : SatisfactionMode) (v : Fin d → ℝ) :
+    orthogonalInnerBellman A v (Bellman.isOptimistic sat) = Bellman.innerOpt sat A.toSet v := by
+  rw [Bellman.innerOpt_interval_eq_omax, orthogonalInnerBellman]
+  exact omaxSparse_eq_omax (denseAmbiguity A) _ _
+
+/-! ### The tree value (arXiv:2411.11803, Eqn. (15), Julia's variable order) -/
+
+/-- The tree value of the recursive O-max reduction, in Julia's variable order:
+`nestedOMax 0 t = W t` and
+`nestedOMax (k + 1) t = O_k (x ↦ nestedOMax k (t with variable k set to x))`, where `O_k` is
+`orthogonalInnerBellman` on the marginal of (Lean) variable `k` (Julia variable `k + 1`). So
+`nestedOMax k t` has reduced variables `0, …, k - 1` and reads the remaining variables from `t`;
+`nestedOMax (n + 2) t` is the full reduction. This is the recursion `W^{k,i}` of
+arXiv:2411.11803, Eqn. (15), **with the variables in reverse order**: the paper reduces the last
+variable innermost (`W^{k,i-1}(t¹, …, t^{i-1}) = min_{γⁱ} ∑_{tⁱ} W^{k,i}(t¹, …, tⁱ) γⁱ(tⁱ)`,
+`i = n, …, 1`), Julia reduces the first variable innermost (Finding F5).
+
+Julia counterpart: the value of `state_action_bellman(::FactoredIntervalOMaxWorkspace, …)`
+(`src/bellman.jl`), see `recursiveOMax_eq_nestedOMax`. -/
+noncomputable def nestedOMax (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) (upperBound : Bool) :
+    ℕ → F.stateVars.State → ℝ
+  | 0, t => W t
+  | k + 1, t =>
+    if h : k < n + 2 then
+      orthogonalInnerBellman (ambiguitySets F s a ⟨k, h⟩)
+        (fun x => nestedOMax F s a W upperBound k (Function.update t ⟨k, h⟩ x)) upperBound
+    else nestedOMax F s a W upperBound k t
+
+/-! ### Transcription of `state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` -/
+
+/-- Julia's `Isparse[k]`, the `k`-th component of the loop index
+`Isparse ∈ CartesianIndices(ssize[2:end])`: the 1-based value (`toJulia`) of Julia variable `k + 1`,
+i.e. Lean variable `k`, of the state `I`. For dense marginals `support(p, j) = j`, so
+`I = CartesianIndex(support.(ambiguity_sets[2:end], Tuple(Isparse)))` equals `Isparse` and Julia's
+`I[k]` is also `cartIdx I k`. (`0` outside the variable range; never read there.)
+
+Julia counterpart: `Isparse[d - 1]` and `I[d]` in
+`state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+def cartIdx (F : FactoredIMDP (n + 2) m) (I : F.stateVars.State) (k : ℕ) : ℕ :=
+  if h : k < n + 2 then toJulia (I ⟨k, h⟩) else 0
+
+/-- Julia's `ssize[d] = supportsize(ambiguity_sets[d])` for the 1-based marginal index `d` (Lean
+variable `d - 1`); for a dense marginal this is `num_target = state_vars[d]`.
+
+Julia counterpart: `ssize = supportsize.(ambiguity_sets)` in
+`state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`) and `supportsize`
+(`src/probabilities/IntervalAmbiguitySets.jl`). -/
+def supportSize (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State) (a : F.actionVars.Action)
+    (d : ℕ) : ℕ :=
+  if h : d - 1 < n + 2 then numTarget (ambiguitySets F s a ⟨d - 1, h⟩) else 0
+
+/-- `orthogonal_inner_bellman!(workspace, v, ambiguity_sets[d], budgets[d], upper_bound)` for the
+1-based marginal index `d` (Lean variable `d - 1`), applied to a cache vector `v` read at the Julia
+indices `1:num_target`.
+
+Julia counterpart: the calls `orthogonal_inner_bellman!(workspace, Vₑ[d - 1], ambiguity_sets[d], …)`
+and `orthogonal_inner_bellman!(workspace, Vₑ[end], ambiguity_sets[end], …)` in
+`state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+noncomputable def innerBellmanAt (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (upperBound : Bool) (d : ℕ) (v : ℕ → ℝ) : ℝ :=
+  if h : d - 1 < n + 2 then
+    orthogonalInnerBellman (ambiguitySets F s a ⟨d - 1, h⟩) (fun t => v (toJulia t)) upperBound
+  else 0
+
+/-- The first-dimension reduction
+`orthogonal_inner_bellman!(workspace, @view(V[:, I]), ambiguity_sets[1], budgets[1], upper_bound)`:
+marginal 1 (Lean variable `0`) applied to the column `V[:, I]`, i.e. to `x ↦ W (I with variable 0
+set to x)` (the value array stores `W`, `V[t] = W t`, as in `vertexSum`;
+`Index.factored_successor_eq`).
+
+Julia counterpart: the first call of `orthogonal_inner_bellman!` in the loop of
+`state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+noncomputable def firstInnerBellman (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) (upperBound : Bool)
+    (I : F.stateVars.State) : ℝ :=
+  orthogonalInnerBellman (ambiguitySets F s a 0) (fun x => W (Function.update I 0 x)) upperBound
+
+/-- The assignment `Vₑ[d][i] = v` on the expectation caches. The caches are modelled as
+`Ve : ℕ → ℕ → ℝ` with Julia's 1-based cache index `d` and entry index `i` (`Vₑ[d]` holds the values
+of Julia variable `d + 1`, Lean variable `d`).
+
+Julia counterpart: `Vₑ[1][I[1]] = v` and `Vₑ[d][I[d]] = v` on `workspace.expectation_cache`
+(`src/bellman.jl`, `src/workspace.jl`). -/
+def writeCache (Ve : ℕ → ℕ → ℝ) (d i : ℕ) (v : ℝ) : ℕ → ℕ → ℝ :=
+  Function.update Ve d (Function.update (Ve d) i v)
+
+/-- `fill!(Vₑ[d], zero(R))`: reset cache `d` to zero.
+
+Julia counterpart: `fill!(Vₑ[d - 1], zero(R))` and `fill!(Vₑ[end], zero(R))` in
+`state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+def fillZero (Ve : ℕ → ℕ → ℝ) (d : ℕ) : ℕ → ℕ → ℝ :=
+  Function.update Ve d 0
+
+/-- One "full" iteration of the inner loop `for d in 2:(length(ambiguity_sets) - 1)`, in Julia's
+order:
+
+    v = orthogonal_inner_bellman!(workspace, Vₑ[d - 1], ambiguity_sets[d], budgets[d], upper_bound)
+    fill!(Vₑ[d - 1], zero(R))
+    Vₑ[d][I[d]] = v
+
+Julia counterpart: the `if Isparse[d - 1] == ssize[d]` branch in
+`state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+noncomputable def cascadeStep (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (upperBound : Bool) (I : F.stateVars.State) (d : ℕ)
+    (Ve : ℕ → ℕ → ℝ) : ℕ → ℕ → ℝ :=
+  let v := innerBellmanAt F s a upperBound d (Ve (d - 1))
+  let Ve := fillZero Ve (d - 1)
+  writeCache Ve d (cartIdx F I d) v
+
+/-- Literal transcription of the inner loop, over the list of `d` values in Julia's order:
+
+    for d in 2:(length(ambiguity_sets) - 1)
+        if Isparse[d - 1] == ssize[d]
+            ... (cascadeStep d)
+        else
+            break
+        end
+    end
+
+`break` stops the recursion; the `- 1` index shifts are kept.
+
+Julia counterpart: the `for d in 2:(length(ambiguity_sets) - 1)` loop of
+`state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+noncomputable def cascadeLoop (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (upperBound : Bool) (I : F.stateVars.State) :
+    List ℕ → (ℕ → ℕ → ℝ) → ℕ → ℕ → ℝ
+  | [], Ve => Ve
+  | d :: ds, Ve =>
+    if cartIdx F I (d - 1) = supportSize F s a d then
+      cascadeLoop F s a upperBound I ds (cascadeStep F s a upperBound I d Ve)
+    else Ve
+
+/-- The body of the outer loop `for Isparse in CartesianIndices(ssize[2:end])` (transcribed, order
+kept):
+
+    v = orthogonal_inner_bellman!(workspace, @view(V[:, I]), ambiguity_sets[1], budgets[1], upper_bound)
+    Vₑ[1][I[1]] = v
+    for d in 2:(length(ambiguity_sets) - 1) ... end
+
+with `length(ambiguity_sets) = n + 2`, so `2:(length(ambiguity_sets) - 1)` is `List.range' 2 n`.
+
+Julia counterpart: the loop body of `state_action_bellman(::FactoredIntervalOMaxWorkspace, …)`
+(`src/bellman.jl`). -/
+noncomputable def loopBody (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) (upperBound : Bool)
+    (Ve : ℕ → ℕ → ℝ) (I : F.stateVars.State) : ℕ → ℕ → ℝ :=
+  let v := firstInnerBellman F s a W upperBound I
+  let Ve := writeCache Ve 1 (cartIdx F I 1) v
+  cascadeLoop F s a upperBound I (List.range' 2 n) Ve
+
+/-- The iteration order of `CartesianIndices` (column-major, first index fastest), recursively:
+`cartesianBlock k o` lists the states whose Lean variables `1, …, k` run over all their values,
+variable `1` fastest and variable `k` slowest, with the other variables taken from `o`.
+
+Julia counterpart: the iteration of `CartesianIndices(ssize[2:end])` in
+`state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+def cartesianBlock (F : FactoredIMDP (n + 2) m) : ℕ → F.stateVars.State → List F.stateVars.State
+  | 0, o => [o]
+  | k + 1, o =>
+    if h : k + 1 < n + 2 then
+      (List.finRange (F.stateVars.dims ⟨k + 1, h⟩)).flatMap
+        (fun x => cartesianBlock F k (Function.update o ⟨k + 1, h⟩ x))
+    else cartesianBlock F k o
+
+/-- The state with every variable at its first value. It seeds `cartesianIndices`; its variable `0`
+is never read (it stands for the `:` in `V[:, I]`).
+
+Julia counterpart: none (Lean-side proof device). -/
+def firstState (F : FactoredIMDP (n + 2) m) : F.stateVars.State :=
+  fun r => ⟨0, F.stateVars.dims_pos r⟩
+
+/-- The loop range `CartesianIndices(ssize[2:end])` for dense marginals (`ssize[d] =
+state_vars[d]`): all values of Lean variables `1, …, n + 1` (Julia variables `2, …, N`), first
+fastest, as states with variable `0` fixed.
+
+Julia counterpart: `for Isparse in CartesianIndices(ssize[2:end])` in
+`state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+def cartesianIndices (F : FactoredIMDP (n + 2) m) : List F.stateVars.State :=
+  cartesianBlock F (n + 1) (firstState F)
+
+/-- The expectation caches `workspace.expectation_cache` after the outer loop, started from all
+zeros. Julia allocates them with `zeros` in `FactoredIntervalOMaxWorkspace` and every call leaves
+them all zero again (`expectationCache_fill`), so every call starts from zero caches.
+
+Julia counterpart: `Vₑ = workspace.expectation_cache` in
+`state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`), allocated in
+`FactoredIntervalOMaxWorkspace` (`src/workspace.jl`). -/
+noncomputable def expectationCache (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) (upperBound : Bool) : ℕ → ℕ → ℝ :=
+  (cartesianIndices F).foldl (loopBody F s a W upperBound) 0
+
+/-- **Recursive O-maximization**, literal transcription of
+`state_action_bellman(workspace::FactoredIntervalOMaxWorkspace, V, model, ambiguity_sets, budgets,
+upper_bound)` for a factored IMDP with `N = n + 2 ≥ 2` state variables (Julia's `IsFIMDP` dispatch;
+`N = 1` is an `IsIMDP` and uses dense/sparse O-max) and dense marginals:
+
+    for Isparse in CartesianIndices(ssize[2:end])
+        I = CartesianIndex(support.(ambiguity_sets[2:end], Tuple(Isparse)))
+        v = orthogonal_inner_bellman!(workspace, @view(V[:, I]), ambiguity_sets[1], budgets[1], upper_bound)
+        Vₑ[1][I[1]] = v
+        for d in 2:(length(ambiguity_sets) - 1)
+            if Isparse[d - 1] == ssize[d]
+                v = orthogonal_inner_bellman!(workspace, Vₑ[d - 1], ambiguity_sets[d], budgets[d], upper_bound)
+                fill!(Vₑ[d - 1], zero(R))
+                Vₑ[d][I[d]] = v
+            else
+                break
+            end
+        end
+    end
+    v = orthogonal_inner_bellman!(workspace, Vₑ[end], ambiguity_sets[end], budgets[end], upper_bound)
+    fill!(Vₑ[end], zero(R))
+    return v
+
+Loop order (`cartesianIndices`, first index fastest), the inner `break`, and all `± 1` index shifts
+are kept (`loopBody`, `cascadeLoop`, `cascadeStep`); `Vₑ[end] = Vₑ[n + 1]`,
+`ambiguity_sets[end] = ambiguity_sets[n + 2]`. `W` is the value function stored in `V`.
+
+Julia counterpart: `state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+noncomputable def recursiveOMax (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) (upperBound : Bool) : ℝ :=
+  innerBellmanAt F s a upperBound (n + 2) (expectationCache F s a W upperBound (n + 1))
+
+/-! proof devices -/
+
+/-! ### The loop computes the tree value -/
+
+/-- The last value `state_vars[r]` (0-based `state_vars[r] - 1`) of variable `r`.
+
+Julia counterpart: none (Lean-side proof device). -/
+def lastValue (F : FactoredIMDP (n + 2) m) (r : Fin (n + 2)) : Fin (F.stateVars.dims r) :=
+  ⟨F.stateVars.dims r - 1, Nat.sub_lt (F.stateVars.dims_pos r) one_pos⟩
+
+/-- `o` with Lean variables `1, …, k` set to their last values: the last element of
+`cartesianBlock k o`.
+
+Julia counterpart: none (Lean-side proof device). -/
+def lastOf (F : FactoredIMDP (n + 2) m) : ℕ → F.stateVars.State → F.stateVars.State
+  | 0, o => o
+  | k + 1, o =>
+    if h : k + 1 < n + 2 then lastOf F k (Function.update o ⟨k + 1, h⟩ (lastValue F _))
+    else lastOf F k o
+
+/-- The content of cache `Vₑ[k]` once the variables below it are reduced: at the Julia index of
+value `x` of Lean variable `k` it holds `nestedOMax k (o with variable k set to x)`, and `0` outside
+`1:num_target`.
+
+Julia counterpart: none (Lean-side proof device). -/
+noncomputable def cacheValue (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) (upperBound : Bool) (k : ℕ)
+    (o : F.stateVars.State) : ℕ → ℝ :=
+  if h : k < n + 2 then
+    juliaGet (fun x => nestedOMax F s a W upperBound k (Function.update o ⟨k, h⟩ x))
+  else 0
+
+/-- `lastOf k o` agrees with `o` except on Lean variables `1, …, k`, which are at their last value.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem lastOf_apply (F : FactoredIMDP (n + 2) m) :
+    ∀ (k : ℕ) (o : F.stateVars.State) (r : Fin (n + 2)),
+      lastOf F k o r = if 1 ≤ r.val ∧ r.val ≤ k then lastValue F r else o r
+  | 0, o, r => by
+    simp only [lastOf]
+    rw [if_neg (by omega)]
+  | k + 1, o, r => by
+    by_cases h : k + 1 < n + 2
+    · simp only [lastOf, dif_pos h]
+      rw [lastOf_apply F k]
+      by_cases hr : r = ⟨k + 1, h⟩
+      · subst hr
+        simp
+      · have hrv : r.val ≠ k + 1 := fun hv => hr (Fin.ext hv)
+        rw [Function.update_of_ne hr]
+        by_cases h1 : 1 ≤ r.val ∧ r.val ≤ k
+        · rw [if_pos h1, if_pos (by omega)]
+        · rw [if_neg h1, if_neg (by omega)]
+    · simp only [lastOf, dif_neg h]
+      rw [lastOf_apply F k]
+      have : r.val ≤ k := by omega
+      by_cases h1 : 1 ≤ r.val
+      · rw [if_pos ⟨h1, this⟩, if_pos ⟨h1, by omega⟩]
+      · rw [if_neg (by omega), if_neg (by omega)]
+
+/-- `nestedOMax k t` depends only on the variables `k, k + 1, …` of `t` (the others are reduced).
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem nestedOMax_congr (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) (upperBound : Bool) :
+    ∀ (k : ℕ) (t t' : F.stateVars.State), (∀ r : Fin (n + 2), k ≤ r.val → t r = t' r) →
+      nestedOMax F s a W upperBound k t = nestedOMax F s a W upperBound k t'
+  | 0, t, t', h => by
+    simp only [nestedOMax]
+    congr 1
+    funext r
+    exact h r (Nat.zero_le _)
+  | k + 1, t, t', h => by
+    by_cases hk : k < n + 2
+    · simp only [nestedOMax, dif_pos hk]
+      congr 1
+      funext x
+      apply nestedOMax_congr F s a W upperBound k
+      intro r hr
+      by_cases hrk : r = ⟨k, hk⟩
+      · subst hrk
+        simp
+      · have hrv : r.val ≠ k := fun hv => hrk (Fin.ext hv)
+        rw [Function.update_of_ne hrk, Function.update_of_ne hrk]
+        exact h r (by omega)
+    · simp only [nestedOMax, dif_neg hk]
+      apply nestedOMax_congr F s a W upperBound k
+      intro r hr
+      exact absurd r.isLt (by omega)
+
+
+/-- `Vₑ[c][toJulia x] = val x`: one write per value `x` of a variable.
+
+Julia counterpart: none (Lean-side proof device). -/
+def writeAt {d : ℕ} (c : ℕ) (val : Fin d → ℝ) (S : ℕ → ℕ → ℝ) (x : Fin d) : ℕ → ℕ → ℝ :=
+  writeCache S c (toJulia x) (val x)
+
+/-- A fold over `0, …, d - 1` whose step is `U` except at the last element, where it is `C ∘ U`,
+equals `C` applied to the fold of `U` (given an invariant `P` preserved by `U`).
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem foldl_finRange_last {α : Type*} {d : ℕ} (hd : 0 < d) (G U : α → Fin d → α) (C : α → α)
+    (P : α → Prop) (hP : ∀ S x, P S → P (U S x))
+    (hG : ∀ S x, P S → G S x = if x.val = d - 1 then C (U S x) else U S x) (S : α) (hS : P S) :
+    (List.finRange d).foldl G S = C ((List.finRange d).foldl U S) := by
+  obtain ⟨D, rfl⟩ : ∃ D, d = D + 1 := ⟨d - 1, by omega⟩
+  have hinit : ∀ (L : List (Fin D)) (S : α), P S →
+      (L.map Fin.castSucc).foldl G S = (L.map Fin.castSucc).foldl U S ∧
+        P ((L.map Fin.castSucc).foldl U S) := by
+    intro L
+    induction L with
+    | nil => intro S hS; exact ⟨rfl, hS⟩
+    | cons x L ih =>
+      intro S hS
+      simp only [List.map_cons, List.foldl_cons]
+      have hx : G S x.castSucc = U S x.castSucc := by
+        rw [hG S _ hS, if_neg]
+        simp only [Fin.val_castSucc]
+        omega
+      rw [hx]
+      exact ih _ (hP S _ hS)
+  rw [List.finRange_succ_last, List.foldl_append, List.foldl_append]
+  obtain ⟨h1, h2⟩ := hinit _ S hS
+  rw [h1]
+  simp only [List.foldl_cons, List.foldl_nil]
+  rw [hG _ _ h2, if_pos (by simp)]
+
+/-- Folding the writes `Vₑ[c][toJulia x] = val x` over a list `L`: entry `i` of cache `c` is
+`val x` if some `x ∈ L` has Julia index `i`, and unchanged otherwise; other caches are unchanged.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem foldl_writeAt_apply {d : ℕ} (c : ℕ) (val : Fin d → ℝ) :
+    ∀ (L : List (Fin d)) (S : ℕ → ℕ → ℝ) (c' i : ℕ),
+      (L.foldl (writeAt c val) S) c' i =
+        if c' = c ∧ ∃ x ∈ L, toJulia x = i then juliaGet val i else S c' i
+  | [], S, c', i => by simp
+  | x :: L, S, c', i => by
+    rw [List.foldl_cons, foldl_writeAt_apply c val L]
+    simp only [writeAt, writeCache]
+    by_cases hc : c' = c
+    · subst hc
+      simp only [Function.update_self, true_and, List.mem_cons, exists_eq_or_imp]
+      by_cases hL : ∃ y ∈ L, toJulia y = i
+      · rw [if_pos hL, if_pos (Or.inr hL)]
+      · rw [if_neg hL]
+        by_cases hx : toJulia x = i
+        · subst hx
+          rw [if_pos (Or.inl rfl), Function.update_self, juliaGet_toJulia]
+        · rw [if_neg (not_or.2 ⟨hx, hL⟩), Function.update_of_ne (Ne.symm hx)]
+    · simp [hc]
+
+/-- Writing `val x` at every Julia index `toJulia x` of a zero cache gives `juliaGet val`.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem foldl_writeAt_finRange {d : ℕ} (c : ℕ) (val : Fin d → ℝ) (S : ℕ → ℕ → ℝ)
+    (hS : S c = 0) :
+    (List.finRange d).foldl (writeAt c val) S = Function.update S c (juliaGet val) := by
+  funext c' i
+  rw [foldl_writeAt_apply]
+  by_cases hc : c' = c
+  · subst hc
+    rw [Function.update_self]
+    simp only [true_and, List.mem_finRange]
+    by_cases hi : ∃ x : Fin d, toJulia x = i
+    · rw [if_pos hi]
+    · rw [if_neg hi, hS]
+      simp only [juliaGet]
+      rw [dif_neg]
+      · rfl
+      · rintro hk
+        exact hi ⟨ofJulia i hk, toJulia_ofJulia i hk⟩
+  · rw [Function.update_of_ne hc]
+    simp [hc]
+
+/-- After the block for value `x` of Lean variable `k + 1`, the rest of the inner loop
+(`d = k + 2, …`) continues only if `x` is the last value (`Isparse[d - 1] == ssize[d]`); otherwise
+it breaks immediately.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem cascadeLoop_tail (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (upperBound : Bool) (k : ℕ) (h : k + 1 < n + 2)
+    (o : F.stateVars.State) (x : Fin (F.stateVars.dims ⟨k + 1, h⟩)) (T : ℕ → ℕ → ℝ) :
+    cascadeLoop F s a upperBound (lastOf F k (Function.update o ⟨k + 1, h⟩ x))
+        (List.range' (k + 2) (n - k)) T =
+      if x.val = F.stateVars.dims ⟨k + 1, h⟩ - 1 then
+        cascadeLoop F s a upperBound (lastOf F (k + 1) o) (List.range' (k + 2) (n - k)) T
+      else T := by
+  by_cases hx : x.val = F.stateVars.dims ⟨k + 1, h⟩ - 1
+  · rw [if_pos hx]
+    have hxl : x = lastValue F ⟨k + 1, h⟩ := Fin.ext hx
+    rw [hxl]
+    simp only [lastOf, dif_pos h]
+  · rw [if_neg hx]
+    obtain hnk | ⟨j, hj⟩ : n - k = 0 ∨ ∃ j, n - k = j + 1 :=
+      (Nat.eq_zero_or_pos (n - k)).imp id fun hp => ⟨n - k - 1, by omega⟩
+    · rw [hnk]
+      simp [cascadeLoop]
+    · rw [hj, List.range'_succ]
+      simp only [cascadeLoop]
+      rw [if_neg]
+      intro heq
+      have hk2 : k + 2 - 1 = k + 1 := by omega
+      simp only [cartIdx, supportSize, hk2, dif_pos h, numTarget, toJulia] at heq
+      rw [lastOf_apply, if_neg (by simp)] at heq
+      simp at heq
+      omega
+
+
+/-- The first-dimension reduction is the tree value with one variable reduced.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem firstInnerBellman_eq (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) (upperBound : Bool)
+    (I : F.stateVars.State) :
+    firstInnerBellman F s a W upperBound I = nestedOMax F s a W upperBound 1 I := by
+  simp only [firstInnerBellman, nestedOMax, dif_pos (show 0 < n + 2 by omega)]
+  rfl
+
+/-- Reducing a full cache `Vₑ[k]` with marginal `k + 1` gives the tree value with `k + 1` variables
+reduced.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem innerBellmanAt_cacheValue (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) (upperBound : Bool) (k : ℕ)
+    (hk : k < n + 2) (o : F.stateVars.State) :
+    innerBellmanAt F s a upperBound (k + 1) (cacheValue F s a W upperBound k o) =
+      nestedOMax F s a W upperBound (k + 1) o := by
+  simp only [innerBellmanAt, cacheValue, nestedOMax, Nat.add_sub_cancel, dif_pos hk,
+    juliaGet_toJulia]
+  rfl
+
+/-- `ssize[k + 1] = state_vars[k + 1]` (Lean variable `k`), dense marginals.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem supportSize_succ (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (k : ℕ) (hk : k < n + 2) :
+    supportSize F s a (k + 1) = F.stateVars.dims ⟨k, hk⟩ := by
+  simp only [supportSize]
+  rw [dif_pos (show k + 1 - 1 < n + 2 by omega)]
+  rfl
+
+/-- **Loop invariant.** For `1 ≤ ℓ ≤ n + 1`, running the loop body over the block of states in
+which Lean variables `1, …, ℓ` vary (first fastest), starting from caches whose levels `1, …, ℓ` are
+zero, leaves levels `1, …, ℓ - 1` zero and level `ℓ` equal to `cacheValue ℓ o` (the tree values with
+variables `0, …, ℓ - 1` reduced), and then continues the inner loop at `d = ℓ + 1` for the block's
+last element. Proved by induction on `ℓ` (each block is `state_vars[ℓ]` sub-blocks; only the last
+sub-block's inner loop runs past level `ℓ`).
+
+Julia counterpart: the outer loop of `state_action_bellman(::FactoredIntervalOMaxWorkspace, …)`
+(`src/bellman.jl`). -/
+theorem foldl_cartesianBlock (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) (upperBound : Bool) :
+    ∀ (ℓ : ℕ), 1 ≤ ℓ → ℓ ≤ n + 1 → ∀ (o : F.stateVars.State) (Ve : ℕ → ℕ → ℝ),
+      (∀ c, 1 ≤ c → c ≤ ℓ → Ve c = 0) →
+      (cartesianBlock F ℓ o).foldl (loopBody F s a W upperBound) Ve =
+        cascadeLoop F s a upperBound (lastOf F ℓ o) (List.range' (ℓ + 1) (n + 1 - ℓ))
+          (Function.update Ve ℓ (cacheValue F s a W upperBound ℓ o))
+  | 0, h1, _, _, _, _ => absurd h1 (by omega)
+  | k + 1, _, hℓ, o, Ve, hVe => by
+    have h : k + 1 < n + 2 := by omega
+    have hsub : ∀ (S : ℕ → ℕ → ℝ) (x : Fin (F.stateVars.dims ⟨k + 1, h⟩)),
+        (∀ c, 1 ≤ c → c ≤ k → S c = 0) →
+        (cartesianBlock F k (Function.update o ⟨k + 1, h⟩ x)).foldl
+            (loopBody F s a W upperBound) S =
+          cascadeLoop F s a upperBound (lastOf F k (Function.update o ⟨k + 1, h⟩ x))
+            (List.range' (k + 2) (n - k))
+            (writeAt (k + 1) (fun y => nestedOMax F s a W upperBound (k + 1)
+              (Function.update o ⟨k + 1, h⟩ y)) S x) := by
+      intro S x hS
+      rcases Nat.eq_zero_or_pos k with hk0 | hkpos
+      · subst hk0
+        simp only [cartesianBlock, List.foldl_cons, List.foldl_nil, lastOf, loopBody,
+          Nat.sub_zero, firstInnerBellman_eq]
+        congr 1
+      · rw [foldl_cartesianBlock F s a W upperBound k hkpos (by omega) _ S hS]
+        have hnk : n + 1 - k = (n - k) + 1 := by omega
+        rw [hnk, List.range'_succ]
+        simp only [cascadeLoop]
+        rw [if_pos]
+        · congr 1
+          simp only [cascadeStep, writeAt, Nat.add_sub_cancel, Function.update_self]
+          have hfill : fillZero (Function.update S k (cacheValue F s a W upperBound k
+              (Function.update o ⟨k + 1, h⟩ x))) k = S := by
+            simp only [fillZero, Function.update_idem]
+            exact Function.update_eq_self_iff.2 (hS k hkpos le_rfl).symm
+          rw [hfill, innerBellmanAt_cacheValue F s a W upperBound k (by omega)]
+          congr 1
+          simp only [cartIdx, dif_pos h]
+          rw [lastOf_apply, if_neg (by simp)]
+          simp
+        · rw [Nat.add_sub_cancel, supportSize_succ F s a k (by omega)]
+          simp only [cartIdx, dif_pos (show k < n + 2 by omega), toJulia]
+          rw [lastOf_apply, if_pos ⟨hkpos, le_rfl⟩]
+          simp only [lastValue]
+          have := F.stateVars.dims_pos ⟨k, by omega⟩
+          omega
+    simp only [cartesianBlock, dif_pos h]
+    rw [List.foldl_flatMap]
+    refine (foldl_finRange_last (F.stateVars.dims_pos _) _
+      (writeAt (k + 1) (fun y => nestedOMax F s a W upperBound (k + 1)
+        (Function.update o ⟨k + 1, h⟩ y)))
+      (cascadeLoop F s a upperBound (lastOf F (k + 1) o) (List.range' (k + 2) (n - k)))
+      (fun S => ∀ c, 1 ≤ c → c ≤ k → S c = 0) ?_ ?_ Ve
+      (fun c h1 h2 => hVe c h1 (by omega))).trans ?_
+    · intro S x hS c h1 h2
+      simp only [writeAt, writeCache]
+      rw [Function.update_of_ne (by omega)]
+      exact hS c h1 h2
+    · intro S x hS
+      rw [hsub S x hS, cascadeLoop_tail]
+    · rw [foldl_writeAt_finRange _ _ _ (hVe (k + 1) (by omega) le_rfl)]
+      have hnk : n + 1 - (k + 1) = n - k := by omega
+      simp only [cacheValue, dif_pos h, hnk]
+
+/-- **The loop computes the tree.** The value returned by
+`state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`recursiveOMax`) is the tree value
+`nestedOMax (n + 2)` (Eqn. (15) of arXiv:2411.11803 in Julia's variable order), for both values of
+`upper_bound`. Two or more state variables (`FactoredIMDP (n + 2) m`); dense marginal storage only.
+
+Julia counterpart: `state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+theorem recursiveOMax_eq_nestedOMax (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) (upperBound : Bool)
+    (t : F.stateVars.State) :
+    recursiveOMax F s a W upperBound = nestedOMax F s a W upperBound (n + 2) t := by
+  have hc : expectationCache F s a W upperBound =
+      Function.update (0 : ℕ → ℕ → ℝ) (n + 1)
+        (cacheValue F s a W upperBound (n + 1) (firstState F)) := by
+    simp only [expectationCache, cartesianIndices]
+    rw [foldl_cartesianBlock F s a W upperBound (n + 1) (by omega) le_rfl _ 0
+      (fun _ _ _ => rfl)]
+    simp [cascadeLoop]
+  rw [recursiveOMax, hc, Function.update_self, innerBellmanAt_cacheValue F s a W upperBound
+    (n + 1) (by omega)]
+  exact nestedOMax_congr F s a W upperBound (n + 2) _ _ fun r hr => absurd r.isLt (by omega)
+
+/-- After the final `fill!(Vₑ[end], zero(R))` all caches are zero again, so the next call of
+`state_action_bellman` on the same workspace starts from zero caches, as `expectationCache` assumes.
+
+Julia counterpart: `fill!(Vₑ[end], zero(R))` at the end of
+`state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+theorem expectationCache_fill (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) (upperBound : Bool) :
+    fillZero (expectationCache F s a W upperBound) (n + 1) = 0 := by
+  simp only [expectationCache, cartesianIndices, fillZero]
+  rw [foldl_cartesianBlock F s a W upperBound (n + 1) (by omega) le_rfl _ 0
+    (fun _ _ _ => rfl)]
+  simp [cascadeLoop]
+
+
+/-! ### Soundness of the tree value (arXiv:2411.11803, Theorem 6.1) -/
+
+/-- The point mass at `x` as a vector, `y ↦ [y = x]`.
+
+Julia counterpart: none (Lean-side proof device). -/
+def diracVec {X : Type*} [DecidableEq X] (x : X) : X → ℝ := fun y => if y = x then 1 else 0
+
+/-- The marginal vectors of the product distribution that is `γ r` on the variables `r < k` and the
+point mass at `t r` on the variables `r ≥ k` (the ones not yet reduced in `nestedOMax k t`).
+
+Julia counterpart: none (Lean-side proof device). -/
+def partialProduct (F : FactoredIMDP (n + 2) m) (k : ℕ)
+    (γ : (r : Fin (n + 2)) → Fin (F.stateVars.dims r) → ℝ) (t : F.stateVars.State) :
+    (r : Fin (n + 2)) → Fin (F.stateVars.dims r) → ℝ :=
+  fun r => if r.val < k then γ r else diracVec (t r)
+
+/-- Multilinearity of the product in one factor: mixing point masses with weights `g` in factor
+`k` mixes the expectations, `∑ₓ ⟨W, ⊗(q with δₓ at k)⟩ g x = ⟨W, ⊗(q with g at k)⟩`.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem dot_piVec_update_sum {ι : Type*} [Fintype ι] [DecidableEq ι] {X : ι → Type*}
+    [∀ i, Fintype (X i)] [∀ i, DecidableEq (X i)] (W : (∀ i, X i) → ℝ) (q : ∀ i, X i → ℝ)
+    (k : ι) (g : X k → ℝ) :
+    ∑ x, dot W (AmbiguitySet.piVec (Function.update q k (diracVec x))) * g x =
+      dot W (AmbiguitySet.piVec (Function.update q k g)) := by
+  have hprod : ∀ (v : X k → ℝ) (t : ∀ i, X i),
+      AmbiguitySet.piVec (Function.update q k v) t = v (t k) * ∏ i ∈ univ \ {k}, q i (t i) := by
+    intro v t
+    have hfun : (fun i => Function.update q k v i (t i)) =
+        Function.update (fun i => q i (t i)) k (v (t k)) := by
+      funext i
+      by_cases h : i = k
+      · subst h
+        simp
+      · simp [Function.update_of_ne h]
+    simp only [AmbiguitySet.piVec]
+    rw [show (∏ i, Function.update q k v i (t i)) =
+        ∏ i, Function.update (fun i => q i (t i)) k (v (t k)) i from by rw [← hfun]]
+    rw [Finset.prod_update_of_mem (mem_univ k)]
+  simp only [dot, hprod, Finset.sum_mul]
+  rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun t _ => ?_
+  rw [Finset.sum_eq_single (t k)]
+  · simp only [diracVec, if_true, one_mul]
+    ring
+  · intro x _ hx
+    simp [diracVec, Ne.symm hx]
+  · simp
+
+/-- With no variable reduced the product is the point mass at `t`, so the expectation is `W t`.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem dot_piVec_partialProduct_zero (F : FactoredIMDP (n + 2) m) (W : F.stateVars.State → ℝ)
+    (γ : (r : Fin (n + 2)) → Fin (F.stateVars.dims r) → ℝ) (t : F.stateVars.State) :
+    dot W (AmbiguitySet.piVec (partialProduct F 0 γ t)) = W t := by
+  simp only [dot, AmbiguitySet.piVec, partialProduct, Nat.not_lt_zero, if_false, diracVec,
+    Finset.prod_boole]
+  rw [Finset.sum_eq_single t]
+  · simp
+  · intro t' _ ht'
+    rw [if_neg]
+    · simp
+    · intro h
+      exact ht' (funext fun r => h r (mem_univ r))
+  · simp
+
+/-- Changing variable `k` of `t` changes only the point mass in factor `k`.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem partialProduct_update (F : FactoredIMDP (n + 2) m) (k : ℕ) (hk : k < n + 2)
+    (γ : (r : Fin (n + 2)) → Fin (F.stateVars.dims r) → ℝ) (t : F.stateVars.State)
+    (x : Fin (F.stateVars.dims ⟨k, hk⟩)) :
+    partialProduct F k γ (Function.update t ⟨k, hk⟩ x) =
+      Function.update (partialProduct F k γ t) ⟨k, hk⟩ (diracVec x) := by
+  funext r
+  by_cases hr : r = ⟨k, hk⟩
+  · subst hr
+    simp [partialProduct]
+  · rw [Function.update_of_ne hr]
+    simp only [partialProduct, Function.update_of_ne hr]
+
+/-- Reducing variable `k` replaces its point mass by `γ k`.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem partialProduct_succ (F : FactoredIMDP (n + 2) m) (k : ℕ) (hk : k < n + 2)
+    (γ : (r : Fin (n + 2)) → Fin (F.stateVars.dims r) → ℝ) (t : F.stateVars.State) :
+    partialProduct F (k + 1) γ t = Function.update (partialProduct F k γ t) ⟨k, hk⟩ (γ ⟨k, hk⟩) := by
+  funext r
+  by_cases hr : r = ⟨k, hk⟩
+  · subst hr
+    simp [partialProduct]
+  · rw [Function.update_of_ne hr]
+    have hrv : r.val ≠ k := fun hv => hr (Fin.ext hv)
+    simp only [partialProduct]
+    by_cases h : r.val < k
+    · rw [if_pos h, if_pos (by omega)]
+    · rw [if_neg h, if_neg (by omega)]
+
+/-- Once all `n + 2` variables are reduced the partial product is `γ`.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem partialProduct_of_le (F : FactoredIMDP (n + 2) m) (k : ℕ) (hk : n + 2 ≤ k)
+    (γ : (r : Fin (n + 2)) → Fin (F.stateVars.dims r) → ℝ) (t : F.stateVars.State) :
+    partialProduct F k γ t = γ := by
+  funext r
+  simp only [partialProduct, if_pos (show r.val < k by omega)]
+
+/-- **arXiv:2411.11803, Theorem 6.1, lower-bound direction** (`upper_bound = false`): for every
+choice of marginal distributions `γ r ∈ P(lʳ, uʳ)`, the tree value is at most the expectation under
+the partial product, `nestedOMax k t ≤ ⟨W, ⊗ partialProduct k γ t⟩`. Induction on `k` as in the
+paper's proof (each `O_k` is a `min` over `γ_k`, then multilinearity), in Julia's variable order.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem nestedOMax_le_dot (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ)
+    (γ : (r : Fin (n + 2)) → Fin (F.stateVars.dims r) → ℝ)
+    (hγ : ∀ r, γ r ∈ (F.marginalSet s a r).vecs) :
+    ∀ (k : ℕ) (t : F.stateVars.State),
+      nestedOMax F s a W false k t ≤ dot W (AmbiguitySet.piVec (partialProduct F k γ t))
+  | 0, t => by
+    rw [dot_piVec_partialProduct_zero]
+    simp [nestedOMax]
+  | k + 1, t => by
+    by_cases hk : k < n + 2
+    · have h1 := orthogonalInnerBellman_eq_innerOpt (ambiguitySets F s a ⟨k, hk⟩) .pessimistic
+        (fun x => nestedOMax F s a W false k (Function.update t ⟨k, hk⟩ x))
+      simp only [Bellman.isOptimistic] at h1
+      simp only [nestedOMax, dif_pos hk]
+      rw [h1, partialProduct_succ F k hk, ← dot_piVec_update_sum]
+      have hbdd := (Bellman.expectations_isCompact
+        (ambiguitySets F s a ⟨k, hk⟩).toSet_wellFormed
+        (fun x => nestedOMax F s a W false k (Function.update t ⟨k, hk⟩ x))).bddBelow
+      have hnn := (AmbiguitySet.vecs_subset_stdSimplex _ (hγ ⟨k, hk⟩)).1
+      calc Bellman.innerOpt .pessimistic (ambiguitySets F s a ⟨k, hk⟩).toSet
+              (fun x => nestedOMax F s a W false k (Function.update t ⟨k, hk⟩ x))
+          ≤ dot (fun x => nestedOMax F s a W false k (Function.update t ⟨k, hk⟩ x))
+              (γ ⟨k, hk⟩) := csInf_le hbdd ⟨γ ⟨k, hk⟩, hγ ⟨k, hk⟩, rfl⟩
+        _ ≤ _ := by
+          refine Finset.sum_le_sum fun x _ => ?_
+          rw [← partialProduct_update F k hk]
+          exact mul_le_mul_of_nonneg_right (nestedOMax_le_dot F s a W γ hγ k _) (hnn x)
+    · simp only [nestedOMax, dif_neg hk]
+      rw [partialProduct_of_le F (k + 1) (by omega), ← partialProduct_of_le F k (by omega) γ t]
+      exact nestedOMax_le_dot F s a W γ hγ k t
+
+/-- **arXiv:2411.11803, Theorem 6.1, upper-bound direction** (`upper_bound = true`, `min`
+replaced by `max`): `⟨W, ⊗ partialProduct k γ t⟩ ≤ nestedOMax k t` for every choice of marginal
+distributions `γ r ∈ P(lʳ, uʳ)`.
+
+Julia counterpart: none (Lean-side proof device). -/
+theorem dot_le_nestedOMax (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ)
+    (γ : (r : Fin (n + 2)) → Fin (F.stateVars.dims r) → ℝ)
+    (hγ : ∀ r, γ r ∈ (F.marginalSet s a r).vecs) :
+    ∀ (k : ℕ) (t : F.stateVars.State),
+      dot W (AmbiguitySet.piVec (partialProduct F k γ t)) ≤ nestedOMax F s a W true k t
+  | 0, t => by
+    rw [dot_piVec_partialProduct_zero]
+    simp [nestedOMax]
+  | k + 1, t => by
+    by_cases hk : k < n + 2
+    · have h1 := orthogonalInnerBellman_eq_innerOpt (ambiguitySets F s a ⟨k, hk⟩) .optimistic
+        (fun x => nestedOMax F s a W true k (Function.update t ⟨k, hk⟩ x))
+      simp only [Bellman.isOptimistic] at h1
+      simp only [nestedOMax, dif_pos hk]
+      rw [h1, partialProduct_succ F k hk, ← dot_piVec_update_sum]
+      have hbdd := (Bellman.expectations_isCompact
+        (ambiguitySets F s a ⟨k, hk⟩).toSet_wellFormed
+        (fun x => nestedOMax F s a W true k (Function.update t ⟨k, hk⟩ x))).bddAbove
+      have hnn := (AmbiguitySet.vecs_subset_stdSimplex _ (hγ ⟨k, hk⟩)).1
+      calc ∑ x, dot W (AmbiguitySet.piVec (Function.update (partialProduct F k γ t) ⟨k, hk⟩
+              (diracVec x))) * γ ⟨k, hk⟩ x
+          ≤ dot (fun x => nestedOMax F s a W true k (Function.update t ⟨k, hk⟩ x))
+              (γ ⟨k, hk⟩) := by
+            refine Finset.sum_le_sum fun x _ => ?_
+            rw [← partialProduct_update F k hk]
+            exact mul_le_mul_of_nonneg_right (dot_le_nestedOMax F s a W γ hγ k _) (hnn x)
+        _ ≤ Bellman.innerOpt .optimistic (ambiguitySets F s a ⟨k, hk⟩).toSet
+              (fun x => nestedOMax F s a W true k (Function.update t ⟨k, hk⟩ x)) :=
+          le_csSup hbdd ⟨γ ⟨k, hk⟩, hγ ⟨k, hk⟩, rfl⟩
+    · simp only [nestedOMax, dif_neg hk]
+      rw [partialProduct_of_le F (k + 1) (by omega), ← partialProduct_of_le F k (by omega) γ t]
+      exact dot_le_nestedOMax F s a W γ hγ k t
+
+/-- **One state–action pair, pessimistic** (`upper_bound = false`): recursive O-max is at most the
+exact inner optimum over the literal, non-convex product set,
+`recursiveOMax ≤ inf_{γ ∈ productSet s a} ⟨γ, W⟩` (arXiv:2411.11803, Theorem 6.1). Two or more state
+variables (`FactoredIMDP (n + 2) m`); dense marginal storage only; no other hypotheses.
+
+Julia counterpart: `state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` with
+`upper_bound = false` (`src/bellman.jl`). -/
+theorem recursiveOMax_le_innerOpt (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) :
+    recursiveOMax F s a W false ≤ Bellman.innerOpt .pessimistic (F.productSet s a) W := by
+  rw [recursiveOMax_eq_nestedOMax F s a W false (firstState F)]
+  refine le_csInf (Bellman.expectations_nonempty (F.toRMDP_wellFormed s a).2 W) ?_
+  rintro _ ⟨x, hx, rfl⟩
+  rw [FactoredIMDP.productSet, AmbiguitySet.vecs_pi] at hx
+  obtain ⟨γ, hγ, rfl⟩ := hx
+  have h := nestedOMax_le_dot F s a W γ (fun r => hγ r (Set.mem_univ r)) (n + 2) (firstState F)
+  rwa [partialProduct_of_le F (n + 2) le_rfl] at h
+
+/-- **One state–action pair, optimistic** (`upper_bound = true`): recursive O-max is at least the
+exact inner optimum over the literal, non-convex product set,
+`sup_{γ ∈ productSet s a} ⟨γ, W⟩ ≤ recursiveOMax` (arXiv:2411.11803, Theorem 6.1 with `max`). Two or
+more state variables (`FactoredIMDP (n + 2) m`); dense marginal storage only; no other hypotheses.
+
+Julia counterpart: `state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` with
+`upper_bound = true` (`src/bellman.jl`). -/
+theorem innerOpt_le_recursiveOMax (F : FactoredIMDP (n + 2) m) (s : F.stateVars.State)
+    (a : F.actionVars.Action) (W : F.stateVars.State → ℝ) :
+    Bellman.innerOpt .optimistic (F.productSet s a) W ≤ recursiveOMax F s a W true := by
+  rw [recursiveOMax_eq_nestedOMax F s a W true (firstState F)]
+  refine csSup_le (Bellman.expectations_nonempty (F.toRMDP_wellFormed s a).2 W) ?_
+  rintro _ ⟨x, hx, rfl⟩
+  rw [FactoredIMDP.productSet, AmbiguitySet.vecs_pi] at hx
+  obtain ⟨γ, hγ, rfl⟩ := hx
+  have h := dot_le_nestedOMax F s a W γ (fun r => hγ r (Set.mem_univ r)) (n + 2) (firstState F)
+  rwa [partialProduct_of_le F (n + 2) le_rfl] at h
+
+/-! ### A2: one Bellman step and value iteration -/
+
+/-- `workspace.actions[jₐ] = state_action_bellman(workspace, V, model, ambiguity_sets, budgets,
+upper_bound)` for every action, with `upper_bound = isoptimistic(sat)`.
+
+Julia counterpart: the loop over `available(model, jₛ)` in
+`state_bellman!(::FactoredIntervalOMaxWorkspace, ::OptimizingStrategyCache, …)` (`src/bellman.jl`). -/
+noncomputable def actionValues (F : FactoredIMDP (n + 2) m) (sat : SatisfactionMode)
+    (W : F.stateVars.State → ℝ) (s : F.stateVars.State) : F.actionVars.Action → ℝ :=
+  fun a => recursiveOMax F s a W (Bellman.isOptimistic sat)
+
+/-- The Bellman update computed with recursive O-max:
+`Vres[jₛ] = extract_strategy!(strategy_cache, workspace.actions, available(model, jₛ), jₛ, maximize)`
+over the recursive O-max action values (`max` for maximize, `min` for minimize).
+
+Julia counterpart: `bellman!` → `_bellman_helper!` → `state_bellman!(::FactoredIntervalOMaxWorkspace,
+::OptimizingStrategyCache, …)` (`src/bellman.jl`), `extract_strategy!` (`src/strategy_cache.jl`). -/
+noncomputable def recursiveOMaxBellman (F : FactoredIMDP (n + 2) m) (sat : SatisfactionMode)
+    (strat : StrategyMode) (W : F.stateVars.State → ℝ) : F.stateVars.State → ℝ :=
+  fun s => Bellman.extractValue strat (F.toRMDP.available s) (F.toRMDP.available_nonempty s)
+    (actionValues F sat W s)
+
+/-- **A2, one step: recursive O-max is sound** (arXiv:2411.11803, Theorem 6.1). For a factored IMDP
+with two or more state variables (`FactoredIMDP (n + 2) m`, Julia's `IsFIMDP`) and dense marginal
+storage, in all four satisfaction × strategy modes (`sat`, `strat`), the Bellman update computed with
+`FactoredIntervalOMaxWorkspace` is sound for the exact Bellman operator `Bellman.T F.toRMDP`, whose
+inner optimum ranges over the literal, non-convex `productSet`:
+`Sound sat (recursiveOMaxBellman F sat strat W) (Bellman.T F.toRMDP sat strat W)` for every `W`, i.e.
+`≤` for pessimistic and `≥` for optimistic. No hypotheses beyond the model invariants. Exactness is
+not claimed (it fails in general; see the Julia check in the inventory, Observation O17).
+
+Proof: the loop computes the tree value (`recursiveOMax_eq_nestedOMax`), the tree value is at most /
+at least the expectation under every product of marginal distributions (`nestedOMax_le_dot`,
+`dot_le_nestedOMax`: the paper's induction), and the action optimum is monotone
+(`extractValue_le_add`). Julia reduces the variables in the reverse order of the paper's Eqn. (15)
+(Finding F5); the paper's argument does not depend on the order.
+
+Julia counterpart: `bellman!` with `FactoredIntervalOMaxWorkspace`, `state_bellman!` and
+`state_action_bellman(::FactoredIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
+theorem recursiveOMax_sound (F : FactoredIMDP (n + 2) m) (sat : SatisfactionMode)
+    (strat : StrategyMode) :
+    Approx.StepSound sat (recursiveOMaxBellman F sat strat) (Bellman.T F.toRMDP sat strat) := by
+  intro W
+  cases sat with
+  | pessimistic =>
+    intro s
+    have h := Bellman.extractValue_le_add strat (F.toRMDP.available_nonempty s)
+      (f := actionValues F .pessimistic W s) (g := Bellman.stateActionBellman F.toRMDP .pessimistic W s)
+      (c := 0) fun a _ => by
+        simpa [actionValues, Bellman.stateActionBellman, Bellman.isOptimistic] using
+          recursiveOMax_le_innerOpt F s a W
+    simpa [recursiveOMaxBellman, Bellman.T] using h
+  | optimistic =>
+    intro s
+    have h := Bellman.extractValue_le_add strat (F.toRMDP.available_nonempty s)
+      (f := Bellman.stateActionBellman F.toRMDP .optimistic W s) (g := actionValues F .optimistic W s)
+      (c := 0) fun a _ => by
+        simpa [actionValues, Bellman.stateActionBellman, Bellman.isOptimistic] using
+          innerOpt_le_recursiveOMax F s a W
+    simpa [recursiveOMaxBellman, Bellman.T] using h
+
+/-- The `k`-th value-iteration iterate `(recursiveOMaxBellman)^[k] W₀` with recursive O-max.
+
+Julia counterpart: `k` repeated `bellman!` calls with `FactoredIntervalOMaxWorkspace` in
+`_value_iteration!` (`src/robust_value_iteration.jl`). -/
+noncomputable def recursiveOMaxIter (F : FactoredIMDP (n + 2) m) (sat : SatisfactionMode)
+    (strat : StrategyMode) (W₀ : F.stateVars.State → ℝ) (k : ℕ) : F.stateVars.State → ℝ :=
+  (recursiveOMaxBellman F sat strat)^[k] W₀
+
+/-- The `k`-th exact iterate `(Bellman.T F.toRMDP sat strat)^[k] V₀` (inner optimum over the
+literal product set).
+
+Julia counterpart: none (Lean-side proof device). -/
+noncomputable def bellmanIter (F : FactoredIMDP (n + 2) m) (sat : SatisfactionMode)
+    (strat : StrategyMode) (V₀ : F.stateVars.State → ℝ) (k : ℕ) : F.stateVars.State → ℝ :=
+  (Bellman.T F.toRMDP sat strat)^[k] V₀
+
+open Filter Topology in
+/-- **A2, end to end: value iteration with recursive O-max is sound** (via
+`IntervalMDP.Approx.iter_sound`). For a factored IMDP with two or more state variables
+(`FactoredIMDP (n + 2) m`) and dense marginal storage, in all four satisfaction × strategy modes:
+if the initial values are sound (`h₀ : Sound sat W₀ V₀`), then every iterate is sound,
+`Sound sat (recursiveOMaxIter k) (bellmanIter k)`, and so are the limits whenever both iterate
+sequences converge. No other hypotheses. Exactness is not claimed.
+
+Julia counterpart: `_value_iteration!` (`src/robust_value_iteration.jl`) with
+`FactoredIntervalOMaxWorkspace` (`src/bellman.jl`), without step postprocessing (see
+`recursiveOMax_vi_sound_post`). -/
+theorem recursiveOMax_vi_sound (F : FactoredIMDP (n + 2) m) (sat : SatisfactionMode)
+    (strat : StrategyMode) {W₀ V₀ : F.stateVars.State → ℝ} (h₀ : Approx.Sound sat W₀ V₀) :
+    (∀ k, Approx.Sound sat (recursiveOMaxIter F sat strat W₀ k) (bellmanIter F sat strat V₀ k)) ∧
+      ∀ {L' L : F.stateVars.State → ℝ}, Tendsto (recursiveOMaxIter F sat strat W₀) atTop (𝓝 L') →
+        Tendsto (bellmanIter F sat strat V₀) atTop (𝓝 L) → Approx.Sound sat L' L :=
+  Approx.iter_sound (recursiveOMax_sound F sat strat) (Or.inl (Bellman.T_monotone _ _ _)) h₀
+
+/-- One value-iteration step with recursive O-max followed by a step postprocessing `post`.
+
+Julia counterpart: `step!` (`src/robust_value_iteration.jl`): `bellman!` with
+`FactoredIntervalOMaxWorkspace` then `step_postprocess_value_function!` (`src/specification.jl`). -/
+noncomputable def recursiveOMaxStep (F : FactoredIMDP (n + 2) m) (sat : SatisfactionMode)
+    (strat : StrategyMode) (post : (F.stateVars.State → ℝ) → F.stateVars.State → ℝ)
+    (W : F.stateVars.State → ℝ) : F.stateVars.State → ℝ :=
+  post (recursiveOMaxBellman F sat strat W)
+
+/-- One exact value-iteration step `post ∘ Bellman.T F.toRMDP sat strat`.
+
+Julia counterpart: none (Lean-side proof device). -/
+noncomputable def bellmanStep (F : FactoredIMDP (n + 2) m) (sat : SatisfactionMode)
+    (strat : StrategyMode) (post : (F.stateVars.State → ℝ) → F.stateVars.State → ℝ)
+    (V : F.stateVars.State → ℝ) : F.stateVars.State → ℝ :=
+  post (Bellman.T F.toRMDP sat strat V)
+
+/-- **A2, end to end with step postprocessing.** As `recursiveOMax_vi_sound`, for the Julia step
+`step!` = `bellman!` followed by a monotone step postprocessing (`hpost : Monotone post`; for example
+the reset/shift postprocessings of reachability, reach-avoid and exit time,
+`VI.StepPostprocess.apply_mono`): if `h₀ : Sound sat W₀ V₀`, every iterate of
+`post ∘ recursiveOMaxBellman` is sound for the matching iterate of `post ∘ Bellman.T F.toRMDP`. Two
+or more state variables (`FactoredIMDP (n + 2) m`), dense marginal storage only, all four modes.
+
+Julia counterpart: `_value_iteration!` and `step!` (`src/robust_value_iteration.jl`) with
+`FactoredIntervalOMaxWorkspace` (`src/bellman.jl`) and `step_postprocess_value_function!`
+(`src/specification.jl`). -/
+theorem recursiveOMax_vi_sound_post (F : FactoredIMDP (n + 2) m) (sat : SatisfactionMode)
+    (strat : StrategyMode) {post : (F.stateVars.State → ℝ) → F.stateVars.State → ℝ}
+    (hpost : Monotone post) {W₀ V₀ : F.stateVars.State → ℝ} (h₀ : Approx.Sound sat W₀ V₀)
+    (k : ℕ) :
+    Approx.Sound sat ((recursiveOMaxStep F sat strat post)^[k] W₀)
+      ((bellmanStep F sat strat post)^[k] V₀) := by
+  refine (Approx.iter_sound (fun V => (recursiveOMax_sound F sat strat V).apply_mono hpost)
+    (Or.inl (hpost.comp (Bellman.T_monotone _ _ _))) h₀).1 k
 
 end Factored
 
