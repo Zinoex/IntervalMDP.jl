@@ -1687,6 +1687,12 @@ Each of the four decisions is configured independently:
   backup in a batch reads the previous iterate, so a second backup of the same
   state in one batch recomputes the same value and only costs a Bellman update.
   Unlike `exclude_visited` it does not change where rollouts go.
+- `dedup_scope::Symbol = :batch`: what `dedup` removes repeats from. `:batch`
+  (each Gauss-Seidel batch, as above); `:rollout` (the whole rollout, before it
+  is doled out, keeping each state's first occurrence in the returned order --
+  the goal-end one when `reverse`; with `k = 1` that is Gauss-Seidel over the
+  rollout's distinct states); `:consecutive` (only runs of the same state, i.e.
+  self-loop steps, so states revisited through a cycle are backed up again).
 - `terminate = [MaxSteps()]`: extra [`TerminationRule`](@ref)s, ORed together.
 - `gauss_seidel::Bool = false`: see below.
 - `k::Int = 1`: batch size, used only when `gauss_seidel = true`.
@@ -1821,6 +1827,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
     exclude_converged::Bool
     converged_eps::Union{Nothing, Float64}
     dedup::Bool
+    dedup_scope::Symbol
 
     # Active-trajectory batching state. `Base.RefValue{Any}` because the
     # `CartesianIndex{N}` arity isn't known until there is a model in hand —
@@ -1857,8 +1864,15 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
         exclude_converged::Bool = false,
         converged_eps::Union{Nothing, Real} = nothing,
         dedup::Bool = false,
+        dedup_scope::Symbol = :batch,
     )
         rules = collect(TerminationRule, terminate)
+        dedup_scope in (:batch, :rollout, :consecutive) || throw(
+            ArgumentError("dedup_scope must be :batch, :rollout or :consecutive, got :$dedup_scope"),
+        )
+        dedup_scope === :batch || dedup || throw(
+            ArgumentError("dedup_scope = :$dedup_scope only applies with dedup = true"),
+        )
         gauss_seidel &&
             k < 1 &&
             throw(ArgumentError("k must be positive when gauss_seidel = true, got $k"))
@@ -1884,6 +1898,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
             exclude_converged,
             converged_eps === nothing ? nothing : Float64(converged_eps),
             dedup,
+            dedup_scope,
             Ref{Any}(nothing),
             Ref(0),
             Ref(0),
@@ -2323,6 +2338,26 @@ function _warn_converged_scope!(ss::TrajectorySampling, model, spec)
     return nothing
 end
 
+# Remove repeats from a whole rollout per `dedup_scope` (`:batch` leaves it to `sample`).
+function _dedup_rollout!(ss::TrajectorySampling, trajectory)
+    ss.dedup || return trajectory
+    if ss.dedup_scope === :rollout
+        unique!(trajectory)
+    elseif ss.dedup_scope === :consecutive
+        n = length(trajectory)
+        n <= 1 && return trajectory
+        j = 1
+        @inbounds for i in 2:n
+            if trajectory[i] != trajectory[j]
+                j += 1
+                trajectory[j] = trajectory[i]
+            end
+        end
+        resize!(trajectory, j)
+    end
+    return trajectory
+end
+
 function sample(ss::TrajectorySampling, model, strategy_cache, value_function, spec)
     _warn_converged_scope!(ss, model, spec)
 
@@ -2335,7 +2370,8 @@ function sample(ss::TrajectorySampling, model, strategy_cache, value_function, s
         # A no-op under GSRDP's Jacobi backup, but applied here too so the
         # flag's meaning doesn't depend on `gauss_seidel`.
         ss.reverse && reverse!(trajectory)
-        ss.dedup && unique!(trajectory)
+        _dedup_rollout!(ss, trajectory)
+        ss.dedup && ss.dedup_scope === :batch && unique!(trajectory)
         _count_updates!(ss, model, trajectory)
         _after_sample!(ss.state_score, trajectory, value_function)
         return StateIterator(trajectory)
@@ -2345,6 +2381,7 @@ function sample(ss::TrajectorySampling, model, strategy_cache, value_function, s
     if buffer === nothing
         buffer = _sample_trajectory(ss, model, value_function, spec)
         ss.reverse && reverse!(buffer)
+        _dedup_rollout!(ss, buffer)
         # An empty rollout (the initial state was already a goal state) leaves
         # no trajectory to activate; return empty rather than spin.
         if isempty(buffer)
@@ -2358,7 +2395,7 @@ function sample(ss::TrajectorySampling, model, strategy_cache, value_function, s
     start = ss.cursor[]
     stop = min(start + ss.k - 1, length(buffer))
     batch = buffer[start:stop]
-    ss.dedup && unique!(batch)
+    ss.dedup && ss.dedup_scope === :batch && unique!(batch)
     ss.cursor[] = stop + 1
     _count_updates!(ss, model, batch)
     _after_sample!(ss.state_score, batch, value_function)
