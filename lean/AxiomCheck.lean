@@ -505,3 +505,28 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Factored.eq_of_branchIndex_eq
 #print axioms IntervalMDP.Factored.branchFill_of_not_mem
 #print axioms IntervalMDP.Factored.branchIndex_branchFill
+-- Phase 6a: product-state indexing (scope `abstract`; mode-independent: indexing is the same for all
+-- four satisfaction × strategy modes). `productIndex_bijective`: hypothesis `hBound`
+-- (`(∏ state_values(mp)) * nQ < 2 ^ (N - 1)`), any `StateVars n` and `nQ`.
+#print axioms IntervalMDP.Index.productIndex_bijective
+-- `product_read_successor`: hypothesis `hBound`, deterministic labelling, mode-independent.
+#print axioms IntervalMDP.Index.product_read_successor
+-- Phase 6a helpers with hypothesis `hBound`, mode-independent: `productIndexInt_eq` and
+-- `productGet_productArray` (`hBound` only) and `product_read_nextDFA` (`hBound`, `hL`, deterministic
+-- labelling).
+#print axioms IntervalMDP.Index.productIndexInt_eq
+#print axioms IntervalMDP.Index.productGet_productArray
+#print axioms IntervalMDP.Index.product_read_nextDFA
+-- Phase 6a helpers on exact natural-number indices (no overflow bound needed, no model invariant
+-- beyond `StateVars n`):
+#print axioms IntervalMDP.Index.productDims_castSucc
+#print axioms IntervalMDP.Index.productDims_last
+#print axioms IntervalMDP.Index.productCartesian_castSucc_val
+#print axioms IntervalMDP.Index.productCartesian_last_val
+#print axioms IntervalMDP.Index.prod_productDims
+#print axioms IntervalMDP.Index.productIndex_eq_toJulia
+#print axioms IntervalMDP.Index.stride_productDims_castSucc
+#print axioms IntervalMDP.Index.stride_productDims_last
+#print axioms IntervalMDP.Index.productIndex_eq
+#print axioms IntervalMDP.Index.productIndex_bijOn
+#print axioms IntervalMDP.Index.selectdimIndex_bijOn

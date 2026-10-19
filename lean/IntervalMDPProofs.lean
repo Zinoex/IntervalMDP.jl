@@ -17,6 +17,7 @@ import IntervalMDPProofs.Index.Sparse
 import IntervalMDPProofs.Index.Perm
 import IntervalMDPProofs.Index.Marginal
 import IntervalMDPProofs.Index.Strategy
+import IntervalMDPProofs.Index.Product
 import IntervalMDPProofs.OMax
 import IntervalMDPProofs.Bellman
 import IntervalMDPProofs.VI.Reach
