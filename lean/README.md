@@ -5,7 +5,7 @@ machine-checked proofs about them. It is developed in phases (see
 `harness/specs/lean-proofs/`, shared rules in `common.md`, one spec per sub-phase); the status of every row is tracked in
 `harness/specs/inventory-intervalmdp.md`.
 
-**Phase 3 complete (sub-phase 3d)** (Phases 0–3 complete) — Phase 0 (models with their well-formedness
+**Phase 6 complete (sub-phase 6b)** (Phases 0–6 complete: every inventory row that requires a theorem is `proved` or `partial`, and each `partial` row has an open Finding (F2, F3 or F4); model row M6 (other models, no theorem required) is `defined`; open Findings F2–F6 are listed in the inventory) — Phase 0 (models with their well-formedness
 theorems, and the generic approximation-soundness lift A1), all of Phase 1 (index foundations
 (1a: 1-based conversion, column-major linear index, sparse support pairing, O-max sort
 permutation), marginal indexing (1b: `sub2ind` of `Marginal` and `IntervalAmbiguitySets`), dense
@@ -72,7 +72,7 @@ strategy coupling (inventory Finding F4; witnesses `Examples.ivi_upper_lt_reachL
 `V*` (`Examples.not_gap_stop_sound_pessimistic_maximize`,
 `Examples.not_gap_stop_sound_optimistic_minimize`), so neither `IVI.bracket` nor
 `IVI.gap_stop_sound` (all four modes) is stated.
-Phase 5 done (5a, 5b, 5c): factored IMDPs (`Factored.lean`). `Index.factored_successor_eq`:
+Phase 5 complete (5a, 5b, 5c): factored IMDPs (`Factored.lean`). `Index.factored_successor_eq`:
 under the overflow bound `∏ state_vars < 2 ^ (N - 1)` (`hBound`) and for a value array storing `W`
 (`hV : StoresValues`), the index `I ∈ CartesianIndices(num_target.(ambiguity_sets))` of vertex
 enumeration and the factored O-max loops is in bijection with the joint successor states, `V[I]`
@@ -137,6 +137,30 @@ deterministic labelling; mode-independent) identifies it with `ProductProcess.ne
 `selectdimIndex_bijOn` shows that `selectdim(Vres, ndims(Vres), state)` is the contiguous block of
 DFA state `q`.
 
+Phase 6b: product Bellman and DFA reachability / safety (`Product.lean`). `Product.T` transcribes
+the DFA loop of `_bellman_helper!` for a `DeterministicLabelling` (`bellmanLoop` over
+`states.dfa_states = 1..nQ`; DFA states in `terminal(prop)` are skipped; `W` is `intermediateValues`,
+the inner `bellman!` is `Bellman.T` of the underlying `RMDP`, written into
+`selectdim(Vres, ndims(Vres), state)` at the `Int` index `productIndexInt` by `writeSlice`).
+`Product.T_eq_flat` (hypothesis `hBound`; deterministic labelling `hL`; all four modes; scope
+`abstract`): on the product arrays storing `Vres` and `V`, `T` is the Bellman operator
+`Bellman.T P.toRMDP sat strat V` of the flattened product `ProductProcess.toRMDP` on every DFA state
+outside `terminal`, and leaves the terminal slices at `Vres` (`skipTerminal`; `T_eq_flat_empty` for
+`prop = nothing`, `T_read` in Julia's read form); the proof reads `W` with
+`Index.product_read_successor` (the successor's label) and uses `T_toRMDP_apply` (any labelling).
+`Product.dfaReach_eq` (hypothesis `hBound`; deterministic labelling `hL`; all four modes;
+time-invariant model; scope `abstract`): Julia's arrays for `AbstractDFAReachability`
+(`dfaReachIter`: `reach(prop)` slices set to `1` by `initialize!` and every
+`step_postprocess_value_function!`) are the iterates `VI.reachIter` of the flattened product with
+target `S × reach` (`dfaReachProperty`), and the value returned for `AbstractDFASafety`
+(`dfaSafetyIter`: `avoid(prop)` slices set to `-1`, final `.+= 1.0`, `dfaSafetyPostprocess`) is
+`VI.reachIter` of the exact-time reach-avoid property of the flattened product with avoid set
+`S × avoid` (`dfaSafetyProperty`, via `VI.safety_shift_eq`). Read forms: `dfaReach_read`,
+`dfaSafety_read` (both `hBound`, `hL`, all four modes). The `ProbabilisticLabelling` method of
+`_bellman_helper!` is not transcribed (Observation O19); `T_toRMDP_apply` holds for both labellings.
+Phase 6 complete (6a, 6b): every Phase 6 row (index row "Product state", algorithm row 14) is
+`proved`; no Finding (Observations O19, O20).
+
 **Proof scope: abstract.** Values are real numbers and the semantics is the dynamic-programming
 recursion. The proofs do not cover floating-point rounding, overflow, CUDA kernels or threaded
 execution, or the LP solver of the McCormick relaxation (HiGHS), and the Lean ↔ Julia correspondence is argued by transcription and docstrings, not
@@ -188,6 +212,9 @@ AvailableActions S A           nonempty available action sets
      ▲ IMDP.toRMDP             IMDP S A         (interval set per (s, a))
      ▲ FactoredIMDP.toRMDP     FactoredIMDP n m (Marginal per state variable; ambiguity = productSet)
      ▲ ProductProcess.toRMDP   ProductProcess S A Q Λ (RMDP × DFA × labelling) on S × Q
+         Product.T               Julia's per-DFA-state loop on product arrays (= Bellman.T of toRMDP
+                                 off the terminal DFA states: hBound, deterministic labelling,
+                                 all four modes, T_eq_flat)
 
 DFA Q Λ, Labelling S Λ, ProbLabelling S Λ, AbstractLabelling S Λ
 StationaryStrategy S A, TimeVaryingStrategy S A (+ Valid w.r.t. available)
@@ -228,6 +255,8 @@ Factored.vertexValue F s a W ub  vertex enumeration over Factored.vertexEnumerat
 | `ProductProcess` (`src/models/ProductProcess.jl`): `mdp`, `dfa`, `labelling_func` | `IntervalMDP.ProductProcess`: `mdp`, `dfa`, `labelling`; `.toRMDP` (`Models/Product.lean`) |
 | `V[idx, dfa[state, lf[idx]]]` (`src/bellman.jl`) | `ProductProcess.nextDFA`, `ProductProcess.lift_deterministic` |
 | product value arrays `V`, `Vres` of shape `state_values(proc)` (`src/models/ProductProcess.jl`); `V[idx, q]`, `selectdim(Vres, ndims(Vres), state)`, and `W[idx] = V[idx, dfa[state, lf[idx]]]` (`map!` into `workspace.intermediate_values`) in `_bellman_helper!` (`src/bellman.jl`) | `IntervalMDP.Index.productDims` (= `state_values(proc)`, DFA last), `productCartesian` (= `[idx, q]`), `productIndex` (= `LinearIndices(state_values(proc))[idx, q]`), `productIndexInt` (`N`-bit), `productEquiv` (`S × Q ≃ Fin (card S * card Q)`), `selectdimIndex`, `productGet` (= `V[idx, q]`), `intermediateValues` (= `W`, the `map!` closure), `productArray`, `nextDFAValue` (`Index/Product.lean`); `productIndex_bijective` (`hBound`, mode-independent), `product_read_successor` (`hBound`, deterministic labelling, mode-independent), `product_read_nextDFA` (`hBound`, `hL`), `selectdimIndex_bijOn` |
+| `bellman!(…, Vres, V, model::ProductProcess; upper_bound, maximize, prop)` → `_bellman_helper!(…, dfa, lf::DeterministicLabelling, mp, states; …)` (`src/bellman.jl`): DFA loop, `continue` on `terminal(prop)`, `bellman!(…, selectdim(Vres, ndims(Vres), state), W, mp, …)` | `IntervalMDP.Product.T`, `bellmanLoop`, `writeSlice`, `skipTerminal`, `ProductArray` (`Product.lean`); `T_eq_flat` (`hBound`, deterministic labelling `hL`, all four modes), `T_eq_flat_empty`, `T_read`, `T_toRMDP_apply` (any labelling) |
+| `initialize!` / `step_postprocess_value_function!` / `postprocess_value_function!` for `AbstractDFAReachability`, `AbstractDFASafety` (`src/specification.jl`): `selectdim(current, ndims(current), reach(prop)) .= 1.0`, `avoid(prop)` `.= -1.0`, `current .+= 1.0` | `Product.setDFAStates`, `dfaReachIter`, `dfaSafetyIter`, `dfaSafetyPostprocess`, `productTarget`, `dfaReachProperty`, `dfaSafetyProperty` (`Product.lean`); `dfaReach_eq` (`hBound`, deterministic labelling `hL`, all four modes, time-invariant model), `dfaReachIter_eq`, `dfaSafetyIter_eq`, `dfaSafety_eq`, `dfaReach_read`, `dfaSafety_read` |
 | `StationaryStrategy`, `TimeVaryingStrategy` (`src/strategy.jl`) | `StationaryStrategy`, `TimeVaryingStrategy`, `.Valid` (`Models/Strategy.lean`) |
 | property structs (`src/specification.jl`) | constructors of `IntervalMDP.Property` (`Models/Specification.lean`) |
 | `time_horizon`, `convergence_eps`, `avoid_states` | `timeHorizon`, `convergenceEps`, `avoidStates` |
@@ -342,6 +371,7 @@ examples and factored variable values use `Fin` with Julia index `k` ↦ Lean `k
 | `IntervalMDPProofs/VI/Strategy.lean` | `VI.ActionOrder`, `ActionOrder.first`, `viIter`, `synthesizedStrategy`, `timeVaryingSeed`, `stationaryCacheSeed`, `timeVaryingCacheStrategy`, `stationaryCacheStrategy`, `selectStrategy`, `policyEvalIter`, `StepPostprocess`, `ReachProperty.stepPostprocess`, `ExpectedExitTime.stepPostprocess`, `strategyReachLfp`, `strategyRewardValue`; `timeVarying_attains`, `timeVarying_attains_reach`, `timeVarying_attains_safety`, `timeVarying_attains_reward`, `policyEvalIter_timeVaryingCacheStrategy`, `stationary_sound`, `stationary_sound_exitTime`, `stationary_reward_error_bound`, `stationary_le_superSolution`, `stationary_backward_step`, `viIter_le_superSolution_minimize`, `T_lt_of_switch`, `strategy_eq_of_T_eq`, `argoptAction_eq_or_lt`, `synthesizedStrategy_spec`, `stationaryCacheSeed_mem`, `stationaryCacheSeed_succ`, `timeVaryingCacheStrategy_valid`, `stationaryCacheStrategy_valid`, `selectStrategy_timeVaryingCacheStrategy`, `exists_dot_bracket`, `exists_eq_zero_of_dot_nonpos`, `stateActionBellman_mono`, `reachIter_eq_viIter`, `safetyIter_eq_viIter`, `exitIter_eq_viIter`, `rewardIter_eq_viIter`, `StepPostprocess.apply_mono`, `ReachProperty.stepPostprocess_apply`, `ExpectedExitTime.stepPostprocess_apply` |
 | `IntervalMDPProofs/IVI.lean` | `IVI.ReachAvoidProperty`, `ReachAvoidProperty.reach`, `avoid`, `toReachProperty`, `Bounds`, `StrategyCacheKind`, `cacheSeed`, `primary`, `secondary`, `ofPrimary`, `iviStrategy`, `step` (transcription of `ivi_step!`), `initializeUpper`, `initializeIvi` (`initialize_ivi!`), `iviIter` (transcription of `_interval_value_iteration!`); `lower_le_upper`, `primary_sound`, `lower_le_reachLfp`, `reachLfp_le_upper`, `bracket_aligned` (A6, restricted; Finding F4), `ReachAvoidProperty.disjoint_reach_avoid`, `reach_toReachProperty`, `stepPostprocess_avoid`, `step_lower`, `step_upper`, `step_strategy`, `primary_step_eq`, `cacheSeed_mem`, `iviStrategy_spec`, `iviIter_strategy_mem`, `Tπ_mono`, `primary_step`, `primary_iviIter`, `initializeIvi_lower_le_upper`, `initializeValueFunction_le_reachLfp`, `reachLfp_le_initializeUpper`, `iterate_sound`, `Tπ_iviStrategy_lower_le`, `T_le_Tπ_iviStrategy_upper`, `lower_le_iterate`, `iterate_le_upper`; stopping (4b): `gap`, `maxGapStep`, `maxInitialGap` (transcription of `max_initial_gap`), `iviInitialGapCriteria` (`IVIInitialGapCriteria`), `Terminates`, `stopIndex` (loop exit `k`), `iviValueFunction` (returned `value_function`), `WithinOn`; `gap_stop_sound_aligned` (A6, `(Pessimistic, Minimize)` / `(Optimistic, Maximize)`, non-exact-time, assumes `Terminates` (not proved); Finding F4), `gap_stop_primary_sound` (all four modes, non-exact-time, assumes `Terminates` (not proved)), `withinOn_of_iviInitialGapCriteria_aligned`, `withinOn_of_bracket`, `le_foldl_maxGapStep`, `gap_le_maxInitialGap`, `one_le_stopIndex`, `iviInitialGapCriteria_stopIndex`, `not_iviInitialGapCriteria_of_lt_stopIndex` |
 | `IntervalMDPProofs/Factored.lean` | Phase 5a. Index: `Factored.ambiguitySets`, `numTarget`, `numTargets`, `successorState`, `StoresValues`, `readValue`; `successorState_bijective`, `Index.factored_successor_eq` (hypotheses: overflow bound `∏ state_vars < 2 ^ (N - 1)`, `StoresValues`). Marginal iterator: `addAt`, `vertexLoop`, `vertexOf`, `permGet`, `suffixStep`, `nextInSuffix`, `findSwap`, `swapSort`, `nextPermutation`, `vertexRun`, `vertices`, `permsFrom`; `vertexLoop_fst`, `vertexLoop_prefix`, `vertexOf_snd_ne_zero`, `nextPermutation_some`, `nextPermutation_spec`, `vertexOf_mem_vertexRun`, `mem_vertices_iff`, `vertexOf_mem_extremePoints`, `boundary_of_mem_extremePoints`, `exists_perm_vertexOf_eq`, `mem_vertices_iff_extremePoints`. Product and value: `productList`, `vertexEnumeration`, `vertexSum`, `optStep`, `maxStep`, `minStep`, `vertexValue`, `vertexFinset`; `mem_productList`, `vertices_complete` (no extra hypotheses, dense marginals only, O16), `vecs_eq_convexHull_vertices`, `dot_piVec_eq_sum`, `exists_vertex_expansion`, `vertexValue_eq_opt` (all four modes, no extra hypotheses, dense marginals only, O16), `vertexValue_eq_stateActionBellman` (same scope). Phase 5b (recursive O-max, A2): `denseCol`, `denseAmbiguity`, `orthogonalInnerBellman`, `nestedOMax`, `cartIdx`, `supportSize`, `innerBellmanAt`, `firstInnerBellman`, `writeCache`, `fillZero`, `cascadeStep`, `cascadeLoop`, `loopBody`, `cartesianBlock`, `firstState`, `cartesianIndices`, `expectationCache`, `recursiveOMax`, `actionValues`, `recursiveOMaxBellman`, `recursiveOMaxIter`, `bellmanIter`, `recursiveOMaxStep`, `bellmanStep` (proof devices `lastValue`, `lastOf`, `cacheValue`, `writeAt`, `diracVec`, `partialProduct`); `orthogonalInnerBellman_eq_innerOpt`, `recursiveOMax_eq_nestedOMax` (`n + 2`, dense; loop invariant `foldl_cartesianBlock`), `expectationCache_fill`, `nestedOMax_le_dot`, `dot_le_nestedOMax`, `recursiveOMax_le_innerOpt` (pessimistic, `upper_bound = false`; `n + 2` state variables, dense), `innerOpt_le_recursiveOMax` (optimistic, `upper_bound = true`; `n + 2` state variables, dense), `recursiveOMax_sound` (A2 one step: `n + 2` state variables, dense, all four modes, no extra hypotheses), `recursiveOMax_vi_sound` (A2 via `iter_sound`: `n + 2`, dense, all four modes, `h₀ : Sound sat W₀ V₀`), `recursiveOMax_vi_sound_post` (same, plus `hpost : Monotone post`); arXiv:2411.11803, Theorem 6.1; Finding F5, Observation O17. Phase 5c (McCormick relaxation, A3): `McCormickTree`, `McCormickTree.leaves`, `Idx`, `Vars`, `mccormickBranch` (transcription of `mccormick_branch`), `mcCormickTree`, `branchVars`, `branchLower`, `branchUpper`, `mcCormickEnvelope`, `marginalLPFeasible`, `branchFeasible`, `branchIndex`, `mcCormickObjective`, `mcCormickFeasible`, `mcCormickValues`, `mcCormickLP`, `mcCormickActionValues`, `mcCormickBellman`, `mcCormickIter`, `mcCormickStep` (proof devices `branchProduct`, `coordValue`, `branchFill`); `mcCormickEnvelope_mul`, `branchLower_nonneg`, `branchFeasible_bounds`, `branchFeasible_sum`, `branchFeasible_mem_unit`, `branchFeasible_branchProduct` (any tree), `branchVars_branchProduct`, `branchIndex_congr`, `eq_of_branchIndex_eq`, `branchFill_of_not_mem`, `branchIndex_branchFill`, `mccormickBranch_leaves`, `mcCormickTree_leaves`, `mcCormickTree_branchIndex_bijective`, `mcCormickObjective_bounds`, `mcCormickValues_bddBelow`, `mcCormickValues_bddAbove`, `dot_mem_mcCormickValues` (`n + 1`, dense), `mcCormickLP_le_innerOpt` (pessimistic, `upper_bound = false`; `n + 1` state variables, dense), `innerOpt_le_mcCormickLP` (optimistic, `upper_bound = true`; `n + 1` state variables, dense), `mcCormick_sound` (A3 one step: `n + 1` state variables, dense, all four modes, no extra hypotheses), `mcCormick_vi_sound` (A3 via `iter_sound`: `n + 1`, dense, all four modes, `h₀ : Sound sat W₀ V₀`), `mcCormick_vi_sound_post` (same, plus `hpost : Monotone post`); arXiv:2508.00707, Section 3.2 and Appendix B; Finding F6, Observation O18 |
+| `IntervalMDPProofs/Product.lean` | Phase 6b. `Product.ProductArray`, `successorValue`, `writeSlice`, `bellmanLoop` (transcription of the DFA loop of `_bellman_helper!`), `T` (product Bellman), `skipTerminal`, `setDFAStates`, `productTarget`, `dfaReachProperty`, `dfaSafetyProperty`, `dfaReachIter`, `dfaSafetyIter` (transcriptions of `_value_iteration!` for `AbstractDFAReachability` / `AbstractDFASafety`), `dfaSafetyPostprocess`; `T_eq_flat` (`hBound`, deterministic labelling `hL`, all four modes), `dfaReach_eq` (`hBound`, deterministic labelling `hL`, all four modes, time-invariant model; reachability and safety); helpers `T_eq_flat_empty`, `T_read`, `dfaReachIter_eq`, `dfaSafetyIter_eq`, `dfaSafety_eq`, `dfaReach_read`, `dfaSafety_read` (all `hBound`, `hL`, all four modes), `productIndexInt_toNat`, `writeSlice_apply`, `setDFAStates_apply`, `intermediateValues_productArray`, `bellmanLoop_apply` (`hBound`), `nextDFAValue_deterministic` (`hL`), `dot_liftLinear`, `expectations_toRMDP`, `T_toRMDP_apply` (any labelling) |
 | `AxiomCheck.lean` | `#print axioms` for every theorem of `IntervalMDPProofs/**` (completeness checked by `scripts/check_axiom_check.py`) |
 | `DocLint.lean` | `#lint only docBlame docBlameThm` |
 
@@ -365,7 +395,12 @@ mathematical optimum (HiGHS is not modelled); it is only sound, not exact (arXiv
 Section 3.2), and Julia's tree shape (for five or more variables) and extra simplex constraints
 differ from the paper's LP (Finding F6).
 * **Product process.** The DFA step uses the label of the *successor* state, as `bellman.jl` does
-  (the `ProductProcess` docstring writes the source label).
+  (the `ProductProcess` docstring writes the source label). The product theorems of 6b
+  (hypothesis `hBound`, deterministic labelling `hL`, all four modes; `T_eq_flat`, and
+  `dfaReach_eq` for a time-invariant model) cover the `DeterministicLabelling` method of `_bellman_helper!`
+  only, a time-invariant model (`select_model(mp, k) = mp`, no `TimeVaryingLabelling`), the default
+  full update sequence and the optimizing / no strategy cache. The DFA reach / avoid sets are the
+  property's `reach(prop)` / `avoid(prop)`, not `DFA.accepting` (Observation O20).
 * **Available actions** must be nonempty in Lean; Julia's `ListAvailableActions` does not check it.
 * **Strategy validity** in Lean requires availability; Julia's `checkstrategy` checks only the
   action range. With `ListAvailableActions` a `VerificationProblem` therefore accepts strategies
