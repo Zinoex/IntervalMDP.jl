@@ -741,3 +741,304 @@ Numbers in brackets are the carry-over items of `0h-hypotheses-close.md`; → na
 * **NVML unavailable** (moved here from § 8 "Environment"): `nvidia-smi` fails with a driver/library version mismatch
   (kernel module 610.57.04 vs NVML 615.71) while CUDA.jl works, so no GPU clock or power data are recorded in the CUDA
   files and the CLOCK flag of CUDA entries refers to the host CPU only (see [16]).
+
+## 10. Phase 1 plan
+
+Phase 1 (single-threaded CPU) is prepared by sub-phase `1a` on the merge base `bcbf0df` (`git merge-base origin/main
+HEAD`; `src/` and `ext/` unchanged). The plan follows the spec files of the phase; the operator changes it by editing,
+adding or renumbering those files.
+
+### 10.1 Experiments
+
+| Sub-phase | Spec | Hypothesis | Phase 0 measurement (§ 7 entry; § 3–6 source) | Target cases (entries) |
+|---|---|---|---|---|
+| `1b.1` | `1b.1-h1-sort-ordering.md` | H1 — type-stable ordering in the sparse O-max sort (IMDP/product) | § 7 item 1, § 5: dynamic `Base.Order._by` self time 67% of samples for the real model (`profiles/real-multiObj_robotIMDP.md`), 50% for `profiles/product-imdp-sparse-n10000-nnz10-a4-dfa4.md`, 8% at k = 100 (`profiles/imdp-sparse-n100000-nnz100-a1.md`); 64 B per sparse column, sparse solves allocate 0.05–3.72 GB (`results/baseline-20fc03b-cpu-t1.json`) | `imdp-sparse-n10000-nnz10-a{1,4}`, `imdp-sparse-n100000-nnz10-a{1,4}`, `product-imdp-sparse-n1000-nnz10-a{1,4}-dfa4`, `product-imdp-sparse-n10000-nnz10-a{1,4}-dfa4`, `real-multiObj_robotIMDP` (`bellman`, `solve_rvi`; `solve_dfa` for product); secondary `imdp-sparse-*-nnz100-*` |
+| `1b.2` | `1b.2-h7-sparse-gather.md` | H7 — sparse gather / tuple construction | § 7 item 7, § 5: 25–26% of samples (self time) in `setindex!` building `(V[j], gap)` tuples (`profiles/imdp-sparse-n10000-nnz100-a4.md`, `profiles/imdp-sparse-n100000-nnz100-a1.md`) | `imdp-sparse-n10000-nnz100-a{1,4}`, `imdp-sparse-n100000-nnz100-a{1,4}`, `cs-imdp-sparse-n10000-nnz100-a4` (`bellman`, `solve_rvi`, `solve_cs_*`) |
+| `1b.3` | `1b.3-h6-dense-gap-walk.md` | H6 — dense gap walk | § 7 item 6, § 5 and § 6.2: 79–81% of samples in `gap_value` (`profiles/imdp-dense-n1000-a4.md`, `profiles/imdp-dense-n4000-a4.md`); 3.30–4.89 ns/nnz, 26–28% of the 1-thread DRAM roof (`results/sizes-20fc03b-cpu-t1.json`, `results/stream-t1.json`) | `imdp-dense-n1000-a{1,4}`, `imdp-dense-n4000-a{1,4}`, `product-imdp-dense-n1000-a{1,4}-dfa4`, `cs-imdp-dense-n1000-a4` (`bellman`, `solve_rvi`, `solve_dfa`, `solve_cs_*`) |
+
+The predicted factors in § 7 are relative to the stored Phase 0 files, which were recorded with an uncommitted harness
+(§ 7 "Re-baseline", carry-over item 8). Each `1b.k` measures its A side on the commit before it with `benchmark/ab.jl`
+(same harness on both sides), so no stored median is used as a baseline.
+
+**Evidence rule (§ 10.2, noise-bound policy).** A `1b.k` result counts only for entries whose A-side (merge-base) spread
+over the experiment's own `ab.jl` rounds is ≤ 5% and only if no round logged a `NOT settled` clock reference; otherwise
+the experiment re-runs in a steadier session or reports the entry as UNAVAILABLE. The `ab.jl` summary flags both.
+
+Equivalence tests for these paths: `test/base/perf_equivalence.jl` (CPU; dense and sparse IMDP O-max `bellman!` in all
+four `upper_bound`/`maximize` modes with the default, single-threaded and threaded workspaces constructed directly,
+product IMDP × DFA, control synthesis with stationary and time-varying strategies, RVI/IVI solves, the real robot model)
+and `test/cuda/perf_equivalence.jl` (`:cuda`; the same models without product and IVI, Float64 and Float32). Reference
+values are computed on `bcbf0df` and embedded in the test file.
+
+### 10.2 Noise check on the merge base
+
+**Measurement environment.** From 1a on, the reference environment for timed runs is the **Performance** power
+profile (operator decision, 2026-10-20): ACPI `platform_profile` `performance`, EPP `performance` on every CPU (checked
+on CPUs 0, 3, 6, 10, 14 before the runs and on 0 and 7 before every run), governor `performance` (`intel_pstate`, turbo
+on), AC online, `/sys/fs/cgroup/cpuset.cpus.isolated` empty (all 16 CPUs usable, compact pinning thread *i* → CPU *i − 1*),
+`intel_lpmd` active but in LPMD_OFF, which the Performance profile selects. Load averages (1 / 5 / 15 min) as logged in
+`benchmark/results/logs/1a-noise-env.log` (local) at the start of each run: t1 r1 6.26 / 2.72 / 1.81 (10:57:51 UTC,
+directly after the § 10.3 clock runs of 10:54–10:57), t16 r1 1.06 / 1.14 / 1.32 (11:14:12), t1 r2 6.32 / 3.31 / 2.10
+(11:15:58), t16 r2 1.09 / 1.14 / 1.39 (11:32:48), t1 r3 8.42 / 3.87 / 2.36 (11:34:56), t16 r3 1.12 / 1.16 / 1.45
+(11:52:10); the high 1-minute values at the t1 starts are the load of the preceding run (clock runs or a 16-thread
+run). The result files record `cpu.loadavg_at_start` as well (t1 r1: 5.84 / 2.69 / 1.80 at 10:57:58 UTC). No other
+Julia or VS Code process (top processes: firefox, htop, gnome-shell at ≤ 4.4% CPU). Julia 1.13.1, base sha `bcbf0df`.
+Earlier on the same day the host was in the `balanced` profile with `intel_lpmd` low-power mode active (P-cores 0–5
+isolated, EPP switching between `balance_power`, `64` and `balance_performance`, clock probes ranging over 285–447 µs);
+no data from that state is used. The Phase 0 timings (§ 1, § 3–6) were recorded under platform profile `balanced` with
+EPP `balance_performance`, so their absolute numbers are not comparable with the 1a files; they are re-measured under
+the Performance profile after 1a, in a separate follow-up that is not part of 1a. Every Phase 1 claim comes from
+interleaved `ab.jl` rounds measured in one session, not from stored medians.
+
+**Harness.** The `1a` harness changes were uncommitted during the measurements (working tree on `bcbf0df`; the
+environment block of every result file lists the dirty files). SHA-256 of the harness files used for the 1a
+measurements (the measurement hashes; files changed after the measurements are listed below the table with their
+current hashes):
+
+| file | sha256 |
+|---|---|
+| `benchmark/run.jl` | `bc915b9fdbbdf7d12d1f71d988b313027a83eb0bd11f3d56ecfe02671d28e77b` (unchanged from `bcbf0df`) |
+| `benchmark/lib/clock.jl` | `c8aa01a72da424f2e77e84b7f3d23983bbc3415d9a16ef94feec18d05a58efd3` (1a fix) |
+| `benchmark/lib/environment.jl` | `192f10d8a2a0409c50c9b616e5f106934eaa48ad453f461be8af23146b7362e5` (unchanged) |
+| `benchmark/lib/measure.jl` | `e458ee53999340efcb5e2451815f0daa505bfb1c25e898f1f310b7aee6654956` (unchanged) |
+| `benchmark/lib/reference.jl` | `bcb49314f49fca270580ef4c6bca83075fae66bbb4d97355ca82577637d12f4f` (unchanged) |
+| `benchmark/ab.jl` | `6b8028672d6d965c74ff9db94eb7a5fd485ba4776426404fb0f11bd826f47016` (new) |
+| `benchmark/compare.jl` | `7a53ab2dbbb3ad2a90b788feada14d923c6d57d0bb012ec10659dd13abb7b156` (unchanged) |
+| `benchmark/cases/fimdp.jl` | `72755483a2ed893b998e52166b454bdb8eeaf65a1f28e3b39d06dccb2413f303` (unchanged) |
+| `benchmark/cases/generators.jl` | `5e866e4718b56974a76e790f9c53dd8aa5429ba53f3e021b23c1f4c75f6cdab7` (unchanged) |
+| `benchmark/cases/imdp.jl` | `505632deae21bbd343f18f7883c4e4f9b816f9effc946239d4594abc0dfda7f3` (unchanged) |
+| `benchmark/cases/product.jl` | `969a38b1b7d1d97c39224eb5075a6940dc32417312136fec90c1205c68d992ff` (unchanged) |
+| `benchmark/cases/real.jl` | `495b7f5e74734fa75381bfbad8c5f7093a8c01bfd7f0447f22afbdff60ad130c` (unchanged) |
+| `benchmark/cases/registry.jl` | `0f068874a06a019584d5a5c9472b5359762b429d8c2ca5ddc6109fce73337a95` (1a noise fix) |
+| `benchmark/cases/synthesis.jl` | `529420503535ad820f1a0d49e4a47015ea6165024d81def350f168bae13a9402` (unchanged) |
+
+Changed after the measurements in cycle 2 (flag/summary only, timing procedure unchanged); current SHA-256, which the
+committed files must match:
+
+| file | sha256 now | change after the measurements |
+|---|---|---|
+| `benchmark/lib/clock.jl` | `d6bdbbf453ce582b4d2189593971744adf8752c3071c5d6c849568b421b10271` | `NOT settled` flag and warning when the 9 reference probes range > 2%; reference value and timing procedure unchanged (measurement hash `c8aa01a7…` above) |
+| `benchmark/ab.jl` | `b6330da30093b0fc0d961281d3854884a20fd830a0ee0c436778e4967a4e8baa` | writes `<label>-spread-A.json`/`-B.json` and appends the "Evidence check" section to the summary; run order and commands unchanged (measurement hash `6b802867…` above) |
+| `benchmark/cases/registry.jl` | `45a02d278f2aad32f8386c17b33bfff93beb70ea20e4ed234bcb410fd06a60a0` | comment above `NOISE_BUDGET_SCALE` only; the scale and the budgets are unchanged (measurement hash `0f068874…` above) |
+
+Differences during the session: the first noise set (`1a-noise-t{1,16}-r{1,2,3}.json`) ran with the unchanged
+`registry.jl` of `bcbf0df` (sha256 `ba297d7918676105cc1ef4634dec7b3699b367f5322161c1002643ec5004a67c`); the noise-fix set
+(`1a-noise-fix-*.json`) and the `ab.jl` demonstration (§ 10.4) ran with the final `registry.jl`; after the demonstration
+only the default `--out-dir` of `ab.jl` changed (to the gitignored `benchmark/results/logs/ab/`).
+
+**Cases and entries.** All 23 cases matching `^(imdp-|product-imdp-|cs-imdp-|real-multiObj_robotIMDP)` in the `full`
+suite. At 1 thread: `bellman` and `solve_rvi`, plus `solve_dfa` for the 6 product cases, `solve_cs_stationary` /
+`solve_cs_timevarying` for the 2 `cs-imdp-*` cases and `solve_cs_stationary` for the real model (47 entries). At 16
+threads: `bellman` (21 entries; the `cs-imdp-*` cases have none). **Accepted deviation (1a Finding F-1):** the spec text
+names only `bellman` and `solve_rvi`, which do not exist for `cs-imdp-*` and miss the `solve_dfa`/`solve_cs_*` entries
+that the 1b specs target; the coordinator accepted the wider entry set.
+
+**Runs.** Three separate processes per thread count, interleaved t1 r1, t16 r1, t1 r2, … (2026-10-20 10:57–11:54 UTC,
+`benchmark/results/1a-noise-t{1,16}-r{1,2,3}.json`, local). Spread = (max − min) / min of the three medians
+(`compare.jl --spread`). Result: at 1 thread one entry above 5% (`imdp-sparse-n100000-nnz10-a1`/`bellman` 7.9%), at 16
+threads 8 of 21 (max 45.5%, `product-imdp-sparse-n1000-nnz10-a4-dfa4`).
+
+**Noise fix.** A probe with `--budget-scale 3` (`1a-noise-b3-*.json`) brought `imdp-sparse-n100000-nnz10-a1` at 1 thread
+to 3.0% and 6 of the 8 t16 entries below 5%. `cases/registry.jl` therefore multiplies the `bellman` budget of every
+`imdp-*` and `product-imdp-*` case by 3 (IMDP 2 s → 6 s, product 4 s → 12 s; `NOISE_BUDGET_SCALE`, applied after the
+case files). All their `bellman` entries were then re-measured, three processes per thread count (≈ 12:03–12:27 UTC,
+`1a-noise-fix-t1-r{1,2,3}.json` 20 entries, `1a-noise-fix-t16-r{1,2,3}.json` 21 entries: the 20 plus the real model's
+16-thread `bellman`). The solve entries and the real model's budgets are unchanged, so their spreads are those of the
+first set, except the real model's 16-thread `bellman`: it is in both 16-thread sets and is reported over all six runs
+(`1a-noise-t16-r*.json` 2.5%, `1a-noise-fix-t16-r*.json` 6.8%, all six 6.8%).
+
+**Result** (max spread over the three runs of the final configuration; "before" = first set):
+
+| case | entry | threads | max spread, final budgets | before the noise fix | status |
+|---|---|---:|---:|---:|---|
+| cs-imdp-dense-n1000-a4 | solve_cs_stationary | 1 | 0.3% | — | ok |
+| cs-imdp-dense-n1000-a4 | solve_cs_timevarying | 1 | 0.1% | — | ok |
+| cs-imdp-sparse-n10000-nnz100-a4 | solve_cs_stationary | 1 | 1.1% | — | ok |
+| cs-imdp-sparse-n10000-nnz100-a4 | solve_cs_timevarying | 1 | 2.0% | — | ok |
+| imdp-dense-n100-a1 | bellman | 1 | 0.9% | 1.1% | ok |
+| imdp-dense-n100-a1 | solve_rvi | 1 | 0.8% | — | ok |
+| imdp-dense-n100-a1 | bellman | 16 | 2.5% | 2.7% | ok |
+| imdp-dense-n100-a4 | bellman | 1 | 0.2% | 0.2% | ok |
+| imdp-dense-n100-a4 | solve_rvi | 1 | 0.0% | — | ok |
+| imdp-dense-n100-a4 | bellman | 16 | 0.6% | 2.1% | ok |
+| imdp-dense-n1000-a1 | bellman | 1 | 0.7% | 0.2% | ok |
+| imdp-dense-n1000-a1 | solve_rvi | 1 | 0.6% | — | ok |
+| imdp-dense-n1000-a1 | bellman | 16 | 2.8% | 6.1% | ok |
+| imdp-dense-n1000-a4 | bellman | 1 | 0.4% | 0.3% | ok |
+| imdp-dense-n1000-a4 | solve_rvi | 1 | 0.1% | — | ok |
+| imdp-dense-n1000-a4 | bellman | 16 | 1.2% | 2.6% | ok |
+| imdp-dense-n4000-a1 | bellman | 1 | 0.5% | 0.8% | ok |
+| imdp-dense-n4000-a1 | solve_rvi | 1 | 1.4% | — | ok |
+| imdp-dense-n4000-a1 | bellman | 16 | 0.2% | 1.4% | ok |
+| imdp-dense-n4000-a4 | bellman | 1 | 0.2% | 0.2% | ok |
+| imdp-dense-n4000-a4 | solve_rvi | 1 | 0.7% | — | ok |
+| imdp-dense-n4000-a4 | bellman | 16 | 2.8% | 2.3% | ok |
+| imdp-sparse-n10000-nnz10-a1 | bellman | 1 | 1.1% | 1.8% | ok |
+| imdp-sparse-n10000-nnz10-a1 | solve_rvi | 1 | 2.7% | — | ok |
+| imdp-sparse-n10000-nnz10-a1 | bellman | 16 | 6.9% | 6.9% | unusable at t = 16 |
+| imdp-sparse-n10000-nnz10-a4 | bellman | 1 | 2.2% | 3.0% | ok |
+| imdp-sparse-n10000-nnz10-a4 | solve_rvi | 1 | 1.0% | — | ok |
+| imdp-sparse-n10000-nnz10-a4 | bellman | 16 | 6.2% | 5.3% | unusable at t = 16 |
+| imdp-sparse-n10000-nnz100-a1 | bellman | 1 | 1.8% | 1.0% | ok |
+| imdp-sparse-n10000-nnz100-a1 | solve_rvi | 1 | 2.0% | — | ok |
+| imdp-sparse-n10000-nnz100-a1 | bellman | 16 | 1.1% | 4.5% | ok |
+| imdp-sparse-n10000-nnz100-a4 | bellman | 1 | 2.5% | 2.9% | ok |
+| imdp-sparse-n10000-nnz100-a4 | solve_rvi | 1 | 0.8% | — | ok |
+| imdp-sparse-n10000-nnz100-a4 | bellman | 16 | 0.7% | 2.5% | ok |
+| imdp-sparse-n100000-nnz10-a1 | bellman | 1 | 1.5% | 7.9% | ok |
+| imdp-sparse-n100000-nnz10-a1 | solve_rvi | 1 | 0.1% | — | ok |
+| imdp-sparse-n100000-nnz10-a1 | bellman | 16 | 2.9% | 6.0% | ok |
+| imdp-sparse-n100000-nnz10-a4 | bellman | 1 | 0.3% | 2.0% | ok |
+| imdp-sparse-n100000-nnz10-a4 | solve_rvi | 1 | 0.3% | — | ok |
+| imdp-sparse-n100000-nnz10-a4 | bellman | 16 | 14.6% | 6.8% | unusable at t = 16 |
+| imdp-sparse-n100000-nnz100-a1 | bellman | 1 | 1.0% | 1.3% | ok |
+| imdp-sparse-n100000-nnz100-a1 | solve_rvi | 1 | 0.3% | — | ok |
+| imdp-sparse-n100000-nnz100-a1 | bellman | 16 | 0.6% | 5.0% | ok |
+| imdp-sparse-n100000-nnz100-a4 | bellman | 1 | 0.5% | 0.4% | ok |
+| imdp-sparse-n100000-nnz100-a4 | solve_rvi | 1 | 1.0% | — | ok |
+| imdp-sparse-n100000-nnz100-a4 | bellman | 16 | 0.5% | 3.3% | ok |
+| product-imdp-dense-n1000-a1-dfa4 | bellman | 1 | 0.7% | 1.0% | ok |
+| product-imdp-dense-n1000-a1-dfa4 | solve_dfa | 1 | 0.7% | — | ok |
+| product-imdp-dense-n1000-a1-dfa4 | bellman | 16 | 0.9% | 1.8% | ok |
+| product-imdp-dense-n1000-a4-dfa4 | bellman | 1 | 0.7% | 0.8% | ok |
+| product-imdp-dense-n1000-a4-dfa4 | solve_dfa | 1 | 0.4% | — | ok |
+| product-imdp-dense-n1000-a4-dfa4 | bellman | 16 | 0.5% | 2.8% | ok |
+| product-imdp-sparse-n1000-nnz10-a1-dfa4 | bellman | 1 | 2.3% | 1.1% | ok |
+| product-imdp-sparse-n1000-nnz10-a1-dfa4 | solve_dfa | 1 | 2.2% | — | ok |
+| product-imdp-sparse-n1000-nnz10-a1-dfa4 | bellman | 16 | 5.4% | 1.1% | unusable at t = 16 |
+| product-imdp-sparse-n1000-nnz10-a4-dfa4 | bellman | 1 | 2.6% | 2.5% | ok |
+| product-imdp-sparse-n1000-nnz10-a4-dfa4 | solve_dfa | 1 | 2.1% | — | ok |
+| product-imdp-sparse-n1000-nnz10-a4-dfa4 | bellman | 16 | 42.5% | 45.5% | unusable at t = 16 |
+| product-imdp-sparse-n10000-nnz10-a1-dfa4 | bellman | 1 | 3.1% | 1.0% | ok |
+| product-imdp-sparse-n10000-nnz10-a1-dfa4 | solve_dfa | 1 | 2.5% | — | ok |
+| product-imdp-sparse-n10000-nnz10-a1-dfa4 | bellman | 16 | 1.3% | 3.3% | ok |
+| product-imdp-sparse-n10000-nnz10-a4-dfa4 | bellman | 1 | 4.6% | 4.1% | ok |
+| product-imdp-sparse-n10000-nnz10-a4-dfa4 | solve_dfa | 1 | 2.3% | — | ok |
+| product-imdp-sparse-n10000-nnz10-a4-dfa4 | bellman | 16 | 4.1% | 7.3% | ok |
+| real-multiObj_robotIMDP | bellman | 1 | 1.5% | — | ok |
+| real-multiObj_robotIMDP | solve_cs_stationary | 1 | 0.4% | — | ok |
+| real-multiObj_robotIMDP | solve_rvi | 1 | 1.9% | — | ok |
+| real-multiObj_robotIMDP | bellman | 16 | 6.8% (all 6 runs) | 2.5% (budget unchanged) | unusable at t = 16 |
+
+* **1 thread: all 47 entries of the 23 cases are within 5%** (max 4.6%, `product-imdp-sparse-n10000-nnz10-a4-dfa4`/`bellman`).
+  All 23 cases stay target cases for the Phase 1 experiments, which run at 1 thread.
+* **16 threads: 15 of 21 `bellman` entries are within 5%** (max 4.1%). The other 6 are **unusable at t = 16** and are
+  removed from the 16-thread regression-check list of Phase 1: `imdp-sparse-n10000-nnz10-a1` (6.9%),
+  `imdp-sparse-n10000-nnz10-a4` (6.2%), `imdp-sparse-n100000-nnz10-a4` (14.6%), `product-imdp-sparse-n1000-nnz10-a1-dfa4`
+  (5.4%), `product-imdp-sparse-n1000-nnz10-a4-dfa4` (42.5%) and `real-multiObj_robotIMDP` (6.8% over all six runs; its
+  budget is unchanged, so both sets count). Reason: the spread is between processes, not within a trial (sample counts
+  per run in the files their final spreads come from: 120–10 000 in `1a-noise-fix-t16-r*.json`, and for the real model
+  10 000 in each of its six runs, `1a-noise-t16-r*.json` and `1a-noise-fix-t16-r*.json`; the `1a-noise-b3-*` files have
+  no real-model entry; 41–10 000 over all 48 measurements of these six entries in the nine `1a-noise*t16*.json` files,
+  the 41 from `imdp-sparse-n100000-nnz10-a4` in `1a-noise-t16-r1.json` with the original budget; clock-probe spread
+  (`compare.jl --spread`, pre-trial probes) for these six entries ≤ 0.9% in `1a-noise-fix-t16-r*.json` (2.0% over all
+  21 entries of those files), while the real model's three `1a-noise-t16-r*.json` runs had 4.1% clock-probe spread but only 2.5% median spread), a 3× budget did not reduce it reliably
+  (`imdp-sparse-n10000-nnz10-a1` 0.4% in `1a-noise-b3-t16-r*.json`, 6.9% in `1a-noise-fix-t16-r*.json`) and
+  `product-imdp-sparse-n1000-nnz10-a4-dfa4` is bimodal across processes (medians 1.71–1.79 ms vs 2.17–2.49 ms over its
+  nine runs in `1a-noise-t16-r*`, `1a-noise-b3-t16-r*` and `1a-noise-fix-t16-r*`). This is consistent with the static chunking over P-, E- and LP-E cores (H2), which Phase 2
+  addresses; `2a-prepare` re-measures the threaded entries.
+* No entry of the 18 local `1a-noise-*.json` files (354 timed entries, including the budget probe) was flagged CLOCK, and
+  every correctness check passed (0 invalid). This does not mean the clock was steady: 16 of these entries were
+  re-measured after a pre-trial clock deviation, and 6 of the 18 runs had reference-probe ranges above 2% (§ 10.3 and
+  "The new flag on the 1a runs" below).
+
+**Noise-bound policy (operator decision, 1a cycle 2).** The table above holds for the 1a measurement session
+(2026-10-20 ≈ 10:54–12:33 UTC, Performance profile). It is not a property of the host: a QE re-run later the same day
+(≈ 12:45–14:03 UTC) under the same Performance profile, on AC and with no other load, exceeded 5%. At 1 thread, three
+spot sets of three runs each on `imdp-dense-n1000-a4`, `imdp-sparse-n100000-nnz10-a1` and
+`product-imdp-sparse-n10000-nnz10-a4-dfa4` (`bellman`, `solve_rvi`, `solve_dfa`) had a maximum spread of 17.8–39.2% per
+set. Restricted to the 5 runs whose clock reference was steady in the pre-cycle-2 sense (reference, i.e. the median of
+the 9 reference probes, 196.5 µs, and the settle window passed: `spot-t1-r1`, `spot2-t1-r1`, `spot2-t1-r3`,
+`spot3-t1-r2`, `spot3-t1-r3`), 5 of the 6 entries still spread 9.6–22.2%. Under the cycle-2 range flag only 3 of those
+5 runs are settled (`spot-t1-r1`, `spot2-t1-r3`, `spot3-t1-r2`; the other two had reference-probe ranges of 24.4% and
+34.8%), and among these 3 runs 3 of the 6 entries still spread 7.4–14.7%. The 9 reference probes of one clock run
+ranged over 196.5–425.6 µs. Sources (QE session, local, not committed):
+`spot-t1-r{1,2,3}.json`, `spot2-t1-r{1,2,3}.json`, `spot3-t1-r{1,2,3}.json` with their `.log` files, `clock-t1.json`,
+`clock-t1b.json`, `clock-t16.json`, `env-*.txt` and `spread.py`. The 5% bound is therefore session-dependent, and
+Phase 1 uses this rule:
+
+* **Phase 1 evidence rule.** Before its result counts as evidence, every `1b` experiment checks, for each entry it uses,
+  that the A-side (merge-base) spread over its own `ab.jl` rounds is ≤ 5%, and that no run of the A/B logged a
+  `NOT settled` clock reference. If either check fails, it re-runs in a steadier session or reports the entry as
+  UNAVAILABLE. The `ab.jl` summary lists every failing entry as "A-side spread > 5%: not evidence" and every round with
+  a not-settled reference ("Evidence check" section, README "Interleaved A/B of two refs"). Since cycle 2,
+  `lib/clock.jl` logs the reference as `NOT settled` (with a warning) also when the range (max − min)/median of its 9
+  reference probes exceeds 2% (`CLOCK_SETTLE_TOL`), not only when the settle phase times out; this is a flag, the
+  reference value and the timing procedure are unchanged. The flag is in the run log only: writing `CLOCK_REF_INFO`
+  into the result JSON needs `lib/measure.jl`, which is outside the 1a File List (1a Finding F-3).
+* **The new flag on the 1a runs.** Applied to the 24 run logs of 1a (`benchmark/results/logs/1a-noise-*.log` and
+  `logs/ab/1a-ab-demo/*-r*-*.log`, local), the range check would have marked 7 runs `NOT settled`: `1a-noise-t1-r1`
+  (reference probes 196.5–244.5 µs, 24.4%), `1a-noise-b3-t1-r1` (13.3%), `1a-noise-b3-t16-r3` (11.4%),
+  `1a-noise-fix-t1-r2` (4.6%), `1a-noise-fix-t1-r3` and `1a-noise-fix-t16-r2` (6.3% each) and `1a-ab-demo-r3-A`
+  (12.3%). In all seven the reference (the median) was 196.5 µs, as in the other 17, and no entry was flagged CLOCK, so
+  the table above is kept as the result of the 1a session; under the Phase 1 evidence rule these runs would not count.
+
+### 10.3 Clock reference — before/after
+
+`lib/clock.jl` now takes the reference under the trial thread load after the clock has settled (README "Clock
+reference"). Before (old reference, stored Phase 0 files, `balanced` profile): 128 / 131 and 129 / 131 entries
+CLOCK-flagged at t = 16 (`baseline-20fc03b-cpu-t16.json`, `-rerun1.json`), 4 / 4 at t = 1 with a boosting reference of
+196.5 µs (`scaling-20fc03b-cpu-t1.json`). After (Performance profile, 2026-10-20 ≈ 10:54–10:57 UTC):
+`real-multiObj_robotIMDP` (entries `workspace`, `bellman`, `solve_rvi`, `solve_cs_stationary`) on the merge base gave
+**0 / 4 CLOCK flags at t = 1 and 0 / 4 at t = 16** with the new reference (reference 196.5 µs, settled after 10 probes in
+≈ 10 s, reference-probe range 0.0%; every pre-trial probe ratio (`clock_probe_ratio`) 1.000; no trial re-measured; the
+informational post-trial probe was within 0.01% of the reference at t = 1 and up to 37.8% above it at t = 16). The old
+reference, run back-to-back from a `bcbf0df` worktree, also gave 0 / 4 and 0 / 4 (pre-trial probe ratios up to 1.046 at
+t = 1), but 3 of its 8 entries were re-measured after pre-trial clock deviations of 6.2–22.2% (Dev session logs
+`clk-{old,new}-t{1,16}.log`, scratch, local, not committed).
+
+Clock in the rest of the 1a measurement session (the 24 runs of § 10.2 and § 10.4, ≈ 10:57–12:33 UTC, logs
+`benchmark/results/logs/1a-noise-*-r*.log` and `logs/ab/1a-ab-demo/*-r*-*.log`, local): the reference (median) was
+196.5 µs in all 24 runs and every kept pre-trial probe (`clock_probe_ratio`, the probe that decides the CLOCK flag) was
+within 4.1% of it (ratios 0.9999–1.041; 0 CLOCK flags in the 354 entries of the 18 noise files and in the 12 entries of
+the 6 `ab.jl` runs). The post-trial probe (`clock_probe_after_ns`, field `clock_after_deviation`) is recorded for
+information only and does not affect the flag (`lib/measure.jl`); it was more than 5% slower than the reference in 67
+of the 366 entries and up to 63.4% slower (`1a-noise-fix-t16-r2.json`,
+`product-imdp-sparse-n1000-nnz10-a4-dfa4`/`bellman`). 64 of the 67 are 16-thread `bellman` entries (64 of 150 such
+entries: 28 in `1a-noise-t16-r*`, 27 in `1a-noise-fix-t16-r*`, 9 in `1a-noise-b3-t16-r*`); the other 3 are 1-thread
+entries in `1a-noise-t1-r2` and `-r3` (22.1%, 11.7%, 7.0%). The 16-thread excess is a per-case pattern and does not
+mark the six unusable entries of § 10.2: it occurred in every run of 9 of the 21 cases (4 of them unusable, 5 usable,
+e.g. `imdp-dense-n1000-a1` up to 50.0%), in 1 of 9 runs of `imdp-sparse-n100000-nnz10-a1`, and in no run of the other
+11 cases, which include the unusable `imdp-sparse-n10000-nnz10-a4` and `imdp-sparse-n100000-nnz10-a4` (≤ 0.6%).
+Transient clock drops also occurred: 7 of the 24 runs had reference-probe ranges of 4.6–24.4% (up to 244.5 µs; § 10.2
+"The new flag on the 1a runs"), and 16 trials in 11 of the run logs were re-measured after pre-trial deviations of 5.4–20.6% (`clock deviates
+by …% … re-measuring` warnings; `clock_attempts` = 2 in 16 entries). There was no systematic offset of the Phase 0 kind
+(pre-trial probes consistently ≈ 1.28× the reference at t = 16, or a boosting reference at t = 1). A later session
+under the same Performance profile (QE re-run, ≈ 12:45–14:03 UTC, § 10.2 "Noise-bound policy") showed clock-state
+switches: the reference probes of one run ranged over 196.5–425.6 µs. The new protocol removes the cause of the
+systematic offsets (an unloaded or boosting reference); it does not prevent clock-state switches during a run, which
+the `NOT settled` flag and the Phase 1 evidence rule catch.
+
+### 10.4 `ab.jl`
+
+`benchmark/ab.jl` (README "Interleaved A/B of two refs") on `bcbf0df` vs `bcbf0df`, 1 thread,
+`imdp-sparse-n10000-nnz10-a1`, entries `bellman` and `solve_rvi`, 3 interleaved rounds (2026-10-20, 12:28–12:33 UTC,
+Performance profile; output `benchmark/results/logs/ab/1a-ab-demo/`, local). Worktrees were created and removed.
+Verdict **"no change"** for both entries:
+
+| entry | A median | B median | ratio | per-round ratios | verdict |
+|---|---:|---:|---:|---|---|
+| `bellman` | 2.88 ms | 2.87 ms | 0.998 | 1.016, 0.973, 1.023 | no change |
+| `solve_rvi` | 285.45 ms | 291.27 ms | 1.020 | 1.006, 1.038, 1.023 | no change |
+
+Within-side spread over the three rounds: A max 4.13%, B max 1.61%. Round r3-A had a reference-probe range of 12.3%,
+so under the cycle-2 range flag it is `NOT settled` (§ 10.2) and the demonstration shows that `ab.jl` works, not a
+result that would count as evidence under the Phase 1 evidence rule. An earlier run in the degraded `balanced`/LPM
+state (§ 10.2) gave `CLOCK (not evidence)` and is not used.
+
+### 10.5 1a Findings
+
+Findings raised in sub-phase 1a (cited as "1a Finding F-*n*" in § 10.2 and in `test/cuda/perf_equivalence.jl`), for Ops
+and the PR description:
+
+* **F-1 — wider noise-check entry set (accepted deviation).** The spec names only `bellman` and `solve_rvi`; the noise
+  check (§ 10.2) also covers `solve_dfa`, `solve_cs_stationary` and `solve_cs_timevarying`, because `bellman` and
+  `solve_rvi` do not exist for `cs-imdp-*` and the `1b` specs target those entries. Accepted by the coordinator.
+* **F-2 — no CUDA adapt rule for `ProductProcess` on the merge base.** `ext/` defines no `Adapt.adapt_structure` for
+  `ProductProcess`, so `IntervalMDP.cu` returns the CPU product unchanged and `bellman!` with a `CuArray` value function
+  then indexes it element by element. `test/cuda/perf_equivalence.jl` therefore skips product processes. This is part of
+  Finding B-4 "CUDA coverage gaps" (§ 8), handled by `3f.3-c1-cuda-coverage.md`; 1a changes no `src/`/`ext/` code.
+* **F-3 — `CLOCK_REF_INFO` is not in the result JSON.** The settle series, the reference-probe range and the
+  `NOT settled` flag of `lib/clock.jl` are printed in the run log only; `measurement_parameters` in `lib/measure.jl`
+  records only `reference_probe_ns`, and `lib/measure.jl` is outside the 1a File List. Until it is written to the JSON,
+  `ab.jl` detects a not-settled reference from the log text (§ 10.2 "Phase 1 evidence rule").
