@@ -505,3 +505,58 @@ Approved axioms: `propext`, `Classical.choice`, `Quot.sound`. Anything else (in 
 #print axioms IntervalMDP.Factored.eq_of_branchIndex_eq
 #print axioms IntervalMDP.Factored.branchFill_of_not_mem
 #print axioms IntervalMDP.Factored.branchIndex_branchFill
+-- Phase 6a: product-state indexing (scope `abstract`; mode-independent: indexing is the same for all
+-- four satisfaction × strategy modes). `productIndex_bijective`: hypothesis `hBound`
+-- (`(∏ state_values(mp)) * nQ < 2 ^ (N - 1)`), any `StateVars n` and `nQ`.
+#print axioms IntervalMDP.Index.productIndex_bijective
+-- `product_read_successor`: hypothesis `hBound`, deterministic labelling, mode-independent.
+#print axioms IntervalMDP.Index.product_read_successor
+-- Phase 6a helpers with hypothesis `hBound`, mode-independent: `productIndexInt_eq` and
+-- `productGet_productArray` (`hBound` only) and `product_read_nextDFA` (`hBound`, `hL`, deterministic
+-- labelling).
+#print axioms IntervalMDP.Index.productIndexInt_eq
+#print axioms IntervalMDP.Index.productGet_productArray
+#print axioms IntervalMDP.Index.product_read_nextDFA
+-- Phase 6a helpers on exact natural-number indices (no overflow bound needed, no model invariant
+-- beyond `StateVars n`):
+#print axioms IntervalMDP.Index.productDims_castSucc
+#print axioms IntervalMDP.Index.productDims_last
+#print axioms IntervalMDP.Index.productCartesian_castSucc_val
+#print axioms IntervalMDP.Index.productCartesian_last_val
+#print axioms IntervalMDP.Index.prod_productDims
+#print axioms IntervalMDP.Index.productIndex_eq_toJulia
+#print axioms IntervalMDP.Index.stride_productDims_castSucc
+#print axioms IntervalMDP.Index.stride_productDims_last
+#print axioms IntervalMDP.Index.productIndex_eq
+#print axioms IntervalMDP.Index.productIndex_bijOn
+#print axioms IntervalMDP.Index.selectdimIndex_bijOn
+-- Phase 6b: product Bellman and DFA reachability / safety (scope `abstract`). `T_eq_flat`:
+-- hypothesis `hBound` (`(∏ state_values(mp)) * nQ < 2 ^ (N - 1)`), deterministic labelling (`hL`),
+-- all four satisfaction × strategy modes; uses `product_read_successor`.
+#print axioms IntervalMDP.Product.T_eq_flat
+-- `dfaReach_eq`: hypothesis `hBound`, deterministic labelling (`hL`), all four modes, time-invariant
+-- model; reachability and safety.
+#print axioms IntervalMDP.Product.dfaReach_eq
+-- Phase 6b helpers with hypothesis `hBound` and deterministic labelling (`hL`), all four modes:
+#print axioms IntervalMDP.Product.T_eq_flat_empty
+#print axioms IntervalMDP.Product.T_read
+#print axioms IntervalMDP.Product.dfaReachIter_eq
+#print axioms IntervalMDP.Product.dfaSafetyIter_eq
+#print axioms IntervalMDP.Product.dfaSafety_eq
+#print axioms IntervalMDP.Product.dfaReach_read
+#print axioms IntervalMDP.Product.dfaSafety_read
+-- Phase 6b helpers with hypothesis `hBound` only (index level; `bellmanLoop_apply` and
+-- `intermediateValues_productArray` take a deterministic `Labelling`; mode-independent or all four
+-- modes):
+#print axioms IntervalMDP.Product.productIndexInt_toNat
+#print axioms IntervalMDP.Product.writeSlice_apply
+#print axioms IntervalMDP.Product.setDFAStates_apply
+#print axioms IntervalMDP.Product.intermediateValues_productArray
+#print axioms IntervalMDP.Product.bellmanLoop_apply
+-- Phase 6b helper with deterministic labelling (`hL`) only, no index bound:
+#print axioms IntervalMDP.Product.nextDFAValue_deterministic
+-- Phase 6b helpers for any labelling (deterministic or probabilistic), no hypotheses beyond the
+-- model invariants; `T_toRMDP_apply` for all four modes:
+#print axioms IntervalMDP.Product.dot_liftLinear
+#print axioms IntervalMDP.Product.expectations_toRMDP
+#print axioms IntervalMDP.Product.T_toRMDP_apply
