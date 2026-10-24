@@ -273,7 +273,7 @@ flowchart TD
     C --> C3["Boltzmann(T)"]
     C2 -.->|"imported from"| TS["TrajectorySampling"]
     C3 -.->|"imported from"| TS
-    C3 --> C4["FixedTemperature<br/>GapDecayTemperature<br/>UpdateDecayTemperature"]
+    C3 --> C4["FixedTemperature<br/>GapBasedTemperature"]
     C4 -.->|"imported from"| TS
 
     D --> D1["ConvergedSkip(eps) ← default"]
@@ -288,15 +288,15 @@ flowchart TD
 All of them build on the same two quantities the trajectory sampler's `StateScore` uses:
 
 ```
-f_greedy(s)  = U(s) or L(s),  per the family's `bound`
+f_exploit(s) = U(s) or L(s),  per the family's `bound`
 f_explore(s) = U(s) − L(s),   the gap
 ```
 
 | Family | `f_P(s)` | Notes |
 |---|---|---|
 | `GapPriority` | `U(s) − L(s)` | `= f_explore`. The quantity `GapTerminationCriteria` stops on, and the only self-correcting family. |
-| `BoundPriority` | `U(s)` or `L(s)` | `= f_greedy`. |
-| `WeightedPriority(β)` | `f_greedy + β·f_explore` | Direct port of `ExplorationScore`. `β = 0` → `BoundPriority`; large `β` → `GapPriority`'s ordering. |
+| `BoundPriority` | `U(s)` or `L(s)` | `= f_exploit`. |
+| `WeightedPriority(β)` | `f_exploit + β·f_explore` | `β = 0` → `BoundPriority`; large `β` → `GapPriority`'s ordering. |
 | `ResidualPriority` | `\|maxₐ Q(s,a) − V(s)\|` | The classic prioritised-sweeping priority. Scores a state at its own fixed point as `0`, however wide its gap — a discrimination the gap cannot make, and the reason it is not self-correcting. |
 | `ActionUncertaintyPriority` | `U^{-a_L(s)}(s) − L(s)` | How unsettled it still is which action is optimal. |
 | `RNDPriority` | `max(δ(s), λ·novelty(s))` | A residual with a Random Network Distillation novelty *floor*, standing in for a per-state backup counter. |
@@ -321,11 +321,12 @@ draw `k` **without replacement** from the whole state space:
   `_select`'s single draw in distribution, and unlike it, nothing is ever exponentiated, so
   there is no overflow to guard against.
 
-Temperature schedules are **imported, not restated** — a `Boltzmann(GapDecayTemperature(…))`
+Temperature schedules are **imported, not restated** — a `Boltzmann(GapBasedTemperature(…))`
 means the same thing on either side, and duplicating the types would make that silently
 untrue the first time one of them changed. One substitution: the queue's
 `TemperatureContext.diff` is `maximum(gap)`, the quantity the termination criterion reads,
-rather than the gap at the rollout's `s₀`, which a queue does not have.
+rather than the initial gap over the declared initial states, which a queue does not
+start from.
 
 ### Admission rules
 
@@ -424,7 +425,7 @@ axis first, then the repair/select cycle, then end-to-end.
 | repair | full first sweep, stale set vs successors, the `Δ = 0` early-out **and its contrast case**, `MaxPropagation` arithmetic, reset, `k` clamping, empty batch |
 | aging | `aging = 0` starves a dominated state; `aging > 0` reaches every state; `GapPriority` reaches every state at `aging = 0` |
 | RND | δ functions, novelty as a backup-recency signal, the floor and backward propagation |
-| backup counter | `ss.updates[]` agrees with GSRDP's `bellman_updates` at every callback fire |
+| temperature | a `GapBasedTemperature` schedule is resolved before every draw |
 | end-to-end | parity with `RobustValueIteration` across 12 configurations × `Float32`/`Float64`; implicit-vs-explicit sink; control synthesis via `checkstrategy` |
 | legacy constructors | each maps to the configuration it used to be, and still matches RVI |
 

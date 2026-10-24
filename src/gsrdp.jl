@@ -172,7 +172,6 @@ function _gsrdp!(
     term_criteria = termination_criteria(alg, spec, mp)
     sampling_strat = sampling_strategy(alg)
     reset_sampling_strategy!(sampling_strat)
-    set_bound_update!(sampling_strat, bound_update(alg))
 
     value_function = construct_value_function(alg, problem)
     _gsrdp_initialize!(value_function, prop)

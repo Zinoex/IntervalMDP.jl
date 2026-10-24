@@ -32,7 +32,7 @@
         @test f(PQ.BoundPriority(; bound = IntervalMDP.Lower), s2) ≈ 5.0
     end
 
-    @testset "WeightedPriority is f_greedy + beta * f_explore" begin
+    @testset "WeightedPriority is f_exploit + beta * f_explore" begin
         # U = [10, 5], gap = [10, 0].
         @test f(PQ.WeightedPriority(0.0), s1) ≈ 10.0
         @test f(PQ.WeightedPriority(0.5), s1) ≈ 15.0
@@ -166,8 +166,8 @@ end
     end
 
     @testset "an unresolved schedule has no temperature to draw with" begin
-        decaying = TS.Boltzmann(TS.GapDecayTemperature(0.01, 2.0, 1.0))
-        @test_throws ArgumentError PQ._select_k(decaying, values, fresh, 1)
+        varying = TS.Boltzmann(TS.GapBasedTemperature(2.0, 0.01))
+        @test_throws ArgumentError PQ._select_k(varying, values, fresh, 1)
     end
 end
 
@@ -332,7 +332,6 @@ end
         @test isempty(ss.selected_snapshot[])
         @test isempty(ss.predecessor_index[])
         @test ss.clock[] == 0
-        @test ss.updates[] == 0
     end
 
     @testset "ties break toward least-recently-selected, not lowest index" begin
@@ -635,7 +634,7 @@ end
     end
 end
 
-@testitem "PrioritizedSweep: the backup counter feeds the temperature schedules" tags =
+@testitem "PrioritizedSweep: a varying temperature is resolved before every draw" tags =
     [:base, :priority_sweep, :priority_temperature] begin
     using IntervalMDP
     const PQ = IntervalMDP.PriorityQueueSampling
@@ -646,77 +645,20 @@ end
         upper = [0.5 0.7 0.0; 0.6 0.5 0.0; 0.7 0.3 1.0],
     )
     mdp = IntervalMarkovDecisionProcess([prob, prob, prob], [1])
-    eps = 1e-6
-    prop = InfiniteTimeReachability([3], eps)
-    spec = Specification(prop, Pessimistic, Maximize)
-    problem = VerificationProblem(mdp, spec)
+    prop = InfiniteTimeReachability([3], 1e-6)
+    problem = VerificationProblem(mdp, Specification(prop, Pessimistic, Maximize))
 
-    @testset "sample charges itself exactly what GSRDP will run" begin
-        ss = PQ.PrioritizedSweep(; k = 2)
-        alg =
-            GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp))
-        V = IntervalMDP.construct_value_function(alg, problem)
-        IntervalMDP._gsrdp_initialize!(V, prop)
-
-        expected = 0
-        for _ in 1:5
-            seq = IntervalMDP.sample(ss, mdp, nothing, V, spec)
-            expected += length(collect(seq)) * (IntervalMDP.num_actions(mdp) + 1)
-            @test ss.updates[] == expected
-        end
-        @test expected > 0
-
-        IntervalMDP.reset_sampling_strategy!(ss)
-        @test ss.updates[] == 0
-    end
-
-    @testset "the backup counter tracks GSRDP's bellman_updates ($mode)" for mode in
-                                                                             [IntervalMDP.FollowDrive(), IntervalMDP.BothDrive()]
-        # `n` for UpdateDecayTemperature is meant to BE the solver's backup
-        # count, but the strategy has to reconstruct it (`sample` is not handed
-        # the iteration). Check the two never drift, under every bound-update mode.
-        ss = PQ.PrioritizedSweep(;
-            policy = TS.Boltzmann(TS.UpdateDecayTemperature(0.5, 1.0, 0.999)),
+    # An unresolved schedule throws (see the selection-policy tests), so a solve
+    # completing at all is the assertion that `sample` resolves it.
+    gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
+        default_bellman_algorithm(mdp);
+        sampling_strategy = PQ.PrioritizedSweep(;
+            policy = TS.Boltzmann(TS.GapBasedTemperature(1.0, 0.5)),
             k = 2,
-        )
-        agree = Ref(true)
-        seen = Ref(0)
-        callback = function (_, bellman_updates, state_seq)
-            state_seq === nothing && return nothing   # the pre-update fire
-            seen[] += 1
-            agree[] &= (bellman_updates == ss.updates[])
-            return nothing
-        end
-
-        gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
-            default_bellman_algorithm(mdp);
-            sampling_strategy = ss,
-            bound_update = mode,
-        )
-        solve(problem, gsdp; callback = callback)
-        @test ss.bound_update[] === mode
-        @test seen[] > 0
-        @test agree[]
-    end
-
-    @testset "a decaying schedule is resolved before every draw" begin
-        # An unresolved schedule throws (see the selection-policy tests), so a
-        # solve completing at all is the assertion that `sample` resolves it.
-        for sched in (
-            TS.GapDecayTemperature(0.5, 1.0, 1.0),
-            TS.UpdateDecayTemperature(0.5, 1.0, 0.999),
-        )
-            gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
-                default_bellman_algorithm(mdp);
-                sampling_strategy = PQ.PrioritizedSweep(;
-                    policy = TS.Boltzmann(sched),
-                    k = 2,
-                ),
-            )
-            (V, _, _) = solve(problem, gsdp)
-            @test all(isfinite, V)
-        end
-    end
+        ),
+    )
+    (V, _, _) = solve(problem, gsdp)
+    @test all(isfinite, V)
 end
 
 @testitem "PrioritizedSweep: end-to-end solve() parity with RVI" tags =

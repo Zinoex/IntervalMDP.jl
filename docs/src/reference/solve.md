@@ -108,8 +108,6 @@ IntervalMDP.TrajectorySampling.Boltzmann
 IntervalMDP.TrajectorySampling.TemperatureSchedule
 IntervalMDP.TrajectorySampling.FixedTemperature
 IntervalMDP.TrajectorySampling.GapBasedTemperature
-IntervalMDP.TrajectorySampling.GapDecayTemperature
-IntervalMDP.TrajectorySampling.UpdateDecayTemperature
 IntervalMDP.TrajectorySampling.TemperatureContext
 ```
 
@@ -133,18 +131,12 @@ IntervalMDP.TrajectorySampling.ConcreteTransition
 
 ```@docs
 IntervalMDP.TrajectorySampling.StateScore
-IntervalMDP.TrajectorySampling.GreedyScore
-IntervalMDP.TrajectorySampling.ExplorationScore
-IntervalMDP.TrajectorySampling.GapWeightedExplorationScore
 IntervalMDP.TrajectorySampling.MixtureStateScore
 IntervalMDP.TrajectorySampling.AlphaSchedule
 IntervalMDP.TrajectorySampling.FixedAlpha
 IntervalMDP.TrajectorySampling.PowerAlpha
 IntervalMDP.TrajectorySampling.CustomAlpha
 IntervalMDP.TrajectorySampling.ClippedAlpha
-IntervalMDP.TrajectorySampling.GapFunction
-IntervalMDP.TrajectorySampling.ExponentialGap
-IntervalMDP.TrajectorySampling.PolynomialGap
 IntervalMDP.TrajectorySampling.ExplorationTerm
 IntervalMDP.TrajectorySampling.GapExplore
 IntervalMDP.TrajectorySampling.UpperBoundExplore
@@ -153,7 +145,6 @@ IntervalMDP.TrajectorySampling.BellmanErrorExplore
 IntervalMDP.TrajectorySampling.MaxBellmanErrorExplore
 IntervalMDP.TrajectorySampling.VPIExplore
 IntervalMDP.TrajectorySampling.BackupTracker
-IntervalMDP.TrajectorySampling.VPIScore
 IntervalMDP.TrajectorySampling.LogStateScore
 ```
 

@@ -14,10 +14,8 @@
 # choices, rather than a family of subtypes each baking in one combination:
 #
 #   selection policy  (ε-greedy | Boltzmann)      — for actions and for states
-#   × temperature schedule (fixed | annealed, per policy)
-#   × score function  (f_A over actions, f_S over successors — incl. VPI and
-#                      the exploit/explore mixture, with a pluggable f_explore
-#                      term)
+#   × score function  (f_A over actions; f_S over successors, the
+#                      exploit/explore mixture with a pluggable f_explore term)
 #   × concrete transition (which bound, which adversary direction)
 #   × Gauss-Seidel batching (whole trajectory per iteration, or `k` at a time)
 
@@ -70,9 +68,8 @@ arbitrary one.
 
 Only strictly positive entries are summed and drawn from, so a zero-weight
 index is never selected even on the `rand() === 0.0` draw, and negative weights
-(which `weights` should not contain, but which a reach-avoid value function
-carries on avoid states before the first postprocess) can neither be selected
-nor shrink the sampling range.
+(which `weights` should not contain, but which a caller-supplied value function
+or round-off can produce) can neither be selected nor shrink the sampling range.
 """
 function _categorical_sample(weights::AbstractVector)
     total = zero(eltype(weights))
@@ -98,7 +95,7 @@ end
 # The TrajectorySampling submodule #
 ###################################
 #
-# The configuration vocabulary (`EpsilonGreedy`, `Boltzmann`, `GreedyScore`,
+# The configuration vocabulary (`EpsilonGreedy`, `Boltzmann`, `MixtureStateScore`,
 # ...) lives in a submodule so these short, generic names don't land in the
 # top-level `IntervalMDP` namespace, mirroring `PriorityQueueSampling`.
 #
@@ -123,10 +120,6 @@ import ..IntervalMDP:
     StateIterator,
     sample,
     reset_sampling_strategy!,
-    set_bound_update!,
-    BoundUpdateMode,
-    FollowDrive,
-    _backups_per_state,
     available,
     num_states,
     system_property,
@@ -169,19 +162,17 @@ import ..IntervalMDP:
 #
 # A Boltzmann policy's temperature need not be a constant: it is a
 # `TemperatureSchedule`, resolved to one number per rollout (§7) against the
-# `TemperatureContext` that rollout starts from. That is what lets exploration
-# anneal — as the bounds tighten, or as backups accumulate — instead of the
-# caller having to pick one compromise temperature for the whole solve.
+# `TemperatureContext` that rollout starts from. That is what lets the action
+# policy follow the initial gap instead of the caller having to pick one
+# compromise temperature for the whole solve.
 
 """
     TemperatureSchedule
 
 How a [`Boltzmann`](@ref) policy's temperature `T` is obtained at the start of
-each rollout: [`FixedTemperature`](@ref) (a constant),
-[`GapBasedTemperature`](@ref) (the gap's odds at the rollout's initial state),
-[`GapDecayTemperature`](@ref) (annealed by how far apart the bounds still are
-at the rollout's initial state), or [`UpdateDecayTemperature`](@ref) (annealed
-by how many Bellman updates the strategy has issued so far).
+each rollout: [`FixedTemperature`](@ref) (a constant) or
+[`GapBasedTemperature`](@ref) (the odds of the initial gap). The successor
+policy only takes the first; see [`IntervalMDP.TrajectorySampling.TrajectorySampling`](@ref).
 
 `_temperature(schedule, ctx)` evaluates one against a
 [`TemperatureContext`](@ref), and `_resolve_policy` does that once per rollout,
@@ -190,28 +181,19 @@ so a single trajectory is always drawn at one temperature.
 abstract type TemperatureSchedule end
 
 """
-    TemperatureContext(diff, n)
+    TemperatureContext(diff)
 
 What a [`TemperatureSchedule`](@ref) is evaluated against at the start of a
-rollout:
-
-  * `diff` — the initial gap `δ = max_{s ∈ S₀} (U(s) − L(s))` over the declared
-    initial states `S₀` (every state when the model declares none), clamped to
-    `[0, 1]` (`_initial_gap`). The clamp keeps a fractional `τ` off a negative
-    base should round-off push the gap below zero, the same guard `_gap_weight`
-    takes for [`PolynomialGap`](@ref), and it also keeps a decayed temperature
-    inside `[t_min, t_max]`.
-  * `n` — the number of Bellman updates the strategy has issued so far, i.e.
-    `Σ length(batch) * _backups_per_state(mode, model)` over the previous
-    `sample` calls — `num_actions + 1` per state, or `2num_actions` under
-    `BothDrive` — which is exactly the `bellman_updates` count GSRDP
-    reports to its callback.
+rollout: `diff`, the initial gap `δ = max_{s ∈ S₀} (U(s) − L(s))` over the
+declared initial states `S₀` (every state when the model declares none),
+clamped to `[0, 1]` (`_initial_gap`). The clamp keeps the odds `δ / (1 − δ)` of
+[`GapBasedTemperature`](@ref) in `[0, ∞]` should round-off push `U − L` below
+zero, or a caller-supplied value function carry a gap above one.
 """
 struct TemperatureContext
     diff::Float64
-    n::Int
 
-    TemperatureContext(diff::Real, n::Integer) = new(clamp(Float64(diff), 0.0, 1.0), Int(n))
+    TemperatureContext(diff::Real) = new(clamp(Float64(diff), 0.0, 1.0))
 end
 
 """
@@ -262,76 +244,10 @@ struct GapBasedTemperature <: TemperatureSchedule
 end
 
 """
-    GapDecayTemperature(t_min, t_max, tau)
-
-`T = t_min + (t_max − t_min)·δ^τ`, the termination-criteria decay: the
-temperature tracks how much uncertainty is left at the initial states,
-`δ = max_{s ∈ S₀} Diff(s)` (clamped to `[0, 1]`, see
-[`TemperatureContext`](@ref)).
-
-Wide-open initial states (`δ = 1`) are explored at `t_max`; converged ones
-(`δ = 0`) are exploited at `t_min`, since there is nothing left to learn
-where the rollouts begin. Larger `τ` holds the temperature near `t_min` until
-the gap is nearly closed; `τ = 1` interpolates linearly in the gap.
-
-Requires `0 < t_min ≤ t_max` and `τ > 0`. `t_min` is an exploration floor, not
-a formality — see the warning on
-[`IntervalMDP.TrajectorySampling.TrajectorySampling`](@ref).
-"""
-struct GapDecayTemperature <: TemperatureSchedule
-    t_min::Float64
-    t_max::Float64
-    tau::Float64
-
-    function GapDecayTemperature(t_min::Real, t_max::Real, tau::Real)
-        t_min > 0 || throw(ArgumentError("t_min must be positive, got $t_min"))
-        t_max >= t_min ||
-            throw(ArgumentError("t_max must be at least t_min = $t_min, got $t_max"))
-        tau > 0 || throw(ArgumentError("tau must be positive, got $tau"))
-        return new(Float64(t_min), Float64(t_max), Float64(tau))
-    end
-end
-
-"""
-    UpdateDecayTemperature(t_min, t_max, tau)
-
-`T = max(t_min, t_max·τⁿ)`, the Bellman-update decay: the temperature falls
-geometrically in `n`, the number of Bellman updates issued so far (see
-[`TemperatureContext`](@ref)), and floors at `t_min`.
-
-`n` counts *backups*, not iterations — one trajectory of 20 states on a
-2-action model already contributes 60 — so a useful `τ` is very close to 1
-(e.g. `0.999`).
-
-Requires `0 < t_min ≤ t_max` and `0 < τ ≤ 1`: a `τ > 1` would make `t_max·τⁿ`
-grow without bound, which is an annealing schedule run backwards. `t_min` is an
-exploration floor, not a formality — see the warning on
-[`IntervalMDP.TrajectorySampling.TrajectorySampling`](@ref).
-"""
-struct UpdateDecayTemperature <: TemperatureSchedule
-    t_min::Float64
-    t_max::Float64
-    tau::Float64
-
-    function UpdateDecayTemperature(t_min::Real, t_max::Real, tau::Real)
-        t_min > 0 || throw(ArgumentError("t_min must be positive, got $t_min"))
-        t_max >= t_min ||
-            throw(ArgumentError("t_max must be at least t_min = $t_min, got $t_max"))
-        0 < tau <= 1 || throw(
-            ArgumentError(
-                "tau must be in (0, 1] — tau > 1 grows the temperature rather than " *
-                "decaying it, got $tau",
-            ),
-        )
-        return new(Float64(t_min), Float64(t_max), Float64(tau))
-    end
-end
-
-"""
     _temperature(schedule, ctx) -> Float64
 
 The temperature `schedule` gives a rollout starting in context `ctx` —
-`ComputeTemp(n, t_min, t_max, τ)`.
+`ComputeTemp_A(δ, k, t_min)` for [`GapBasedTemperature`](@ref).
 """
 _temperature(schedule::FixedTemperature, ::TemperatureContext) = schedule.t
 
@@ -343,12 +259,6 @@ _temperature(schedule::GapBasedTemperature, ctx::TemperatureContext) = clamp(
     floatmin(Float64),
     floatmax(Float64),
 )
-
-_temperature(schedule::GapDecayTemperature, ctx::TemperatureContext) =
-    schedule.t_min + (schedule.t_max - schedule.t_min) * ctx.diff^schedule.tau
-
-_temperature(schedule::UpdateDecayTemperature, ctx::TemperatureContext) =
-    max(schedule.t_min, schedule.t_max * schedule.tau^ctx.n)
 
 """
     SelectionPolicy
@@ -384,9 +294,8 @@ concentrates on the argmax; large `T` approaches uniform.
 
 `T` is a [`TemperatureSchedule`](@ref), and a positive number is shorthand for
 [`FixedTemperature`](@ref) — `Boltzmann(0.5) == Boltzmann(FixedTemperature(0.5))`.
-A varying schedule ([`GapBasedTemperature`](@ref), [`GapDecayTemperature`](@ref),
-[`UpdateDecayTemperature`](@ref)) is resolved to one number at the top of each
-rollout, so every draw within one trajectory shares a temperature; see
+A varying schedule ([`GapBasedTemperature`](@ref)) is resolved to one number at
+the top of each rollout, so every draw within one trajectory shares a temperature; see
 `_resolve_policy`.
 """
 struct Boltzmann{S <: TemperatureSchedule} <: SelectionPolicy
@@ -438,7 +347,7 @@ function _select(policy::Boltzmann{FixedTemperature}, candidates, scores)
     return i === nothing ? candidates[argmax(scores)] : candidates[i]
 end
 
-# A decaying schedule is not a number until a rollout gives it one, so drawing
+# A varying schedule is not a number until a rollout gives it one, so drawing
 # straight from it is a programming error rather than a missing method.
 _select(policy::Boltzmann, candidates, scores) = throw(
     ArgumentError(
@@ -523,12 +432,13 @@ end
 """
     _safe_log(x) -> Float64
 
-`log(x)` for `x > 0`, and `-Inf` otherwise. Guards [`LogScore`](@ref) against
-the two ways its inner score can leave the domain of `log`: an exactly-zero
-score (an unreached state under the optimistic bound), and a negative one (a
-reach-avoid value function carries negative values on avoid states until
-`postprocess_value_function!` runs). `log` would give `-Inf` for the first and
-`NaN` for the second; `NaN` would then poison `maximum`/`argmax`.
+`log(x)` for `x > 0`, and `-Inf` otherwise. Guards [`LogScore`](@ref) and
+[`LogStateScore`](@ref) against the two ways an inner score can leave the domain
+of `log`: an exactly-zero score (an unreached state under the optimistic bound,
+or a successor a mixture term gives no weight), and a negative one (`U − L`
+dipping below zero by round-off, or values from a caller-supplied value
+function). `log` would give `-Inf` for the first and `NaN` for the second; `NaN`
+would then poison `maximum`/`argmax`.
 """
 _safe_log(x) = x > 0 ? log(Float64(x)) : -Inf
 
@@ -606,53 +516,19 @@ _adversary_direction(mode::SatisfactionMode, spec) = isoptimistic(mode)
 # 4. Successor scores f_S          #
 ###################################
 
-"""
-    GapFunction
-
-`G(δ)`, the discount a successor's exploration term takes for its greedy
-shortfall `δ = f_gap(s',s,a)` behind the best successor: `G(0) = 1` keeps the
-full bonus for a competitive successor, and `G → 0` as it falls further
-behind. See [`ExponentialGap`](@ref) and [`PolynomialGap`](@ref); `τ` must be
-positive in both.
-"""
-abstract type GapFunction end
-
-"`G(δ) = exp(-δ/τ)`."
-struct ExponentialGap <: GapFunction
-    tau::Float64
-
-    function ExponentialGap(tau::Real)
-        tau > 0 || throw(ArgumentError("tau must be positive, got $tau"))
-        return new(Float64(tau))
-    end
-end
-
-"`G(δ) = (1-δ)^τ`, with `1-δ` clamped at 0 so a fractional `τ` can't go complex."
-struct PolynomialGap <: GapFunction
-    tau::Float64
-
-    function PolynomialGap(tau::Real)
-        tau > 0 || throw(ArgumentError("tau must be positive, got $tau"))
-        return new(Float64(tau))
-    end
-end
-
-_gap_weight(g::ExponentialGap, delta) = exp(-delta / g.tau)
-_gap_weight(g::PolynomialGap, delta) = max(1 - delta, 0.0)^g.tau
-
 ###################################
 # 4a. Exploration terms f_explore  #
 ###################################
 #
-# The bonus half of `ExplorationScore` / `GapWeightedExplorationScore`. Each
-# term is a function of the successor alone. The probability weighting and
-# `β` are applied by the score.
+# The explore half of `MixtureStateScore`. Each term is a function of the
+# successor alone. The probability weighting and normalization are applied by
+# the score.
 
 """
     ExplorationTerm
 
-`f_explore(t)`, the per-successor exploration bonus an [`ExplorationScore`](@ref)
-or [`GapWeightedExplorationScore`](@ref) adds on top of its greedy term:
+`f_explore(t)`, the per-successor exploration term a [`MixtureStateScore`](@ref)
+mixes with its exploit term:
 
   * [`GapExplore`](@ref): `U(t) − L(t)`, the default
   * [`UpperBoundExplore`](@ref): `U(t)`, the best-case reach probability
@@ -662,10 +538,6 @@ or [`GapWeightedExplorationScore`](@ref) adds on top of its greedy term:
   * [`MaxBellmanErrorExplore`](@ref): the larger of those two
   * [`VPIExplore`](@ref): `maxₐ VPI(t, a)`, the value of perfect information
     about the Q-values at `t`
-
-[`VPIScore`](@ref) is a different VPI: `VPI_{s,a}(t)` measures how much
-learning `V*(t)` would change the decision at the rollout's *current* state,
-so it depends on the rollout's action and is a successor score of its own.
 """
 abstract type ExplorationTerm end
 
@@ -675,8 +547,9 @@ struct GapExplore <: ExplorationTerm end
 """
     UpperBoundExplore()
 
-`f_explore(t) = U(t)`, the best-case reach probability. Paired with a score
-whose `bound` is `Upper`, this just scales the greedy term by `1 + β`.
+`f_explore(t) = U(t)`, the best-case reach probability. Paired with a
+[`MixtureStateScore`](@ref) whose `exploit` is `Upper`, the explore term equals
+the exploit term, so the mixture is the exploit term whatever `α_e` is.
 """
 struct UpperBoundExplore <: ExplorationTerm end
 
@@ -692,8 +565,8 @@ lower-bound-optimal action `a_L = argmaxₐ L(t, a)` at `t` might still be,
 computed by `_action_uncertainty`. It is `0` at a state with a single action,
 and at an implicit sink. This costs `2·|A(t)|` O-max expectations per successor
 per step, so a step is about as expensive as a Bellman backup at every
-successor. It needs the step context, so the four-argument `_state_scores`
-throws.
+successor. It needs the model, so `_state_scores` throws when handed
+`nothing` for it.
 """
 struct ActionUncertaintyExplore <: ExplorationTerm end
 
@@ -715,7 +588,7 @@ let `a₁` be the action with the best midpoint and `a₂` the runner-up. Then
 direction, the same one `bellman_update!` backs both bounds up in. It is `0`
 at a state with a single action, and at an implicit sink. Like
 [`ActionUncertaintyExplore`](@ref) it costs `2·|A(t)|` O-max expectations per
-successor per step, and the four-argument `_state_scores` throws.
+successor per step, and needs the model.
 """
 struct VPIExplore <: ExplorationTerm end
 
@@ -837,7 +710,7 @@ end
 
 _explore_values(::ActionUncertaintyExplore, supp, vf, ::Nothing, spec) = throw(
     ArgumentError(
-        "ActionUncertaintyExplore needs the model; call the nine-argument `_state_scores`",
+        "ActionUncertaintyExplore needs the model; `_state_scores` was given `nothing`",
     ),
 )
 
@@ -901,7 +774,7 @@ function _state_vpi(model, t, vf, spec)
 end
 
 _explore_values(::VPIExplore, supp, vf, ::Nothing, spec) = throw(
-    ArgumentError("VPIExplore needs the model; call the nine-argument `_state_scores`"),
+    ArgumentError("VPIExplore needs the model; `_state_scores` was given `nothing`"),
 )
 
 _explore_values(::VPIExplore, supp, vf, model, spec) =
@@ -944,89 +817,22 @@ _reset_score!(term::_TrackedTerm) = _reset!(term.tracker)
     StateScore
 
 `f_S(s', s, a)`, the score a candidate successor carries, consumed by a
-[`SelectionPolicy`](@ref). All three forms are built from
+[`SelectionPolicy`](@ref). [`MixtureStateScore`](@ref) is built from
 
-    f_greedy(s')  = U(s') or L(s'),  per the score's `bound`
+    f_exploit(s') = U(s') or L(s'),  per the score's `exploit`
     f_explore(s') = an [`ExplorationTerm`](@ref), by default U(s') − L(s')
 
-weighted by the realized transition probability `p(s'|s,a)`. See
-[`GreedyScore`](@ref), [`ExplorationScore`](@ref) and
-[`GapWeightedExplorationScore`](@ref). [`MixtureStateScore`](@ref) mixes the
-normalized exploit and explore terms instead of adding them, with weights that
-can follow the initial gap. [`VPIScore`](@ref) scores by the myopic value of
-perfect information about `s'`, and [`LogStateScore`](@ref) wraps any of them
-for proportional sampling.
+weighted by the realized transition probability `p(s'|s,a)`, normalized, and
+mixed with weights that can follow the initial gap. [`LogStateScore`](@ref)
+wraps it for proportional sampling.
+
+A score implements `_state_scores` and `_exploit_bound`, the bound an
+[`EpsilonGreedy`](@ref) successor policy reads instead of the full score.
 """
 abstract type StateScore end
 
-"""
-    GreedyScore(; bound = Upper)
-
-`f_S(s') = p(s'|s,a)·f_greedy(s')` — the expected contribution of `s'`, with no
-exploration term.
-"""
-struct GreedyScore <: StateScore
-    bound::IntervalMode
-
-    GreedyScore(; bound::IntervalMode = Upper) = new(bound)
-end
-
-"""
-    ExplorationScore(beta; bound = Upper, explore = GapExplore())
-
-`f_S(s') = p(s'|s,a)·f_greedy(s') + β·p(s'|s,a)·f_explore(s')`, the greedy
-term plus a bonus for successors that `explore` rates as worth visiting (an
-[`ExplorationTerm`](@ref)). By default that means successors whose bounds are
-still far apart. `β ≥ 0`; `β = 0` reduces to [`GreedyScore`](@ref).
-"""
-struct ExplorationScore{E <: ExplorationTerm} <: StateScore
-    bound::IntervalMode
-    beta::Float64
-    explore::E
-
-    function ExplorationScore(
-        beta::Real;
-        bound::IntervalMode = Upper,
-        explore::E = GapExplore(),
-    ) where {E <: ExplorationTerm}
-        beta >= 0 || throw(ArgumentError("beta must be non-negative, got $beta"))
-        return new{E}(bound, Float64(beta), explore)
-    end
-end
-
-"""
-    GapWeightedExplorationScore(beta, gap; bound = Upper, explore = GapExplore())
-
-`f_S(s') = p·f_greedy(s') + β·p·f_explore(s')·G(f_gap(s',s,a))` — the
-exploration score with its bonus additionally discounted by how far `s'` falls
-behind the best successor,
-
-    f_gap(s',s,a) = δ = max_{x ∈ supp(s,a)} p(x)·V(x) − p(s')·V(s')
-
-with `V = f_greedy`'s bound. Both terms are probability-weighted, so `δ ≥ 0`
-always, and `δ = 0` exactly at the best successor — "`s'` is the greedy best",
-not "`s'` is converged". `gap` is the discount `G`, a [`GapFunction`](@ref),
-and `explore` is `f_explore`, an [`ExplorationTerm`](@ref).
-"""
-struct GapWeightedExplorationScore{G <: GapFunction, E <: ExplorationTerm} <: StateScore
-    bound::IntervalMode
-    beta::Float64
-    gap::G
-    explore::E
-
-    function GapWeightedExplorationScore(
-        beta::Real,
-        gap::G;
-        bound::IntervalMode = Upper,
-        explore::E = GapExplore(),
-    ) where {G <: GapFunction, E <: ExplorationTerm}
-        beta >= 0 || throw(ArgumentError("beta must be non-negative, got $beta"))
-        return new{G, E}(bound, Float64(beta), gap, explore)
-    end
-end
-
 ###################################
-# 4c. Exploit/explore mixture      #
+# 4b. Exploit/explore mixture      #
 ###################################
 
 """
@@ -1157,9 +963,13 @@ struct MixtureStateScore{E <: ExplorationTerm, AE <: AlphaSchedule, AP <: AlphaS
     end
 end
 
-_greedy_bound(score::MixtureStateScore) = score.exploit
+"""
+    _exploit_bound(score) -> IntervalMode
 
-_greedy_bound(score::StateScore) = score.bound
+The bound `f_exploit` reads, which is all an [`EpsilonGreedy`](@ref) successor
+policy uses of `score` (see `_sample_state`).
+"""
+_exploit_bound(score::MixtureStateScore) = score.exploit
 
 # Lifecycle hooks, forwarded down to the score's `ExplorationTerm` (see
 # `BackupTracker`). A score with no term has nothing to track.
@@ -1167,70 +977,9 @@ _before_sample!(::StateScore, vf) = nothing
 _after_sample!(::StateScore, batch, vf) = nothing
 _reset_score!(::StateScore) = nothing
 
-const _ExploringScore =
-    Union{ExplorationScore, GapWeightedExplorationScore, MixtureStateScore}
-_before_sample!(score::_ExploringScore, vf) = _before_sample!(score.explore, vf)
-_after_sample!(score::_ExploringScore, batch, vf) = _after_sample!(score.explore, batch, vf)
-_reset_score!(score::_ExploringScore) = _reset_score!(score.explore)
-
-"""
-    _state_scores(score, probs, supp, vf) -> Vector{Float64}
-
-`f_S` for every successor in `supp` (linear target indices carrying positive
-probability), parallel to `supp`.
-"""
-function _state_scores(score::GreedyScore, probs, supp, vf)
-    Vg = vec(_bound_values(score.bound, vf))
-    return [Float64(probs[i]) * Float64(Vg[i]) for i in supp]
-end
-
-# Without the step context. Only an `ExplorationTerm` that reads nothing but the
-# value function can be evaluated this way.
-_state_scores(score::_ExploringScore, probs, supp, vf) =
-    _state_scores(score, probs, supp, vf, nothing, nothing, nothing, nothing, nothing)
-
-function _state_scores(
-    score::ExplorationScore,
-    probs,
-    supp,
-    vf,
-    s,
-    a,
-    model,
-    spec,
-    transition,
-)
-    Vg = vec(_bound_values(score.bound, vf))
-    x = _explore_values(score.explore, supp, vf, model, spec)
-    return [
-        Float64(probs[i]) * (Float64(Vg[i]) + score.beta * x[n]) for
-        (n, i) in enumerate(supp)
-    ]
-end
-
-function _state_scores(
-    score::GapWeightedExplorationScore,
-    probs,
-    supp,
-    vf,
-    s,
-    a,
-    model,
-    spec,
-    transition,
-)
-    Vg = vec(_bound_values(score.bound, vf))
-    x = _explore_values(score.explore, supp, vf, model, spec)
-
-    greedy = [Float64(probs[i]) * Float64(Vg[i]) for i in supp]
-    best = maximum(greedy)
-
-    return [
-        greedy[n] +
-        score.beta * Float64(probs[i]) * x[n] * _gap_weight(score.gap, best - greedy[n])
-        for (n, i) in enumerate(supp)
-    ]
-end
+_before_sample!(score::MixtureStateScore, vf) = _before_sample!(score.explore, vf)
+_after_sample!(score::MixtureStateScore, batch, vf) = _after_sample!(score.explore, batch, vf)
+_reset_score!(score::MixtureStateScore) = _reset_score!(score.explore)
 
 # `w` as a distribution: clamped at zero, then normalized; uniform if nothing is
 # left, which shifts every score of a mixture by the same constant.
@@ -1248,6 +997,15 @@ _resolved_alpha(::AlphaSchedule) = throw(
     ),
 )
 
+"""
+    _state_scores(score, probs, supp, vf, s, a, model, spec, transition) -> Vector{Float64}
+
+`f_S` for every successor in `supp` (linear target indices carrying positive
+probability), parallel to `supp`, given the step context: the current state `s`,
+the rollout's action `a`, and the strategy's [`ConcreteTransition`](@ref). An
+[`ExplorationTerm`](@ref) that reads only the value function accepts `nothing`
+for `model` and `spec`.
+"""
 function _state_scores(
     score::MixtureStateScore,
     probs,
@@ -1274,167 +1032,6 @@ function _state_scores(
 end
 
 """
-    _state_scores(score, probs, supp, vf, s, a, model, spec, transition) -> Vector{Float64}
-
-`f_S` given the full step context: the current state `s`, the rollout's action
-`a`, and the strategy's [`ConcreteTransition`](@ref). This is what
-`_sample_state` calls. Scores that only need `probs` and the value function
-fall back to the four-argument form; [`VPIScore`](@ref) needs the rest.
-"""
-_state_scores(score::StateScore, probs, supp, vf, s, a, model, spec, transition) =
-    _state_scores(score, probs, supp, vf)
-
-###################################
-# 4b. Value of perfect information #
-###################################
-#
-# VPI-RTDP (Sanner et al., 2009), restated for interval MDPs. The full
-# derivation is in docs/design/vpi.md. In short: with a uniform belief
-# v_t ~ U[L(t), U(t)] and m_a = (U(s,a) + L(s,a))/2, revealing v_t = m(t) + x
-# moves the expected Q-value of `a` along the line m_a + p_a(t)·x. Averaging the
-# gain of `a` over the rollout's action a*, max(0, Δ_a + δ_a·x), over
-# x ∈ [-h, h] has a closed form, `_vpi_gain`.
-
-"""
-    _vpi_gain(Δ, k) -> Float64
-
-`φ(Δ, k)`, the average of `max(0, Δ + δ·x)` over `x ∈ [-h, h]` with
-`k = |δ|·h ≥ 0`:
-
-    φ(Δ, k) = 0               if Δ ≤ -k   (the line never crosses zero)
-            = Δ               if Δ ≥  k   (the line never drops below zero)
-            = (Δ + k)² / (4k) otherwise   (the triangle above zero)
-
-`φ` is continuous and continuously differentiable, non-negative, and
-non-decreasing in both arguments. The third branch only runs when `k > |Δ|`, so
-it never divides by zero. With `k = 0` (no uncertainty, or no difference in
-transition probability) it reduces to `max(0, Δ)`.
-"""
-function _vpi_gain(Δ::Float64, k::Float64)
-    Δ <= -k && return 0.0
-    Δ >= k && return Δ
-    return (Δ + k)^2 / (4k)
-end
-
-"""
-    _vpi(s, a, probs, supp, vf, model, spec, transition) -> Vector{Float64}
-
-`VPI_{s,a}(t)` for every successor `t` in `supp`, parallel to `supp`:
-
-    VPI_{s,a}(t) = max_{a' ≠ a} φ(Δ_{a'}, k_{a'}(t))
-    Δ_{a'}       = σ·(m_{a'} − m_a),  m_{a'} = (U(s,a') + L(s,a')) / 2
-    k_{a'}(t)    = |p_{a'}(t) − p_a(t)| · (U(t) − L(t)) / 2
-
-where `a` is the rollout's action, `σ = ±1` for `Maximize`/`Minimize`, and φ is
-[`_vpi_gain`](@ref). `U(s,a')` and `L(s,a')` are the O-max Q-bounds in
-`transition`'s adversary direction. `p_{a'}` is the distribution `transition`
-realizes for `a'`, and `p_a = probs`, the distribution the rollout already
-drew. All zeros when `a` is the only action available at `s`.
-"""
-function _vpi(s, a, probs, supp, vf, model, spec, transition)
-    marginal = _omax_marginal(model)
-    dir = _adversary_direction(transition.adversary, spec)
-    σ = _ismaximize(spec) ? 1.0 : -1.0
-    U, L = vf.upper.current, vf.lower.current
-    Uv, Lv = vec(U), vec(L)
-
-    # Midpoint of the Q-interval, plus the distribution `transition` realizes.
-    function q_mid_and_p(a′)
-        as = marginal[a′, s]
-        pU = _omax_distribution(as, U, dir)
-        pL = _omax_distribution(as, L, dir)
-        m = (Float64(dot(pU, Uv)) + Float64(dot(pL, Lv))) / 2
-        return m, (transition.bound == Upper ? pU : pL)
-    end
-
-    m_star, _ = q_mid_and_p(a)
-    vpi = zeros(Float64, length(supp))
-    for a′ in available(model, s)
-        a′ == a && continue
-        m, p = q_mid_and_p(a′)
-        Δ = σ * (m - m_star)
-        for (n, t) in enumerate(supp)
-            h = (Float64(Uv[t]) - Float64(Lv[t])) / 2
-            k = abs(Float64(p[t]) - Float64(probs[t])) * max(h, 0.0)
-            vpi[n] = max(vpi[n], _vpi_gain(Δ, k))
-        end
-    end
-    return vpi
-end
-
-"""
-    VPIScore(; beta = 0.95, bound = Upper)
-
-`f_S(t) = VPI_{s,a}(t)`, the myopic value of perfect information about the
-successor `t` (VPI-RTDP, Sanner et al. 2009): how much learning `V*(t)` is
-expected to improve on the rollout's action `a` at `s`. Unlike the gap-based
-scores, it ignores successors whose open gap cannot change the decision at `s`.
-
-With `v_t ~ Uniform[L(t), U(t)]` and `m_{a'} = (U(s,a') + L(s,a'))/2`,
-
-    VPI_{s,a}(t) = max_{a' ≠ a} φ(Δ_{a'}, k_{a'}(t))
-    Δ_{a'}       = σ·(m_{a'} − m_a)
-    k_{a'}(t)    = |p_{a'}(t) − p_a(t)| · (U(t) − L(t)) / 2
-    φ(Δ, k)      = 0 if Δ ≤ -k;  Δ if Δ ≥ k;  (Δ + k)²/(4k) otherwise
-
-where `σ = ±1` for `Maximize`/`Minimize` and each `p_{a'}` is the distribution
-the strategy's [`ConcreteTransition`](@ref) realizes. See `docs/design/vpi.md`
-for the derivation.
-
-The score follows the paper's `CHOOSENEXTSTATE-VPI` (Algorithm 3), minus its
-termination branch. With `b(t) = p(t)·(U(t) − L(t))`:
-
- 1. if `max_t b(t) > beta`, the score is `b`. VPI tells you little while the
-    bounds are nearly vacuous, so this is BRTDP's rule. `beta` is absolute, and
-    the paper's `0.95` assumes values in `[0, 1]`.
- 2. otherwise, if some successor has positive VPI, the score is `VPI`.
- 3. otherwise, the score is `b` again. Ending the rollout is left to
-    `terminate`, e.g. [`ExpectedGapStop`](@ref).
-
-Successors come from the support of the rollout's `p(·|s,a)`. The paper
-considers every `t`, which could move the rollout to a state that is not a
-successor of `(s, a)`.
-
-The paper draws `t` with probability proportional to its score, which is
-`state_policy = Boltzmann(1.0)` with `state_score = LogStateScore(VPIScore())`.
-Like the other successor scores, `EpsilonGreedy` reads only `bound`.
-
-!!! note
-    `a` is the action the rollout sampled, as in the paper, not necessarily the
-    one that is best by its midpoint `m_a`. If another action `a'` has a higher
-    midpoint, `Δ_{a'} > 0`, and every successor then scores at least `Δ_{a'}`,
-    even one whose bounds have already met.
-
-Each step computes two O-max distributions per available action, the same
-order of work as a Bellman backup at `s`.
-"""
-struct VPIScore <: StateScore
-    bound::IntervalMode
-    beta::Float64
-
-    function VPIScore(; beta::Real = 0.95, bound::IntervalMode = Upper)
-        beta >= 0 || throw(ArgumentError("beta must be non-negative, got $beta"))
-        return new(bound, Float64(beta))
-    end
-end
-
-_state_scores(score::VPIScore, probs, supp, vf) = throw(
-    ArgumentError(
-        "VPIScore needs the step context (s, a, model, spec, transition); " *
-        "call the nine-argument `_state_scores`",
-    ),
-)
-
-function _state_scores(score::VPIScore, probs, supp, vf, s, a, model, spec, transition)
-    U, L = vec(vf.upper.current), vec(vf.lower.current)
-    b = [Float64(probs[i]) * (Float64(U[i]) - Float64(L[i])) for i in supp]
-    maximum(b) > score.beta && return b
-
-    vpi = _vpi(s, a, probs, supp, vf, model, spec, transition)
-    return sum(vpi) > 0 ? vpi : b
-end
-
-"""
     LogStateScore(inner)
 
 `f_S(t) = log(f'_S(t))`, with `f'_S` any other [`StateScore`](@ref). This is
@@ -1448,16 +1045,11 @@ struct LogStateScore{S <: StateScore} <: StateScore
     inner::S
 end
 
-_greedy_bound(score::LogStateScore) = _greedy_bound(score.inner)
+_exploit_bound(score::LogStateScore) = _exploit_bound(score.inner)
 
 _before_sample!(score::LogStateScore, vf) = _before_sample!(score.inner, vf)
 _after_sample!(score::LogStateScore, batch, vf) = _after_sample!(score.inner, batch, vf)
 _reset_score!(score::LogStateScore) = _reset_score!(score.inner)
-
-# Both arities spelled out: a varargs method would be ambiguous against the
-# nine-argument `StateScore` fallback.
-_state_scores(score::LogStateScore, probs, supp, vf) =
-    _safe_log.(_state_scores(score.inner, probs, supp, vf))
 
 _state_scores(score::LogStateScore, probs, supp, vf, s, a, model, spec, transition) =
     _safe_log.(_state_scores(score.inner, probs, supp, vf, s, a, model, spec, transition))
@@ -1663,16 +1255,18 @@ Each of the four decisions is configured independently:
 
 # Keywords
 - `action_policy::SelectionPolicy = EpsilonGreedy(0.1)`: how the action is
-  drawn given `action_score`. A `Boltzmann` policy may carry an annealing
-  [`TemperatureSchedule`](@ref) rather than a constant — see below.
+  drawn given `action_score`. A `Boltzmann` policy carries a
+  [`FixedTemperature`](@ref) or a [`GapBasedTemperature`](@ref) — see below.
 - `action_score::ActionScore = UpperBoundScore()`: `f_A(s, a)`.
 - `transition::ConcreteTransition = ConcreteTransition()`: which bound and
   adversary direction realize `p(·|s,a)`.
 - `state_policy::SelectionPolicy = EpsilonGreedy(0.1)`: how the successor is
-  drawn. **Note the asymmetry** documented under `_sample_state`:
-  `EpsilonGreedy` always exploits on `p(s')·f_greedy(s')` and ignores
-  `state_score`'s exploration terms; only `Boltzmann` honours the full `f_S`.
-- `state_score::StateScore = GreedyScore()`: `f_S(s', s, a)`. A
+  drawn. A `Boltzmann` policy carries a [`FixedTemperature`](@ref) only.
+  **Note the asymmetry** documented under `_sample_state`: `EpsilonGreedy`
+  always exploits on `p(s')·f_exploit(s')` and ignores `state_score`'s
+  exploration term; only `Boltzmann` honours the full `f_S`.
+- `state_score::StateScore = LogStateScore(MixtureStateScore())`: `f_S(s', s, a)`,
+  by default the power rule over the exploit/explore mixture. A
   [`MixtureStateScore`](@ref)'s weights `α_e`, `α_p` are resolved once per
   rollout against the initial gap, like a temperature (below).
 - `exclude_visited::Bool = false`: never move to a state this rollout has
@@ -1701,38 +1295,30 @@ Each of the four decisions is configured independently:
 # Temperature schedules
 
 A `Boltzmann` policy's temperature is resolved once per rollout, before the
-first action is selected, and held for the whole trajectory — so the action
-policy and the successor policy each get their own `T` from their own schedule
-(`τ_a` and `τ_s` of the writeup). The gap-driven schedules read the initial gap
-`δ = max_{s ∈ S₀} Diff(s)` over the declared initial states (every state when
-the model declares none), the same `δ` a [`MixtureStateScore`](@ref)'s weights
-follow:
+first action is selected, and held for the whole trajectory. The action policy
+takes either schedule; the successor policy only a fixed one, since its
+exploration follows the initial gap through the mixture weights instead:
 
-* [`FixedTemperature`](@ref) — `T = t`, the constant.
+* [`FixedTemperature`](@ref) — `T = t`, the constant (`T_s`, and `T_A` under the
+  fixed schedule).
 * [`GapBasedTemperature`](@ref) — `T = max(t_min, k·δ / (1 − δ))`, the odds of
-  the initial gap, scaled by `k` and floored at `t_min`.
-* [`GapDecayTemperature`](@ref) — `T = t_min + (t_max − t_min)·δ^τ`.
-  Exploration therefore fades as the bounds at the initial states meet.
-* [`UpdateDecayTemperature`](@ref) — `T = max(t_min, t_max·τⁿ)`, where `n` is
-  the number of Bellman updates the strategy has issued so far — the same
-  per-iteration count GSRDP reports to its callback (see `set_bound_update!`),
-  accumulated across `sample` calls and reset by
-  `reset_sampling_strategy!`.
+  the initial gap `δ = max_{s ∈ S₀} Diff(s)` over the declared initial states
+  (every state when the model declares none), scaled by `k` and floored at
+  `t_min`. This is `ComputeTemp_A`, and the same `δ` a
+  [`MixtureStateScore`](@ref)'s weights follow.
 
 In Gauss-Seidel mode the temperature belongs to the rollout, not the batch: a
 trajectory doled out over several iterations keeps the temperature it was
 sampled at.
 
 !!! warning
-    Keep `t_min` well away from zero. A cold Boltzmann policy is argmax in all
-    but name, so annealing all the way down runs into exactly the hazard
-    described under "Why the default ε is not zero" below: the rollout locks
-    onto the states it already prefers, the rest keep their initial values, and
-    the gap criterion never fires. `t_min` is the exploration floor the schedule
-    can never anneal past — on a three-state IMDP, `t_min = 0.01` stalls where
-    `t_min = 0.5` converges. The same goes for [`GapBasedTemperature`](@ref),
-    whose odds alone reach `T ≈ k·ε` once the initial gap is down to `ε`:
-    `t_min = 0` removes its floor.
+    Keep [`GapBasedTemperature`](@ref)'s `t_min` well away from zero. Its odds
+    alone reach `T ≈ k·ε` once the initial gap is down to `ε`, and a cold
+    Boltzmann policy is argmax in all but name, so it runs into exactly the
+    hazard described under "Why the default ε is not zero" below: the rollout
+    locks onto the states it already prefers, the rest keep their initial
+    values, and the gap criterion never fires. `t_min` is the exploration floor
+    the schedule never cools past; `t_min = 0` removes it.
 
 # Successor filters
 
@@ -1836,13 +1422,6 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
     buffer::Base.RefValue{Any}
     cursor::Base.RefValue{Int}
 
-    # Bellman updates issued so far — `n` for `UpdateDecayTemperature`. Tracked
-    # here because `sample` is not handed the solver's iteration count; see the
-    # increment in §8.
-    updates::Base.RefValue{Int}
-    # GSRDP's bound-update mode, which sets what one relaxed state costs; see
-    # `set_bound_update!`.
-    bound_update::Base.RefValue{BoundUpdateMode}
     # Whether this solve has already warned about `exclude_converged` without
     # `restrict_to_initial` (`_warn_converged_scope!`).
     warned_scope::Base.RefValue{Bool}
@@ -1855,7 +1434,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
         action_score::ActionScore = UpperBoundScore(),
         transition::ConcreteTransition = ConcreteTransition(),
         state_policy::SelectionPolicy = EpsilonGreedy(0.1),
-        state_score::StateScore = GreedyScore(),
+        state_score::StateScore = LogStateScore(MixtureStateScore()),
         terminate = TerminationRule[MaxSteps()],
         gauss_seidel::Bool = false,
         k::Int = 1,
@@ -1867,6 +1446,8 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
         dedup_scope::Symbol = :batch,
     )
         rules = collect(TerminationRule, terminate)
+        _check_schedule(action_policy, "action_policy", (FixedTemperature, GapBasedTemperature))
+        _check_schedule(state_policy, "state_policy", (FixedTemperature,))
         dedup_scope in (:batch, :rollout, :consecutive) || throw(
             ArgumentError("dedup_scope must be :batch, :rollout or :consecutive, got :$dedup_scope"),
         )
@@ -1901,25 +1482,31 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
             dedup_scope,
             Ref{Any}(nothing),
             Ref(0),
-            Ref(0),
-            Ref{BoundUpdateMode}(FollowDrive()),
             Ref(false),
             Ref{Any}(nothing),
         )
     end
 end
 
-set_bound_update!(ss::TrajectorySampling, mode::BoundUpdateMode) =
-    (ss.bound_update[] = mode; nothing)
+# Which `TemperatureSchedule`s a policy keyword accepts; anything but `Boltzmann`
+# carries none.
+_check_schedule(::SelectionPolicy, name, allowed) = nothing
+
+function _check_schedule(policy::Boltzmann, name, allowed)
+    any(T -> policy.T isa T, allowed) && return nothing
+    throw(
+        ArgumentError(
+            "$name: a Boltzmann policy here takes a " *
+            join(nameof.(allowed), " or ") * ", got $(typeof(policy.T))",
+        ),
+    )
+end
 
 function reset_sampling_strategy!(ss::TrajectorySampling)
     # Discard a partially-consumed trajectory: it was sampled against the
     # previous `solve`'s value function and says nothing about this one.
     ss.buffer[] = nothing
     ss.cursor[] = 0
-    # The temperature schedules anneal over one solve, not over the lifetime of
-    # the strategy object, so the backup count restarts with it.
-    ss.updates[] = 0
     ss.warned_scope[] = false
     ss.omax_scratch[] = nothing
     # Backup magnitudes measured in the previous `solve` say nothing about this
@@ -2087,11 +1674,11 @@ for this rollout (`_resolve_policy`, `_resolve_score`). `visited` and
 avoid states, are exempt from the convergence filter, as are implicit sinks.
 
 `EpsilonGreedy` and `Boltzmann` score differently here, deliberately, following
-the writeup: ε-greedy exploits on `p(x)·f_greedy(x)` alone, whatever
+the writeup: ε-greedy exploits on `p(x)·f_exploit(x)` alone, whatever
 `ss.state_score` is, while Boltzmann uses the full `f_S`. So the exploration
-and gap-weighting terms of an [`ExplorationScore`](@ref) /
-[`GapWeightedExplorationScore`](@ref) only take effect under `Boltzmann` — an
-ε-greedy configuration reads only the score's `bound`.
+term and the mixture weights of a [`MixtureStateScore`](@ref) only take effect
+under `Boltzmann` — an ε-greedy configuration reads only the score's `exploit`
+bound (`_exploit_bound`).
 """
 function _sample_state(
     ss::TrajectorySampling,
@@ -2112,7 +1699,7 @@ function _sample_state(
     isempty(supp) && return nothing
 
     if policy isa EpsilonGreedy
-        Vg = vec(_bound_values(_greedy_bound(score), vf))
+        Vg = vec(_bound_values(_exploit_bound(score), vf))
         scores = [Float64(probs[i]) * Float64(Vg[i]) for i in supp]
     else
         scores = _state_scores(score, probs, supp, vf, s, a, model, spec, ss.transition)
@@ -2125,11 +1712,10 @@ end
     _rollout_context(ss, model, value_function) -> TemperatureContext
 
 What a rollout's schedules are resolved against: the initial gap over all of
-`S₀`, whichever initial state the rollout happens to start from, and the
-backups issued so far.
+`S₀`, whichever initial state the rollout happens to start from.
 """
 _rollout_context(ss::TrajectorySampling, model, value_function) =
-    TemperatureContext(_initial_gap(model, value_function), ss.updates[])
+    TemperatureContext(_initial_gap(model, value_function))
 
 """
     _sample_trajectory(ss, model, value_function, spec) -> Vector{<:CartesianIndex}
@@ -2170,10 +1756,9 @@ function _sample_trajectory(ss::TrajectorySampling, model, value_function, spec,
 
     s = _trajectory_initial_state(model)
 
-    # ComputeTemp, once per rollout: both policies are resolved against the
-    # initial gap δ = max_{s ∈ S₀} Diff(s) and the backups issued so far, so the
-    # whole trajectory is drawn at one temperature (lines 4-5 of
-    # SampleTrajectory). The mixture weights α_e, α_p follow the same δ; ε-greedy
+    # ComputeTemp_A, once per rollout: both policies are resolved against the
+    # initial gap δ = max_{s ∈ S₀} Diff(s), so the whole trajectory is drawn at
+    # one temperature (SampleTrajectory). The mixture weights α_e, α_p follow the same δ; ε-greedy
     # reads only the score's bound, so it skips that resolve.
     ctx = _rollout_context(ss, model, value_function)
     action_policy = _resolve_policy(ss.action_policy, ctx)
@@ -2300,22 +1885,6 @@ end
 ###################################
 
 """
-    _count_updates!(ss, model, batch) -> batch
-
-Record the Bellman updates `batch` is about to cause, which is `n` for
-[`UpdateDecayTemperature`](@ref). It charges GSRDP's own per-state cost under the
-solve's bound-update mode (see `set_bound_update!`), so the schedule anneals over
-the same count the solver reports.
-
-The count is taken *after* the rollout it belongs to, so a rollout's
-temperature reads the backups issued before it.
-"""
-function _count_updates!(ss::TrajectorySampling, model, batch)
-    ss.updates[] += length(batch) * _backups_per_state(ss.bound_update[], model)
-    return batch
-end
-
-"""
     _warn_converged_scope!(ss, model, spec)
 
 Warn, once per solve, when `exclude_converged` is on but the solve converges on
@@ -2372,7 +1941,6 @@ function sample(ss::TrajectorySampling, model, strategy_cache, value_function, s
         ss.reverse && reverse!(trajectory)
         _dedup_rollout!(ss, trajectory)
         ss.dedup && ss.dedup_scope === :batch && unique!(trajectory)
-        _count_updates!(ss, model, trajectory)
         _after_sample!(ss.state_score, trajectory, value_function)
         return StateIterator(trajectory)
     end
@@ -2397,7 +1965,6 @@ function sample(ss::TrajectorySampling, model, strategy_cache, value_function, s
     batch = buffer[start:stop]
     ss.dedup && ss.dedup_scope === :batch && unique!(batch)
     ss.cursor[] = stop + 1
-    _count_updates!(ss, model, batch)
     _after_sample!(ss.state_score, batch, value_function)
 
     if ss.cursor[] > length(buffer)

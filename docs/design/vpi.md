@@ -4,6 +4,11 @@ A design note on `TrajectorySampling.VPIScore` (`src/trajectorysampling.jl`, §4
 value-of-perfect-information heuristic of VPI-RTDP (Sanner, Goetschalckx, Driessens & Shani,
 *Bayesian Real-Time Dynamic Programming*, IJCAI 2009), restated for interval MDPs.
 
+> **Status (2026-10).** `VPIScore` was removed in the trajectory-sampling rework, along
+> with the other pre-mixture successor scores; only `VPIExplore` (the state-level VPI
+> exploration term of `MixtureStateScore`) remains. This note is kept as a record of the
+> derivation.
+
 > **Scope.** The note covers only the successor score. No termination rule or
 > priority-sweeping priority is built on VPI.
 

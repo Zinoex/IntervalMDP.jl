@@ -215,83 +215,6 @@ end
     end
 end
 
-@testitem "TrajectorySampling: successor scores f_S" tags =
-    [:base, :trajectory_sampling, :trajectory_state_scores] begin
-    using IntervalMDP
-    const TS = IntervalMDP.TrajectorySampling
-
-    probs = [0.6, 0.4]
-    supp = [1, 2]
-    vf = (upper = (current = [1.0, 0.5],), lower = (current = [0.2, 0.1],))
-    # f_greedy (Upper) = [1.0, 0.5];  f_explore = U - L = [0.8, 0.4]
-    # p * f_greedy = [0.6, 0.2]
-
-    @testset "GreedyScore" begin
-        @test TS._state_scores(TS.GreedyScore(), probs, supp, vf) ≈ [0.6, 0.2]
-        # `bound` picks which value function f_greedy reads.
-        @test TS._state_scores(
-            TS.GreedyScore(; bound = IntervalMDP.Lower),
-            probs,
-            supp,
-            vf,
-        ) ≈ [0.6 * 0.2, 0.4 * 0.1]
-    end
-
-    @testset "ExplorationScore adds beta * p * (U - L)" begin
-        # [0.6*(1.0 + 1*0.8), 0.4*(0.5 + 1*0.4)] = [1.08, 0.36]
-        @test TS._state_scores(TS.ExplorationScore(1.0), probs, supp, vf) ≈ [1.08, 0.36]
-        # beta = 0 reduces exactly to GreedyScore.
-        @test TS._state_scores(TS.ExplorationScore(0.0), probs, supp, vf) ≈
-              TS._state_scores(TS.GreedyScore(), probs, supp, vf)
-        @test_throws ArgumentError TS.ExplorationScore(-1.0)
-    end
-
-    @testset "GapWeightedExplorationScore discounts by G(f_gap)" begin
-        # greedy = [0.6, 0.2], best = 0.6, so delta = [0.0, 0.4].
-        exp_expected = [
-            0.6 + 1.0 * 0.6 * 0.8 * exp(-0.0 / 1.0),
-            0.2 + 1.0 * 0.4 * 0.4 * exp(-0.4 / 1.0),
-        ]
-        @test TS._state_scores(
-            TS.GapWeightedExplorationScore(1.0, TS.ExponentialGap(1.0)),
-            probs,
-            supp,
-            vf,
-        ) ≈ exp_expected
-
-        poly_expected = [0.6 + 1.0 * 0.6 * 0.8 * 1.0^2, 0.2 + 1.0 * 0.4 * 0.4 * (1 - 0.4)^2]
-        @test TS._state_scores(
-            TS.GapWeightedExplorationScore(1.0, TS.PolynomialGap(2.0)),
-            probs,
-            supp,
-            vf,
-        ) ≈ poly_expected
-    end
-
-    @testset "delta is non-negative and zero at the best successor" begin
-        # delta = max_x p(x)V(x) - p(s')V(s'), both terms weighted, so the
-        # best successor scores delta = 0 and every other one delta > 0.
-        for pr in ([0.6, 0.4], [0.1, 0.9], [0.5, 0.5])
-            greedy = [pr[i] * vf.upper.current[i] for i in supp]
-            deltas = maximum(greedy) .- greedy
-            @test all(>=(0.0), deltas)
-            @test minimum(deltas) == 0.0
-        end
-    end
-
-    @testset "gap functions" begin
-        @test TS._gap_weight(TS.ExponentialGap(2.0), 0.0) == 1.0
-        @test TS._gap_weight(TS.ExponentialGap(2.0), 1.0) ≈ exp(-0.5)
-        @test TS._gap_weight(TS.PolynomialGap(3.0), 0.0) == 1.0
-        @test TS._gap_weight(TS.PolynomialGap(3.0), 0.25) ≈ 0.75^3
-        # delta > 1 would make (1-delta) negative; clamped so a fractional tau
-        # cannot produce a complex result.
-        @test TS._gap_weight(TS.PolynomialGap(0.5), 2.0) == 0.0
-        @test_throws ArgumentError TS.ExponentialGap(0.0)
-        @test_throws ArgumentError TS.PolynomialGap(-1.0)
-    end
-end
-
 @testitem "TrajectorySampling: exploration terms f_explore" tags =
     [:base, :trajectory_sampling, :trajectory_explore_terms] begin
     using IntervalMDP
@@ -299,43 +222,21 @@ end
 
     probs = [0.6, 0.4]
     supp = [1, 2]
+    # `_state_scores` without the step context, for terms that read only `vf`.
+    scores(score, probs, supp, vf) =
+        TS._state_scores(score, probs, supp, vf, nothing, nothing, nothing, nothing, nothing)
     # Fresh vectors per call: the Bellman-error tests mutate them.
     fixture() = (upper = (current = [1.0, 0.5],), lower = (current = [0.2, 0.1],))
     vf = fixture()
 
     @testset "GapExplore is the default" begin
-        @test TS.ExplorationScore(1.0).explore isa TS.GapExplore
-        @test TS.GapWeightedExplorationScore(1.0, TS.ExponentialGap(1.0)).explore isa
-              TS.GapExplore
+        @test TS.MixtureStateScore().explore isa TS.GapExplore
         @test TS._explore_values(TS.GapExplore(), supp, vf, nothing, nothing) ≈ [0.8, 0.4]
-        @test TS._state_scores(
-            TS.ExplorationScore(1.0; explore = TS.GapExplore()),
-            probs,
-            supp,
-            vf,
-        ) ≈ [1.08, 0.36]
     end
 
-    @testset "UpperBoundExplore adds beta * p * U" begin
+    @testset "UpperBoundExplore reads U" begin
         @test TS._explore_values(TS.UpperBoundExplore(), supp, vf, nothing, nothing) ≈
               [1.0, 0.5]
-        @test TS._state_scores(
-            TS.ExplorationScore(1.0; explore = TS.UpperBoundExplore()),
-            probs,
-            supp,
-            vf,
-        ) ≈ [0.6 * (1.0 + 1.0), 0.4 * (0.5 + 0.5)]
-        # greedy = [0.6, 0.2], delta = [0, 0.4]
-        @test TS._state_scores(
-            TS.GapWeightedExplorationScore(
-                1.0,
-                TS.ExponentialGap(1.0);
-                explore = TS.UpperBoundExplore(),
-            ),
-            probs,
-            supp,
-            vf,
-        ) ≈ [0.6 + 0.6 * 1.0, 0.2 + 0.4 * 0.5 * exp(-0.4)]
     end
 
     @testset "Bellman-error terms track the last backup" begin
@@ -380,20 +281,19 @@ end
     @testset "hooks are forwarded through the successor scores" begin
         vf = fixture()
         term = TS.BellmanErrorExplore()
-        score = TS.LogStateScore(TS.ExplorationScore(1.0; explore = term))
+        score = TS.LogStateScore(TS.MixtureStateScore(; explore = term, alpha_explore = 1.0))
         TS._after_sample!(score, [CartesianIndex(2)], vf)
         vf.upper.current[2] = 0.3
         TS._before_sample!(score, vf)
-        # dU = [NaN -> gap 0.8, 0.2]
-        @test TS._state_scores(score, probs, supp, vf) ≈
-              log.([0.6 * (1.0 + 0.8), 0.4 * (0.3 + 0.2)])
+        # dU = [NaN -> gap 0.8, 0.2], so p·f_explore = [0.48, 0.08].
+        @test scores(score, probs, supp, vf) ≈ log.([0.48, 0.08] ./ 0.56)
         TS._reset_score!(score)
         @test all(isnan, term.tracker.dU[]) || isempty(term.tracker.dU[])
 
-        # Scores without a term accept the hooks and do nothing.
-        @test TS._before_sample!(TS.GreedyScore(), vf) === nothing
-        @test TS._after_sample!(TS.VPIScore(), [CartesianIndex(1)], vf) === nothing
-        @test TS._reset_score!(TS.LogStateScore(TS.GreedyScore())) === nothing
+        # A term without a tracker accepts the hooks and does nothing.
+        @test TS._before_sample!(TS.MixtureStateScore(), vf) === nothing
+        @test TS._after_sample!(TS.MixtureStateScore(), [CartesianIndex(1)], vf) === nothing
+        @test TS._reset_score!(TS.LogStateScore(TS.MixtureStateScore())) === nothing
     end
 
     @testset "ActionUncertaintyExplore" begin
@@ -422,8 +322,9 @@ end
         ]
 
         tr = TS.ConcreteTransition()
-        score = TS.ExplorationScore(1.0; explore = term)
+        score = TS.MixtureStateScore(; explore = term)
         p1 = [0.0, 0.5, 0.5]
+        # p·U = [0.4, 0.3] and p·f_explore = [0.25, 0.25], each normalized.
         @test TS._state_scores(
             score,
             p1,
@@ -434,10 +335,10 @@ end
             mdp,
             nothing,
             tr,
-        ) ≈ [0.5 * (0.8 + 0.5), 0.5 * (0.6 + 0.5)]
+        ) ≈ 0.5 .* [4 / 7, 3 / 7] .+ 0.5 .* [0.5, 0.5]
 
         # Without the model there is nothing to compute it from.
-        @test_throws ArgumentError TS._state_scores(score, p1, [2, 3], vf)
+        @test_throws ArgumentError scores(score, p1, [2, 3], vf)
     end
 
     @testset "_uniform_excess is E[max(0, q - c)] for uniform q" begin
@@ -511,8 +412,8 @@ end
         )
         @test TS._explore_values(term, [1, 2, 3], vf, single, nothing) == [0.0, 0.0, 0.0]
 
-        score = TS.ExplorationScore(1.0; explore = term)
-        @test_throws ArgumentError TS._state_scores(score, [0.0, 0.5, 0.5], [2, 3], vf)
+        score = TS.MixtureStateScore(; explore = term)
+        @test_throws ArgumentError scores(score, [0.0, 0.5, 0.5], [2, 3], vf)
     end
 end
 
@@ -523,7 +424,7 @@ end
 
     # This pins the one place the implementation is deliberately NOT orthogonal,
     # following the writeup: SampleState's epsilon-greedy branch scores by
-    # `p(x) * f_greedy(x)` alone, whatever `state_score` says, while Boltzmann
+    # `p(x) * f_exploit(x)` alone, whatever `state_score` says, while Boltzmann
     # scores by the full f_S. The two therefore disagree whenever the
     # exploration term changes the ranking.
     amb = IntervalAmbiguitySets(;
@@ -533,18 +434,18 @@ end
     mdp = IntervalMarkovDecisionProcess([amb, amb], [1])
 
     probs = [0.5, 0.5]
-    # p*f_greedy = [0.25, 0.225]              -> argmax is state 1
-    # f_S (beta = 10) = [0.5, 2.475]          -> argmax is state 2
+    # p*f_exploit = [0.25, 0.225]             -> argmax is state 1
+    # f_S (explore only) = [0.1, 0.9]         -> argmax is state 2
     vf = (upper = (current = [0.5, 0.45],), lower = (current = [0.45, 0.0],))
-    score = TS.ExplorationScore(10.0)
+    score = TS.MixtureStateScore(; alpha_explore = 1.0)
     s, a = CartesianIndex(1), CartesianIndex(1)
 
-    greedy_scores = [probs[i] * vf.upper.current[i] for i in 1:2]
-    full_scores = TS._state_scores(score, probs, [1, 2], vf)
-    @test argmax(greedy_scores) == 1
+    exploit_scores = [probs[i] * vf.upper.current[i] for i in 1:2]
+    full_scores = TS._state_scores(score, probs, [1, 2], vf, nothing, nothing, nothing, nothing, nothing)
+    @test argmax(exploit_scores) == 1
     @test argmax(full_scores) == 2   # the two really do disagree
 
-    @testset "EpsilonGreedy exploits on p * f_greedy" begin
+    @testset "EpsilonGreedy exploits on p * f_exploit" begin
         ss = TS.TrajectorySampling(;
             state_policy = TS.EpsilonGreedy(0.0),
             state_score = score,
@@ -582,6 +483,8 @@ end
     exploit = [2 / 3, 1 / 3]
     explore = [1 / 6, 5 / 6]
     mix(ae, ap = 0.0) = TS.MixtureStateScore(; alpha_explore = ae, alpha_prob = ap)
+    scores(score, probs, supp, vf) =
+        TS._state_scores(score, probs, supp, vf, nothing, nothing, nothing, nothing, nothing)
 
     @testset "alpha schedules" begin
         @test_throws ArgumentError TS.FixedAlpha(-0.1)
@@ -606,36 +509,36 @@ end
         @test score.explore isa TS.GapExplore
         @test score.alpha_explore == TS.FixedAlpha(0.5)
         @test score.alpha_prob == TS.FixedAlpha(0.0)
-        @test TS._greedy_bound(score) === IntervalMDP.Upper
-        @test TS._greedy_bound(TS.MixtureStateScore(; exploit = IntervalMDP.Lower)) ===
+        @test TS._exploit_bound(score) === IntervalMDP.Upper
+        @test TS._exploit_bound(TS.MixtureStateScore(; exploit = IntervalMDP.Lower)) ===
               IntervalMDP.Lower
     end
 
     @testset "alpha_e mixes the two normalized terms" begin
-        @test TS._state_scores(mix(0.0), probs, supp, vf) ≈ exploit
-        @test TS._state_scores(mix(1.0), probs, supp, vf) ≈ explore
-        @test TS._state_scores(mix(0.5), probs, supp, vf) ≈ (exploit .+ explore) ./ 2
-        @test sum(TS._state_scores(mix(0.3), probs, supp, vf)) ≈ 1
+        @test scores(mix(0.0), probs, supp, vf) ≈ exploit
+        @test scores(mix(1.0), probs, supp, vf) ≈ explore
+        @test scores(mix(0.5), probs, supp, vf) ≈ (exploit .+ explore) ./ 2
+        @test sum(scores(mix(0.3), probs, supp, vf)) ≈ 1
     end
 
     @testset "alpha_p flattens p towards uniform" begin
         skewed = [0.8, 0.2]
         # alpha_p = 1 -> p' uniform, so the skew is gone.
-        @test TS._state_scores(mix(0.0, 1.0), skewed, supp, vf) ≈ exploit
+        @test scores(mix(0.0, 1.0), skewed, supp, vf) ≈ exploit
         pp = 0.5 .* skewed .+ 0.25
         w = pp .* vf.upper.current
-        @test TS._state_scores(mix(0.0, 0.5), skewed, supp, vf) ≈ w ./ sum(w)
+        @test scores(mix(0.0, 0.5), skewed, supp, vf) ≈ w ./ sum(w)
     end
 
     @testset "exploit reads the chosen bound" begin
         score = TS.MixtureStateScore(; exploit = IntervalMDP.Lower, alpha_explore = 0.0)
-        @test TS._state_scores(score, probs, supp, vf) ≈ [1.0, 0.0]
+        @test scores(score, probs, supp, vf) ≈ [1.0, 0.0]
     end
 
     @testset "a term that vanishes is uniform; negatives are clamped" begin
         zero_vf = (upper = (current = [0.0, -0.5],), lower = (current = [0.0, -0.5],))
-        @test TS._state_scores(mix(0.0), probs, supp, zero_vf) ≈ [0.5, 0.5]
-        @test TS._state_scores(mix(1.0), probs, supp, zero_vf) ≈ [0.5, 0.5]
+        @test scores(mix(0.0), probs, supp, zero_vf) ≈ [0.5, 0.5]
+        @test scores(mix(1.0), probs, supp, zero_vf) ≈ [0.5, 0.5]
     end
 
     @testset "explore term is pluggable" begin
@@ -643,17 +546,22 @@ end
             explore = TS.UpperBoundExplore(),
             alpha_explore = 1.0,
         )
-        @test TS._state_scores(score, probs, supp, vf) ≈ exploit
+        @test scores(score, probs, supp, vf) ≈ exploit
     end
 
     @testset "LogStateScore wraps the mixture" begin
-        @test TS._state_scores(TS.LogStateScore(mix(0.5)), probs, supp, vf) ≈
+        @test scores(TS.LogStateScore(mix(0.5)), probs, supp, vf) ≈
               log.((exploit .+ explore) ./ 2)
+        # A successor the mixture gives no weight maps to -Inf, never NaN.
+        lopsided = (upper = (current = [1.0, 0.0],), lower = (current = [0.0, 0.0],))
+        @test scores(TS.LogStateScore(mix(0.0)), probs, supp, lopsided) == [0.0, -Inf]
+        @test TS._exploit_bound(TS.LogStateScore(TS.MixtureStateScore(; exploit = IntervalMDP.Lower))) ===
+              IntervalMDP.Lower
     end
 
     @testset "a non-fixed schedule must be resolved first" begin
         score = TS.MixtureStateScore(; alpha_explore = TS.PowerAlpha(1.0))
-        @test_throws ArgumentError TS._state_scores(score, probs, supp, vf)
+        @test_throws ArgumentError scores(score, probs, supp, vf)
     end
 
     amb = IntervalAmbiguitySets(;
@@ -679,7 +587,6 @@ end
         ss = TS.TrajectorySampling()
         mdp = IntervalMarkovDecisionProcess([amb, amb, amb], [1, 2])
         @test TS._rollout_context(ss, mdp, gap_vf).diff ≈ 0.7
-        @test TS._rollout_context(ss, mdp, gap_vf).n == 0
         sched = TS.GapBasedTemperature(1.0, 0.0)
         @test TS._temperature(sched, TS._rollout_context(ss, mdp, gap_vf)) ≈ 0.7 / 0.3
     end
@@ -687,7 +594,7 @@ end
     @testset "_resolve_score evaluates the schedules at the initial gap" begin
         fixed = TS.MixtureStateScore()
         @test TS._resolve_score(fixed, 0.5) === fixed
-        @test TS._resolve_score(TS.GreedyScore(), 0.5) isa TS.GreedyScore
+        @test TS._resolve_score(TS.LogStateScore(fixed), 0.5).inner === fixed
 
         term = TS.BellmanErrorExplore()
         score = TS.MixtureStateScore(;
@@ -787,8 +694,8 @@ end
     @testset "_sample_state honours the filters under every policy" begin
         probs = [0.4, 0.4, 0.2]
         for (policy, score) in (
-            (TS.EpsilonGreedy(1.0), TS.GreedyScore()),       # always the uniform branch
-            (TS.EpsilonGreedy(0.0), TS.GreedyScore()),       # always the argmax (state 1)
+            (TS.EpsilonGreedy(1.0), TS.MixtureStateScore()), # always the uniform branch
+            (TS.EpsilonGreedy(0.0), TS.MixtureStateScore()), # always the argmax (state 1)
             (TS.Boltzmann(1.0), TS.MixtureStateScore()),
             (TS.Boltzmann(1.0), TS.LogStateScore(TS.MixtureStateScore())),
         )
@@ -853,178 +760,15 @@ end
     end
 end
 
-@testitem "TrajectorySampling: VPI successor score" tags =
-    [:base, :trajectory_sampling, :trajectory_vpi] begin
-    using IntervalMDP
-    const TS = IntervalMDP.TrajectorySampling
-
-    @testset "phi: the three branches" begin
-        @test TS._vpi_gain(-1.0, 0.5) == 0.0      # Δ ≤ -k: never overtakes
-        @test TS._vpi_gain(1.0, 0.5) == 1.0       # Δ ≥ k: always wins
-        @test TS._vpi_gain(0.0, 0.5) ≈ 0.125      # (0 + 0.5)² / 2
-        # Continuous at both kinks.
-        @test TS._vpi_gain(-0.5, 0.5) == 0.0
-        @test TS._vpi_gain(0.5 - 1e-12, 0.5) ≈ 0.5
-        # k = 0 (converged t, or no difference in p) reduces to max(0, Δ).
-        @test TS._vpi_gain(0.3, 0.0) == 0.3
-        @test TS._vpi_gain(-0.3, 0.0) == 0.0
-        @test TS._vpi_gain(0.0, 0.0) == 0.0
-        @test !isnan(TS._vpi_gain(0.0, 0.0))
-    end
-
-    @testset "phi matches the averaged integral" begin
-        # φ(Δ, |δ|h) is the mean of max(0, Δ + δx) over x ∈ [-h, h].
-        n = 200_000
-        for (Δ, δ, h) in (
-            (0.1, 0.4, 0.5),
-            (-0.1, -0.4, 0.5),
-            (0.05, 0.1, 0.2),
-            (-0.3, 0.9, 0.6),
-            (0.2, 0.1, 0.5),
-            (-0.2, 0.1, 0.5),
-        )
-            xs = range(-h, h; length = n)
-            riemann = sum(x -> max(0.0, Δ + δ * x), xs) / n
-            @test TS._vpi_gain(Δ, abs(δ) * h) ≈ riemann atol = 1e-5
-        end
-    end
-
-    # Source state 1 has two precise actions over targets {1, 2, 3}:
-    #   a1: p = [0, 0.5, 0.5],  a2: p = [0, 0.8, 0.2]
-    # States 2 and 3 are absorbing. Precise transitions make the U- and
-    # L-realized distributions coincide, so m_a is exact.
-    precise(p) = IntervalAmbiguitySets(; lower = p, upper = p)
-    mdp = IntervalMarkovDecisionProcess(
-        [
-            precise([0.0 0.0; 0.5 0.8; 0.5 0.2]),
-            precise([0.0 0.0; 1.0 1.0; 0.0 0.0]),
-            precise([0.0 0.0; 0.0 0.0; 1.0 1.0]),
-        ],
-        [1],
-    )
-    s, a1, a2 = CartesianIndex(1), CartesianIndex(1), CartesianIndex(2)
-    p1, p2 = [0.0, 0.5, 0.5], [0.0, 0.8, 0.2]
-    supp = [2, 3]
-    tr = TS.ConcreteTransition()
-
-    # U = [1, 0.8, 0.6], L = [0, 0.2, 0.2]:
-    #   m_a1 = (0.5·0.8 + 0.5·0.6 + 0.5·0.2 + 0.5·0.2)/2 = 0.45
-    #   m_a2 = (0.8·0.8 + 0.2·0.6 + 0.8·0.2 + 0.2·0.2)/2 = 0.48
-    #   |p_a1 − p_a2| = 0.3 on both successors; h = [0.3, 0.2] -> k = [0.09, 0.06]
-    vf = (upper = (current = [1.0, 0.8, 0.6],), lower = (current = [0.0, 0.2, 0.2],))
-
-    @testset "hand-computed VPI" begin
-        # a* = a1, Δ = +0.03: (0.03 + k)² / 4k
-        @test TS._vpi(s, a1, p1, supp, vf, mdp, nothing, tr) ≈
-              [0.12^2 / 0.36, 0.09^2 / 0.24]
-        # a* = a2, Δ = -0.03: (-0.03 + k)² / 4k
-        @test TS._vpi(s, a2, p2, supp, vf, mdp, nothing, tr) ≈
-              [0.06^2 / 0.36, 0.03^2 / 0.24]
-    end
-
-    @testset "Minimize flips which action gains" begin
-        spec_min = Specification(InfiniteTimeReachability([3], 1e-6), Pessimistic, Minimize)
-        # Under Minimize a1 is the better midpoint, so a* = a1 now sees Δ = -0.03.
-        @test TS._vpi(s, a1, p1, supp, vf, mdp, spec_min, tr) ≈
-              TS._vpi(s, a2, p2, supp, vf, mdp, nothing, tr)
-    end
-
-    @testset "a converged successor carries no VPI when a* is midpoint-best" begin
-        # t = 3 converged at 0.4 (h = 0) -> k = 0 -> φ = max(0, Δ) = 0 for Δ < 0.
-        # Here m_a1 = 0.45, m_a2 = 0.48, so a* = a2 sees Δ = -0.03, while t = 2
-        # still has k = 0.3·0.3 = 0.09 > 0.03.
-        vf_conv =
-            (upper = (current = [1.0, 0.8, 0.4],), lower = (current = [0.0, 0.2, 0.4],))
-        vpi = TS._vpi(s, a2, p2, supp, vf_conv, mdp, nothing, tr)
-        @test vpi[2] == 0.0
-        @test vpi[1] > 0.0
-    end
-
-    @testset "a single-action state has zero VPI" begin
-        single = IntervalMarkovDecisionProcess(
-            [
-                precise(reshape([0.0, 0.5, 0.5], 3, 1)),
-                precise(reshape([0.0, 1.0, 0.0], 3, 1)),
-                precise(reshape([0.0, 0.0, 1.0], 3, 1)),
-            ],
-            [1],
-        )
-        @test TS._vpi(s, a1, p1, supp, vf, single, nothing, tr) == [0.0, 0.0]
-    end
-
-    ctx = (s, a1, mdp, nothing, tr)
-    vpi_a1 = TS._vpi(s, a1, p1, supp, vf, mdp, nothing, tr)
-    b_a1 = [0.5 * 0.6, 0.5 * 0.4]   # p·(U − L)
-
-    @testset "VPIScore follows Algorithm 3's branches" begin
-        @test_throws ArgumentError TS.VPIScore(; beta = -0.1)
-        @test TS.VPIScore().beta == 0.95
-        @test TS.VPIScore().bound === IntervalMDP.Upper
-
-        # max b = 0.3 ≤ 0.95 and VPI > 0: score by VPI.
-        @test TS._state_scores(TS.VPIScore(), p1, supp, vf, ctx...) ≈ vpi_a1
-        # max b = 0.3 > beta: the BRTDP fallback.
-        @test TS._state_scores(TS.VPIScore(; beta = 0.1), p1, supp, vf, ctx...) ≈ b_a1
-
-        # Equal midpoints and equal distributions: no VPI anywhere, so b again.
-        same = IntervalMarkovDecisionProcess(
-            [
-                precise([0.0 0.0; 0.5 0.5; 0.5 0.5]),
-                precise([0.0 0.0; 1.0 1.0; 0.0 0.0]),
-                precise([0.0 0.0; 0.0 0.0; 1.0 1.0]),
-            ],
-            [1],
-        )
-        @test TS._state_scores(TS.VPIScore(), p1, supp, vf, s, a1, same, nothing, tr) ≈ b_a1
-
-        # Without the step context there is nothing to compute VPI from.
-        @test_throws ArgumentError TS._state_scores(TS.VPIScore(), p1, supp, vf)
-    end
-
-    @testset "LogStateScore takes the log of any inner score" begin
-        @test TS._state_scores(TS.LogStateScore(TS.VPIScore()), p1, supp, vf, ctx...) ≈
-              log.(vpi_a1)
-        @test TS._state_scores(TS.LogStateScore(TS.GreedyScore()), p1, supp, vf) ≈
-              log.([0.5 * 0.8, 0.5 * 0.6])
-        # Zero inner score -> -Inf, never NaN.
-        vf_zero =
-            (upper = (current = [0.0, 0.0, 0.0],), lower = (current = [0.0, 0.0, 0.0],))
-        @test all(
-            ==(-Inf),
-            TS._state_scores(TS.LogStateScore(TS.GreedyScore()), p1, supp, vf_zero),
-        )
-        @test TS._greedy_bound(
-            TS.LogStateScore(TS.VPIScore(; bound = IntervalMDP.Lower)),
-        ) === IntervalMDP.Lower
-    end
-
-    @testset "_sample_state draws in proportion to VPI" begin
-        ss = TS.TrajectorySampling(;
-            state_policy = TS.Boltzmann(1.0),
-            state_score = TS.LogStateScore(TS.VPIScore()),
-        )
-        n = 20_000
-        hits = count(1:n) do _
-            TS._sample_state(ss, s, a1, p1, vf, mdp, nothing) == CartesianIndex(2)
-        end
-        @test hits / n ≈ vpi_a1[1] / sum(vpi_a1) atol = 0.02
-    end
-end
-
 @testitem "TrajectorySampling: temperature schedules" tags =
     [:base, :trajectory_sampling, :trajectory_temperature] begin
     using IntervalMDP
     const TS = IntervalMDP.TrajectorySampling
 
+    struct OtherSchedule <: TS.TemperatureSchedule end
+
     @testset "constructor validation" begin
         @test_throws ArgumentError TS.FixedTemperature(0.0)
-        @test_throws ArgumentError TS.GapDecayTemperature(0.0, 1.0, 1.0)
-        @test_throws ArgumentError TS.GapDecayTemperature(1.0, 0.5, 1.0)   # t_max < t_min
-        @test_throws ArgumentError TS.GapDecayTemperature(0.1, 1.0, 0.0)
-        @test_throws ArgumentError TS.UpdateDecayTemperature(0.1, 1.0, 0.0)
-        # tau > 1 grows `t_max * tau^n` without bound — an anneal run backwards.
-        @test_throws ArgumentError TS.UpdateDecayTemperature(0.1, 1.0, 2.0)
-        @test TS.UpdateDecayTemperature(0.1, 1.0, 1.0).tau == 1.0
     end
 
     @testset "a bare number means a fixed temperature" begin
@@ -1033,53 +777,49 @@ end
         @test_throws ArgumentError TS.Boltzmann(-1.0)
     end
 
+    @testset "each policy keyword takes only its own schedules" begin
+        gap = TS.Boltzmann(TS.GapBasedTemperature(1.0))
+        @test TS.TrajectorySampling(; action_policy = gap).action_policy === gap
+        @test TS.TrajectorySampling(; action_policy = TS.Boltzmann(0.5)) isa TS.TrajectorySampling
+        @test_throws ArgumentError TS.TrajectorySampling(;
+            action_policy = TS.Boltzmann(OtherSchedule()),
+        )
+        @test TS.TrajectorySampling(; state_policy = TS.Boltzmann(0.5)) isa TS.TrajectorySampling
+        @test_throws ArgumentError TS.TrajectorySampling(; state_policy = gap)
+        # Only a Boltzmann policy carries a schedule.
+        @test TS.TrajectorySampling(; state_policy = TS.EpsilonGreedy(0.2)) isa
+              TS.TrajectorySampling
+    end
+
     @testset "TemperatureContext clamps the gap to [0, 1]" begin
-        # A reach-avoid value function carries negative values on avoid states
-        # until the postprocess runs, and a fractional tau on a negative base
-        # would go complex.
-        @test TS.TemperatureContext(-0.5, 0).diff == 0.0
-        @test TS.TemperatureContext(1.5, 0).diff == 1.0
+        # Round-off can push U − L below zero, and a caller-supplied value
+        # function can carry a gap above one; either would put the odds
+        # δ / (1 − δ) outside [0, ∞].
+        @test TS.TemperatureContext(-0.5).diff == 0.0
+        @test TS.TemperatureContext(1.5).diff == 1.0
     end
 
-    @testset "gap decay spans [t_min, t_max] in Diff(s0)" begin
-        sched = TS.GapDecayTemperature(0.01, 2.0, 1.0)
-        @test TS._temperature(sched, TS.TemperatureContext(0.0, 0)) == 0.01
-        @test TS._temperature(sched, TS.TemperatureContext(1.0, 0)) == 2.0
-
-        mid = TS._temperature(sched, TS.TemperatureContext(0.5, 0))
-        @test 0.01 < mid < 2.0
-        # Larger tau holds the temperature down until the gap is nearly closed.
-        @test TS._temperature(
-            TS.GapDecayTemperature(0.01, 2.0, 4.0),
-            TS.TemperatureContext(0.5, 0),
-        ) < mid
-        # The backup count is irrelevant to this schedule.
-        @test TS._temperature(sched, TS.TemperatureContext(0.5, 10^6)) == mid
-    end
-
-    @testset "gap based is k times the odds of Diff(s0), floored at t_min" begin
+    @testset "gap based is k times the odds of the initial gap, floored at t_min" begin
         @test_throws ArgumentError TS.GapBasedTemperature(0.0)
         @test_throws ArgumentError TS.GapBasedTemperature(-1.0)
         @test_throws ArgumentError TS.GapBasedTemperature(1.0, -0.1)
         @test TS.GapBasedTemperature(1.0).t_min == 0.1
 
         sched = TS.GapBasedTemperature(2.0, 0.0)
-        @test TS._temperature(sched, TS.TemperatureContext(0.5, 0)) == 2.0
-        @test TS._temperature(sched, TS.TemperatureContext(0.2, 0)) ≈ 2.0 * 0.2 / 0.8
-        @test TS._temperature(sched, TS.TemperatureContext(0.9, 0)) ≈ 2.0 * 0.9 / 0.1
-        # The backup count is irrelevant to this schedule.
-        @test TS._temperature(sched, TS.TemperatureContext(0.2, 10^6)) ≈ 2.0 * 0.2 / 0.8
+        @test TS._temperature(sched, TS.TemperatureContext(0.5)) == 2.0
+        @test TS._temperature(sched, TS.TemperatureContext(0.2)) ≈ 2.0 * 0.2 / 0.8
+        @test TS._temperature(sched, TS.TemperatureContext(0.9)) ≈ 2.0 * 0.9 / 0.1
 
         # The floor holds the temperature up once the odds drop below it.
         floored = TS.GapBasedTemperature(2.0, 0.25)
-        @test TS._temperature(floored, TS.TemperatureContext(0.5, 0)) == 2.0
-        @test TS._temperature(floored, TS.TemperatureContext(0.01, 0)) == 0.25
-        @test TS._temperature(floored, TS.TemperatureContext(0.0, 0)) == 0.25
+        @test TS._temperature(floored, TS.TemperatureContext(0.5)) == 2.0
+        @test TS._temperature(floored, TS.TemperatureContext(0.01)) == 0.25
+        @test TS._temperature(floored, TS.TemperatureContext(0.0)) == 0.25
 
         # Without a floor the endpoints (T = 0, T = ∞) are clamped to a valid
         # temperature, and resolve to argmax and uniform respectively.
-        cold = TS._resolve_policy(TS.Boltzmann(sched), TS.TemperatureContext(0.0, 0))
-        hot = TS._resolve_policy(TS.Boltzmann(sched), TS.TemperatureContext(1.0, 0))
+        cold = TS._resolve_policy(TS.Boltzmann(sched), TS.TemperatureContext(0.0))
+        hot = TS._resolve_policy(TS.Boltzmann(sched), TS.TemperatureContext(1.0))
         @test cold.T.t == floatmin(Float64)
         @test hot.T.t == floatmax(Float64)
 
@@ -1090,53 +830,39 @@ end
         @test count(==(:a), draws) / 2000 ≈ 0.5 atol = 0.05
     end
 
-    @testset "update decay falls geometrically and floors at t_min" begin
-        sched = TS.UpdateDecayTemperature(0.05, 1.0, 0.99)
-        @test TS._temperature(sched, TS.TemperatureContext(1.0, 0)) == 1.0
-        @test TS._temperature(sched, TS.TemperatureContext(1.0, 100)) ≈ 0.99^100
-        @test TS._temperature(sched, TS.TemperatureContext(1.0, 10^6)) == 0.05
-
-        # Monotone in n, and independent of the gap.
-        temps = [TS._temperature(sched, TS.TemperatureContext(0.3, n)) for n in 0:50]
-        @test issorted(temps; rev = true)
-        @test TS._temperature(sched, TS.TemperatureContext(0.3, 7)) ==
-              TS._temperature(sched, TS.TemperatureContext(0.9, 7))
-    end
-
     @testset "resolution against a rollout context" begin
-        ctx = TS.TemperatureContext(1.0, 0)
+        ctx = TS.TemperatureContext(0.5)
 
         eg = TS.EpsilonGreedy(0.3)
         @test TS._resolve_policy(eg, ctx) === eg
 
-        decaying = TS.Boltzmann(TS.GapDecayTemperature(0.01, 2.0, 1.0))
-        @test TS._resolve_policy(decaying, ctx) == TS.Boltzmann(2.0)
+        varying = TS.Boltzmann(TS.GapBasedTemperature(2.0, 0.01))
+        @test TS._resolve_policy(varying, ctx) == TS.Boltzmann(2.0)
 
         # An unresolved schedule has no temperature to draw with; that is an
         # error rather than a silent default.
-        @test_throws ArgumentError TS._select(decaying, [:a, :b], [1.0, 2.0])
+        @test_throws ArgumentError TS._select(varying, [:a, :b], [1.0, 2.0])
     end
 end
 
-@testitem "TrajectorySampling: temperature decay in the rollout" tags =
+@testitem "TrajectorySampling: temperature follows the initial gap in the rollout" tags =
     [:base, :trajectory_sampling, :trajectory_temperature_rollout] begin
     using IntervalMDP
     const TS = IntervalMDP.TrajectorySampling
 
-    # Two states, one action, every transition an even coin flip between them.
-    # State 2 is the goal, so a rollout from state 1 ends as soon as the coin
-    # flip is drawn towards it.
-    amb = IntervalAmbiguitySets(;
-        lower = reshape([0.5, 0.5], 2, 1),
-        upper = reshape([0.5, 0.5], 2, 1),
-    )
-    mdp = IntervalMarkovDecisionProcess([amb, amb], [1])
+    # State 1 has two deterministic actions: a1 steps onto the goal (state 2),
+    # a2 loops back to state 1. Under UpperBoundScore the two score U(2) = 1.0
+    # and U(1) = 0.9, so a cold action policy always takes a1 and ends the
+    # rollout at once, while a hot one also takes a2 and wanders.
+    det(t) = Float64.(1:2 .== t)
+    s1 = IntervalAmbiguitySets(; lower = hcat(det(2), det(1)), upper = hcat(det(2), det(1)))
+    goal = IntervalAmbiguitySets(; lower = hcat(det(2), det(2)), upper = hcat(det(2), det(2)))
+    mdp = IntervalMarkovDecisionProcess([s1, goal], [1])
     prop = InfiniteTimeReachability([2], 1 // 1000)
     spec = Specification(prop, Pessimistic, Maximize)
 
-    # Successor scores are `p * U`, so holding U fixed and moving only L varies
-    # Diff(s0) — and therefore the temperature — while leaving what the policy
-    # is choosing between untouched: [0.5*0.9, 0.5*1.0] = [0.45, 0.5].
+    # Holding U fixed and moving only L varies the initial gap — and therefore
+    # the temperature — while leaving the action scores untouched.
     function value_function(lower)
         alg =
             GeneralizedSamplingbasedRobustDynamicProgramming(default_bellman_algorithm(mdp))
@@ -1147,46 +873,25 @@ end
         return V
     end
 
-    # t_max = 100, so Diff(s0) = 0.9 resolves to T = 90: exp(0.05/90) ≈ 1, i.e.
-    # an even draw. Diff(s0) = 0 resolves to T = 0.001: exp(0.05/0.001) = e^50,
-    # i.e. the argmax every time.
-    sched = TS.GapDecayTemperature(0.001, 100.0, 1.0)
-    ss = TS.TrajectorySampling(; state_policy = TS.Boltzmann(sched))
+    # δ = 0.9 resolves to T = 100·0.9/0.1 = 900: exp(0.1/900) ≈ 1, i.e. an even
+    # draw. δ = 0 resolves to the floor T = 0.001: exp(0.1/0.001) = e^100, i.e.
+    # the argmax every time.
+    sched = TS.GapBasedTemperature(100.0, 0.001)
+    ss = TS.TrajectorySampling(; action_policy = TS.Boltzmann(sched))
 
-    @testset "a converged s0 draws at t_min: straight to the goal" begin
-        V = value_function([0.9, 1.0])   # Diff(s0) = 0
+    @testset "a converged S0 draws at t_min: straight to the goal" begin
+        V = value_function([0.9, 1.0])   # δ = 0
         rhos = [TS._sample_trajectory(ss, mdp, V, spec) for _ in 1:200]
         @test all(rho -> rho == [CartesianIndex(1)], rhos)
     end
 
-    @testset "a wide-open s0 draws at t_max: it wanders" begin
-        V = value_function([0.0, 1.0])   # Diff(s0) = 0.9
+    @testset "a wide-open S0 draws hot: it wanders" begin
+        V = value_function([0.0, 1.0])   # δ = 0.9
         rhos = [TS._sample_trajectory(ss, mdp, V, spec) for _ in 1:200]
         # The default MaxSteps() cap is num_states(mdp) = 2 transitions, so a
         # rollout that does not step onto the goal immediately has length 2.
         @test any(rho -> length(rho) > 1, rhos)
         @test any(rho -> length(rho) == 1, rhos)
-    end
-
-    @testset "the backup counter feeds the update decay" begin
-        V = value_function([0.0, 1.0])
-        ss2 = TS.TrajectorySampling(;
-            state_policy = TS.Boltzmann(TS.UpdateDecayTemperature(0.05, 1.0, 0.99)),
-        )
-        @test ss2.updates[] == 0
-
-        expected = 0
-        for _ in 1:5
-            seq = IntervalMDP.sample(ss2, mdp, nothing, V, spec)
-            # One action, so each relaxed state costs `num_actions + 1` = 2
-            # backups — exactly what GSRDP's `_bellman_update_count` charges.
-            expected += length(seq) * (IntervalMDP.num_actions(mdp) + 1)
-            @test ss2.updates[] == expected
-        end
-        @test expected > 0
-
-        IntervalMDP.reset_sampling_strategy!(ss2)
-        @test ss2.updates[] == 0
     end
 end
 
@@ -1534,8 +1239,6 @@ end
         @test !TS.TrajectorySampling().dedup
         ss = TS.TrajectorySampling(; gauss_seidel = false, dedup = true)
         @test batch(ss) == [CartesianIndex(3), CartesianIndex(1)]
-        # Only the states left after dedup are charged as backups.
-        @test ss.updates[] == 2 * TS._backups_per_state(ss.bound_update[], mdp)
 
         # Per batch, not per trajectory: the repeat split across batches stays.
         ss = TS.TrajectorySampling(; gauss_seidel = true, k = 2, reverse = false, dedup = true)
@@ -1591,52 +1294,36 @@ end
 
         strategies = [
             "default" => TS.TrajectorySampling(),
-            "boltzmann + exploration" => TS.TrajectorySampling(;
+            "boltzmann actions + mixture" => TS.TrajectorySampling(;
                 action_policy = TS.Boltzmann(0.5),
                 state_policy = TS.Boltzmann(0.5),
-                state_score = TS.ExplorationScore(1.0),
+                state_score = TS.MixtureStateScore(),
             ),
-            "gap-weighted (exponential)" => TS.TrajectorySampling(;
+            "mixture: upper bound explore" => TS.TrajectorySampling(;
                 state_policy = TS.Boltzmann(0.5),
-                state_score = TS.GapWeightedExplorationScore(1.0, TS.ExponentialGap(1.0)),
+                state_score = TS.MixtureStateScore(; explore = TS.UpperBoundExplore()),
             ),
-            "gap-weighted (polynomial)" => TS.TrajectorySampling(;
+            "mixture: action uncertainty explore" => TS.TrajectorySampling(;
                 state_policy = TS.Boltzmann(0.5),
-                state_score = TS.GapWeightedExplorationScore(1.0, TS.PolynomialGap(2.0)),
+                state_score = TS.MixtureStateScore(; explore = TS.ActionUncertaintyExplore()),
             ),
-            "exploration: upper bound" => TS.TrajectorySampling(;
+            "mixture: state-level VPI explore" => TS.TrajectorySampling(;
                 state_policy = TS.Boltzmann(0.5),
-                state_score = TS.ExplorationScore(1.0; explore = TS.UpperBoundExplore()),
+                state_score = TS.MixtureStateScore(; explore = TS.VPIExplore()),
             ),
-            "exploration: action uncertainty" => TS.TrajectorySampling(;
+            "mixture: Bellman error (U) explore" => TS.TrajectorySampling(;
                 state_policy = TS.Boltzmann(0.5),
-                state_score = TS.ExplorationScore(
-                    1.0;
-                    explore = TS.ActionUncertaintyExplore(),
-                ),
+                state_score = TS.MixtureStateScore(; explore = TS.BellmanErrorExplore()),
             ),
-            "exploration: state-level VPI" => TS.TrajectorySampling(;
+            "mixture: Bellman error (L) explore" => TS.TrajectorySampling(;
                 state_policy = TS.Boltzmann(0.5),
-                state_score = TS.ExplorationScore(1.0; explore = TS.VPIExplore()),
-            ),
-            "exploration: Bellman error (U)" => TS.TrajectorySampling(;
-                state_policy = TS.Boltzmann(0.5),
-                state_score = TS.ExplorationScore(1.0; explore = TS.BellmanErrorExplore()),
-            ),
-            "exploration: Bellman error (L)" => TS.TrajectorySampling(;
-                state_policy = TS.Boltzmann(0.5),
-                state_score = TS.ExplorationScore(
-                    1.0;
+                state_score = TS.MixtureStateScore(;
                     explore = TS.BellmanErrorExplore(; bound = IntervalMDP.Lower),
                 ),
             ),
-            "exploration: max Bellman error, gauss-seidel" => TS.TrajectorySampling(;
+            "mixture: max Bellman error explore, gauss-seidel" => TS.TrajectorySampling(;
                 state_policy = TS.Boltzmann(0.5),
-                state_score = TS.GapWeightedExplorationScore(
-                    1.0,
-                    TS.ExponentialGap(1.0);
-                    explore = TS.MaxBellmanErrorExplore(),
-                ),
+                state_score = TS.MixtureStateScore(; explore = TS.MaxBellmanErrorExplore()),
                 gauss_seidel = true,
                 k = 2,
             ),
@@ -1666,30 +1353,20 @@ end
             "expected-gap stop" => TS.TrajectorySampling(;
                 terminate = [TS.MaxSteps(), TS.ExpectedGapStop(10.0)],
             ),
-            # `t_min` is 0.5, not something near zero: annealing all the way
-            # down is pure exploitation, which can lock the rollout onto one
-            # state and stall the gap criterion — the same hazard documented
-            # under "Why the default e is not zero".
-            "gap-decay temperature" => TS.TrajectorySampling(;
-                action_policy = TS.Boltzmann(TS.GapDecayTemperature(0.5, 1.0, 1.0)),
-                state_policy = TS.Boltzmann(TS.GapDecayTemperature(0.5, 1.0, 2.0)),
-            ),
-            "update-decay temperature" => TS.TrajectorySampling(;
-                action_policy = TS.Boltzmann(TS.UpdateDecayTemperature(0.5, 1.0, 0.999)),
-                state_policy = TS.Boltzmann(TS.UpdateDecayTemperature(0.5, 1.0, 0.999)),
+            # `t_min` is 0.5, not something near zero: a temperature that cools
+            # all the way down is pure exploitation, which can lock the rollout
+            # onto one state and stall the gap criterion — the same hazard
+            # documented under "Why the default e is not zero".
+            "gap-based action temperature" => TS.TrajectorySampling(;
+                action_policy = TS.Boltzmann(TS.GapBasedTemperature(1.0, 0.5)),
             ),
             "gauss-seidel k = 2" => TS.TrajectorySampling(; gauss_seidel = true, k = 2),
             "lower-bound transition" => TS.TrajectorySampling(;
                 transition = TS.ConcreteTransition(; bound = IntervalMDP.Lower),
             ),
-            # VPI-RTDP's successor rule: draw t proportionally to VPI_{s,a}(t).
-            "vpi" => TS.TrajectorySampling(;
+            "power rule + expected-gap stop" => TS.TrajectorySampling(;
                 state_policy = TS.Boltzmann(1.0),
-                state_score = TS.LogStateScore(TS.VPIScore()),
-            ),
-            "vpi + expected-gap stop" => TS.TrajectorySampling(;
-                state_policy = TS.Boltzmann(1.0),
-                state_score = TS.LogStateScore(TS.VPIScore()),
+                state_score = TS.LogStateScore(TS.MixtureStateScore()),
                 terminate = [TS.MaxSteps(), TS.ExpectedGapStop(10.0)],
             ),
         ]
@@ -1742,48 +1419,6 @@ end
             )
             @test_logs solve(problem, plain)
         end
-
-        # `n` for UpdateDecayTemperature is meant to BE the solver's backup
-        # count, but the strategy has to reconstruct it (`sample` is not handed
-        # the iteration). Check the two never drift: GSRDP reports its own
-        # count to the callback, and the strategy has just finished charging
-        # itself for that same batch. Under every bound-update mode: `BothDrive`
-        # charges `2|A|` per state rather than `|A| + 1`.
-        @testset "the backup counter tracks GSRDP's bellman_updates ($mode)" for mode in
-                                                                                 [IntervalMDP.FollowDrive(), IntervalMDP.BothDrive()]
-            ss = TS.TrajectorySampling(;
-                state_policy = TS.Boltzmann(TS.UpdateDecayTemperature(0.5, 1.0, 0.999)),
-            )
-            agree = Ref(true)
-            seen = Ref(0)
-            callback = function (_, bellman_updates, state_seq)
-                state_seq === nothing && return nothing   # the pre-update fire
-                seen[] += 1
-                agree[] &= (bellman_updates == ss.updates[])
-                return nothing
-            end
-
-            gsdp = GeneralizedSamplingbasedRobustDynamicProgramming(
-                default_bellman_algorithm(mdp);
-                sampling_strategy = ss,
-                bound_update = mode,
-            )
-            solve(problem, gsdp; callback = callback)
-            @test ss.bound_update[] === mode
-            @test seen[] > 0
-            @test agree[]
-        end
-
-        # A composite forwards the mode to the strategy that does the counting.
-        @testset "set_bound_update! reaches a wrapped strategy" begin
-            ss = TS.TrajectorySampling()
-            @test ss.bound_update[] isa IntervalMDP.FollowDrive
-            IntervalMDP.set_bound_update!(
-                IntervalMDP.RandomlyThinned(ss, 0.5),
-                IntervalMDP.BothDrive(),
-            )
-            @test ss.bound_update[] isa IntervalMDP.BothDrive
-        end
     end
 end
 
@@ -1824,9 +1459,9 @@ end
 
     strategies = [
         "default" => TS.TrajectorySampling(),
-        "boltzmann + gap-weighted" => TS.TrajectorySampling(;
+        "boltzmann + mixture" => TS.TrajectorySampling(;
             state_policy = TS.Boltzmann(0.5),
-            state_score = TS.GapWeightedExplorationScore(1.0, TS.ExponentialGap(1.0)),
+            state_score = TS.MixtureStateScore(),
         ),
         "gauss-seidel k = 2" => TS.TrajectorySampling(; gauss_seidel = true, k = 2),
     ]

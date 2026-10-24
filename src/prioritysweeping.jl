@@ -49,10 +49,6 @@ import ..IntervalMDP:
     compute_priority,
     sample,
     reset_sampling_strategy!,
-    set_bound_update!,
-    BoundUpdateMode,
-    FollowDrive,
-    _backups_per_state,
     system_property,
     convergence_eps,
     ismaximize,
@@ -70,7 +66,7 @@ import ..IntervalMDP:
     _rnd_calibrate!
 
 # The configuration vocabulary that is genuinely shared with the trajectory
-# sampler is imported, not restated: a `Boltzmann(GapDecayTemperature(...))`
+# sampler is imported, not restated: a `Boltzmann(GapBasedTemperature(...))`
 # means the same thing on either side, and duplicating the types would make
 # that silently untrue the first time one of them changed.
 import ..IntervalMDP.TrajectorySampling:
@@ -81,8 +77,6 @@ import ..IntervalMDP.TrajectorySampling:
     TemperatureContext,
     FixedTemperature,
     GapBasedTemperature,
-    GapDecayTemperature,
-    UpdateDecayTemperature,
     _temperature,
     _resolve_policy,
     _bound_values
@@ -92,13 +86,13 @@ import ..IntervalMDP.TrajectorySampling:
 ###################################
 #
 # `f_P(s)` — how urgent it is to relax `s`, higher first. This is the
-# priority-queue analogue of `StateScore`, and the first three members are the
-# same algebra with the transition weight `p(s'|s,a)` dropped: a trajectory
-# scores a *candidate successor*, so it weights by the probability of getting
-# there, while a queue scores a *state*, and the probability weighting moves
-# into the propagation step (§2) where it belongs.
+# priority-queue analogue of `StateScore`, and the first three members are
+# built from the same exploit and explore terms with the transition weight
+# `p(s'|s,a)` dropped: a trajectory scores a *candidate successor*, so it weights
+# by the probability of getting there, while a queue scores a *state*, and the
+# probability weighting moves into the propagation step (§2) where it belongs.
 #
-#     f_greedy(s)  = U(s) or L(s),  per the priority's `bound`
+#     f_exploit(s) = U(s) or L(s),  per the priority's `bound`
 #     f_explore(s) = U(s) − L(s),   the value-function gap
 
 """
@@ -140,7 +134,7 @@ state_priority(::GapPriority, s, value_function, model, spec) =
     BoundPriority(; bound = Upper)
 
 `f_P(s) = U(s)` (or `L(s)`), the raw bound — biases toward states that look most
-valuable. This is `f_greedy`. Not self-correcting: pair it with `aging > 0`.
+valuable. This is `f_exploit`. Not self-correcting: pair it with `aging > 0`.
 """
 struct BoundPriority <: StatePriority
     bound::IntervalMode
@@ -154,9 +148,8 @@ state_priority(p::BoundPriority, s, value_function, model, spec) =
 """
     WeightedPriority(beta; bound = Upper)
 
-`f_P(s) = f_greedy(s) + β·f_explore(s)` — the greedy term plus a bonus for
-states whose bounds are still far apart. The direct port of
-`TrajectorySampling.ExplorationScore`. `β ≥ 0`; `β = 0` reduces to
+`f_P(s) = f_exploit(s) + β·f_explore(s)` — the exploit term plus a bonus for
+states whose bounds are still far apart. `β ≥ 0`; `β = 0` reduces to
 [`BoundPriority`](@ref), and large `β` approaches [`GapPriority`](@ref)'s
 ordering.
 """
@@ -706,7 +699,7 @@ function _select_k(
     return _top_k(perturbed, tiebreak, k)
 end
 
-# A decaying schedule is not a number until a `sample` call gives it one, so
+# A varying schedule is not a number until a `sample` call gives it one, so
 # drawing straight from it is a programming error rather than a missing method.
 _select_k(policy::Boltzmann, values::Vector{Float64}, tiebreak::Vector{Int}, k::Int) =
     throw(
@@ -910,13 +903,6 @@ struct PrioritizedSweep{P <: StatePriority, R <: PropagationRule, S <: Selection
     selected_snapshot::Base.RefValue{Vector{Tuple{Float64, Float64}}}
     predecessor_index::Base.RefValue{Vector{Vector{Tuple{Int, Float64}}}}
 
-    # Bellman updates issued so far — `n` for `UpdateDecayTemperature`. Tracked
-    # here because `sample` is not handed the solver's iteration count.
-    updates::Base.RefValue{Int}
-    # GSRDP's bound-update mode, which sets what one relaxed state costs; see
-    # `set_bound_update!`.
-    bound_update::Base.RefValue{BoundUpdateMode}
-
     function PrioritizedSweep(;
         priority::P = GapPriority(),
         propagate::R = MaxPropagation(),
@@ -942,14 +928,9 @@ struct PrioritizedSweep{P <: StatePriority, R <: PropagationRule, S <: Selection
             Ref(Int[]),
             Ref(Tuple{Float64, Float64}[]),
             Ref(Vector{Tuple{Int, Float64}}[]),
-            Ref(0),
-            Ref{BoundUpdateMode}(FollowDrive()),
         )
     end
 end
-
-set_bound_update!(ss::PrioritizedSweep, mode::BoundUpdateMode) =
-    (ss.bound_update[] = mode; nothing)
 
 function reset_sampling_strategy!(ss::PrioritizedSweep)
     ss.initialized[] = false
@@ -959,9 +940,6 @@ function reset_sampling_strategy!(ss::PrioritizedSweep)
     ss.selected_snapshot[] = Tuple{Float64, Float64}[]
     ss.predecessor_index[] = Vector{Tuple{Int, Float64}}[]
     ss.clock[] = 0
-    # The temperature schedules anneal over one solve, not over the lifetime of
-    # the strategy object, so the backup count restarts with it.
-    ss.updates[] = 0
     reset_priority!(ss.priority)
     return nothing
 end
@@ -992,9 +970,9 @@ _backup_magnitude(value_function, s, snapshot) = max(
 _admissible(ss::PrioritizedSweep, s, value_function, model, spec) =
     all(r -> admit(r, s, value_function, model, spec), ss.admit)
 
-# `Diff` for the temperature schedules. The trajectory sampler reads the gap at
-# the state its rollout starts from; a queue has no such state, so it reads the
-# gap the termination criterion is actually waiting on.
+# `Diff` for the temperature schedules. The trajectory sampler reads the initial
+# gap over the declared initial states; a queue has no rollout to start, so it
+# reads the gap the termination criterion is actually waiting on.
 function _max_gap(value_function)
     U, L = value_function.upper.current, value_function.lower.current
     m = 0.0
@@ -1003,13 +981,6 @@ function _max_gap(value_function)
         d > m && (m = d)
     end
     return m
-end
-
-# GSRDP's own per-state cost under the solve's bound-update mode (see
-# `set_bound_update!`), so the schedule anneals over the count the solver reports.
-function _count_updates!(ss::PrioritizedSweep, model, batch)
-    ss.updates[] += length(batch) * _backups_per_state(ss.bound_update[], model)
-    return batch
 end
 
 function sample(ss::PrioritizedSweep, model, strategy_cache, value_function, spec)
@@ -1087,10 +1058,7 @@ function sample(ss::PrioritizedSweep, model, strategy_cache, value_function, spe
         end
     end
 
-    policy = _resolve_policy(
-        ss.policy,
-        TemperatureContext(_max_gap(value_function), ss.updates[]),
-    )
+    policy = _resolve_policy(ss.policy, TemperatureContext(_max_gap(value_function)))
     top = _select_k(policy, values, last_selected, ss.k)
 
     for i in top
@@ -1101,7 +1069,6 @@ function sample(ss::PrioritizedSweep, model, strategy_cache, value_function, spe
 
     selected = [S[i] for i in top]
     on_selected!(ss.priority, selected, value_function, model, spec)
-    _count_updates!(ss, model, selected)
 
     return StateIterator(selected)
 end

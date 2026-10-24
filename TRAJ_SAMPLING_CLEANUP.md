@@ -16,53 +16,63 @@ schedule `fixed` (`action_temperature`) or `gap_based` (`action_temperature_k`,
 
 ### Library (`lib/`)
 
-- [ ] **Restrict the action policy's schedule.** `TrajectorySampling(action_policy = ...)`
+- [x] **Restrict the action policy's schedule.** `TrajectorySampling(action_policy = ...)`
   still accepts any `TemperatureSchedule`, including `GapDecayTemperature` and
   `UpdateDecayTemperature`. Validate it in the constructor so only `FixedTemperature`
   and `GapBasedTemperature` are allowed.
-- [ ] **Remove `GapDecayTemperature` and `UpdateDecayTemperature`** once nothing uses
+  *Done 2026-10-23.*
+- [x] **Remove `GapDecayTemperature` and `UpdateDecayTemperature`** once nothing uses
   them. The benchmark no longer exposes them for either policy (state selection
   reworked 2026-10-11). Remaining users:
   - the priority-sweeping sampler (`src/prioritysweeping.jl` imports both, and its
     tests use them in `test/base/prioritysweeping.jl`);
   - the library's own trajectory tests ("gap-decay temperature", "update-decay
     temperature", and the backup-counter testset in `test/base/trajectorysampling.jl`).
-- [ ] **When `UpdateDecayTemperature` goes, check whether the backup counter can go
+  *Done 2026-10-23.* `PrioritizedSweep` now takes `FixedTemperature`/`GapBasedTemperature` only; its tests moved to `GapBasedTemperature`.
+- [x] **When `UpdateDecayTemperature` goes, check whether the backup counter can go
   too.** `ss.updates` and `TemperatureContext.n` only exist to feed it
   (`src/trajectorysampling.jl`, see `_count_updates!`; and the same counter in
   `src/prioritysweeping.jl`).
-- [ ] **Library docs that still describe the old schedules:**
+  *Done 2026-10-23.* Removed `ss.updates`, `TemperatureContext.n`, `_count_updates!`, the `bound_update` fields, and the whole `set_bound_update!` hook (counting strategies were its only users).
+- [x] **Library docs that still describe the old schedules:**
   - the `TemperatureSchedule` docstring;
   - the `TemperatureContext` docstring ("keeps a decayed temperature inside
     `[t_min, t_max]`");
   - the "Temperature schedules" section and the `t_min` warning in the
     `TrajectorySampling` docstring;
   - the schedule list in `docs/src/reference/solve.md`.
-- [ ] **Optional:** the `GapBasedTemperature` import in `src/prioritysweeping.jl` was
+  *Done 2026-10-23.*
+- [x] **Optional:** the `GapBasedTemperature` import in `src/prioritysweeping.jl` was
   added for symmetry and isn't used there. Keep it or drop it.
+  *Done 2026-10-23.* Kept.
 
 ### Benchmark (`bench/`)
 
-- [ ] **`_traj_policy` and `_traj_temperature` in `src/registry.jl`** are dead since
+- [x] **`_traj_policy` and `_traj_temperature` in `src/registry.jl`** are dead since
   the state-selection rework, so delete them (see that section below).
-- [ ] **`src/analysis/report.jl`:** `_FACTOR_FAMILIES`, `_FACTOR_NAMES` and
+  *Done 2026-10-23.*
+- [x] **`src/analysis/report.jl`:** `_FACTOR_FAMILIES`, `_FACTOR_NAMES` and
   `_PARAM_SHORT` only know the state temperature keys. Add an
   `action_temperature_schedule` family (members: schedule, `action_temperature`,
   `action_temperature_k`, `action_temperature_min`) before any OFAT sweep varies the
   action temperature.
+  *Done 2026-10-23.* Also generalized `_family_label` to print `α_e`/`α_p` min/max as intervals.
 
 ### Thesis (`thesis/chapters/sampling.tex`)
 
-- [ ] **Replace the old `\subsection{Action Selection}`** with
+- [x] **Replace the old `\subsection{Action Selection}`** with
   `\subsection{New Action Selection}`, and rename the new one to "Action Selection".
   The old one still uses `p_A`; the new one uses `\epsilon_A`.
-- [ ] **`SampleTrajectory` algorithm:** the line
+  *Done 2026-10-23.* The old `f_A` heuristics moved into the new subsection.
+- [x] **`SampleTrajectory` algorithm:** the line
   `T_a = ComputeTemp(n, t_min, t_max, τ_a)` should become
   `T_a = ComputeTemp_A(t, k, t_min)`.
-- [ ] **The general `ComputeTemp` equation** (fixed / termination-criteria decay /
+  *Done 2026-10-23.*
+- [x] **The general `ComputeTemp` equation** (fixed / termination-criteria decay /
   Bellman-update decay) is obsolete now that `T_s` is fixed too. Delete it, along with
   the `T_s = ComputeTemp(n, t_min, t_max, τ_s)` line in `SampleTrajectory` (see the
   state-selection section).
+  *Done 2026-10-23.*
 
 ## State selection (reworked 2026-10-11)
 
@@ -75,7 +85,7 @@ power`, with `_k`, `_min` and `_max` under `power`). Library: `MixtureStateScore
 
 ### Library (`lib/`)
 
-- [ ] **Remove the old successor scores** once the tests stop using them:
+- [x] **Remove the old successor scores** once the tests stop using them:
   `GreedyScore`, `ExplorationScore`, `GapWeightedExplorationScore`, `GapFunction`,
   `ExponentialGap`, `PolynomialGap` (and `_gap_weight`), `VPIScore` (and `_vpi`,
   `_vpi_gain`). Keep `LogStateScore` and every `ExplorationTerm`, since the mixture uses
@@ -83,19 +93,24 @@ power`, with `_k`, `_min` and `_max` under `power`). Library: `MixtureStateScore
   "VPI successor score" and ε-greedy/Boltzmann testitems, and most solve-parity cases);
   the `src/prioritysweeping.jl` docstring that points at `ExplorationScore` (line ~159);
   `docs/src/reference/solve.md`.
-- [ ] **Change the library default `state_score = GreedyScore()`** to
+  *Done 2026-10-23.*
+- [x] **Change the library default `state_score = GreedyScore()`** to
   `LogStateScore(MixtureStateScore())`, the power rule the benchmark defaults to under
   Boltzmann (2026-10-11). Under the default ε-greedy only the bound is read, so it
   behaves the same.
-- [ ] **Restrict the state policy's schedule** in the `TrajectorySampling` constructor
+  *Done 2026-10-23.*
+- [x] **Restrict the state policy's schedule** in the `TrajectorySampling` constructor
   to `FixedTemperature`, to match the benchmark.
-- [ ] **Rename "greedy" to "exploit":** `_greedy_bound` → `_exploit_bound`, and
+  *Done 2026-10-23.*
+- [x] **Rename "greedy" to "exploit":** `_greedy_bound` → `_exploit_bound`, and
   `f_greedy` → `f_exploit` in the docstrings (`StateScore`, `_sample_state`, the
   `state_policy` keyword note in `TrajectorySampling`).
-- [ ] **Shrink `_ExploringScore`** to `MixtureStateScore` alone, or fold the hooks into
+  *Done 2026-10-23.*
+- [x] **Shrink `_ExploringScore`** to `MixtureStateScore` alone, or fold the hooks into
   its methods, once the old scores are gone. The four-argument `_state_scores`
   fallback for the union goes with it.
-- [ ] **Stale "reach-avoid is negative on avoid states" comments.** It isn't (checked
+  *Done 2026-10-23.* Hooks folded into `MixtureStateScore`'s methods; `_state_scores` now has the nine-argument form only.
+- [x] **Stale "reach-avoid is negative on avoid states" comments.** It isn't (checked
   2026-10-11): reach-avoid initializes avoid states to `0` in both bounds, the
   per-step postprocess pins them to `0`, and the final postprocess is a no-op. The
   `-1` sentinel and the final `+1` shift belong to (DFA) safety, which GSRDP rejects.
@@ -105,23 +120,28 @@ power`, with `_k`, `_min` and `_max` under `power`). Library: `MixtureStateScore
     docstrings (the `TemperatureContext` one was rewritten 2026-10-11);
   - `test/base/trajectorysampling.jl`: the comments in the `_safe_log` and
     "TemperatureContext clamps the gap" testsets.
-- [ ] **`GapDecayTemperature` docstring/tests:** since 2026-10-11 the rollout context's
+  *Done 2026-10-23.*
+- [x] **`GapDecayTemperature` docstring/tests:** since 2026-10-11 the rollout context's
   `diff` is the initial gap `δ = max_{s ∈ S₀} Diff(s)`, not `Diff(s₀)`, so the legacy
   schedules changed meaning too. Moot if they are removed (see the action section);
   otherwise re-check the "gap-decay temperature" solve case.
-- [ ] **Module header comment** at the top of `src/trajectorysampling.jl`: drop "incl.
+  *Done 2026-10-23.* Moot (removed).
+- [x] **Module header comment** at the top of `src/trajectorysampling.jl`: drop "incl.
   VPI" and the per-policy annealed temperature schedule from the list of choices.
+  *Done 2026-10-23.*
 
 ### Benchmark (`bench/`)
 
-- [ ] **Delete the dead resolvers in `src/registry.jl`:** `_traj_policy`,
+- [x] **Delete the dead resolvers in `src/registry.jl`:** `_traj_policy`,
   `_traj_temperature`, `_traj_state_score` and `_traj_state_score_base`. There is a
   NOTE above them; `_traj_explore` is still used.
-- [ ] **Banked `configs/grid-search-1/*.toml` no longer resolve.** Every trajectory arm
+  *Done 2026-10-23.*
+- [x] **Banked `configs/grid-search-1/*.toml` no longer resolve.** Every trajectory arm
   uses removed keys (`state_temperature_schedule`, `state_bound`, `state_beta`,
   `gap_fn`, `tau`, ...), and the old scores have no equivalent under the mixture. They
   are records of past runs: archive them, add a header saying they need a pre-rework
   commit to re-run, or delete them.
+  *Done 2026-10-23.* Archived to `configs/archive/grid-search-1/`, with a README naming the pre-rework commits.
 - [ ] **`src/analysis/report.jl`:** the `state_temperature_schedule` and
   `state_score`/`state_beta`/`tau` entries in `_FACTOR_FAMILIES`, `_FACTOR_NAMES` and
   `_PARAM_SHORT`, and the `T∈[min,max]` special case in the label formatter, only
@@ -131,16 +151,19 @@ power`, with `_k`, `_min` and `_max` under `power`). Library: `MixtureStateScore
 
 ### Thesis (`thesis/chapters/sampling.tex`)
 
-- [ ] **Replace the old `\subsection{State Selection}`** (the greedy / exploration /
+- [x] **Replace the old `\subsection{State Selection}`** (the greedy / exploration /
   gap-weighted `f_S`, `G(δ)`, and the "Near Greedy States" `f_gap` paragraph) with
   `\subsection{New State Selection}`, and rename the new one to "State Selection". The
   old one uses `p_S`; the new one uses `\epsilon_S`.
-- [ ] **Heuristics:** rename the "Greedy State" paragraph and `f_{\mathrm{greedy}}` to
+  *Done 2026-10-23.* Its Exploit State / Exploration Signal heuristics moved into the new subsection; "Near Greedy States" dropped.
+- [x] **Heuristics:** rename the "Greedy State" paragraph and `f_{\mathrm{greedy}}` to
   the exploit heuristic `f_{\mathrm{exploit}}`. The new subsection currently says that
   `f_exploit` "is the greedy state heuristic above", so fix that sentence too.
-- [ ] **`SampleTrajectory` algorithm:** replace the `T_s = ComputeTemp(...)` line with
+  *Done 2026-10-23.*
+- [x] **`SampleTrajectory` algorithm:** replace the `T_s = ComputeTemp(...)` line with
   the computation of `α_e(δ)` and `α_p(δ)` from `δ = max_{s ∈ S₀} Diff(s)` (`T_s` is a
   fixed parameter now), and pass them to `SampleState`.
+  *Done 2026-10-23.*
 
 ## Gauss-Seidel batch size as `k_frac` (2026-10-10)
 
@@ -148,13 +171,15 @@ Trajectory sampling now takes `k_frac`, so batch size = `max(1, ceil(k_frac·|S|
 resolved per problem by `resolve_k_frac` in `bench/src/registry.jl`. It requires
 `gauss_seidel = true`.
 
-- [ ] **Decide whether to drop absolute `k` for `sampling = "trajectory"`** and
+- [x] **Decide whether to drop absolute `k` for `sampling = "trajectory"`** and
   require `k_frac`. Absolute `k` is still accepted in `resolve_trajectory`
   (`_require_k`). Banked configs use it, e.g. smoke-4 `k = 1` and the grid-search
   configs, so convert them first.
-- [ ] **`k` without `gauss_seidel = true` is silently ignored** (`resolve_trajectory`
+  *Done 2026-10-23.* Kept absolute `k`.
+- [x] **`k` without `gauss_seidel = true` is silently ignored** (`resolve_trajectory`
   falls back to `Int(get(params, "k", 1))`). Make it an error to match the
   hierarchical parameters, as `k_frac` already does.
+  *Done 2026-10-23.* Now an error.
 
 ## Preset removal (2026-10-10)
 
@@ -198,5 +223,6 @@ Speedups with behaviour unchanged bit for bit. They touch `sampling.jl`,
   it scans `~/thesis`. Run it from `test/` with a filter relative to the repo, and skip
   `test/cuda`, which segfaults without a GPU. The suite also rewrites
   `test/data/multiObj_robotIMDP.nc`; restore it with `git checkout`.
-- [ ] **Optional:** the generic `_omax_value_order`/`_omax_fill` are now used only by dense
+- [x] **Optional:** the generic `_omax_value_order`/`_omax_fill` are now used only by dense
   ambiguity sets and by tests. Keep them as the reference implementation.
+  *Done 2026-10-23.* Kept.
