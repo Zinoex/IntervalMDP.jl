@@ -42,6 +42,7 @@ _to_state_index(s::Tuple) = CartesianIndex(s)
 
 # `AllStates()` (no restriction declared) samples uniformly over every
 # state; a concrete initial-states vector samples uniformly among them.
+# The `initial_state = :random` start; `:max` is `_max_gap_initial_state`.
 function _trajectory_initial_state(model)
     init = initial_states(model)
     return init isa AllStates ? rand(CartesianIndices(source_shape(model))) :
@@ -1070,6 +1071,33 @@ function _initial_gap(model, vf)
 end
 
 """
+    _max_gap_initial_state(model, vf) -> CartesianIndex
+
+The state of `S₀` (every state when the model declares none) with the widest gap
+`U(s) − L(s)`, ties broken uniformly at random. The `initial_state = :max` start.
+"""
+function _max_gap_initial_state(model, vf)
+    init = initial_states(model)
+    states = init isa AllStates ? CartesianIndices(source_shape(model)) :
+             (_to_state_index(s) for s in init)
+    U, L = vf.upper.current, vf.lower.current
+    best = first(states)
+    best_gap, ties = -Inf, 0
+    for s in states
+        gap = Float64(U[s]) - Float64(L[s])
+        if gap > best_gap
+            best, best_gap, ties = s, gap, 1
+        elseif gap == best_gap
+            # Reservoir sampling: the i-th tie replaces the pick with probability
+            # 1/i, so each of the tied states ends up the pick with equal odds.
+            ties += 1
+            rand(1:ties) == 1 && (best = s)
+        end
+    end
+    return best
+end
+
+"""
     _resolve_score(score, delta) -> StateScore
 
 `score` with its [`AlphaSchedule`](@ref)s evaluated at the initial gap `delta`
@@ -1291,6 +1319,10 @@ Each of the four decisions is configured independently:
 - `gauss_seidel::Bool = false`: see below.
 - `k::Int = 1`: batch size, used only when `gauss_seidel = true`.
 - `reverse::Bool = true`: return each trajectory goal-first.
+- `initial_state::Symbol = :random`: where each rollout starts. `:random` draws
+  uniformly from the declared initial states `S₀` (every state when the model
+  declares none); `:max` takes the state of `S₀` with the widest gap
+  `U(s) − L(s)`, breaking ties uniformly at random.
 
 # Temperature schedules
 
@@ -1414,6 +1446,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
     converged_eps::Union{Nothing, Float64}
     dedup::Bool
     dedup_scope::Symbol
+    initial_state::Symbol
 
     # Active-trajectory batching state. `Base.RefValue{Any}` because the
     # `CartesianIndex{N}` arity isn't known until there is a model in hand —
@@ -1444,6 +1477,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
         converged_eps::Union{Nothing, Real} = nothing,
         dedup::Bool = false,
         dedup_scope::Symbol = :batch,
+        initial_state::Symbol = :random,
     )
         rules = collect(TerminationRule, terminate)
         _check_schedule(action_policy, "action_policy", (FixedTemperature, GapBasedTemperature))
@@ -1453,6 +1487,9 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
         )
         dedup_scope === :batch || dedup || throw(
             ArgumentError("dedup_scope = :$dedup_scope only applies with dedup = true"),
+        )
+        initial_state in (:random, :max) || throw(
+            ArgumentError("initial_state must be :random or :max, got :$initial_state"),
         )
         gauss_seidel &&
             k < 1 &&
@@ -1480,6 +1517,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
             converged_eps === nothing ? nothing : Float64(converged_eps),
             dedup,
             dedup_scope,
+            initial_state,
             Ref{Any}(nothing),
             Ref(0),
             Ref(false),
@@ -1754,7 +1792,8 @@ function _sample_trajectory(ss::TrajectorySampling, model, value_function, spec,
     Vt = _bound_values(ss.transition.bound, value_function)
     cap = _step_cap(ss, model)
 
-    s = _trajectory_initial_state(model)
+    s = ss.initial_state === :max ? _max_gap_initial_state(model, value_function) :
+        _trajectory_initial_state(model)
 
     # ComputeTemp_A, once per rollout: both policies are resolved against the
     # initial gap δ = max_{s ∈ S₀} Diff(s), so the whole trajectory is drawn at

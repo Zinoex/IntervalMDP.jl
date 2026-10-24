@@ -591,6 +591,30 @@ end
         @test TS._temperature(sched, TS._rollout_context(ss, mdp, gap_vf)) ≈ 0.7 / 0.3
     end
 
+    @testset "initial_state = :max starts at the widest gap in S0, ties at random" begin
+        @test TS.TrajectorySampling().initial_state === :random
+        @test TS.TrajectorySampling(; initial_state = :max).initial_state === :max
+        @test_throws ArgumentError TS.TrajectorySampling(; initial_state = :min)
+
+        # Diff = (0.5, 0.7, 0.0): state 2 over S0 = {1, 2} and over all states.
+        @test TS._max_gap_initial_state(
+            IntervalMarkovDecisionProcess([amb, amb, amb], [1, 2]),
+            gap_vf,
+        ) == CartesianIndex(2)
+        @test TS._max_gap_initial_state(IntervalMarkovDecisionProcess([amb, amb, amb]), gap_vf) ==
+              CartesianIndex(2)
+        @test TS._max_gap_initial_state(
+            IntervalMarkovDecisionProcess([amb, amb, amb], [1, 3]),
+            gap_vf,
+        ) == CartesianIndex(1)
+
+        # Diff = (0.5, 0.5, 0.0): states 1 and 2 tie and are both drawn.
+        tie_vf = (upper = (current = [0.9, 0.5, 1.0],), lower = (current = [0.4, 0.0, 1.0],))
+        tie_mdp = IntervalMarkovDecisionProcess([amb, amb, amb])
+        picks = Set(TS._max_gap_initial_state(tie_mdp, tie_vf) for _ in 1:200)
+        @test picks == Set([CartesianIndex(1), CartesianIndex(2)])
+    end
+
     @testset "_resolve_score evaluates the schedules at the initial gap" begin
         fixed = TS.MixtureStateScore()
         @test TS._resolve_score(fixed, 0.5) === fixed
@@ -1361,6 +1385,7 @@ end
                 action_policy = TS.Boltzmann(TS.GapBasedTemperature(1.0, 0.5)),
             ),
             "gauss-seidel k = 2" => TS.TrajectorySampling(; gauss_seidel = true, k = 2),
+            "max-gap initial state" => TS.TrajectorySampling(; initial_state = :max),
             "lower-bound transition" => TS.TrajectorySampling(;
                 transition = TS.ConcreteTransition(; bound = IntervalMDP.Lower),
             ),
