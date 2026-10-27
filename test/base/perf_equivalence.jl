@@ -1087,3 +1087,27 @@ end
         end
     end
 end
+
+@testitem "perf_equivalence: sparse O-max sort ordering (1b.1)" begin
+    # The sparse O-max path sorts the first `n` (value, gap) pairs of the workspace buffer
+    # with `omax_ordering(Val(upper_bound))` and the positional `sort!`. It must give the
+    # same stable order as the former `sort!(v; rev = upper_bound, by = first)`, including
+    # ties (equal values keep their support order), and leave the rest of the buffer alone.
+    n = 17
+    pairs = [(Float64(mod(7i, 3)), Float64(i)) for i in 1:n]  # values in {0, 1, 2}: many ties
+    for upper_bound in (false, true)
+        buffer = vcat(pairs, [(-1.0, -1.0), (-2.0, -2.0)])
+        scratch = similar(buffer)
+        sort!(
+            buffer,
+            1,
+            n,
+            Base.Sort.DEFAULT_STABLE,
+            IntervalMDP.omax_ordering(Val(upper_bound)),
+            scratch,
+        )
+        @test buffer[1:n] == sort(pairs; rev = upper_bound, by = first)
+        @test buffer[(n + 1):end] == [(-1.0, -1.0), (-2.0, -2.0)]
+        @test issorted(first.(buffer[1:n]); rev = upper_bound)
+    end
+end

@@ -387,9 +387,12 @@ end
 # O-Maximization-based Bellman operator for IntervalMarkovDecisionProcess #
 ###########################################################################
 
-# Non-threaded
+const OMaxWorkspace = Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace}
+const ThreadedOMaxWorkspace =
+    Union{ThreadedDenseIntervalOMaxWorkspace, ThreadedSparseIntervalOMaxWorkspace}
+
 function _bellman_helper!(
-    workspace::Union{DenseIntervalOMaxWorkspace, SparseIntervalOMaxWorkspace},
+    workspace::Union{OMaxWorkspace, ThreadedOMaxWorkspace},
     strategy_cache::AbstractStrategyCache,
     Vres,
     V,
@@ -400,6 +403,31 @@ function _bellman_helper!(
 )
     bellman_precomputation!(workspace, V, upper_bound)
 
+    # Function barrier: the per-state loop is compiled for a concrete `Val(upper_bound)`, so the
+    # sparse O-max sort ordering (`omax_ordering`) is a compile-time constant.
+    return omax_state_loop!(
+        workspace,
+        strategy_cache,
+        Vres,
+        V,
+        model,
+        states,
+        upper_bound ? Val(true) : Val(false),
+        maximize,
+    )
+end
+
+# Non-threaded
+function omax_state_loop!(
+    workspace::OMaxWorkspace,
+    strategy_cache,
+    Vres,
+    V,
+    model,
+    states,
+    upper_bound::Val,
+    maximize,
+)
     for jₛ in states
         state_bellman!(workspace, strategy_cache, Vres, V, model, jₛ, upper_bound, maximize)
     end
@@ -408,21 +436,16 @@ function _bellman_helper!(
 end
 
 # Threaded
-function _bellman_helper!(
-    workspace::Union{
-        ThreadedDenseIntervalOMaxWorkspace,
-        ThreadedSparseIntervalOMaxWorkspace,
-    },
-    strategy_cache::AbstractStrategyCache,
+function omax_state_loop!(
+    workspace::ThreadedOMaxWorkspace,
+    strategy_cache,
     Vres,
     V,
     model,
-    states::AbstractUpdateSequence;
-    upper_bound = false,
-    maximize = true,
+    states,
+    upper_bound::Val,
+    maximize,
 )
-    @inbounds bellman_precomputation!(workspace, V, upper_bound)
-
     @threadstid tid for jₛ in states
         @inbounds ws = workspace[tid]
         @inbounds state_bellman!(
@@ -538,7 +561,7 @@ Base.@propagate_inbounds function state_action_bellman(
     V,
     ambiguity_set,
     budget,
-    upper_bound,
+    upper_bound::Val,
 )
     Vp_workspace = @view workspace.values_gaps[1:supportsize(ambiguity_set)]
     Vnonzero = @view V[support(ambiguity_set)]
@@ -546,11 +569,26 @@ Base.@propagate_inbounds function state_action_bellman(
         Vp_workspace[i] = (v, p)
     end
 
-    # rev=true for upper bound
-    sort!(Vp_workspace; rev = upper_bound, by = first, scratch = scratch(workspace))
+    # Stable sort of the (value, gap) pairs by value: ascending for the lower bound,
+    # descending for the upper bound (`omax_ordering`). Positional form on the parent
+    # vector with the preallocated scratch: no keyword call, no runtime-typed ordering.
+    sort!(
+        workspace.values_gaps,
+        1,
+        length(Vp_workspace),
+        Base.Sort.DEFAULT_STABLE,
+        omax_ordering(upper_bound),
+        scratch(workspace),
+    )
 
     return dot(V, lower(ambiguity_set)) + gap_value(Vp_workspace, budget)
 end
+
+# Ordering of the `(value, gap)` pairs in the sparse O-max sort: by value (`first`), ascending for
+# `Val(false)` (lower bound) and descending for `Val(true)` (upper bound). Identical to the ordering
+# of `sort!(v; rev = upper_bound, by = first)`; the sort is stable, so ties keep the support order.
+omax_ordering(::Val{false}) = Base.Order.By(first, Base.Order.Forward)
+omax_ordering(::Val{true}) = Base.Order.By(first, Base.Order.Reverse)
 
 Base.@propagate_inbounds function gap_value(
     Vp::VP,
