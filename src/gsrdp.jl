@@ -50,22 +50,25 @@ The callback must only read the value function: the loop refreshes its gap and
 `previous` bounds incrementally, assuming only the Bellman update and the
 property's step postprocess write to it (see `_IncrementalBounds`).
 """
-struct GeneralizedSamplingbasedRobustDynamicProgramming{B <: BellmanAlgorithm} <:
-       ModelCheckingAlgorithm
+# Parametric on the sampler and bound-update mode (not abstract fields) so that `_gsrdp!`
+# and `bellman_update!` infer them: with abstract fields every loop iteration boxed and
+# dynamically dispatched its locals, which dominated the solve on cheap-backup problems.
+struct GeneralizedSamplingbasedRobustDynamicProgramming{
+    B <: BellmanAlgorithm,
+    S <: SamplingStrategy,
+    U <: BoundUpdateMode,
+} <: ModelCheckingAlgorithm
     bellman_alg::B
-    sampling_strategy::SamplingStrategy
-    bound_update::BoundUpdateMode
+    sampling_strategy::S
+    bound_update::U
 
     function GeneralizedSamplingbasedRobustDynamicProgramming(
         bellman_alg::B;
         sampling_strategy::Union{Nothing, SamplingStrategy} = nothing,
         bound_update::BoundUpdateMode = FollowDrive(),
     ) where {B <: BellmanAlgorithm}
-        new{B}(
-            bellman_alg,
-            isnothing(sampling_strategy) ? ExhaustiveState() : sampling_strategy,
-            bound_update,
-        )
+        ss = isnothing(sampling_strategy) ? ExhaustiveState() : sampling_strategy
+        new{B, typeof(ss), typeof(bound_update)}(bellman_alg, ss, bound_update)
     end
 end
 
