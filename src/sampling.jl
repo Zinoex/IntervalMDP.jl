@@ -849,42 +849,104 @@ end
 # so this costs O(n + t log n) for t filled entries rather than O(n log n). Ties in `V`
 # are broken by position, ascending, which is exactly the order a stable sort keeps
 # them in, and `isless` is a total order on the values, so the sequence is the same.
-function _omax_fill_sorted(f, ambiguity_set::_SparseIntervalAmbiguitySet, V, upper_bound::Bool, budget)
-    return upper_bound ? _omax_fill_sorted(f, ambiguity_set, V, Val(true), budget) :
-           _omax_fill_sorted(f, ambiguity_set, V, Val(false), budget)
+function _omax_fill_sorted(
+    f,
+    ambiguity_set::_SparseIntervalAmbiguitySet,
+    V,
+    upper_bound::Bool,
+    budget,
+    heap = _heap_eltype(eltype(V))[],
+)
+    op = (acc, i, Δ) -> (f(i, Δ); acc)
+    _omax_fold_sorted(op, nothing, ambiguity_set, V, upper_bound, budget, heap)
+    return nothing
 end
 
-function _omax_fill_sorted(f, ambiguity_set::_SparseIntervalAmbiguitySet, V, ::Val{rev}, budget) where {rev}
+# The fill as a fold: `acc = op(acc, i, Δ)` for each nonzero fill, returning `acc`. For
+# accumulating callers, which a `do` block would have to capture and reassign (boxing it).
+function _omax_fold_sorted(op, acc, ambiguity_set, V, upper_bound::Bool, budget, heap)
+    return upper_bound ? _omax_fold_sorted(op, acc, ambiguity_set, V, Val(true), budget, heap) :
+           _omax_fold_sorted(op, acc, ambiguity_set, V, Val(false), budget, heap)
+end
+
+# `(key, i)` goes before `(key′, i′)`: by key, descending if `rev`, then by `i`, ascending.
+# A strict total order when the `i` are distinct.
+@inline _key_before(rev::Bool, a, b) =
+    rev ? (isless(b[1], a[1]) || (!isless(a[1], b[1]) && a[2] < b[2])) :
+          (isless(a[1], b[1]) || (!isless(b[1], a[1]) && a[2] < b[2]))
+
+# The sorts and heaps below hold `(key, i)` entries in that order. For IEEE float keys an
+# entry is one `UInt128`, `(_ordkey(key), i)` with the key complemented if `rev`, whose
+# integer order is `_key_before`'s, so a comparison is a single `<`; other keys stay
+# tuples under `_key_before`.
+#
+# `_ordkey` maps floats to unsigned integers in `isless` order: the sign-magnitude bits
+# made two's-complement-like (so `-0.0` precedes `0.0`), and every NaN to the top, where
+# `isless` puts NaNs, all equivalent to one another.
+@inline function _ordkey(x::Float64)
+    isnan(x) && return typemax(UInt64)
+    u = reinterpret(UInt64, x)
+    return u ⊻ ifelse(signbit(x), typemax(UInt64), 0x8000000000000000)
+end
+@inline function _ordkey(x::Float32)
+    isnan(x) && return UInt64(typemax(UInt32))
+    u = reinterpret(UInt32, x)
+    return UInt64(u ⊻ ifelse(signbit(x), typemax(UInt32), 0x80000000))
+end
+
+_heap_eltype(::Type{<:Union{Float32, Float64}}) = UInt128
+_heap_eltype(::Type{T}) where {T} = Tuple{T, Int}
+
+@inline _heap_entry(::Type{UInt128}, rev::Bool, key, i) =
+    (UInt128(rev ? ~_ordkey(key) : _ordkey(key)) << 64) | UInt128(i % UInt64)
+@inline _heap_entry(::Type{<:Tuple}, rev::Bool, key, i) = (key, i)
+
+@inline _heap_index(e::UInt128) = Int(e % UInt64)
+@inline _heap_index(e::Tuple) = e[2]
+
+_heap_before(::Type{UInt128}, rev::Bool) = <
+_heap_before(::Type{<:Tuple}, rev::Bool) = (a, b) -> _key_before(rev, a, b)
+
+# `heap` is scratch for the `(V[row], local index)` pairs, overwritten.
+function _omax_fold_sorted(
+    op,
+    acc,
+    ambiguity_set::_SparseIntervalAmbiguitySet,
+    V,
+    ::Val{rev},
+    budget,
+    heap,
+) where {rev}
     A, r = _stored_range(gap(ambiguity_set))
     rv, nz = rowvals(A), nonzeros(A)
     n = length(r)
-    n == 0 && return nothing
+    n == 0 && return acc
     o = first(r) - 1
-    keys = [@inbounds(V[rv[o + j]]) for j in 1:n]
-    # `a` goes before `b` (local indices into the column).
-    @inline before(a, b) = @inbounds begin
-        ka, kb = keys[a], keys[b]
-        rev ? (isless(kb, ka) || (!isless(ka, kb) && a < b)) :
-              (isless(ka, kb) || (!isless(kb, ka) && a < b))
+    # The keys sit next to the local indices (into the column) they order, so the
+    # comparisons read the heap alone.
+    H = eltype(heap)
+    resize!(heap, n)
+    @inbounds for j in 1:n
+        heap[j] = _heap_entry(H, rev, V[rv[o + j]], j)
     end
-    heap = collect(1:n)
+    before = _heap_before(H, rev)
     @inbounds for i in (n >> 1):-1:1
         _heap_sift_down!(heap, i, n, before)
     end
     m = n
     @inbounds while m > 0
-        j = heap[1]
+        j = _heap_index(heap[1])
         heap[1] = heap[m]
         m -= 1
         m > 1 && _heap_sift_down!(heap, 1, m, before)
 
         k = o + j
         Δ = min(budget, nz[k])
-        Δ > zero(Δ) && f(rv[k], Δ)
+        Δ > zero(Δ) && (acc = op(acc, rv[k], Δ))
         budget -= Δ
         budget <= zero(budget) && break
     end
-    return nothing
+    return acc
 end
 
 Base.@propagate_inbounds function _heap_sift_down!(heap, i, m, before)
@@ -926,11 +988,12 @@ end
 function _omax_expectation(ambiguity_set::_SparseIntervalAmbiguitySet, V, upper_bound::Bool)
     budget = one(eltype(V)) - sum(lower(ambiguity_set))
     res = dot(V, lower(ambiguity_set))
-    _omax_fill_sorted(ambiguity_set, V, upper_bound, budget) do i, Δ
-        res += Δ * V[i]
-    end
-    return res
+    return _omax_fold_sorted(_add_filled(V), res, ambiguity_set, V, upper_bound, budget,
+        _heap_eltype(eltype(V))[])
 end
+
+# The expectation's fold step: `res += Δ * V[i]`.
+_add_filled(V) = (res, i, Δ) -> res + Δ * V[i]
 
 # A realized distribution handed out by `_omax_realize!`: the dense vector over every
 # target, as `_omax_distribution` returns it, plus the ascending target indices outside
@@ -938,8 +1001,8 @@ end
 # `ExpectedGapStop`) visits `candidates` instead of all |S| targets, in the same
 # ascending order, so the result is unchanged. Indexing reads `p`.
 #
-# `p` is the scratch buffer of an `_OMaxScratch` and is overwritten by the next
-# realization from that scratch, so the vector is only valid until then.
+# `p` and `candidates` are scratch buffers of an `_OMaxScratch` and are overwritten by
+# the next realization from that scratch, so the vector is only valid until then.
 struct _RealizedDistribution{R} <: AbstractVector{R}
     p::Vector{R}
     candidates::Vector{Int}
@@ -953,10 +1016,24 @@ Base.@propagate_inbounds Base.getindex(d::_RealizedDistribution, i::Int) = d.p[i
 
 The indices of `probs` carrying positive mass, ascending.
 """
-_positive_support(probs::AbstractVector) =
-    [i for i in eachindex(probs) if probs[i] > zero(eltype(probs))]
-_positive_support(d::_RealizedDistribution) =
-    [i for i in d.candidates if @inbounds(d.p[i]) > zero(eltype(d.p))]
+_positive_support(probs) = _positive_support!(Int[], probs)
+
+# `_positive_support` into `out`, which is emptied first.
+function _positive_support!(out::Vector{Int}, probs::AbstractVector)
+    empty!(out)
+    for i in eachindex(probs)
+        probs[i] > zero(eltype(probs)) && push!(out, i)
+    end
+    return out
+end
+
+function _positive_support!(out::Vector{Int}, d::_RealizedDistribution)
+    empty!(out)
+    @inbounds for i in d.candidates
+        d.p[i] > zero(eltype(d.p)) && push!(out, i)
+    end
+    return out
+end
 
 # Reused across the steps of a rollout by `_omax_realize!`.
 #
@@ -966,25 +1043,59 @@ _positive_support(d::_RealizedDistribution) =
 #   matrix `lower`. That dense sum is what `_omax_distribution` computes and its
 #   rounding depends on the zeros it runs over, so it is reproduced, not recomputed from
 #   the stored entries (see `_dense_budget`).
-mutable struct _OMaxScratch{R, M}
+#
+# The per-column caches are dense vectors over the columns (state-action pairs) with a
+# filled flag, and the remaining vectors are working space each call overwrites:
+# - `cand` holds the candidates of the latest realization (`written` usually aliases it);
+# - `heap`, `rows` and `order` back the sorts of `_omax_fill_sorted` and
+#   `_omax_expectations!`, and `q` and `scores` the action scores built on the latter.
+mutable struct _OMaxScratch{R, M, H}
     lower::M
     p::Vector{R}
     written::Vector{Int}
-    budget::Dict{Int, R}
+    budget::Vector{R}
+    has_budget::Vector{Bool}
     # For `_omax_expectations!`: per-target scratch (zero between calls) and
     # `sum(lower column)` per column.
     slot::Vector{Int}
-    lower_sum::Dict{Int, R}
+    lower_sum::Vector{R}
+    has_lower_sum::Vector{Bool}
+    cand::Vector{Int}
+    heap::Vector{H}   # `_heap_eltype(R)` entries
+    rows::Vector{Int}
+    order::Vector{Int}
+    q::Vector{R}
+    scores::Vector{Float64}
 end
 
-_OMaxScratch(lower::AbstractMatrix{R}) where {R} = _OMaxScratch(
-    lower,
-    zeros(R, size(lower, 1)),
-    Int[],
-    Dict{Int, R}(),
-    zeros(Int, size(lower, 1)),
-    Dict{Int, R}(),
-)
+function _OMaxScratch(lower::AbstractMatrix{R}) where {R}
+    ns, nc = size(lower)
+    return _OMaxScratch(
+        lower,
+        zeros(R, ns),
+        Int[],
+        zeros(R, nc),
+        zeros(Bool, nc),
+        zeros(Int, ns),
+        zeros(R, nc),
+        zeros(Bool, nc),
+        Int[],
+        _heap_eltype(R)[],
+        Int[],
+        Int[],
+        R[],
+        Float64[],
+    )
+end
+
+# The cached `scratch.<cache>[j]`, computed by `f()` on the first request.
+@inline function _column_cache!(f, cache::Vector, has::Vector{Bool}, j)
+    @inbounds has[j] && return cache[j]
+    v = f()
+    @inbounds cache[j] = v
+    @inbounds has[j] = true
+    return @inbounds cache[j]
+end
 
 # `one(R) - sum(p)` for `p = Vector(lower(ambiguity_set))`, exactly. With at most two
 # stored entries, all positive, every association of the dense sum adds the zeros
@@ -998,7 +1109,7 @@ function _dense_budget(scratch::_OMaxScratch{R}, j, r, nz) where {R}
         end
         return one(R) - t
     end
-    return get!(scratch.budget, j) do
+    return _column_cache!(scratch.budget, scratch.has_budget, j) do
         p = scratch.p   # zero here: called between clearing and writing
         rv = rowvals(scratch.lower)
         @inbounds for k in r
@@ -1043,9 +1154,14 @@ function _omax_realize!(
 ) where {R}
     l = lower(ambiguity_set)
     L, rl = _stored_range(l)
-    L === scratch.lower || return _omax_distribution(ambiguity_set, V, upper_bound)
+    # A scratch made for another matrix: the dense distribution, every index a
+    # candidate. Still a `_RealizedDistribution`, so the return type is concrete (a
+    # union with `Vector` would box every realization).
+    (L === scratch.lower && length(scratch.p) == length(l)) || return _RealizedDistribution(
+        _omax_distribution(ambiguity_set, V, upper_bound),
+        collect(1:length(l)),
+    )
     p = scratch.p
-    length(p) == length(l) || return _omax_distribution(ambiguity_set, V, upper_bound)
 
     @inbounds for i in scratch.written
         p[i] = zero(R)
@@ -1056,16 +1172,22 @@ function _omax_realize!(
     @inbounds for k in rl
         p[rvl[k]] = nzl[k]
     end
-    _omax_fill_sorted(ambiguity_set, V, upper_bound, budget) do i, Δ
+    heap = _heap_eltype(eltype(V)) === eltype(scratch.heap) ? scratch.heap : _heap_eltype(eltype(V))[]
+    _omax_fill_sorted(ambiguity_set, V, upper_bound, budget, heap) do i, Δ
         p[i] += Δ
     end
 
     # Where `p` can be nonzero: the stored rows of the lower and gap columns. They are
-    # usually the same rows.
+    # usually the same rows. `p` has been cleared at the previous `written`, so the
+    # candidate buffer it may alias is free to reuse.
     G, rg = _stored_range(gap(ambiguity_set))
     rvg = rowvals(G)
     candidates = if length(rl) == length(rg) && all(t -> @inbounds(rvl[t[1]] == rvg[t[2]]), zip(rl, rg))
-        Int[rvl[k] for k in rl]
+        c = resize!(scratch.cand, length(rl))
+        @inbounds for (n, k) in enumerate(rl)
+            c[n] = rvl[k]
+        end
+        c
     else
         sort!(unique!(vcat(Int[rvl[k] for k in rl], Int[rvg[k] for k in rg])))
     end
@@ -1082,7 +1204,9 @@ all the actions' gap columns are ordered by `(V[row], row)`, `V` descending if
 `upper_bound`, row ascending. That is a total order, so restricted to one action's
 rows it is the stable sort of that action's support, the order `_omax_fill` walks.
 Each action walks the shared order and skips rows it does not store; the order is
-drawn lazily off a heap, only as far as the deepest fill needs it.
+drawn lazily off a heap, only as far as the deepest fill needs it. When the actions
+share few rows (their supports together are at most twice the union), each action
+draws its own rows off a heap instead, as `_omax_expectation` does.
 `budget` and the `dot` are the library's own: `sum` of the lower column (cached per
 column) and SparseArrays' sequential `dot`, replicated over the stored entries.
 
@@ -1093,6 +1217,22 @@ function _omax_expectations!(out, scratch, marginal, s, actions, V, upper_bound:
         out[n] = _omax_expectation(marginal[a, s], V, upper_bound)
     end
     return out
+end
+
+# `_omax_expectation`'s starting point for one action: the budget `1 - sum(lower)`, with
+# the sum cached per column, and `dot(V, lower)` as SparseArrays computes it for a
+# sparse column, a sequential sum from `dot(zero, zero)` of `dot(V[row], value)`.
+function _omax_lower_terms(scratch::_OMaxScratch{R}, as, V, rvl, nzl) where {R}
+    l = lower(as)
+    _, rl = _stored_range(l)
+    j = parentindices(l)[2]
+    lsum = _column_cache!(() -> sum(l), scratch.lower_sum, scratch.has_lower_sum, j)
+    budget = one(eltype(V)) - lsum
+    res = dot(zero(eltype(V)), zero(R))
+    @inbounds for k in rl
+        res += dot(V[rvl[k]], nzl[k])
+    end
+    return budget, res
 end
 
 function _omax_expectations!(
@@ -1116,9 +1256,11 @@ function _omax_expectations!(
 
     # The union of the stored gap rows and their values. Its sorted order is drawn
     # lazily off a heap into `order`, only as deep as the actions' fills reach.
-    rows = Int[]
+    rows = empty!(scratch.rows)
+    total = 0   # stored gap rows over all actions, with repeats
     for a in actions
         _, r = _stored_range(gap(marginal[a, s]))
+        total += length(r)
         @inbounds for k in r
             row = Int(rvg[k])
             if slot[row] == 0
@@ -1130,41 +1272,45 @@ function _omax_expectations!(
     @inbounds for row in rows
         slot[row] = 0
     end
-    keys = R[@inbounds(V[row]) for row in rows]
-    # Rows are distinct, so this is a strict total order.
-    @inline before(x, y) = @inbounds begin
-        kx, ky = keys[x], keys[y]
-        upper_bound ? (isless(ky, kx) || (!isless(kx, ky) && rows[x] < rows[y])) :
-                      (isless(kx, ky) || (!isless(ky, kx) && rows[x] < rows[y]))
+
+    # When the actions share few rows, each would skip most of the union, and a lazy
+    # heap per action (`_omax_expectation`'s own order) is cheaper; a cutoff from
+    # timing both per state on the benchmark models.
+    if total <= 2 * length(rows)
+        for (n, a) in enumerate(actions)
+            as = marginal[a, s]
+            budget, res = _omax_lower_terms(scratch, as, V, rvl, nzl)
+            out[n] = _omax_fold_sorted(_add_filled(V), res, as, V, upper_bound, budget, scratch.heap)
+        end
+        return out
     end
-    heap = collect(1:length(rows))
+    # `(V[row], row)` entries. Rows are distinct, so their order is a strict total order,
+    # and any sort of them gives the one sequence.
+    H = eltype(scratch.heap)
+    heap = resize!(scratch.heap, length(rows))
+    @inbounds for (n, row) in enumerate(rows)
+        heap[n] = _heap_entry(H, upper_bound, V[row], row)
+    end
+    before = _heap_before(H, upper_bound)
     m = length(heap)
+    order = empty!(scratch.order)   # rows, in sorted order, as far as drawn
     if m <= 384
         # Small unions: a full sort is cheaper than drawing most of a heap.
-        sort!(heap; lt = before)
-        order = rows[heap]
+        sort!(heap; lt = before, alg = QuickSort)
+        resize!(order, m)
+        @inbounds for t in 1:m
+            order[t] = _heap_index(heap[t])
+        end
         m = 0
     else
         @inbounds for i in (m >> 1):-1:1
             _heap_sift_down!(heap, i, m, before)
         end
-        order = Int[]   # rows, in sorted order, as far as drawn
-        sizehint!(order, m)
     end
 
     for (n, a) in enumerate(actions)
         as = marginal[a, s]
-        l = lower(as)
-        _, rl = _stored_range(l)
-        j = parentindices(l)[2]
-        lsum = get!(() -> sum(l), scratch.lower_sum, j)
-        budget = one(eltype(V)) - lsum
-        # SparseArrays' `dot(::Vector, ::SparseColumnView)`: a sequential sum from
-        # `dot(zero, zero)` of `dot(V[row], value)`.
-        res = dot(zero(eltype(V)), zero(R))
-        @inbounds for k in rl
-            res += dot(V[rvl[k]], nzl[k])
-        end
+        budget, res = _omax_lower_terms(scratch, as, V, rvl, nzl)
 
         _, rg = _stored_range(gap(as))
         @inbounds for k in rg
@@ -1175,7 +1321,7 @@ function _omax_expectations!(
             t += 1
             if t > length(order)
                 m == 0 && break
-                push!(order, rows[heap[1]])
+                push!(order, _heap_index(heap[1]))
                 heap[1] = heap[m]
                 m -= 1
                 m > 1 && _heap_sift_down!(heap, 1, m, before)
