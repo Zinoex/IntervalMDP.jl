@@ -1984,7 +1984,11 @@ function sample(ss::TrajectorySampling, model, strategy_cache, value_function, s
         return StateIterator(trajectory)
     end
 
-    buffer = ss.buffer[]
+    # The buffer sits behind a `Ref{Any}`; asserting the rollout's (inferred) type keeps
+    # this call's return type concrete, which spares the GSRDP loop a dynamic dispatch
+    # per iteration. Inference is sound, so the assertion cannot fail.
+    T = Base.promote_op(_sample_trajectory, typeof(ss), typeof(model), typeof(value_function), typeof(spec))
+    buffer = ss.buffer[]::Union{Nothing, T}
     if buffer === nothing
         buffer = _sample_trajectory(ss, model, value_function, spec)
         ss.reverse && reverse!(buffer)
