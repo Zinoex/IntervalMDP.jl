@@ -134,6 +134,7 @@ import ..IntervalMDP:
     _omax_scratch,
     _omax_scratch_matches,
     _positive_support,
+    _positive_support!,
     _RealizedDistribution,
     _isoptimistic,
     _ismaximize,
@@ -327,21 +328,67 @@ comes first and never reads them. The random draws are the same either way.
 _select_lazy(policy::SelectionPolicy, candidates, scores_fn) =
     _select(policy, candidates, scores_fn())
 
+# `maximum(scores)` as a plain loop: `maximum` boxes its result here, an allocation per
+# draw. `max` on floats is exact and order-independent (NaN wins, and `0.0` beats `-0.0`
+# either way round), so the value is the same.
+function _max_score(scores)
+    m = first(scores)
+    for x in scores
+        m = max(m, x)
+    end
+    return m
+end
+
 function _select_lazy(policy::EpsilonGreedy, candidates, scores_fn)
     rand() < policy.p && return rand(candidates)
     scores = scores_fn()
-    m = maximum(scores)
+    m = _max_score(scores)
     isfinite(m) || return rand(candidates)   # all -Inf: nothing to prefer
     return candidates[argmax(scores)]
 end
 
-function _select(policy::Boltzmann{FixedTemperature}, candidates, scores)
-    m = maximum(scores)
+"""
+    _select_single(policy, candidates) -> Union{eltype(candidates), Nothing}
+
+`_select_lazy(policy, candidates, scores_fn)` for a single candidate whose score is
+finite, without computing the score: the pick is that candidate whatever it scores,
+and the random draws are the ones `_select_lazy` makes (ε-greedy: the exploration
+draw, then `rand(candidates)` on exploration; Boltzmann: the one `rand()` of
+`_categorical_sample` over the weight `exp(0 / T) = 1`). `nothing` for a policy with
+no such shortcut.
+"""
+_select_single(policy::SelectionPolicy, candidates) = nothing
+
+_select_single(policy::EpsilonGreedy, candidates) =
+    rand() < policy.p ? rand(candidates) : candidates[1]
+
+function _select_single(policy::Boltzmann{FixedTemperature}, candidates)
+    rand()
+    return candidates[1]
+end
+
+_select(policy::Boltzmann{FixedTemperature}, candidates, scores) =
+    _select!(Float64[], policy, candidates, scores)
+
+"""
+    _select!(weights, policy, candidates, scores)
+
+`_select`, with `weights` (a `Vector{Float64}`, overwritten) as the scratch for
+the Boltzmann weights.
+"""
+_select!(weights, policy::SelectionPolicy, candidates, scores) =
+    _select(policy, candidates, scores)
+
+function _select!(weights, policy::Boltzmann{FixedTemperature}, candidates, scores)
+    m = _max_score(scores)
     # Shift by the max before exponentiating (log-sum-exp): `exp` of a raw
     # score overflows to Inf for large scores and underflows to 0 for very
     # negative ones, either of which destroys the relative weights.
     isfinite(m) || return rand(candidates)   # all -Inf: nothing to prefer
-    weights = [exp((s - m) / policy.T.t) for s in scores]
+    resize!(weights, length(scores))
+    for (n, s) in enumerate(scores)
+        weights[n] = exp((s - m) / policy.T.t)
+    end
     i = _categorical_sample(weights)
     # `weights` always has a 1.0 entry (the argmax), so this cannot be
     # `nothing` in practice; guard rather than propagate a silent failure.
@@ -466,6 +513,12 @@ _action_score(score::LogScore, as, U, L, dir; maximize::Bool = true) =
     _safe_log(_action_score(score.inner, as, U, L, dir; maximize))
 
 _q(as, V, dir) = Float64(_omax_expectation(as, V, dir))
+
+# Whether `_action_score` is finite for every action of a finite value function: an
+# O-max Q-value is a convex combination of finite values. `LogScore` maps a zero
+# Q-value to `-Inf`, which the policies treat specially (`_select_lazy`).
+_finite_score(::ActionScore) = false
+_finite_score(::Union{UpperBoundScore, LowerBoundScore, WeightedAverageScore}) = true
 
 ###################################
 # 3. Concrete transition           #
@@ -709,6 +762,29 @@ function _explore_values(::UpperBoundExplore, supp, vf, model, spec)
     return [Float64(U[i]) for i in supp]
 end
 
+# `_explore_values` into `out` (a `Vector{Float64}`) for the terms that read only the
+# value function; the others return their own vector.
+_explore_values!(out, term::ExplorationTerm, supp, vf, model, spec) =
+    _explore_values(term, supp, vf, model, spec)
+
+function _explore_values!(out, ::GapExplore, supp, vf, model, spec)
+    U, L = vec(vf.upper.current), vec(vf.lower.current)
+    resize!(out, length(supp))
+    @inbounds for (n, i) in enumerate(supp)
+        out[n] = Float64(U[i]) - Float64(L[i])
+    end
+    return out
+end
+
+function _explore_values!(out, ::UpperBoundExplore, supp, vf, model, spec)
+    U = vec(vf.upper.current)
+    resize!(out, length(supp))
+    @inbounds for (n, i) in enumerate(supp)
+        out[n] = Float64(U[i])
+    end
+    return out
+end
+
 _explore_values(::ActionUncertaintyExplore, supp, vf, ::Nothing, spec) = throw(
     ArgumentError(
         "ActionUncertaintyExplore needs the model; `_state_scores` was given `nothing`",
@@ -827,7 +903,7 @@ weighted by the realized transition probability `p(s'|s,a)`, normalized, and
 mixed with weights that can follow the initial gap. [`LogStateScore`](@ref)
 wraps it for proportional sampling.
 
-A score implements `_state_scores` and `_exploit_bound`, the bound an
+A score implements `_state_scores!` and `_exploit_bound`, the bound an
 [`EpsilonGreedy`](@ref) successor policy reads instead of the full score.
 """
 abstract type StateScore end
@@ -984,11 +1060,33 @@ _reset_score!(score::MixtureStateScore) = _reset_score!(score.explore)
 
 # `w` as a distribution: clamped at zero, then normalized; uniform if nothing is
 # left, which shifts every score of a mixture by the same constant.
-function _normalize_weights(w::Vector{Float64})
-    w = max.(w, 0.0)
+_normalize_weights(w::Vector{Float64}) = _normalize_weights!(copy(w))
+
+function _normalize_weights!(w::Vector{Float64})
+    w .= max.(w, 0.0)
     total = sum(w)
-    return total > 0 ? w ./ total : fill(1 / length(w), length(w))
+    total > 0 ? (w ./= total) : fill!(w, 1 / length(w))
+    return w
 end
+
+"""
+    _StepBuffers()
+
+Scratch vectors for a rollout step's successor draw (`_sample_state`): the filtered
+support, the exploration values, the mixture's terms, the scores and the Boltzmann
+weights. Kept on the strategy for the solve. Each is resized and fully written before
+it is read, so the arithmetic is element for element that of fresh vectors.
+"""
+struct _StepBuffers
+    supp::Vector{Int}
+    x::Vector{Float64}
+    pp::Vector{Float64}
+    exploit::Vector{Float64}
+    scores::Vector{Float64}
+    weights::Vector{Float64}
+end
+
+_StepBuffers() = _StepBuffers(Int[], Float64[], Float64[], Float64[], Float64[], Float64[])
 
 _resolved_alpha(schedule::FixedAlpha) = schedule.alpha
 _resolved_alpha(::AlphaSchedule) = throw(
@@ -1007,7 +1105,18 @@ the rollout's action `a`, and the strategy's [`ConcreteTransition`](@ref). An
 [`ExplorationTerm`](@ref) that reads only the value function accepts `nothing`
 for `model` and `spec`.
 """
-function _state_scores(
+_state_scores(score::StateScore, probs, supp, vf, s, a, model, spec, transition) =
+    _state_scores!(_StepBuffers(), score, probs, supp, vf, s, a, model, spec, transition)
+
+"""
+    _state_scores!(buffers, score, probs, supp, vf, s, a, model, spec, transition) -> Vector{Float64}
+
+`_state_scores` computed in the [`_StepBuffers`](@ref) `buffers`; the result is
+`buffers.scores` (or, for an exploration term without an in-place form, a vector of
+its own), valid until the next call.
+"""
+function _state_scores!(
+    buffers::_StepBuffers,
     score::MixtureStateScore,
     probs,
     supp,
@@ -1021,15 +1130,34 @@ function _state_scores(
     alpha_e = _resolved_alpha(score.alpha_explore)
     alpha_p = _resolved_alpha(score.alpha_prob)
 
-    Vg = vec(_bound_values(score.exploit, vf))
-    x = _explore_values(score.explore, supp, vf, model, spec)
+    x = _explore_values!(buffers.x, score.explore, supp, vf, model, spec)
 
     m = length(supp)
-    pp = [(1 - alpha_p) * Float64(probs[i]) + alpha_p / m for i in supp]
-    exploit = _normalize_weights([pp[n] * Float64(Vg[i]) for (n, i) in enumerate(supp)])
-    explore = _normalize_weights([pp[n] * Float64(x[n]) for n in 1:m])
+    pp = resize!(buffers.pp, m)
+    @inbounds for (n, i) in enumerate(supp)
+        pp[n] = (1 - alpha_p) * Float64(probs[i]) + alpha_p / m
+    end
+    explore = resize!(buffers.scores, m)
+    @inbounds for n in 1:m
+        explore[n] = pp[n] * Float64(x[n])
+    end
+    _normalize_weights!(explore)
 
-    return (1 - alpha_e) .* exploit .+ alpha_e .* explore
+    # `(1 - α_e)·exploit + α_e·explore`. The exploit weights are normalized, so finite
+    # and non-negative, and at α_e = 1 the sum is `0 + explore`, which is `explore`.
+    alpha_e == 1 && return explore
+
+    Vg = vec(_bound_values(score.exploit, vf))
+    exploit = resize!(buffers.exploit, m)
+    @inbounds for (n, i) in enumerate(supp)
+        exploit[n] = pp[n] * Float64(Vg[i])
+    end
+    _normalize_weights!(exploit)
+
+    @inbounds for n in 1:m
+        explore[n] = (1 - alpha_e) * exploit[n] + alpha_e * explore[n]
+    end
+    return explore
 end
 
 """
@@ -1052,8 +1180,22 @@ _before_sample!(score::LogStateScore, vf) = _before_sample!(score.inner, vf)
 _after_sample!(score::LogStateScore, batch, vf) = _after_sample!(score.inner, batch, vf)
 _reset_score!(score::LogStateScore) = _reset_score!(score.inner)
 
-_state_scores(score::LogStateScore, probs, supp, vf, s, a, model, spec, transition) =
-    _safe_log.(_state_scores(score.inner, probs, supp, vf, s, a, model, spec, transition))
+function _state_scores!(
+    buffers::_StepBuffers,
+    score::LogStateScore,
+    probs,
+    supp,
+    vf,
+    s,
+    a,
+    model,
+    spec,
+    transition,
+)
+    v = _state_scores!(buffers, score.inner, probs, supp, vf, s, a, model, spec, transition)
+    v .= _safe_log.(v)
+    return v
+end
 
 """
     _initial_gap(model, vf) -> Float64
@@ -1431,12 +1573,20 @@ exploitation; pair it with a strategy that covers the state space some other way
 Only flat (non-factored) models are supported — the O-max realization
 (`_omax_marginal`) requires a single `Marginal`.
 """
-struct TrajectorySampling <: TrajectorySamplingStrategy
-    action_policy::SelectionPolicy
-    action_score::ActionScore
+# Parametric on the policies and scores, so `sample` and the rollout setup dispatch on
+# them statically (an abstract field costs a dynamic dispatch, and a boxed value
+# function, per call).
+struct TrajectorySampling{
+    AP <: SelectionPolicy,
+    AS <: ActionScore,
+    SP <: SelectionPolicy,
+    SS <: StateScore,
+} <: TrajectorySamplingStrategy
+    action_policy::AP
+    action_score::AS
     transition::ConcreteTransition
-    state_policy::SelectionPolicy
-    state_score::StateScore
+    state_policy::SP
+    state_score::SS
     terminate::Vector{TerminationRule}
     gauss_seidel::Bool
     k::Int
@@ -1461,6 +1611,8 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
     # The `_OMaxScratch` rollouts realize their transition distributions into
     # (`_rollout_scratch`), or `nothing` before the first rollout of a solve.
     omax_scratch::Base.RefValue{Any}
+    # The successor draw's scratch vectors (`_sample_state`).
+    step_buffers::_StepBuffers
 
     function TrajectorySampling(;
         action_policy::SelectionPolicy = EpsilonGreedy(0.1),
@@ -1502,7 +1654,12 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
                 ArgumentError("converged_eps must be non-negative, got $converged_eps"),
             )
         end
-        return new(
+        return new{
+            typeof(action_policy),
+            typeof(action_score),
+            typeof(state_policy),
+            typeof(state_score),
+        }(
             action_policy,
             action_score,
             transition,
@@ -1522,6 +1679,7 @@ struct TrajectorySampling <: TrajectorySamplingStrategy
             Ref(0),
             Ref(false),
             Ref{Any}(nothing),
+            _StepBuffers(),
         )
     end
 end
@@ -1629,14 +1787,26 @@ function _sample_action(
     score::ActionScore = ss.action_score,
     scratch = nothing,
 )
-    actions = collect(available(model, s))
+    actions = _action_list(available(model, s))
     isempty(actions) && return nothing
+    # A single action is the pick whatever it scores: skip its Q-value (an O-max
+    # expectation, as dear as a backup) and only make the policy's random draws.
+    if length(actions) == 1 && _finite_score(score)
+        a = _select_single(policy, actions)
+        a === nothing || return a
+    end
 
     U, L = vf.upper.current, vf.lower.current
     maximize = _ismaximize(spec)
     scores_fn = () -> _action_scores(score, scratch, marginal, s, actions, U, L, dir, maximize)
     return _select_lazy(policy, actions, scores_fn)
 end
+
+# The available actions as an indexable list. A `Vector` or `CartesianIndices` is used
+# as is (`rand` draws the same element with the same draws as from its `collect`, and
+# linear indexing agrees); anything else is collected.
+_action_list(actions::Union{Vector, CartesianIndices}) = actions
+_action_list(actions) = collect(actions)
 
 """
     _action_scores(score, scratch, marginal, s, actions, U, L, dir, maximize) -> Vector{Float64}
@@ -1663,8 +1833,15 @@ function _action_scores(
         return [_action_score(score, marginal[a, s], U, L, dir; maximize) for a in actions]
     # UpperBoundScore: maximize ? _q(U) : 1 - _q(L); LowerBoundScore the other way.
     V = (score isa UpperBoundScore) == maximize ? U : L
-    q = _omax_expectations!(Vector{eltype(V)}(undef, length(actions)), scratch, marginal, s, actions, V, dir)
-    return maximize ? Float64[Float64(x) for x in q] : Float64[1 - Float64(x) for x in q]
+    n = length(actions)
+    q = eltype(V) === eltype(scratch.q) ? resize!(scratch.q, n) : Vector{eltype(V)}(undef, n)
+    _omax_expectations!(q, scratch, marginal, s, actions, V, dir)
+    # The scratch's score buffer: the scores are read only by this step's draw.
+    out = resize!(scratch.scores, n)
+    @inbounds for t in 1:n
+        out[t] = maximize ? Float64(q[t]) : 1 - Float64(q[t])
+    end
+    return out
 end
 
 """
@@ -1731,19 +1908,23 @@ function _sample_state(
     visited = nothing,
     converged_eps = nothing,
     terminal = nothing,
+    buffers::_StepBuffers = _StepBuffers(),
 )
-    supp = _positive_support(probs)
+    supp = _positive_support!(buffers.supp, probs)
     _filter_successors!(supp, model, vf, visited, converged_eps, terminal)
     isempty(supp) && return nothing
 
     if policy isa EpsilonGreedy
         Vg = vec(_bound_values(_exploit_bound(score), vf))
-        scores = [Float64(probs[i]) * Float64(Vg[i]) for i in supp]
+        scores = resize!(buffers.scores, length(supp))
+        @inbounds for (n, i) in enumerate(supp)
+            scores[n] = Float64(probs[i]) * Float64(Vg[i])
+        end
     else
-        scores = _state_scores(score, probs, supp, vf, s, a, model, spec, ss.transition)
+        scores = _state_scores!(buffers, score, probs, supp, vf, s, a, model, spec, ss.transition)
     end
 
-    return _maybe_target_state(model, _select(policy, supp, scores))
+    return _maybe_target_state(model, _select!(buffers.weights, policy, supp, scores))
 end
 
 """
@@ -1901,6 +2082,7 @@ function _rollout!(
             visited,
             converged_eps,
             terminal,
+            buffers = ss.step_buffers,
         )
         # `nothing` = no successor carries mass under this weighting, or the
         # filters left none, so there is none the strategy can honestly pick —
@@ -1984,7 +2166,11 @@ function sample(ss::TrajectorySampling, model, strategy_cache, value_function, s
         return StateIterator(trajectory)
     end
 
-    buffer = ss.buffer[]
+    # The buffer sits behind a `Ref{Any}`; asserting the rollout's (inferred) type keeps
+    # this call's return type concrete, which spares the GSRDP loop a dynamic dispatch
+    # per iteration. Inference is sound, so the assertion cannot fail.
+    T = Base.promote_op(_sample_trajectory, typeof(ss), typeof(model), typeof(value_function), typeof(spec))
+    buffer = ss.buffer[]::Union{Nothing, T}
     if buffer === nothing
         buffer = _sample_trajectory(ss, model, value_function, spec)
         ss.reverse && reverse!(buffer)
