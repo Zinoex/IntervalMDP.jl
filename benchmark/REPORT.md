@@ -761,7 +761,7 @@ adding or renumbering those files.
 | Sub-phase | Spec | Hypothesis | Phase 0 measurement (§ 7 entry; § 3–6 source) | Target cases (entries) | Status |
 |---|---|---|---|---|---|
 | `1b.1` | `1b.1-h1-sort-ordering.md` | H1 — type-stable ordering in the sparse O-max sort (IMDP/product) | § 7 item 1, § 5: dynamic `Base.Order._by` self time 67% of samples for the real model (`profiles/real-multiObj_robotIMDP.md`), 50% for `profiles/product-imdp-sparse-n10000-nnz10-a4-dfa4.md`, 8% at k = 100 (`profiles/imdp-sparse-n100000-nnz100-a1.md`); 64 B per sparse column, sparse solves allocate 0.05–3.72 GB (`results/baseline-20fc03b-cpu-t1.json`) | `imdp-sparse-n10000-nnz10-a{1,4}`, `imdp-sparse-n100000-nnz10-a{1,4}`, `product-imdp-sparse-n1000-nnz10-a{1,4}-dfa4`, `product-imdp-sparse-n10000-nnz10-a{1,4}-dfa4`, `real-multiObj_robotIMDP` (`bellman`, `solve_rvi`; `solve_dfa` for product); secondary `imdp-sparse-*-nnz100-*` | done — accepted (§ 12.1) |
-| `1b.2` | `1b.2-h7-sparse-gather.md` | H7 — sparse gather / tuple construction | § 7 item 7, § 5: 25–26% of samples (self time) in `setindex!` building `(V[j], gap)` tuples (`profiles/imdp-sparse-n10000-nnz100-a4.md`, `profiles/imdp-sparse-n100000-nnz100-a1.md`) | `imdp-sparse-n10000-nnz100-a{1,4}`, `imdp-sparse-n100000-nnz100-a{1,4}`, `cs-imdp-sparse-n10000-nnz100-a4` (`bellman`, `solve_rvi`, `solve_cs_*`) | planned |
+| `1b.2` | `1b.2-h7-sparse-gather.md` | H7 — sparse gather / tuple construction | § 7 item 7, § 5: 25–26% of samples (self time) in `setindex!` building `(V[j], gap)` tuples (`profiles/imdp-sparse-n10000-nnz100-a4.md`, `profiles/imdp-sparse-n100000-nnz100-a1.md`) | `imdp-sparse-n10000-nnz100-a{1,4}`, `imdp-sparse-n100000-nnz100-a{1,4}`, `cs-imdp-sparse-n10000-nnz100-a4` (`bellman`, `solve_rvi`, `solve_cs_*`) | done — rejected (§ 12.2) |
 | `1b.3` | `1b.3-h6-dense-gap-walk.md` | H6 — dense gap walk | § 7 item 6, § 5 and § 6.2: 79–81% of samples in `gap_value` (`profiles/imdp-dense-n1000-a4.md`, `profiles/imdp-dense-n4000-a4.md`); 3.30–4.89 ns/nnz, 26–28% of the 1-thread DRAM roof (`results/sizes-20fc03b-cpu-t1.json`, `results/stream-t1.json`) | `imdp-dense-n1000-a{1,4}`, `imdp-dense-n4000-a{1,4}`, `product-imdp-dense-n1000-a{1,4}-dfa4`, `cs-imdp-dense-n1000-a4` (`bellman`, `solve_rvi`, `solve_dfa`, `solve_cs_*`) | planned |
 
 The predicted factors in § 7 are relative to the stored Phase 0 files, which were recorded with an uncommitted harness
@@ -1616,3 +1616,179 @@ interface changed (all changed names are internal: `_bellman_helper!`, `omax_sta
 * **F-2 — `ab.jl` does not repeat `NOT settled` rounds.** This session needed up to 4 attempts per round pair; a scratch
   driver moved such pairs to `benchmark/results/logs/1b.1-retries/` and resumed `ab.jl`. A `--retry-not-settled N`
   option in `ab.jl` (repeating the pair, A then B) would make this reproducible from the committed harness.
+
+### 12.2 `1b.2` — H7: sparse O-max column order from a global rank of `V` (IMDP/product) — **rejected**
+
+**Hypothesis (§ 7 item 7).** The sparse O-max `state_action_bellman` copies `(V[j], gap)` tuples into
+`workspace.values_gaps` for every column and sorts them by value. Phase 0 put 25–26% of the samples (self time) in
+`setindex!` building those tuples (§ 5, § 11.6). Re-profiled on `6fde092` with `benchmark/profile.jl` (1 thread,
+`bellman`, local copies in `benchmark/results/logs/1b.2-profiles/`), `_setindex!` (`array.jl:1025`) still has 28.9% of
+the samples for `imdp-sparse-n10000-nnz100-a4` (3129 of 10844) and 28.1% for `imdp-sparse-n100000-nnz100-a1` (3063 of
+10905). *Change:* rank `V` once per call (one `sortperm!`, as the dense path does) and sort the support positions by
+that rank instead of copying values. *Prediction:* 1.2–1.5× for k = 100. *Risk:* the per-call `sortperm!` is
+O(n log n) and may regress the k = 10 cases.
+
+**Change (diff against `6fde092`; measured as the unreferenced commit object `2b145ce`, then reverted).**
+`git diff 6fde092 2b145ce`: `src/bellman.jl`, `src/workspace.jl`, `test/base/perf_equivalence.jl`, 163 insertions and
+56 deletions.
+
+* `bellman_precomputation!` for the sparse workspaces (single-threaded and threaded) ran
+  `sortperm!(permutation, V; rev = upper_bound, scratch = …)` and filled `rank[perm[r]] = r`. Before, it did nothing.
+* The sparse `state_action_bellman` wrote the keys `(UInt64(rank[j]) << 32) | i` for the support positions `i`, sorted
+  the first `n` keys with the positional `sort!(keys, 1, n, Base.Sort.DEFAULT_STABLE, Base.Order.Forward, scratch)`,
+  and called the dense `gap_value(V[support], nonzeros(gap), budget, positions)` with the positions in key order. The
+  tuple `gap_value(Vp, budget)` stayed for the factored path, and `omax_ordering` was removed.
+* Ties: `sortperm!` is stable, so equal values are ordered by increasing index. The support rows of a CSC column
+  increase, so the rank order inside a column is the order of the former stable tuple sort (by value, ties in support
+  order, `-0.0` before `0.0` under `isless` in both). The keys are distinct, so the order does not depend on the stability
+  of the key sort.
+* `SparseIntervalOMaxWorkspace` gained `rank`, `permutation` and `perm_scratch` (`Int32`, length `num_target`, shared
+  by the thread workspaces of `ThreadedSparseIntervalOMaxWorkspace`, which also shared one `budget`), and per-thread
+  `keys` and `scratch` (`UInt64`, length `maxsupportsize`) in place of the two tuple buffers.
+* Test: the 1b.1 item "sparse O-max sort ordering (1b.1)", which calls `omax_ordering`, was replaced by
+  "perf_equivalence: sparse O-max global rank (1b.2)". It covers both orderings, ties including `-0.0`/`0.0`, the
+  single-threaded and threaded workspaces (shared rank), each column `==` a tuple-sort reference, and `bellman!` on the
+  sparse equivalence cases.
+* Not changed: `ext/`, `lean/`, the dense and factored paths, and every exported or tier-2 name.
+
+**Equivalence and checks on the candidate.** Single `bellman!` calls in all four `upper_bound`/`maximize` modes on 21
+registry cases (every `imdp-*`, `product-imdp-*` case and the real model; default workspace with `NoStrategyCache` and
+with a `TimeVaryingStrategyCache`), at 1 thread and at 4 threads (threaded default workspaces): 84 of 84 value vectors
+`==` and 84 of 84 strategy arrays `==` against `bcbf0df` and against `6fde092`, at both thread counts. The
+`perf_equivalence` test items passed at 1 and 4 threads (227 and 281 tests). Steady-state `bellman!` allocated 0 bytes on
+both refs for the 13 sparse IMDP, sparse product and real-model cases × 2 `upper_bound` values. `JET.report_opt(…;
+target_modules = (IntervalMDP,))` gave 0 reports on both refs for these 26 calls, and the unfiltered report counts were
+the same on both refs. `julia_format.py check --base 6fde092`: PASS. The benchmark correctness check passed for every
+entry of every kept round file below.
+
+**Method.** `benchmark/ab.jl --a 6fde092 --b 2b145ce --rounds 3` (A B A B A B, separate processes, the invoking
+checkout's harness on both sides), through a driver that checked the environment before each `ab.jl` invocation and
+moved a round *pair* with a `NOT settled` clock reference to `benchmark/results/logs/1b.2-retries/<label>/` (at most 3
+discarded attempts per pair) before letting `ab.jl` resume. Attempts per kept round pair (r1/r2/r3): `t1-regr` 3/3/4,
+`t1-target` 2/1/1, `t16` 1/1/1. Labels: `1b.2-t1-target` (target cases, 1 thread), `1b.2-t1-regr` (k = 10 sparse
+IMDP and sparse product cases and the real model, 1 thread), `1b.2-t16` (target and k = 10 cases, 16 threads). The
+`size-imdp-sparse-*` cases are not in the `full` suite, so the `t1-regr` filter matched none of them.
+
+**Environment.** 2026-10-27 23:43 – 2026-10-28 03:01 UTC. Intel Core Ultra 7 255H, Julia 1.13.1,
+`platform_profile` = performance, EPP and governor `performance`, `intel_pstate/no_turbo` = 0, AC online,
+`/sys/fs/cgroup/cpuset.cpus.isolated` empty and no other Julia process at every pre-invocation check. A 20-second monitor
+logged 594 samples over the session, all with the performance profile, empty isolation, EPP `performance` and AC online.
+One sample (01:11:43, during the precompilation that precedes the first `t1-target` round) showed a `cuda_inspect_dr`
+process. Compact pinning (ThreadPinning.jl): 1 thread → CPU 0 (P core); 16 threads → CPUs 0–15 (6 P, 8 E, 2 LP-E),
+`JULIA_EXCLUSIVE` unset. The 1-minute `loadavg_at_start` is 1.00–1.92 in the 12 kept 1-thread files and 1.40–8.09 in the
+6 kept 16-thread files (the decaying average of the preceding 16-thread rounds).
+
+**Clock.** The run-start reference (`lib/clock.jl`, median of 9 probes) is 196.5 µs in every kept round file. It is
+settled (probe range ≤ 2%) in all 6 rounds of `t1-target` and of `t16`, and in r1 and r2 of `t1-regr`. r3 of `t1-regr`
+stayed `NOT settled` after 3 discarded attempts (r3-A range 24.4%, r3-B 7.0%). Two of the 330 records in the 18 kept
+round files have `clock_state` = deviating (pre-trial `clock_probe_ratio` 1.32 and 1.13): `t1-target` r1-B
+`imdp-sparse-n100000-nnz100-a4`/`solve_rvi` and r2-B `imdp-sparse-n100000-nnz100-a1`/`solve_rvi`. `compare.jl`
+therefore gives both entries CLOCK (not evidence). The informational post-trial `clock_after_deviation` is not used.
+
+**Results.** Columns as in § 12.1: pooled medians over the three rounds (`compare.jl`), B/A = candidate / baseline,
+per-round B/A, Mann–Whitney p, `compare.jl` verdict, A/B spread = (max − min) / min of the three round medians,
+steady-state bytes per call. Summaries: `benchmark/results/logs/ab/<label>/<label>-summary.md` (local).
+
+*CPU, 1 thread, target cases* (`benchmark/results/1b.2-t1-target-r{1,2,3}-{A,B}.json`):
+
+| case | entry | A median | B median | B/A | per-round B/A | MWU p | compare.jl verdict | A spread | B spread | bytes A→B (r1..r3) |
+|---|---|---:|---:|---:|---|---:|---|---:|---:|---|
+| `cs-imdp-sparse-n10000-nnz100-a4` | `solve_cs_stationary` | 4.382 s | 3.538 s | 0.807 | 0.814, 0.797, 0.837 | 3.4e-06 | speedup | 2.2% | 3.9% | 843880→962640 |
+| `cs-imdp-sparse-n10000-nnz100-a4` | `solve_cs_timevarying` | 623.91 ms | 505.38 ms | 0.810 | 0.817, 0.804, 0.829 | 2.6e-08 | speedup | 1.9% | 2.6% | 1245368→1364128 |
+| `imdp-sparse-n10000-nnz100-a1` | `bellman` | 17.02 ms | 13.87 ms | 0.815 | 0.813, 0.810, 0.820 | 0 | speedup | 1.3% | 1.5% | 0→0 |
+| `imdp-sparse-n10000-nnz100-a1` | `solve_rvi` | 1.419 s | 1.118 s | 0.788 | 0.823, 0.787, 0.789 | 3.4e-06 | speedup | 5.4% | 1.1% | 323776→442536 |
+| `imdp-sparse-n10000-nnz100-a4` | `bellman` | 69.53 ms | 56.27 ms | 0.809 | 0.809, 0.780, 0.774 | 6.8e-95 | speedup | 6.1% | 2.3% | 0→0 |
+| `imdp-sparse-n10000-nnz100-a4` | `solve_rvi` | 4.440 s | 3.588 s | 0.808 | 0.792, 0.813, 0.830 | 3.4e-06 | speedup | 3.9% | 1.2% | 803808→922568 |
+| `imdp-sparse-n100000-nnz100-a1` | `bellman` | 177.52 ms | 147.55 ms | 0.831 | 0.815, 0.863, 0.841 | 6.6e-41 | speedup | 2.7% | 3.1% | 0→0 |
+| `imdp-sparse-n100000-nnz100-a1` | `solve_rvi` | 14.480 s | 12.157 s | 0.840 | 0.840, 0.839, 0.838 | 3.4e-06 | CLOCK (not evidence) | 1.6% | 1.5% | 3203776→4402536 |
+| `imdp-sparse-n100000-nnz100-a4` | `bellman` | 715.58 ms | 587.66 ms | 0.821 | 0.826, 0.816, 0.816 | 7.1e-41 | speedup | 1.8% | 1.3% | 0→0 |
+| `imdp-sparse-n100000-nnz100-a4` | `solve_rvi` | 45.378 s | 37.679 s | 0.830 | 0.829, 0.824, 0.832 | 0.00041 | CLOCK (not evidence) | 0.5% | 0.9% | 8003808→9202568 |
+
+*CPU, 1 thread, regression cases* (`benchmark/results/1b.2-t1-regr-r{1,2,3}-{A,B}.json`):
+
+| case | entry | A median | B median | B/A | per-round B/A | MWU p | compare.jl verdict | A spread | B spread | bytes A→B (r1..r3) |
+|---|---|---:|---:|---:|---|---:|---|---:|---:|---|
+| `imdp-sparse-n10000-nnz10-a1` | `bellman` | 1.17 ms | 1.15 ms | 0.987 | 0.994, 0.982, 0.983 | 0 | no change | 0.6% | 0.8% | 0→0 |
+| `imdp-sparse-n10000-nnz10-a1` | `solve_rvi` | 114.67 ms | 110.77 ms | 0.966 | 0.943, 0.987, 0.931 | 1.8e-18 | no change | 5.5% | 1.5% | 320896→440968 |
+| `imdp-sparse-n10000-nnz10-a4` | `bellman` | 4.81 ms | 4.06 ms | 0.845 | 0.848, 0.847, 0.826 | 0 | speedup | 2.2% | 1.6% | 0→0 |
+| `imdp-sparse-n10000-nnz10-a4` | `solve_rvi` | 224.87 ms | 185.29 ms | 0.824 | 0.810, 0.856, 0.822 | 1e-20 | speedup | 6.4% | 1.1% | 800928→921000 |
+| `imdp-sparse-n100000-nnz10-a1` | `bellman` | 12.25 ms | 12.98 ms | 1.060 | 1.068, 1.054, 1.053 | 2.4e-243 | regression | 0.5% | 0.9% | 0→0 |
+| `imdp-sparse-n100000-nnz10-a1` | `solve_rvi` | 1.205 s | 1.234 s | 1.024 | 1.036, 1.023, 1.010 | 0.0012 | no change | 1.3% | 1.9% | 3200896→4400968 |
+| `imdp-sparse-n100000-nnz10-a4` | `bellman` | 50.19 ms | 44.73 ms | 0.891 | 0.912, 0.891, 0.851 | 2.5e-118 | speedup | 5.2% | 1.9% | 0→0 |
+| `imdp-sparse-n100000-nnz10-a4` | `solve_rvi` | 2.305 s | 2.004 s | 0.869 | 0.884, 0.871, 0.849 | 3.4e-06 | speedup | 3.1% | 0.9% | 8000928→9201000 |
+| `product-imdp-sparse-n1000-nnz10-a1-dfa4` | `bellman` | 455.12 µs | 443.64 µs | 0.975 | 0.974, 0.983, 0.954 | 0 | no change | 0.1% | 3.1% | 0→0 |
+| `product-imdp-sparse-n1000-nnz10-a1-dfa4` | `solve_dfa` | 68.88 ms | 66.43 ms | 0.964 | 0.975, 0.984, 0.921 | 2.2e-22 | no change | 6.7% | 0.6% | 89048→101248 |
+| `product-imdp-sparse-n1000-nnz10-a4-dfa4` | `bellman` | 1.90 ms | 1.58 ms | 0.832 | 0.828, 0.840, 0.827 | 0 | speedup | 1.8% | 1.7% | 0→0 |
+| `product-imdp-sparse-n1000-nnz10-a4-dfa4` | `solve_dfa` | 94.11 ms | 78.58 ms | 0.835 | 0.812, 0.834, 0.844 | 2.8e-45 | speedup | 5.5% | 1.6% | 137080→149280 |
+| `product-imdp-sparse-n10000-nnz10-a1-dfa4` | `bellman` | 4.94 ms | 4.93 ms | 0.998 | 0.997, 1.010, 0.998 | 0.12 | no change | 2.0% | 1.6% | 0→0 |
+| `product-imdp-sparse-n10000-nnz10-a1-dfa4` | `solve_dfa` | 713.61 ms | 703.90 ms | 0.986 | 1.034, 0.963, 0.980 | 0.19 | no change | 5.1% | 2.6% | 881048→1001152 |
+| `product-imdp-sparse-n10000-nnz10-a4-dfa4` | `bellman` | 19.63 ms | 16.61 ms | 0.846 | 0.844, 0.856, 0.850 | 0 | speedup | 3.0% | 2.3% | 0→0 |
+| `product-imdp-sparse-n10000-nnz10-a4-dfa4` | `solve_dfa` | 930.23 ms | 805.43 ms | 0.866 | 0.881, 0.828, 0.865 | 3.4e-06 | speedup | 4.7% | 1.7% | 1361080→1481184 |
+| `real-multiObj_robotIMDP` | `bellman` | 14.21 µs | 17.62 µs | 1.240 | 1.197, 1.204, 1.376 | 0 | regression | 4.7% | 20.2% | 0→0 |
+| `real-multiObj_robotIMDP` | `solve_cs_stationary` | 1.12 ms | 1.40 ms | 1.248 | 1.250, 1.246, 1.246 | 0 | regression | 0.6% | 0.2% | 18512→21248 |
+| `real-multiObj_robotIMDP` | `solve_rvi` | 1.22 ms | 1.50 ms | 1.226 | 1.226, 1.226, 1.226 | 0 | regression | 0.3% | 0.3% | 17584→20320 |
+
+*CPU, 16 threads, target and k = 10 cases* (`benchmark/results/1b.2-t16-r{1,2,3}-{A,B}.json`):
+
+| case | entry | A median | B median | B/A | per-round B/A | MWU p | compare.jl verdict | A spread | B spread | bytes A→B (r1..r3) |
+|---|---|---:|---:|---:|---|---:|---|---:|---:|---|
+| `cs-imdp-sparse-n10000-nnz100-a4` | `solve_cs_stationary` | 1.186 s | 1.012 s | 0.853 | 0.855, 0.856, 0.853 | 3.4e-06 | speedup | 0.8% | 0.6% | 11060392→1554640 |
+| `cs-imdp-sparse-n10000-nnz100-a4` | `solve_cs_timevarying` | 191.87 ms | 149.29 ms | 0.778 | 0.770, 0.789, 0.780 | 7.8e-25 | speedup | 1.6% | 1.0% | 10983992→1478240 |
+| `imdp-sparse-n10000-nnz10-a1` | `bellman` | 425.04 µs | 966.15 µs | 2.273 | 2.150, 2.336, 2.315 | 0 | regression | 2.6% | 11.5% | 8128→8128 |
+| `imdp-sparse-n10000-nnz10-a1` | `solve_rvi` | 71.53 ms | 108.76 ms | 1.520 | 1.544, 1.524, 1.402 | 9.4e-40 | regression | 4.8% | 10.9% | 3504160→1219400 |
+| `imdp-sparse-n10000-nnz10-a4` | `bellman` | 1.60 ms | 2.05 ms | 1.287 | 1.308, 1.226, 1.321 | 0 | regression | 2.0% | 5.6% | 8128→8128 |
+| `imdp-sparse-n10000-nnz10-a4` | `solve_rvi` | 79.29 ms | 95.64 ms | 1.206 | 1.198, 1.216, 1.200 | 1.4e-42 | regression | 0.7% | 1.4% | 10778272→1293512 |
+| `imdp-sparse-n10000-nnz100-a1` | `bellman` | 4.66 ms | 4.44 ms | 0.952 | 0.946, 0.939, 0.997 | 1.3e-30 | no change | 7.2% | 1.7% | 8128→8128 |
+| `imdp-sparse-n10000-nnz100-a1` | `solve_rvi` | 402.12 ms | 369.09 ms | 0.918 | 0.916, 0.914, 0.935 | 1.2e-11 | speedup | 1.4% | 1.6% | 3468960→1163208 |
+| `imdp-sparse-n10000-nnz100-a4` | `bellman` | 18.36 ms | 15.77 ms | 0.859 | 0.858, 0.845, 0.877 | 8.8e-205 | speedup | 2.8% | 0.9% | 8128→8128 |
+| `imdp-sparse-n10000-nnz100-a4` | `solve_rvi` | 1.229 s | 1.022 s | 0.831 | 0.834, 0.815, 0.826 | 3.4e-06 | speedup | 1.6% | 2.1% | 11003168→1497416 |
+| `imdp-sparse-n100000-nnz10-a1` | `bellman` | 4.19 ms | 9.09 ms | 2.170 | 2.210, 2.182, 2.099 | 0 | regression | 8.2% | 4.3% | 8128→8128 |
+| `imdp-sparse-n100000-nnz10-a1` | `solve_rvi` | 454.77 ms | 891.50 ms | 1.960 | 1.988, 2.106, 1.826 | 1.4e-07 | regression | 21.4% | 5.2% | 27976032→5171272 |
+| `imdp-sparse-n100000-nnz10-a4` | `bellman` | 14.88 ms | 21.51 ms | 1.445 | 1.414, 1.446, 1.469 | 3.8e-313 | regression | 0.6% | 3.2% | 8128→8128 |
+| `imdp-sparse-n100000-nnz10-a4` | `solve_rvi` | 727.36 ms | 950.10 ms | 1.306 | 1.283, 1.338, 1.266 | 1.6e-06 | regression | 3.8% | 2.6% | 104378272→9573512 |
+| `imdp-sparse-n100000-nnz100-a1` | `bellman` | 47.02 ms | 46.01 ms | 0.979 | 0.965, 0.983, 0.982 | 3.5e-13 | no change | 3.7% | 1.8% | 8128→8128 |
+| `imdp-sparse-n100000-nnz100-a1` | `solve_rvi` | 3.904 s | 3.788 s | 0.970 | 0.979, 0.965, 0.962 | 4.1e-06 | no change | 1.2% | 1.3% | 27948960→5123208 |
+| `imdp-sparse-n100000-nnz100-a4` | `bellman` | 182.62 ms | 163.21 ms | 0.894 | 0.877, 0.925, 0.878 | 1e-40 | speedup | 3.5% | 3.5% | 8128→8128 |
+| `imdp-sparse-n100000-nnz100-a4` | `solve_rvi` | 11.994 s | 10.542 s | 0.879 | 0.881, 0.871, 0.875 | 3.4e-06 | speedup | 0.2% | 1.4% | 104603168→9777416 |
+| `product-imdp-sparse-n1000-nnz10-a1-dfa4` | `bellman` | 335.75 µs | 439.70 µs | 1.310 | 1.284, 1.261, 1.614 | 0 | regression | 27.0% | 0.8% | 34560→34560 |
+| `product-imdp-sparse-n1000-nnz10-a1-dfa4` | `solve_dfa` | 78.52 ms | 101.78 ms | 1.296 | 1.304, 1.280, 1.295 | 1.2e-42 | regression | 2.0% | 0.8% | 5757416→5524752 |
+| `product-imdp-sparse-n1000-nnz10-a4-dfa4` | `bellman` | 1.03 ms | 1.13 ms | 1.099 | 1.072, 1.117, 1.106 | 0 | regression | 1.5% | 5.7% | 34560→34560 |
+| `product-imdp-sparse-n1000-nnz10-a4-dfa4` | `solve_dfa` | 53.67 ms | 56.50 ms | 1.053 | 1.063, 1.071, 1.045 | 1.3e-18 | regression | 1.8% | 1.9% | 2845288→1892624 |
+| `product-imdp-sparse-n10000-nnz10-a1-dfa4` | `bellman` | 1.86 ms | 4.56 ms | 2.448 | 2.813, 1.327, 2.558 | 0 | regression | 101.6% | 10.7% | 34560→34560 |
+| `product-imdp-sparse-n10000-nnz10-a1-dfa4` | `solve_dfa` | 398.63 ms | 666.98 ms | 1.673 | 1.772, 1.546, 1.620 | 3.4e-08 | regression | 6.9% | 11.9% | 8450216→6165456 |
+| `product-imdp-sparse-n10000-nnz10-a4-dfa4` | `bellman` | 6.51 ms | 8.59 ms | 1.319 | 1.400, 1.289, 1.287 | 0 | regression | 0.1% | 8.7% | 34560→34560 |
+| `product-imdp-sparse-n10000-nnz10-a4-dfa4` | `solve_dfa` | 325.29 ms | 406.91 ms | 1.251 | 1.260, 1.272, 1.229 | 2.7e-12 | regression | 0.8% | 3.3% | 12683368→3198608 |
+
+**Allocations.** Steady-state `bellman!` bytes are unchanged on every measured entry: 0 → 0 at 1 thread, 8128 → 8128
+(sparse IMDP) and 34 560 → 34 560 (sparse product) at 16 threads. Solves construct a workspace, so at 1 thread every
+solve entry allocates 2736–1 200 072 bytes more on the candidate (about 12 bytes per state: three `Int32` vectors of
+length `num_target`). At 16 threads every solve entry allocates less on the candidate (the thread workspaces share one
+`budget` and one set of rank buffers).
+
+**Evidence check (Phase 1 rule, § 10.1).**
+
+* *Target cases, 1 thread:* every round settled. A-side spread ≤ 5% for 8 of 10 entries; above 5% for
+  `imdp-sparse-n10000-nnz100-a1`/`solve_rvi` (5.4%) and `imdp-sparse-n10000-nnz100-a4`/`bellman` (6.1%), which are not
+  evidence, and the two CLOCK entries are not evidence either. The 6 evidence entries are all speedups, B/A 0.807–0.831.
+* *Regression cases, 1 thread:* r3 is not settled, so under the rule the 3-round entries are not evidence. The decisive
+  regressions also hold in each settled round (r1, r2) with A-side spread ≤ 5%: `imdp-sparse-n100000-nnz10-a1`/`bellman`
+  B/A 1.068 and 1.054 (A spread 0.5%), real model `bellman` 1.197 and 1.204 (4.7%), `solve_cs_stationary` 1.250 and
+  1.246 (0.6%), `solve_rvi` 1.226 and 1.226 (0.3%).
+* *16 threads:* every round settled. 16 of 26 entries (every k = 10 entry) are regressions; 11 of the 16 have A-side spread ≤ 5% (the
+  exceptions are `imdp-sparse-n100000-nnz10-a1`/`bellman` 8.2% and `/solve_rvi` 21.4%, `product-imdp-sparse-n1000-nnz10-a1-dfa4`/`bellman`
+  27.0%, `product-imdp-sparse-n10000-nnz10-a1-dfa4`/`bellman` 101.6% and `/solve_dfa` 6.9%).
+
+**Verdict: rejected (reverted; `src/`, `ext/` and `test/` are identical to `6fde092`).** At 1 thread H7 is a speedup on
+the k = 100 targets (`bellman` B/A 0.809–0.831, i.e. 1.20–1.24×, inside the predicted 1.2–1.5×; target solves
+0.788–0.840) and on the k = 10 cases with 4 actions (B/A 0.824–0.891). It regresses
+`imdp-sparse-n100000-nnz10-a1`/`bellman` by 6.0% and the real model by 22.6–24.8% (`bellman`, `solve_cs_stationary`,
+`solve_rvi`), above the 3% regression bound. At 16 threads it regresses every k = 10 entry
+(B/A 1.053–2.448), because the per-call `sortperm!` runs on one thread before the threaded state loop, while the
+column work it saves is spread over 16 threads. The real model's columns are short, so its 14 µs `bellman!` cannot
+absorb a ranking of all of `V` per call. No `T-` Finding is raised: the spec fixes the verdict (reject) for a k = 10 regression
+above 3%. Follow-ups, each a separate experiment: choose between the tuple path and the rank path by dispatch on the
+support size, chosen in `construct_workspace` from a measured sweep; or make the global ranking cheaper or threaded.
+
+**Findings (1b.2).** No `S-`, `I-`, `T-` or `B-` Finding: values and strategies were identical, no tier-1 or tier-2
+interface changed (the changed names are internal: workspace fields, `bellman_precomputation!`,
+`state_action_bellman`, `omax_ordering`), and the change is reverted.
