@@ -9,7 +9,7 @@ The dense O-max Bellman update (`src/bellman.jl`) first sorts the value vector o
     sortperm!(permutation(workspace), V; rev = upper_bound, scratch = scratch(workspace))
 
 (ascending for `upper_bound = false`, descending for `upper_bound = true`), and then, per
-ambiguity set, runs the greedy loop of `gap_value(V, gap, budget, perm)`:
+ambiguity set, evaluates the greedy loop of `gap_value(V, gap, budget, perm)`:
 
     res = zero(T)
     for i in perm
@@ -21,6 +21,13 @@ ambiguity set, runs the greedy loop of `gap_value(V, gap, budget, perm)`:
         end
     end
     return res
+
+Since 1b.3 the dense path calls `blocked_gap_value(V, gap, budget, perm, Val(B))`, which adds whole
+blocks of `B` consecutive indices of `perm` at once while their gaps sum to less than the remaining
+budget (then `p = gap[i]` for every index of the block, as in the loop), and runs the loop above,
+`gap_value(V, gap, budget, perm[k:end])`, from the first block where the budget runs out. In exact
+arithmetic this is the same sum as the loop; in floating point it differs by reassociation. This
+equality is not proved in Lean: `gapValue` transcribes the sequential loop only.
 
 `SortedPerm` models the `sortperm!` call, `gapValue` transcribes the loop. We prove that `perm` is a
 permutation of `1..n` that orders `V` correctly (`sortedPerm_bijective`), that its entries fit the

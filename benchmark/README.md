@@ -43,6 +43,10 @@ julia --project=benchmark benchmark/compare.jl --base A1.json,A2.json,A3.json --
 # run-to-run spread of repeated runs of the same commit (also shows the clock-probe spread)
 julia --project=benchmark benchmark/compare.jl --spread R1.json R2.json R3.json
 
+# interleaved A/B of two git refs (worktrees, A1 B1 A2 B2 A3 B3, summary via compare.jl)
+julia --project=benchmark benchmark/ab.jl --a <base-ref> --b <cand-ref> --threads 1 \
+    --filter '^imdp-sparse-n10000-nnz10-a1$' --entries bellman,solve_rvi
+
 # profile a case
 julia --project=benchmark --threads=1 benchmark/profile.jl --case imdp-dense-n1000-a4
 ```
@@ -83,11 +87,12 @@ BenchmarkTools `run` with
 
 * `samples = clamp(round(budget / t), min_samples, 10 000)`, capped so that
   `samples · t ≤ --max-entry-seconds` (default 90 s) but never below 3;
-* budgets: `workspace` 3 s / ≥ 50 samples, `bellman` 4 s / ≥ 40 samples, solves 4 s / ≥ 5 samples (the first two were raised from 1 s / 10 and 2 s / 20 by the Phase 0 noise fix, see `REPORT.md`);
+* budgets: `workspace` 3 s / ≥ 50 samples, `bellman` 4 s / ≥ 40 samples, solves 4 s / ≥ 5 samples (the first two were raised from 1 s / 10 and 2 s / 20 by the Phase 0 noise fix, see `REPORT.md`); the `imdp-*` cases set their `bellman` budget to 2 s in `cases/imdp.jl`, and since 1a `NOISE_BUDGET_SCALE` in `cases/registry.jl` multiplies the `bellman` budget of every `imdp-*` and `product-imdp-*` case by 3, so it is **6 s for `imdp-*` and 12 s for `product-imdp-*`** (`REPORT.md` § 10.2; the `size-*`, `fimdp-*`, `cs-imdp-*` and real-model budgets are unchanged);
 * `evals = ceil(50 µs / t)` for calls shorter than 50 µs, else 1;
 * `gctrial = true`, `gcsample = false`; `seconds` is set high enough never to be the binding limit;
-* **clock guard** (`lib/clock.jl`): the run starts by taking the median of 20 clock probes (the prevailing clock state) (a fixed chain of
-  dependent integer multiply–adds, ≈0.5 ms) as reference. Every trial is bracketed by two probes (each after 30 ms of
+* **clock guard** (`lib/clock.jl`): the run starts by taking a clock-probe reference (a fixed chain of
+  dependent integer multiply–adds, ≈0.5 ms) under the trial thread load after the clock has settled (see "Clock
+  reference" below). Every trial is bracketed by two probes (each after 30 ms of
   spinning to leave idle states); if the probe *before* the trial deviates by more than 5% from the reference the
   trial is repeated after a 20 s pause (up to `--clock-retries` times, default 3; only for
   entries with ≤ 30 s of sampling) and the attempt closest to the reference is kept. Each result records
@@ -99,9 +104,57 @@ BenchmarkTools `run` with
 `compare.jl` reports a difference as `CLOCK (not evidence)` instead of speedup/regression when the clock probes
 of the two sides differ by more than 5% or an entry was measured with a deviating clock.
 
-With these parameters the full CPU suite takes ≈ 45 min at 1 thread and ≈ 15–25 min at 4–16 threads
+### Clock reference
+
+Since sub-phase 1a (carry-over item 17 of the Phase 0 close) the reference is no longer the median of 20 probes taken
+unloaded right at process start. `init_clock_reference!` now (1) busy-spins all `Threads.nthreads(:default)` threads for
+1 s and then takes a probe on the main thread, i.e. the same thread load and the same "probe right after threaded work"
+position as the pre-trial probe of each trial (the probe that decides the CLOCK flag); (2) repeats this until 5
+consecutive probes agree within 2% and at least 10 s have
+passed (settled), or 60 s have passed (logged as `NOT settled`); (3) takes the median of 9 further load+probe rounds as
+the reference. The settle and reference probes are printed in the run log (`[ Info: clock reference …`). Since 1a
+cycle 2 the reference is also logged as `NOT settled`, with a `clock reference not settled` warning, when the range of
+those 9 probes, (max − min)/median, exceeds 2% (`CLOCK_SETTLE_TOL`); this is a flag only, the reference value and the
+timing procedure are unchanged. A run with a `NOT settled` reference is not evidence.
+`measurement_parameters` in `lib/measure.jl` still records only `reference_probe_ns`; the settle series is kept in
+`CLOCK_REF_INFO` but not yet written to the result JSON (`REPORT.md` § 10.5, 1a Finding F-3), so `ab.jl` detects a
+not-settled reference from the log text; logs written before cycle 2 print `settled` even when only the range check
+would fail, and are not flagged. The cost is ≈ 20–70 s per process: the settle phase (10–60 s, plus at most one
+≈ 1 s round past 60 s) and the 9 reference rounds of ≈ 1 s each.
+
+Why: the old reference was taken unloaded, so at t = 16 the pre-trial probes (taken after threaded work, ≈ 1.28×
+slower) flagged almost every entry, and at t = 1 it could be taken while the core was still boosting (196.5 µs vs
+≈ 436 µs later in the run). CLOCK flags with the old reference, from the stored Phase 0 files (`benchmark/results/`,
+local): `baseline-20fc03b-cpu-t16.json` 128 / 131 and `-t16-rerun1.json` 129 / 131 entries, `sizes-20fc03b-cpu-t16.json`
+12 / 13, `scaling-20fc03b-cpu-t1.json` 4 / 4 (reference 196.5 µs, boosting); `baseline-20fc03b-cpu-t1.json` 2 / 131.
+After (1a, 2026-10-20, Performance power profile, `real-multiObj_robotIMDP` with entries `workspace`, `bellman`,
+`solve_rvi`, `solve_cs_stationary` on the merge base, `REPORT.md` § 10.3): new reference 0 / 4 CLOCK flags at t = 1 and
+0 / 4 at t = 16 (every pre-trial probe ratio 1.000, informational post-trial probe up to 37.8% above the reference at
+t = 16; reference 196.5 µs, settled in ≈ 10 s). The old reference, run back-to-back from a `bcbf0df` worktree in the
+same session, also gave 0 / 4 and 0 / 4, but with pre-trial probe ratios up to 1.046 at t = 1 and 3 of 8 entries
+re-measured after pre-trial deviations of 6.2–22.2%. In the 24 noise-check and `ab.jl` runs of the 1a session (2026-10-20 ≈ 10:57–12:33 UTC) the reference (median) was 196.5 µs in every run and every kept
+pre-trial probe (`clock_probe_ratio`) was within 4.1% of it (0.9999–1.041; 0 CLOCK flags in 366 entries), but the
+informational post-trial probe (`clock_after_deviation`, which does not affect the flag) was more than 5% slower than
+the reference in 67 of 366 entries (64 of them 16-thread `bellman`, a per-case pattern that does not mark the unusable
+t = 16 entries) and up to 63.4% slower (`REPORT.md` § 10.3). Transient clock drops also occurred: 7 of the 24
+runs had reference-probe ranges of 4.6–24.4%, and 16 trials were re-measured after pre-trial deviations of 5.4–20.6%
+(`REPORT.md` § 10.3). There was no systematic offset of the Phase 0 kind. Clock behaviour is session-dependent: a
+QE re-run later the same day (≈ 12:45–14:03 UTC) under the same Performance profile showed clock-state switches, with
+the reference probes of one run ranging over 196.5–425.6 µs (`REPORT.md` § 10.2). The new protocol removes the cause of
+the systematic offsets (an unloaded or boosting reference) in either profile; it does not prevent clock-state switches
+during a run, which the `NOT settled` flag and the Phase 1 evidence rule below catch.
+
+With these parameters the full CPU suite takes an estimated ≈ 47–48 min at 1 thread and ≈ 17–28 min at 4–16 threads
 on the reference host (dominated by the `imdp-sparse-n100000-nnz100-a4` and `imdp-dense-n4000-a4` solves,
-which get 3–5 samples).
+which get 3–5 samples). The full suite was not re-timed in 1a; the estimate is the Phase 0 run time (≈ 45 min and
+≈ 15–25 min, with the pre-1a `bellman` budgets and the old clock reference) plus the extra sampling time of the 3×
+`bellman` budget, measured as +74–76 s at t = 1 and +76–80 s at t = 16 (the t = 16 value is used for 4–16 threads; sum of samples × evals × median over the 20
+`imdp-*`/`product-imdp-*` `bellman` entries, run *i* of `results/1a-noise-fix-t{1,16}-r*.json` against run *i* of
+`results/1a-noise-t{1,16}-r*.json`, local; at most 14 × 4 s + 6 × 8 s = 104 s, less where the 10 000-sample cap
+binds), plus ≈ 20–70 s for the clock reference ("Clock reference" above; ≈ 20 s when it settles at once, ≈ 70 s when
+the settle phase times out), each end rounded up to the next minute: 45 min + 74 s + 20 s ≈ 46.6 min → 47 min to
+45 min + 76 s + 70 s ≈ 47.4 min → 48 min at t = 1; 15 min + 76 s + 20 s ≈ 16.6 min → 17 min to 25 min + 80 s + 70 s
+≈ 27.5 min → 28 min at 4–16 threads.
 
 ### Thread pinning
 
@@ -175,6 +228,29 @@ entry ran with a deviating clock. `ALLOC+` flags more allocations in a steady-st
 is 1 if any entry is a regression or invalid. `compare.jl --spread R1.json R2.json …` prints, per entry, the
 medians of the repeated runs, their spread (max − min)/min, the clock-probe spread and `NOISY` above 5%
 (`--noise`). Both modes accept `--md FILE` and `--json FILE` to save the table.
+
+### Interleaved A/B of two refs (`ab.jl`)
+
+`benchmark/ab.jl` produces the multi-round evidence of § Evidence Protocol in one command. It checks out `--a` and `--b`
+into two detached git worktrees in a temporary directory (removed afterwards unless `--keep-worktrees`), overlays the
+benchmark harness of the invoking checkout (`run.jl`, `lib/`, `cases/`, `Project.toml`, `Manifest.toml`; local
+`reference/` linked) onto both, so the two sides differ only in the package source, precompiles each side once and then
+runs `run.jl` in separate processes in the order A1 B1 A2 B2 A3 B3 … (`--rounds`, at least 3) with the given `--threads`,
+`--backend`, `--eltype`, `--suite`, `--filter`, `--entries` (both required) and `--run-args`. Output in `--out-dir`
+(default `benchmark/results/logs/ab/<label>/`, gitignored; copy a summary you want to commit): the per-round run files `<label>-r<i>-<A|B>.json` with
+their logs, `<label>-summary.md`/`.json` = `compare.jl --base A1,A2,… --cand B1,B2,…` (verdicts that require the
+difference in every round or MWU p < 0.01), `<label>-spread-A.md`/`-B.md` = `compare.jl --spread` per side (the noise of
+each side within the session), and `<label>-manifest.json` with the refs, commits, command lines and the harness
+identity (commit, `git status --porcelain -- benchmark`, SHA-256 of the copied harness files). Completed round files are
+reused, so an interrupted A/B resumes with the same `--label`/`--out-dir`. A verdict from a single `compare.jl` pair is a
+lower bound on the noise (REPORT.md § 4); use the `ab.jl` summary for claims.
+
+**Phase 1 evidence rule** (REPORT.md § 10.2; the 5% noise bound is session-dependent): an entry of a Phase 1 A/B counts
+as evidence only if its A-side (merge-base) spread over the A/B's own rounds is ≤ 5% and no round logged a `NOT settled`
+clock reference. Otherwise re-run in a steadier session or report the entry as UNAVAILABLE. `ab.jl` appends an
+"Evidence check" section to `<label>-summary.md` (and `evidence_check` to the manifest) that lists every entry with
+"A-side spread > 5%: not evidence" and every round whose log has a not-settled reference (`<label>-spread-A.json` holds
+the per-entry A-side spreads).
 
 ## Case sizing and deviations from the case matrix
 

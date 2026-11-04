@@ -77,3 +77,23 @@ include("fimdp.jl")
 include("product.jl")
 include("synthesis.jl")
 include("real.jl")
+
+# Noise fix (1a, REPORT.md § 10.2): the steady-state `bellman` entries of the IMDP and
+# product cases had a run-to-run spread above 5% at 16 threads (and
+# imdp-sparse-n100000-nnz10-a1 at 1 thread) with their original budgets (IMDP 2 s,
+# product 4 s). In the 3× budget probe (1a-noise-b3-*) the 1-thread entry and 6 of the
+# 8 noisy 16-thread entries fell below 5%; in the final re-measurement with this scale,
+# 5 of the scaled 16-thread `bellman` entries were still above 5% and are listed as
+# unusable at t = 16 in REPORT.md § 10.2. Applied here, after the case files, so the
+# case files stay unchanged.
+const NOISE_BUDGET_SCALE = [(r"^(imdp-|product-imdp-)", "bellman", 3.0)]
+
+for (i, c) in enumerate(CASES), (re, entry, scale) in NOISE_BUDGET_SCALE
+    occursin(re, c.name) || continue
+    es = [
+        e.name == entry ? Entry(e.name, scale * e.budget, e.min_samples) : e for
+        e in c.entries
+    ]
+    CASES[i] =
+        Case(c.name, c.row, c.suites, c.meta, c.build, es, c.eltypes_cpu, c.eltypes_cuda)
+end
