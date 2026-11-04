@@ -531,8 +531,61 @@ Base.@propagate_inbounds function state_action_bellman(
     budget,
     upper_bound,
 )
-    return dot(V, lower(ambiguity_set)) +
-           gap_value(V, gap(ambiguity_set), budget, permutation(workspace))
+    return dot(V, lower(ambiguity_set)) + blocked_gap_value(
+        V,
+        gap(ambiguity_set),
+        budget,
+        permutation(workspace),
+        Val(DENSE_GAP_BLOCK_SIZE),
+    )
+end
+
+# Block size of the dense O-max budget walk (`blocked_gap_value`). Set from the measured sweep in
+# `benchmark/results/1b.3-sweep.md`; this is the only place the value is defined.
+const DENSE_GAP_BLOCK_SIZE = 4
+
+# Dense O-max budget walk. `perm` is the ordering of `bellman_precomputation!`, i.e.
+# `sortperm!(perm, V; rev = upper_bound)`: indices by descending `V` for the upper bound and by
+# ascending `V` for the lower bound (stable, ties in index order). Walking `perm`, index `i` gets
+# `p = min(budget_left, gap[i])` and the result is `∑ p * V[i]`, as in the sequential loop of
+# `gap_value(V, gap, budget, perm)`.
+#
+# The walk goes over `perm` in blocks of `B` indices. If the gaps of a block sum to less than the
+# remaining budget, every index of the block gets its full gap (`p = gap[i]`) and the budget does
+# not run out inside the block, so the block is added at once: `res += ∑ gap[i] * V[i]`,
+# `budget -= ∑ gap[i]`, with the two sums accumulated without a loop-carried budget dependence
+# (`@simd`, reassociated). The first block whose gaps reach the budget, and the tail of fewer than
+# `B` indices, are finished by the sequential `gap_value` from that position on. In exact
+# arithmetic this is the same sum as `gap_value(V, gap, budget, perm)`; in floating point the
+# result differs from it by reassociation only.
+Base.@propagate_inbounds function blocked_gap_value(
+    V::AbstractVector{T},
+    gap::VR,
+    budget,
+    perm,
+    ::Val{B},
+) where {T, VR <: AbstractVector, B}
+    res = zero(T)
+    k = firstindex(perm)
+    kend = lastindex(perm)
+
+    while k + (B - 1) <= kend
+        block_gap = zero(eltype(gap))
+        block_res = zero(T)
+        @simd for j in k:(k + (B - 1))
+            i = perm[j]
+            g = gap[i]
+            block_gap += g
+            block_res += g * V[i]
+        end
+
+        block_gap < budget || break
+        res += block_res
+        budget -= block_gap
+        k += B
+    end
+
+    return res + gap_value(V, gap, budget, view(perm, k:kend))
 end
 
 Base.@propagate_inbounds function gap_value(

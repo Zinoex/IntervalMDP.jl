@@ -11,11 +11,16 @@ The dense interval Bellman update (`src/bellman.jl`) evaluates one ambiguity set
     state_action_bellman(workspace::DenseIntervalOMaxWorkspace, V, ambiguity_set, budget,
                          upper_bound) =
         dot(V, lower(ambiguity_set)) +
-        gap_value(V, gap(ambiguity_set), budget, permutation(workspace))
+        blocked_gap_value(V, gap(ambiguity_set), budget, permutation(workspace),
+                          Val(DENSE_GAP_BLOCK_SIZE))
 
 where `permutation(workspace)` was filled once per Bellman step by
-`bellman_precomputation!`, i.e. `sortperm!(perm, V; rev = upper_bound)`, and `gap_value` is the
-greedy loop transcribed as `IntervalMDP.Index.gapValue` (`Index/Perm.lean`).
+`bellman_precomputation!`, i.e. `sortperm!(perm, V; rev = upper_bound)`. `blocked_gap_value` adds
+blocks of consecutive indices of `perm` whose gaps sum to less than the remaining budget at once
+and finishes with the sequential greedy loop `gap_value(V, gap, budget, perm[k:end])`, which is
+transcribed as `IntervalMDP.Index.gapValue` (`Index/Perm.lean`). In exact arithmetic
+`blocked_gap_value` equals `gap_value(V, gap, budget, perm)` on the whole of `perm`; this equality
+is not proved here, and the Lean model (`stateActionBellman`, `omax`) uses the sequential loop.
 
 `omax A s` transcribes this value for the ambiguity set `A` and the sort `s`. We prove that it is
 exact:
@@ -107,8 +112,11 @@ noncomputable def stablePermutation (s : SortedPerm n) : Permutation s where
   sorted := (sortedPerm_bijective s).2
 
 /-- Transcription of `state_action_bellman(::DenseIntervalOMaxWorkspace, V, ambiguity_set, budget,
-upper_bound)`: `dot(V, lower(ambiguity_set)) + gap_value(V, gap(ambiguity_set), budget, perm)`,
-with `budget = 1 - ∑ lower` (precomputed in the workspace) and `perm = permutation(workspace)`.
+upper_bound)` with the sequential budget walk: `dot(V, lower(ambiguity_set)) + gap_value(V,
+gap(ambiguity_set), budget, perm)`, with `budget = 1 - ∑ lower` (precomputed in the workspace) and
+`perm = permutation(workspace)`. Julia calls `blocked_gap_value(…, perm, Val(B))` in place of
+`gap_value(…, perm)`; the two are equal in exact arithmetic (not proved in Lean) and differ in
+floating point by reassociation only.
 
 Julia counterpart: `state_action_bellman(::DenseIntervalOMaxWorkspace, …)` (`src/bellman.jl`). -/
 noncomputable def stateActionBellman (A : IntervalAmbiguity (Fin n)) (V : Fin n → ℝ)
@@ -268,7 +276,9 @@ theorem sum_allocation_eq_budget (A : IntervalAmbiguity (Fin n)) {s : SortedPerm
 of `gap_value` adds on top of the lower bound (`0` for indices after the early exit).
 
 Julia counterpart: the distribution implicit in `state_action_bellman(::DenseIntervalOMaxWorkspace,
-…)`: `dot(V, lower)` plus the `p * V[i]` terms of `gap_value` (`src/bellman.jl`). -/
+…)`: `dot(V, lower)` plus the `p * V[i]` terms of the budget walk (`blocked_gap_value`, whose whole
+blocks add `gap[i] * V[i]`, i.e. `p = gap[i]`, and whose last block and tail are `gap_value`)
+(`src/bellman.jl`). -/
 noncomputable def greedy (A : IntervalAmbiguity (Fin n)) {s : SortedPerm n} (σ : Permutation s) :
     ProbVec (Fin n) where
   toFun i := A.lower i + allocation A.gap σ.perm A.budget (toJulia i)
@@ -405,7 +415,7 @@ theorem stateActionBellman_isLeast (A : IntervalAmbiguity (Fin n)) {s : SortedPe
 `p = lower + allocation`, and `p ∈ P(l, u)`. Holds for both `upper_bound` values (all modes).
 
 Julia counterpart: `state_action_bellman(::DenseIntervalOMaxWorkspace, …)` and `gap_value(V, gap,
-budget, perm)` (`src/bellman.jl`). -/
+budget, perm)`, called through `blocked_gap_value` (`src/bellman.jl`). -/
 theorem omax_mem (A : IntervalAmbiguity (Fin n)) (s : SortedPerm n) :
     greedy A (stablePermutation s) ∈ A.toSet ∧
       omax A s = dot s.V (greedy A (stablePermutation s)) :=

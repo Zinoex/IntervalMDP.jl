@@ -1111,3 +1111,121 @@ end
         @test issorted(first.(buffer[1:n]); rev = upper_bound)
     end
 end
+
+@testitem "perf_equivalence: blocked dense O-max budget walk (1b.3)" begin
+    using LinearAlgebra
+    # `blocked_gap_value` walks `perm` in blocks of `B` and adds a block at once when its gaps
+    # sum to less than the remaining budget; the block where the budget runs out and the tail
+    # of fewer than `B` indices are finished by the sequential `gap_value`. It must equal the
+    # sequential loop: exactly for Rational, within 1e-12 (Float64) / 1e-5 (Float32).
+    tol(::Type{Float64}) = 1e-12
+    tol(::Type{Float32}) = 1.0f-5
+    check(::Type{<:Rational}, a, b) = a == b
+    check(::Type{T}, a, b) where {T <: AbstractFloat} = abs(a - b) <= tol(T)
+
+    Bc = IntervalMDP.DENSE_GAP_BLOCK_SIZE
+    @test Bc isa Int && Bc >= 1
+
+    for N in (Float64, Float32, Rational{BigInt})
+        for B in unique((1, 2, 4, 8, 16, Bc))
+            # n smaller than, equal to, one above and several blocks plus a tail
+            for n in unique((1, 3, max(B - 1, 1), B, B + 1, 3B, 3B + 5))
+                gap = N[(mod(5i, 7) + 1) // 20 for i in 1:n]
+                V = N[mod(3i, 11) // 10 for i in 1:n]
+                cums = cumsum(gap)
+                # budget runs out: at the first index, in the first / a middle / the last full
+                # block, exactly at a block end, in the tail, never (budget > total gap), zero,
+                # negative (rounding of 1 - ∑ lower)
+                stops = unique(
+                    filter(m -> 1 <= m <= n, [1, B ÷ 2, B, B + B ÷ 2 + 1, 2B, 3B, n]),
+                )
+                budgets = N[]
+                for m in stops
+                    push!(budgets, cums[m] - gap[m] / 3)  # inside index m
+                    push!(budgets, cums[m])                 # exactly at the end of index m
+                end
+                append!(budgets, N[cums[end] + 1, zero(N), -gap[1] / 4])
+                for perm in
+                    (Int32.(1:n), Int32.(sortperm(V; rev = true)), Int32.(sortperm(V)))
+                    for budget in budgets
+                        ref = IntervalMDP.gap_value(V, gap, budget, perm)
+                        res = IntervalMDP.blocked_gap_value(V, gap, budget, perm, Val(B))
+                        @test check(N, res, ref)
+                        @test typeof(res) == typeof(ref)
+                    end
+                end
+            end
+        end
+    end
+end
+
+@testitem "perf_equivalence: dense O-max uses the blocked walk (1b.3)" begin
+    using LinearAlgebra
+    using Random
+    # The dense O-max step must call `blocked_gap_value` (lowered code of the method), and a full
+    # `bellman!` over dense IMDPs with several blocks per column must equal the sequential
+    # reference `dot(V, lower) + gap_value(V, gap, budget, sortperm(V; rev = upper_bound))`, for
+    # the single-threaded and the threaded dense workspace, both bounds, Float64/Float32/Rational.
+    rng = MersenneTwister(1203)
+    Bc = IntervalMDP.DENSE_GAP_BLOCK_SIZE
+
+    for N in (Float64, Float32, Rational{BigInt})
+        nt = 3Bc + 5
+        ns = 6
+        if N <: Rational
+            up = [N(rand(rng, 1:20) // 400) for _ in 1:nt, _ in 1:ns]
+            lo = [N(rand(rng, 0:1) // 2) * up[i, j] for i in 1:nt, j in 1:ns]
+            V = N[rand(rng, 0:50) // 50 for _ in 1:nt]
+        else
+            up = rand(rng, N, nt, ns) .* N(4 / nt)
+            lo = rand(rng, N, nt, ns) .* up .* N(0.5)
+            V = rand(rng, N, nt)
+        end
+        V[3] = V[7]  # a tie in V
+        # keep every column feasible: ∑ lower ≤ 1 ≤ ∑ upper
+        for j in 1:ns
+            s = sum(up[:, j])
+            if s < 1
+                up[1, j] += 1 - s
+            end
+        end
+        prob = IntervalAmbiguitySets(; lower = lo, upper = up)
+
+        ws = IntervalMDP.DenseIntervalOMaxWorkspace(prob, 1)
+        msa = only(
+            methods(IntervalMDP.state_action_bellman, (typeof(ws), Any, Any, Any, Any)),
+        )
+        lowered = string(Base.uncompressed_ir(msa))
+        @test occursin("blocked_gap_value", lowered)
+
+        for upper_bound in (false, true)
+            perm = sortperm(V; rev = upper_bound)
+            ref = [
+                dot(V, lo[:, j]) +
+                IntervalMDP.gap_value(V, up[:, j] - lo[:, j], 1 - sum(lo[:, j]), perm)
+                for j in 1:ns
+            ]
+            for ws in (
+                IntervalMDP.DenseIntervalOMaxWorkspace(prob, 1),
+                IntervalMDP.ThreadedDenseIntervalOMaxWorkspace(prob, 1),
+            )
+                strategy_cache = IntervalMDP.construct_strategy_cache(prob)
+                Vres = zeros(N, ns)
+                IntervalMDP._bellman_helper!(
+                    ws,
+                    strategy_cache,
+                    Vres,
+                    V,
+                    prob,
+                    FullUpdateSequence(prob);
+                    upper_bound = upper_bound,
+                )
+                if N <: Rational
+                    @test Vres == ref
+                else
+                    @test maximum(abs.(Vres .- ref)) <= (N == Float64 ? 1e-12 : 1.0f-5)
+                end
+            end
+        end
+    end
+end
