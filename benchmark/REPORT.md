@@ -762,7 +762,7 @@ adding or renumbering those files.
 |---|---|---|---|---|---|
 | `1b.1` | `1b.1-h1-sort-ordering.md` | H1 — type-stable ordering in the sparse O-max sort (IMDP/product) | § 7 item 1, § 5: dynamic `Base.Order._by` self time 67% of samples for the real model (`profiles/real-multiObj_robotIMDP.md`), 50% for `profiles/product-imdp-sparse-n10000-nnz10-a4-dfa4.md`, 8% at k = 100 (`profiles/imdp-sparse-n100000-nnz100-a1.md`); 64 B per sparse column, sparse solves allocate 0.05–3.72 GB (`results/baseline-20fc03b-cpu-t1.json`) | `imdp-sparse-n10000-nnz10-a{1,4}`, `imdp-sparse-n100000-nnz10-a{1,4}`, `product-imdp-sparse-n1000-nnz10-a{1,4}-dfa4`, `product-imdp-sparse-n10000-nnz10-a{1,4}-dfa4`, `real-multiObj_robotIMDP` (`bellman`, `solve_rvi`; `solve_dfa` for product); secondary `imdp-sparse-*-nnz100-*` | done — accepted (§ 12.1) |
 | `1b.2` | `1b.2-h7-sparse-gather.md` | H7 — sparse gather / tuple construction | § 7 item 7, § 5: 25–26% of samples (self time) in `setindex!` building `(V[j], gap)` tuples (`profiles/imdp-sparse-n10000-nnz100-a4.md`, `profiles/imdp-sparse-n100000-nnz100-a1.md`) | `imdp-sparse-n10000-nnz100-a{1,4}`, `imdp-sparse-n100000-nnz100-a{1,4}`, `cs-imdp-sparse-n10000-nnz100-a4` (`bellman`, `solve_rvi`, `solve_cs_*`) | done — rejected (§ 12.2) |
-| `1b.3` | `1b.3-h6-dense-gap-walk.md` | H6 — dense gap walk | § 7 item 6, § 5 and § 6.2: 79–81% of samples in `gap_value` (`profiles/imdp-dense-n1000-a4.md`, `profiles/imdp-dense-n4000-a4.md`); 3.30–4.89 ns/nnz, 26–28% of the 1-thread DRAM roof (`results/sizes-20fc03b-cpu-t1.json`, `results/stream-t1.json`) | `imdp-dense-n1000-a{1,4}`, `imdp-dense-n4000-a{1,4}`, `product-imdp-dense-n1000-a{1,4}-dfa4`, `cs-imdp-dense-n1000-a4` (`bellman`, `solve_rvi`, `solve_dfa`, `solve_cs_*`) | planned |
+| `1b.3` | `1b.3-h6-dense-gap-walk.md` | H6 — dense gap walk | § 7 item 6, § 5 and § 6.2: 79–81% of samples in `gap_value` (`profiles/imdp-dense-n1000-a4.md`, `profiles/imdp-dense-n4000-a4.md`); 3.30–4.89 ns/nnz, 26–28% of the 1-thread DRAM roof (`results/sizes-20fc03b-cpu-t1.json`, `results/stream-t1.json`) | `imdp-dense-n1000-a{1,4}`, `imdp-dense-n4000-a{1,4}`, `product-imdp-dense-n1000-a{1,4}-dfa4`, `cs-imdp-dense-n1000-a4` (`bellman`, `solve_rvi`, `solve_dfa`, `solve_cs_*`) | done — accepted (§ 12.3) |
 
 The predicted factors in § 7 are relative to the stored Phase 0 files, which were recorded with an uncommitted harness
 (§ 7 "Re-baseline", carry-over item 8). Each `1b.k` measures its A side on the commit before it with `benchmark/ab.jl`
@@ -1792,3 +1792,215 @@ support size, chosen in `construct_workspace` from a measured sweep; or make the
 **Findings (1b.2).** No `S-`, `I-`, `T-` or `B-` Finding: values and strategies were identical, no tier-1 or tier-2
 interface changed (the changed names are internal: workspace fields, `bellman_precomputation!`,
 `state_action_bellman`, `omax_ordering`), and the change is reverted.
+
+### 12.3 `1b.3` — H6: blocked budget walk in the dense O-max step (IMDP/product/control synthesis) — **accepted**
+
+**Hypothesis (§ 7 item 6).** Phase 0 put 79–81% of the samples in `gap_value` and 42% at `min(budget, gap[i])` (§ 5,
+§ 11.6). The dense walk ran at 3.30–4.89 ns per non-zero, 26–28% of the 1-thread DRAM roof (§ 6.2), so at 1 thread it is
+bound by latency and compute, not memory. The cause is the loop-carried chain `budget -= min(budget, gap[i])` with a
+compare and branch per index. *Change (variant (a) of the spec; variant (b), a fused prefetching pass, was not tried
+and would be a separate experiment):* walk the sorted permutation in blocks and add a whole block at once while its
+gaps sum to less than the remaining budget. *Prediction:* 1.3–2× at 1 thread for n ≥ 1000, less at 16 threads.
+
+**Change (diff against `9216278`; uncommitted at hand-off; measured as the unreferenced commit object `712fd23`, tree
+`b8cd4c2`).** `git diff 9216278 712fd23`: 5 files, 201 insertions, 13 deletions.
+
+* `src/bellman.jl` adds `blocked_gap_value(V, gap, budget, perm, ::Val{B})`. For each block of `B` consecutive
+  entries of `perm`, it accumulates `∑ gap[i]` and `∑ gap[i] * V[i]` under `@simd`, so the sums are reassociated and
+  there is no budget dependence inside the block. If the gap sum is `< budget`, every index of the block gets
+  `p = gap[i]`, exactly as in the sequential loop, so the block is added and its sum is subtracted from the budget.
+  Otherwise the loop stops. The first block where the budget runs out, and the tail of fewer than `B` indices, are
+  finished by the unchanged sequential `gap_value(V, gap, budget, view(perm, k:kend))`. In exact arithmetic the result is
+  the same sum as `gap_value(V, gap, budget, perm)`; in Float64 it differs by reassociation only.
+* The dense `state_action_bellman(::DenseIntervalOMaxWorkspace, …)` now calls
+  `blocked_gap_value(…, Val(DENSE_GAP_BLOCK_SIZE))`.
+* `const DENSE_GAP_BLOCK_SIZE = 4` is defined in one place, set from the sweep `results/1b.3-sweep.md`, which the
+  code comment cites. The ordering it walks is stated in the comment block above `blocked_gap_value`: `perm` from
+  `sortperm!(perm, V; rev = upper_bound)`, descending `V` for the upper bound and ascending for the lower bound, stable.
+* The sparse, factored and CUDA paths are not changed. `ext/` does not call `gap_value`, `blocked_gap_value` or
+  `state_action_bellman`; the only `gap_value` in `ext/` is a local variable name in `ext/cuda/bellman/sparse.jl`.
+* Tests (`test/base/perf_equivalence.jl`):
+  * "blocked dense O-max budget walk (1b.3)" checks `blocked_gap_value` against `gap_value`:
+    * eltypes Float64 (≤ 1e-12), Float32 (≤ 1e-5) and `Rational{BigInt}` (`==`);
+    * B ∈ {1, 2, 4, 8, 16, `DENSE_GAP_BLOCK_SIZE`}, and n smaller than, equal to and one above B, 3B and 3B + 5;
+    * budgets that run out at the first index, in the first, a middle and the last block, exactly at a block end, in
+      the tail, never, zero and negative;
+    * identity, descending and ascending permutations.
+  * "dense O-max uses the blocked walk (1b.3)" checks that the lowered dense `state_action_bellman` calls
+    `blocked_gap_value`. It also runs `bellman!` on random dense IMDPs with several blocks per column, both bounds,
+    with the single-threaded and the threaded dense workspace, against `dot(V, lower) + gap_value(…, sortperm(V))`
+    (Float64, Float32, Rational).
+* Lean, docstrings and README only; no theorem changed:
+  * `lean/IntervalMDPProofs/Index/Perm.lean` (module doc) and `lean/IntervalMDPProofs/OMax.lean` (module doc, and the
+    `stateActionBellman`, `greedy` and `omax_mem` docstrings) now say that Julia calls `blocked_gap_value`. They also
+    say that it equals the sequential loop in exact arithmetic, and that this equality is **not proved** in Lean.
+    `gapValue` remains the literal transcription of the unchanged `gap_value`.
+  * `lean/README.md` has the matching mapping rows.
+
+**Block size.** `results/1b.3-sweep.md` swept B ∈ {4, 8, 16, 32}: 3 interleaved rounds at 1 thread, one check at 16
+threads, every kept process settled. The rule fixed before the sweep picked **B = 4**: geometric mean of the ratio to the
+best B 1.021, against 1.085 for B = 8. B = 8–32 are 1.22–2.15× slower at n = 100, and B = 4 is within 1.6–4.3% of the
+best B at n ≥ 1000.
+
+**Equivalence and checks (final tree, B = 4).**
+* *Single `bellman!` calls.* All four `upper_bound`/`maximize` modes on 21 registry cases (every `imdp-*` and
+  `product-imdp-*` case and the real model), default workspace with `NoStrategyCache` and with a
+  `TimeVaryingStrategyCache`, at 1 and 4 threads. Against `bcbf0df` and against `9216278`: 84 of 84 keys per comparison
+  within 1.55e-15, and 0 strategy mismatches.
+  * Max deviation per dense case: `imdp-dense-n100-a{1,4}` 2.22e-16; `imdp-dense-n1000-a{1,4}` 6.66e-16;
+    `imdp-dense-n4000-a1` 1.55e-15; `imdp-dense-n4000-a4` 1.44e-15; `product-imdp-dense-n1000-a{1,4}-dfa4` 7.77e-16.
+  * Sparse and real-model cases: 0.
+* *Solves on the dense target cases* (16: `solve_rvi` and `solve_ivi` of `imdp-dense-n{100,1000,4000}-a{1,4}`,
+  `solve_dfa` of both products, both control-synthesis solves). Against `bcbf0df` and `9216278`: max deviation
+  2.33e-15 (tolerance 10·ε_conv = 1e-5 for converged solves, 1e-11 for the finite horizon). Iteration counts are
+  identical, and the control-synthesis strategies are identical.
+* *Benchmark correctness check.* It passed for every entry of every kept round file below, against the stored
+  reference written from the `20fc03b` sources (§ 3). The largest B-side ‖ΔV‖∞ is 2.33e-15
+  (`imdp-dense-n4000-a4`/`solve_rvi`), and the B-side iteration counts equal the reference's.
+* *Tests.* `Pkg.test()` passed at 1 thread and with `--threads=auto` (17256 of 17256 each), including the two new
+  items.
+* *JET and formatter.* `JET.report_opt(…; target_modules = (IntervalMDP,))` gave 0 reports on both refs for the
+  `bellman!` calls of the dense IMDP and product cases, `imdp-sparse-n10000-nnz10-a1` and the real model, at 1 and
+  4 threads. The unfiltered report counts are the same on both refs. `julia_format.py check --base 9216278`: PASS.
+* *Lean.* `lake build` with the pinned `v4.33.0-rc2` toolchain succeeded (8728 jobs). `check_julia_refs.py`: 0
+  offenders out of 792 docstrings.
+
+**Method.** `benchmark/ab.jl --a 9216278 --b 712fd23 --rounds 3` (A B A B A B, separate processes, the invoking
+checkout's harness on both sides), run through the 1b.2 driver. The driver checked the environment before each `ab.jl`
+invocation. It moved a round *pair* with a `NOT settled` clock reference to `benchmark/results/logs/1b.3-retries/<label>/`
+(at most 6 discarded attempts per pair) and then let `ab.jl` resume. Discarded attempts per label: `t1-target` none;
+`t1-regr` 4 (all r1); `t1-ivi` 2 (r1, r3); `t16` 3 (r1 twice, r3). Labels:
+* `1b.3-t1-target`: the target cases, 1 thread.
+* `1b.3-t1-regr`: `imdp-dense-n100-a{1,4}`, plus a sanity sample of unchanged paths (`imdp-sparse-n10000-nnz10-a1`,
+  the real model), 1 thread.
+* `1b.3-t1-ivi`: the IVI solves of the dense n ≥ 1000 IMDPs, 1 thread.
+* `1b.3-t16`: the target cases, 16 threads.
+
+**Environment.**
+* *Session.* 2026-11-03, 19:12–21:06 UTC. Intel Core Ultra 7 255H, Julia 1.13.1.
+* *Power and processes.* `platform_profile` = performance, EPP and governor `performance`, `intel_pstate/no_turbo` = 0,
+  AC online. `/sys/fs/cgroup/cpuset.cpus.isolated` was empty and no other Julia process ran at every pre-invocation
+  check. A 20-second monitor logged 343 samples, all with the performance profile, empty isolation, EPP `performance`
+  and AC online. Besides Julia, the monitor's top processes were desktop processes: `firefox`, in 332 samples, at ≤ 17.9% of
+  one CPU, and `gnome-shell`. A `cuda_inspect_dr` process appeared in 5 samples, each within 30 s after an `ab.jl`
+  invocation started, during the precompilation that precedes the first round.
+* *Pinning.* Compact (ThreadPinning.jl): 1 thread → CPU 0 (P core); 16 threads → CPUs 0–15 (6 P, 8 E, 2 LP-E).
+  `JULIA_EXCLUSIVE` unset.
+* *Load.* The 1-minute `loadavg_at_start` is 0.87–1.26 in the 18 kept 1-thread files and 2.60–7.29 in the 6 kept
+  16-thread files.
+
+**Clock.** The run-start reference (`lib/clock.jl`, median of 9 probes) is 196.5 µs in every kept round file, and it is
+settled (probe range ≤ 2%) in all 24 kept round files. No record of the 264 in these files has `clock_state` =
+deviating (pre-trial `clock_probe_ratio`). The informational post-trial `clock_after_deviation` is not used.
+
+**Results.** The columns are as in § 12.1:
+* A median and B median: pooled medians over the three rounds (`compare.jl`);
+* B/A: candidate / baseline, pooled and per round;
+* MWU p: Mann–Whitney p;
+* verdict: the `compare.jl` verdict;
+* A spread and B spread: (max − min) / min of the three round medians;
+* bytes: steady-state bytes per call.
+
+Summaries: `benchmark/results/logs/ab/<label>/<label>-summary.md` (local). The raw round files are local and not
+committed; their names in the table captions are relative to `benchmark/results/logs/ab/<label>/`.
+
+*CPU, 1 thread, target cases* (`1b.3-t1-target-r{1,2,3}-{A,B}.json`):
+
+| case | entry | A median | B median | B/A | per-round B/A | MWU p | compare.jl verdict | A spread | B spread | bytes A→B (r1..r3) |
+|---|---|---:|---:|---:|---|---:|---|---:|---:|---|
+| `cs-imdp-dense-n1000-a4` | `solve_cs_stationary` | 657.93 ms | 358.32 ms | 0.545 | 0.543, 0.542, 0.547 | 5.1e-09 | speedup | 0.5% | 1.0% | 92792→92792 |
+| `cs-imdp-dense-n1000-a4` | `solve_cs_timevarying` | 84.32 ms | 46.64 ms | 0.553 | 0.553, 0.552, 0.555 | 2e-60 | speedup | 0.3% | 0.9% | 134600→134600 |
+| `imdp-dense-n1000-a1` | `bellman` | 1.56 ms | 606.79 µs | 0.388 | 0.368, 0.393, 0.389 | 0 | speedup | 1.0% | 5.8% | 0→0 |
+| `imdp-dense-n1000-a1` | `solve_rvi` | 127.12 ms | 49.34 ms | 0.388 | 0.371, 0.393, 0.389 | 2.1e-45 | speedup | 1.1% | 4.9% | 40656→40656 |
+| `imdp-dense-n1000-a4` | `bellman` | 8.42 ms | 4.61 ms | 0.548 | 0.549, 0.553, 0.537 | 0 | speedup | 1.0% | 2.4% | 0→0 |
+| `imdp-dense-n1000-a4` | `solve_rvi` | 657.25 ms | 360.52 ms | 0.549 | 0.548, 0.548, 0.548 | 5.1e-09 | speedup | 0.4% | 0.2% | 88688→88688 |
+| `imdp-dense-n4000-a1` | `bellman` | 36.66 ms | 20.99 ms | 0.572 | 0.572, 0.574, 0.571 | 1.5e-202 | speedup | 0.4% | 0.5% | 0→0 |
+| `imdp-dense-n4000-a1` | `solve_rvi` | 2.931 s | 1.685 s | 0.575 | 0.575, 0.576, 0.575 | 3.4e-06 | speedup | 0.4% | 0.3% | 160592→160592 |
+| `imdp-dense-n4000-a4` | `bellman` | 147.13 ms | 84.96 ms | 0.577 | 0.578, 0.578, 0.576 | 1.5e-52 | speedup | 0.1% | 0.1% | 0→0 |
+| `imdp-dense-n4000-a4` | `solve_rvi` | 11.691 s | 6.676 s | 0.571 | 0.571, 0.571, 0.571 | 3.4e-06 | speedup | 0.1% | 0.1% | 352624→352624 |
+| `product-imdp-dense-n1000-a1-dfa4` | `bellman` | 6.21 ms | 2.34 ms | 0.378 | 0.382, 0.379, 0.368 | 0 | speedup | 1.7% | 5.8% | 0→0 |
+| `product-imdp-dense-n1000-a1-dfa4` | `solve_dfa` | 902.23 ms | 340.01 ms | 0.377 | 0.383, 0.379, 0.370 | 2.9e-08 | speedup | 1.2% | 4.7% | 96808→96808 |
+| `product-imdp-dense-n1000-a4-dfa4` | `bellman` | 33.50 ms | 18.14 ms | 0.541 | 0.535, 0.549, 0.540 | 0 | speedup | 1.4% | 1.6% | 0→0 |
+| `product-imdp-dense-n1000-a4-dfa4` | `solve_dfa` | 4.115 s | 2.229 s | 0.542 | 0.539, 0.544, 0.541 | 3.4e-06 | speedup | 0.7% | 0.8% | 144840→144840 |
+
+*CPU, 1 thread, IVI solves of the dense target IMDPs* (`1b.3-t1-ivi-r{1,2,3}-{A,B}.json`):
+
+| case | entry | A median | B median | B/A | per-round B/A | MWU p | compare.jl verdict | A spread | B spread | bytes A→B (r1..r3) |
+|---|---|---:|---:|---:|---|---:|---|---:|---:|---|
+| `imdp-dense-n1000-a1` | `solve_ivi` | 187.89 ms | 72.89 ms | 0.388 | 0.388, 0.389, 0.383 | 2.6e-31 | speedup | 0.5% | 1.5% | 60904→60904 |
+| `imdp-dense-n1000-a4` | `solve_ivi` | 613.36 ms | 327.13 ms | 0.533 | 0.536, 0.531, 0.530 | 7.9e-10 | speedup | 0.6% | 0.7% | 108936→108936 |
+| `imdp-dense-n4000-a1` | `solve_ivi` | 3.957 s | 2.203 s | 0.557 | 0.558, 0.557, 0.556 | 3.4e-06 | speedup | 0.1% | 0.2% | 240808→240808 |
+| `imdp-dense-n4000-a4` | `solve_ivi` | 10.264 s | 5.831 s | 0.568 | 0.569, 0.568, 0.567 | 3.4e-06 | speedup | 0.1% | 0.5% | 432840→432840 |
+
+*CPU, 1 thread, regression cases* (`1b.3-t1-regr-r{1,2,3}-{A,B}.json`):
+
+| case | entry | A median | B median | B/A | per-round B/A | MWU p | compare.jl verdict | A spread | B spread | bytes A→B (r1..r3) |
+|---|---|---:|---:|---:|---|---:|---|---:|---:|---|
+| `imdp-dense-n100-a1` | `bellman` | 15.77 µs | 5.03 µs | 0.319 | 0.318, 0.319, 0.319 | 0 | speedup | 0.6% | 0.5% | 0→0 |
+| `imdp-dense-n100-a1` | `solve_ivi` | 1.91 ms | 647.47 µs | 0.339 | 0.340, 0.340, 0.339 | 0 | speedup | 0.3% | 0.6% | 7168→7168 |
+| `imdp-dense-n100-a1` | `solve_rvi` | 1.32 ms | 423.22 µs | 0.322 | 0.321, 0.322, 0.322 | 0 | speedup | 0.3% | 0.4% | 4832→4832 |
+| `imdp-dense-n100-a4` | `bellman` | 62.41 µs | 19.22 µs | 0.308 | 0.308, 0.302, 0.340 | 0 | speedup | 0.1% | 12.8% | 0→0 |
+| `imdp-dense-n100-a4` | `solve_ivi` | 4.97 ms | 1.71 ms | 0.343 | 0.343, 0.343, 0.344 | 0 | speedup | 0.1% | 0.3% | 11888→11888 |
+| `imdp-dense-n100-a4` | `solve_rvi` | 4.50 ms | 1.39 ms | 0.310 | 0.309, 0.309, 0.310 | 0 | speedup | 0.2% | 0.1% | 9552→9552 |
+| `imdp-sparse-n10000-nnz10-a1` | `bellman` | 1.16 ms | 1.17 ms | 1.013 | 0.990, 1.002, 1.029 | 4.9e-67 | no change | 0.8% | 3.4% | 0→0 |
+| `imdp-sparse-n10000-nnz10-a1` | `solve_ivi` | 152.60 ms | 149.44 ms | 0.979 | 0.964, 0.999, 0.991 | 0.00059 | no change | 2.0% | 2.8% | 521112→521112 |
+| `imdp-sparse-n10000-nnz10-a1` | `solve_rvi` | 116.38 ms | 117.25 ms | 1.007 | 1.020, 1.002, 1.024 | 0.71 | no change | 3.3% | 1.4% | 320896→320896 |
+| `real-multiObj_robotIMDP` | `bellman` | 14.13 µs | 14.03 µs | 0.992 | 0.988, 1.007, 0.989 | 3.1e-15 | no change | 1.5% | 1.2% | 0→0 |
+| `real-multiObj_robotIMDP` | `solve_cs_stationary` | 1.11 ms | 1.11 ms | 1.001 | 1.001, 0.997, 1.003 | 0.41 | no change | 0.4% | 0.9% | 18512→18512 |
+| `real-multiObj_robotIMDP` | `solve_rvi` | 1.21 ms | 1.21 ms | 0.999 | 1.004, 0.998, 0.995 | 0.021 | no change | 1.1% | 0.1% | 17584→17584 |
+
+*CPU, 16 threads, target cases* (`1b.3-t16-r{1,2,3}-{A,B}.json`):
+
+| case | entry | A median | B median | B/A | per-round B/A | MWU p | compare.jl verdict | A spread | B spread | bytes A→B (r1..r3) |
+|---|---|---:|---:|---:|---|---:|---|---:|---:|---|
+| `cs-imdp-dense-n1000-a4` | `solve_cs_stationary` | 202.50 ms | 138.27 ms | 0.683 | 0.641, 0.696, 0.690 | 1.4e-24 | speedup | 8.0% | 1.8% | 668856→668856 |
+| `cs-imdp-dense-n1000-a4` | `solve_cs_timevarying` | 26.76 ms | 18.11 ms | 0.677 | 0.645, 0.687, 0.683 | 2.8e-169 | speedup | 6.9% | 0.8% | 210184→210184 |
+| `imdp-dense-n1000-a1` | `bellman` | 926.21 µs | 451.87 µs | 0.488 | 0.486, 0.491, 0.486 | 0 | speedup | 1.2% | 2.1% | 7104→7104 |
+| `imdp-dense-n1000-a1` | `solve_rvi` | 76.70 ms | 47.30 ms | 0.617 | 0.613, 0.626, 0.613 | 2e-65 | speedup | 1.4% | 1.3% | 617584→617584 |
+| `imdp-dense-n1000-a4` | `bellman` | 2.50 ms | 1.69 ms | 0.676 | 0.688, 0.675, 0.668 | 0 | speedup | 1.6% | 1.6% | 7104→7104 |
+| `imdp-dense-n1000-a4` | `solve_rvi` | 202.26 ms | 140.31 ms | 0.694 | 0.704, 0.702, 0.676 | 2.9e-25 | speedup | 3.5% | 1.9% | 644784→644784 |
+| `imdp-dense-n4000-a1` | `bellman` | 11.09 ms | 6.79 ms | 0.613 | 0.617, 0.616, 0.608 | 0 | speedup | 0.6% | 2.0% | 7104→7104 |
+| `imdp-dense-n4000-a1` | `solve_rvi` | 891.02 ms | 538.49 ms | 0.604 | 0.615, 0.609, 0.600 | 3.6e-07 | speedup | 0.3% | 2.5% | 730416→730416 |
+| `imdp-dense-n4000-a4` | `bellman` | 40.89 ms | 25.85 ms | 0.632 | 0.621, 0.630, 0.641 | 1.6e-175 | speedup | 3.2% | 0.2% | 7104→7104 |
+| `imdp-dense-n4000-a4` | `solve_rvi` | 3.186 s | 2.017 s | 0.633 | 0.615, 0.636, 0.633 | 3.4e-06 | speedup | 4.0% | 1.0% | 915824→915824 |
+| `product-imdp-dense-n1000-a1-dfa4` | `bellman` | 3.89 ms | 2.13 ms | 0.547 | 0.544, 0.534, 0.565 | 0 | speedup | 3.6% | 2.1% | 30464→30464 |
+| `product-imdp-dense-n1000-a1-dfa4` | `solve_dfa` | 524.04 ms | 307.43 ms | 0.587 | 0.594, 0.578, 0.585 | 8.3e-11 | speedup | 1.3% | 3.0% | 4485112→4485112 |
+| `product-imdp-dense-n1000-a4-dfa4` | `bellman` | 10.09 ms | 6.92 ms | 0.686 | 0.706, 0.684, 0.671 | 0 | speedup | 0.8% | 4.3% | 30464→30464 |
+| `product-imdp-dense-n1000-a4-dfa4` | `solve_dfa` | 1.245 s | 860.74 ms | 0.691 | 0.697, 0.698, 0.686 | 3.4e-06 | speedup | 1.1% | 1.6% | 3985272→3985272 |
+
+**Allocations.** Steady-state `bellman!` bytes are unchanged on every measured entry:
+* 1 thread: 0 → 0.
+* 16 threads: 7104 → 7104 (dense IMDP) and 30 464 → 30 464 (dense product).
+* Solve entries: allocate the same on both sides.
+
+A 4-thread `@allocated` check once showed 1824 vs 1936 bytes for `imdp-dense-n4000-a4`. That was a warm-up artefact of
+the minimum-of-5 measurement taken after 2 warm-up calls: it appeared on the B side on 2026-10-28 and on the A side on
+2026-11-03. Over 200 calls after 5 warm-ups, the minimum and median are 1824 bytes per call on both refs for every dense
+IMDP case, and 7808 bytes for every dense product case. Occasional 1936–2016-byte calls appear on both refs (scheduler
+noise), so H6 changes nothing.
+
+**Evidence check (Phase 1 rule, § 10.1).**
+* *1 thread (target, IVI, regression).* Every round settled and every A-side spread ≤ 5%. Every dense entry is a
+  speedup, with B/A ≤ 0.95 in each round.
+* *16 threads.* Every round settled. The A-side spread is above 5% for `cs-imdp-dense-n1000-a4`/`solve_cs_stationary`
+  (8.0%) and `/solve_cs_timevarying` (6.9%), so those two entries are not evidence; their per-round B/A are 0.641–0.696.
+  The other 12 entries have A-side spread ≤ 5% and are speedups.
+
+**Verdict: accepted.** At 1 thread H6 is a speedup on every target entry: B/A 0.377–0.577, i.e. 1.73–2.65×. The
+prediction was 1.3–2× for n ≥ 1000. `imdp-dense-n1000-a1` and `product-imdp-dense-n1000-a1-dfa4` (B/A
+0.377–0.388) exceed it. The IVI solves are at B/A
+0.388–0.568, and the n = 100 cases, where small-n blocking overhead was the risk, at B/A 0.308–0.343. At 16 threads
+the target entries are at B/A 0.488–0.694, a smaller gain, as predicted. No measured entry regresses: the sparse and
+real-model sanity entries are "no change" (B/A 0.979–1.013). No `T-` Finding.
+
+**Proof scope and limitations.** No VI/Bellman semantics changed, so no new theorem is needed. The Lean
+results (`omax_eq_sSup`, `omax_eq_sInf`, …) are about the sequential loop transcribed as `gapValue`. That
+`blocked_gap_value` equals that loop in exact arithmetic is argued in the code comment and checked by the tests (exactly
+for `Rational{BigInt}`), but it is not proved in Lean. The Lean docstrings and README now say so. Floating-point
+reassociation (the `@simd` block sums) changes results by at most 2.33e-15 on the measured cases.
+
+**Findings (1b.3).** None (`S-`, `I-`, `T-`, `B-`). Values are within the tolerances, iteration counts and strategies
+are identical, and the changed names (`state_action_bellman`, the new `blocked_gap_value` and
+`DENSE_GAP_BLOCK_SIZE`) are internal (tier 3). No tier-1 or tier-2 interface changed. *Observation:* the line numbers
+cited for the sparse `gap_value(Vp, budget)` in `OMax.lean` ("lines 536–571", "555–571") were already stale on `9216278`
+(the function was at line 593) and are not changed here.
